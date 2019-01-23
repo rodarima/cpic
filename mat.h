@@ -22,3 +22,6 @@ do {							\
 
 mat_t *
 mat_alloc(int dim, int *shape);
+
+mat_t *
+mat_init(int dim, int *shape, float v);

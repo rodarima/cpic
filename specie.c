@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 specie_t *
-specie_alloc(int dim, int *shape, int nfields, int nparticles)
+specie_alloc(int dim, int *shape, int nparticles)
 {
 	specie_t *s;
 
@@ -15,9 +15,9 @@ specie_alloc(int dim, int *shape, int nfields, int nparticles)
 
 	s->particles = malloc(nparticles * sizeof(particle_t));
 
-	s->E = mat_alloc(dim, shape);
-	s->B = mat_alloc(dim, shape);
-	s->J = mat_alloc(dim, shape);
+	s->E = mat_init(dim, shape, 0.0);
+	s->B = mat_init(dim, shape, 0.0);
+	s->J = mat_init(dim, shape, 0.0);
 
 	return s;
 }
@@ -47,8 +47,8 @@ particles_init(specie_t *s)
 		p = &s->particles[i];
 		p->x = ((float) i / (float) s->nparticles) * s->E->size;
 		p->u = (i % 2) - 0.5;
-		p->q = 1.0;
-		p->m = 1.0;
+		p->E = 0.0;
+		p->J = 0.0;
 	}
 }
 
@@ -61,7 +61,11 @@ specie_init()
 	int nfields = 1;
 	int nparticles = 3;
 
-	s = specie_alloc(dim, shape, nfields, nparticles);
+	s = specie_alloc(dim, shape, nparticles);
+
+	s->dt = 0.1;
+	s->q = 1.0;
+	s->m = 1.0;
 
 	particles_init(s);
 
@@ -80,8 +84,8 @@ specie_print(specie_t *s)
 	for(i = 0; i < s->nparticles; i++)
 	{
 		p = &s->particles[i];
-		printf("Particle %d is at x=%.3f, with speed u=%.3f\n",
-			i, p->x, p->u);
+		printf("Particle %3d: x=%10.3e  u=%10.3e  E=%10.3e  J=%10.3e\n",
+			i, p->x, p->u, p->E, p->J);
 	}
 
 	return 0;
