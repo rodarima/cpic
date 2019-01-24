@@ -18,6 +18,7 @@ specie_alloc(int dim, int *shape, int nparticles)
 	s->E = mat_init(dim, shape, 0.0);
 	s->B = mat_init(dim, shape, 0.0);
 	s->J = mat_init(dim, shape, 0.0);
+	s->rho = mat_init(dim, shape, 0.0);
 
 	return s;
 }
@@ -45,8 +46,8 @@ particles_init(specie_t *s)
 	for(i = 0; i < s->nparticles; i++)
 	{
 		p = &s->particles[i];
-		p->x = ((float) i / (float) s->nparticles) * s->E->size;
-		p->u = (i % 2) - 0.5;
+		p->x = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
+		p->u = ((i % 2) - 0.5) * 3e6; /* m/s */
 		p->E = 0.0;
 		p->J = 0.0;
 	}
@@ -59,13 +60,16 @@ specie_init()
 	int dim = 1;
 	int shape[] = {10};
 	int nfields = 1;
-	int nparticles = 3;
+	int nparticles = 30;
 
 	s = specie_alloc(dim, shape, nparticles);
 
-	s->dt = 0.1;
-	s->q = 1.0;
-	s->m = 1.0;
+	s->C = 2.99792458e+8;
+	s->dt = 1.0e-30;
+	s->dx = 1.0e-20;
+	s->q = -1.60217662e-19; /* The charge of an electron in coulombs */
+	s->m = 9.10938356e-31; /* The electron mass */
+	s->e0 = 8.85e-12; /* Vacuum permittivity */
 
 	particles_init(s);
 

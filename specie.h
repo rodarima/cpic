@@ -33,8 +33,20 @@ typedef struct
 	mat_t *B;
 	mat_t *J;
 
-	/* Time step */
+	/* Density of charge */
+	mat_t *rho;
+
+	/* Time step in seconds*/
 	float dt;
+
+	/* Spacial step in meters */
+	float dx;
+
+	/* Speed of light in meters/second */
+	float C;
+
+	/* Vacuum permittivity in Farad/meter (F/m) */
+	float e0;
 
 	/* Particles */
 	int nparticles;

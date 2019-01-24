@@ -2,32 +2,105 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
+
+/* The density of charge is computed from the distribution of particles around
+ * each node. The interpolation function used is simply the nearest neigbour */
+int
+particle_rho(specie_t *s)
+{
+	int i, j;
+	float *E = s->E->data;
+	particle_t *p;
+	int size = s->E->size;
+
+	/* Erase previous charge density */
+	memset(s->E->data, 0, sizeof(float) * s->E->size);
+
+	for(i = 0; i < s->nparticles; i++)
+	{
+		p = &(s->particles[i]);
+		/* By now simply use nearest neighbour */
+
+		j = (int) floor(p->x / s->dx);
+		while(j < 0) j+=size;
+		while(j >= size) j-=size;
+		E[j] += s->q;
+		printf("Particle %d updates E[%d]=%10.3e\n", i, j, E[j]);
+	}
+}
 
 int
-interpolate_fields(specie_t *s)
+field_E(specie_t *s)
+{
+	int i;
+	float *E = s->E->data;
+	float *J = s->J->data;
+	int size = s->E->size;
+	float dt = s->dt;
+	float e0 = s->e0;
+	float coef = -dt/e0;
+
+	/* Erase previous current */
+	memset(E, 0, sizeof(float) * size);
+
+	for(i = 0; i < size; i++)
+	{
+		E[i] += coef * J[i];
+		printf("Current updates E[%d]=%10.3e\n", i, E[i]);
+	}
+}
+
+/* The field J is updated based on the electric current computed on each
+ * particle p, by using an interpolation function */
+int
+field_J(specie_t *s)
+{
+	particle_t *p;
+	int i, j;
+	float *J = s->J->data;
+	int size = s->J->size;
+
+	/* Erase previous current */
+	memset(s->J->data, 0, sizeof(float) * size);
+
+	for(i = 0; i < s->nparticles; i++)
+	{
+		p = &(s->particles[i]);
+		/* By now simply use nearest neighbour */
+
+		j = (int) floor(p->x / s->dx);
+		while(j < 0) j+=size;
+		while(j >= size) j-=size;
+		J[j] += p->J;
+		printf("Particle %d updates J[%d]=%10.3e\n", i, j, J[j]);
+	}
+}
+int
+particle_E(specie_t *s)
 {
 	int i, j, size;
+	float *E = s->E->data;
 	particle_t *p;
 
 	size = s->E->size;
-	printf("E field size is %d\n", size);
 
 	for (i = 0; i < s->nparticles; i++)
 	{
 		p = &(s->particles[i]);
 		/* By now simply use nearest neighbour */
 
-		j = (int) floor(p->x/* / dx*/);
-		j = j < 0 ? j + size : j;
-		j = (j % size);
-		printf("Particle %d nearest node is at %d\n", i, j);
-		p->E = s->E->data[j];
+		j = (int) floor(p->x / s->dx);
+		while(j < 0) j+=size;
+		while(j >= size) j-=size;
+		p->E = E[j] * s->dx;
+		printf("Field %d updates particle %d E=%10.3e\n", j, i, E[j]);
 	}
 	return 0;
 }
 
 int
-update_speed(specie_t *s)
+particle_u(specie_t *s)
 {
 	int i;
 	particle_t *p;
@@ -43,7 +116,7 @@ update_speed(specie_t *s)
 }
 
 int
-update_position(specie_t *s)
+particle_x(specie_t *s)
 {
 	int i;
 	particle_t *p;
@@ -58,8 +131,10 @@ update_position(specie_t *s)
 	return 0;
 }
 
+/* At each particle p, the current J_p is computed based on the charge and speed
+ */
 int
-update_currents(specie_t *s)
+particle_J(specie_t *s)
 {
 	int i;
 	particle_t *p;
@@ -90,13 +165,25 @@ main()
 
 	specie_print(s);
 
-	moments(s);
+	particle_J(s);
+	field_J(s);
+
 	for(i = 0; i < max_it; i++)
 	{
-		interpolate_fields(s);
-		update_speed(s);
-		update_position(s);
-		update_currents(s);
+		printf("------ Begin iteration i=%d ------\n", i);
+		/* Line 6: Update E on the grid, eq 5 */
+		field_E(s);
+		/* Line 7: Interpolate E on each particle, eq 8 */
+		particle_E(s);
+		/* Line 8: Update the speed on each particle, eq 6 */
+		particle_u(s);
+		/* Line 9: Update the position on each particle, eq 7 */
+		particle_x(s);
+		/* Line 10: Update the current field on grid, algorithm 3 */
+		particle_J(s);
+		field_J(s);
+
+		/* Print the status */
 		specie_print(s);
 	}
 
