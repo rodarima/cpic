@@ -69,7 +69,7 @@ typedef struct _starRec {
 } starRec;
 
 GLenum doubleBuffer;
-GLint windW = 300, windH = 300;
+GLint windW = 500, windH = 500;
 
 GLenum flag = NORMAL;
 GLint starCount = MAXSTARS / 2;
@@ -82,6 +82,7 @@ particle_t *particles;
 int nparticles;
 int shape;
 float dx, dt;
+int play = 0;
 
 float
 Sin(float angle)
@@ -287,8 +288,8 @@ Key(unsigned char key, int x, int y)
 	case ' ':
 		flag = (flag == NORMAL) ? WEIRD : NORMAL;
 		break;
-	case 't':
-		nitro = 1;
+	case 'p':
+		play = !play;
 		break;
 	case 'q':
 	case 27:
@@ -303,18 +304,24 @@ Idle(void)
 	int i, j, ret;
 	particle_t *p;
 
+	if(!play)
+	{
+		glutPostRedisplay();
+		return;
+	}
+
 	for(i = 0; i < nparticles; i++)
 	{
 		p = &particles[i];
-		ret = scanf(" %f %d %f %f %f %f",
-				&t, &j, &p->x, &p->u, &p->E, &p->J);
+		ret = scanf("%d %f %f",
+				&j, &p->x, &p->u);
 		if(ret == EOF)
 		{
 			printf("EOF reached\n");
 			exit(0);
 		}
 
-		if((ret != 6) || (j != i))
+		if((ret != 3) || (j != i))
 		{
 			printf("ret=%d i=%d j=%d, exitting\n", ret, i, j);
 			exit(1);
@@ -325,28 +332,33 @@ Idle(void)
 }
 
 static void
-plot_particle(particle_t *p)
+plot_particle(int i, particle_t *p)
 {
 
 	float x, y;
 	float x1, y1, width;
-	GLint i;
 
 	x = (p->x / (dx * shape)) * windW;
 	y = (p->u / (4.0 * 3e8)) * windH;
 	//x += windW / 2.0;
 	y += windH / 2.0;
 
-	if (!(x >= 0.0 && x < windW && y >= 0.0 && y < windH))
-	{
-		printf("Particle out of bounds x=%f(%d) y=%f(%d)\n",
-				x, windW, y, windH);
-	}
+//	if (!(x >= 0.0 && x < windW && y >= 0.0 && y < windH))
+//	{
+//		printf("Particle out of bounds x=%f(%d) y=%f(%d)\n",
+//				x, windW, y, windH);
+//	}
 
 	glLineWidth(1.0);
-	glColor3f(1.0, 1.0, 1.0);
+	if(i % 2)
+		glColor3f(1.0, 0.3, 0.3);
+	else
+		glColor3f(0.3, 1.0, 0.3);
 	glBegin(GL_POINTS);
 	glVertex2f(x, y);
+	glVertex2f(x, y+1);
+	glVertex2f(x+1, y);
+	glVertex2f(x+1, y+1);
 	glEnd();
 }
 
@@ -355,18 +367,19 @@ static void
 plot_particles()
 {
 	int i;
+	glClear(GL_COLOR_BUFFER_BIT);
 
 	for(i=0; i<nparticles; i++)
 	{
-		plot_particle(&particles[i]);
+		plot_particle(i, &particles[i]);
 	}
 }
 
 void
 Display(void)
 {
-	ShowStars();
 	plot_particles();
+
 	if (doubleBuffer) {
 		glutSwapBuffers();
 	} else {
@@ -395,7 +408,8 @@ main(int argc, char **argv)
 	type = GLUT_RGB;
 	type |= (doubleBuffer) ? GLUT_DOUBLE : GLUT_SINGLE;
 	glutInitDisplayMode(type);
-	glutCreateWindow("Stars");
+	glutCreateWindow("two streams");
+	//glutFullScreen();
 
 	Init();
 

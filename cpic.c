@@ -134,6 +134,7 @@ particle_x(specie_t *s)
 
 	float dt = s->dt;
 	float incr;
+	float max_x = s->dx * s->E->size;
 
 	for (i = 0; i < s->nparticles; i++)
 	{
@@ -146,6 +147,8 @@ particle_x(specie_t *s)
 			exit(1);
 		}
 		p->x += incr;
+		if(p->x > max_x)
+			p->x -= max_x;
 	}
 	return 0;
 }

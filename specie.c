@@ -48,7 +48,9 @@ particles_init(specie_t *s)
 		p = &s->particles[i];
 		//p->x = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
 		p->x = ((float) rand() / RAND_MAX) * s->E->size * s->dx;
+		//p->x = s->E->size * s->dx / 2.0;
 		p->u = ((i % 2) - 0.5) * s->C; /* m/s */
+		//p->u = 0.5 * s->C; /* m/s */
 		p->E = 0.0;
 		p->J = 0.0;
 	}
@@ -59,9 +61,9 @@ specie_init()
 {
 	specie_t *s;
 	int dim = 1;
-	int shape[] = {100};
+	int shape[] = {20};
 	int nfields = 1;
-	int nparticles = 100;
+	int nparticles = 300;
 
 	s = specie_alloc(dim, shape, nparticles);
 
@@ -99,8 +101,9 @@ specie_print(specie_t *s)
 	for(i = 0; i < s->nparticles; i++)
 	{
 		p = &s->particles[i];
-		printf("%10.3e %d %10.3e %10.3e %10.3e %10.3e\n",
-			s->t, i, p->x, p->u, p->E, p->J);
+		//printf("%10.3e %d %10.3e %10.3e %10.3e %10.3e\n",
+		//	s->t, i, p->x, p->u, p->E, p->J);
+		printf("%d %10.3e %10.3e\n", i, p->x, p->u);
 	}
 
 	return 0;
