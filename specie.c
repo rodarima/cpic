@@ -59,22 +59,32 @@ specie_init()
 {
 	specie_t *s;
 	int dim = 1;
-	int shape[] = {10};
+	int shape[] = {100};
 	int nfields = 1;
-	int nparticles = 25;
+	int nparticles = 100;
 
 	s = specie_alloc(dim, shape, nparticles);
 
 	s->C = 2.99792458e+8;
-	s->dt = 1.0e-7;
-	s->dx = 1.0e+5;
+	s->dt = 1.0e-8;
+	s->t = 0.0;
+	s->dx = 1.0e+2;
 	s->q = -1.60217662e-19; /* The charge of an electron in coulombs */
 	s->m = 9.10938356e-31; /* The electron mass */
 	s->e0 = 8.85e-12; /* Vacuum permittivity */
 
+	printf("%d %d %10.e %10.e\n",
+			nparticles, shape[0], s->dx, s->dt);
+
 	particles_init(s);
 
 	return s;
+}
+
+void
+specie_step(specie_t *s)
+{
+	s->t += s->dt;
 }
 
 int
@@ -83,14 +93,14 @@ specie_print(specie_t *s)
 	int i;
 	particle_t *p;
 
-	printf("The specie %p has %d dimensions with %d particles\n",
-		s, s->dim, s->nparticles);
+	//printf("The specie %p has %d dimensions with %d particles\n",
+	//	s, s->dim, s->nparticles);
 
 	for(i = 0; i < s->nparticles; i++)
 	{
 		p = &s->particles[i];
-		printf("Particle %3d: x=%10.3e  u=%10.3e  E=%10.3e  J=%10.3e\n",
-			i, p->x, p->u, p->E, p->J);
+		printf("%10.3e %d %10.3e %10.3e %10.3e %10.3e\n",
+			s->t, i, p->x, p->u, p->E, p->J);
 	}
 
 	return 0;

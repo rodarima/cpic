@@ -39,6 +39,9 @@ typedef struct
 	/* Time step in seconds*/
 	float dt;
 
+	/* The current simulation time in seconds */
+	float t;
+
 	/* Spacial step in meters */
 	float dx;
 
@@ -59,3 +62,5 @@ specie_init();
 int
 specie_print(specie_t *s);
 
+void
+specie_step(specie_t *s);

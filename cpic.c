@@ -5,6 +5,16 @@
 #include <string.h>
 #include <stdlib.h>
 
+#define DEBUG 0
+
+#if DEBUG
+#define dbg(...) fprintf(stderr, __VA_ARGS__);
+#else
+#define dbg(...)
+#endif
+
+#define err(...) fprintf(stderr, __VA_ARGS__);
+
 /* The density of charge is computed from the distribution of particles around
  * each node. The interpolation function used is simply the nearest neigbour */
 int
@@ -27,7 +37,7 @@ particle_rho(specie_t *s)
 		while(j < 0) j+=size;
 		while(j >= size) j-=size;
 		E[j] += s->q;
-		printf("Particle %d updates E[%d]=%10.3e\n", i, j, E[j]);
+		dbg("Particle %d updates E[%d]=%10.3e\n", i, j, E[j]);
 	}
 }
 
@@ -45,7 +55,7 @@ field_E(specie_t *s)
 	for(i = 0; i < size; i++)
 	{
 		E[i] += coef * J[i];
-		printf("Current updates E[%d]=%10.3e\n", i, E[i]);
+		dbg("Current updates E[%d]=%10.3e\n", i, E[i]);
 	}
 }
 
@@ -71,7 +81,7 @@ field_J(specie_t *s)
 		while(j < 0) j+=size;
 		while(j >= size) j-=size;
 		J[j] += p->J;
-		printf("Particle %d updates J[%d]=%10.3e\n", i, j, J[j]);
+		dbg("Particle %d updates J[%d]=%10.3e\n", i, j, J[j]);
 	}
 }
 int
@@ -92,7 +102,7 @@ particle_E(specie_t *s)
 		while(j < 0) j+=size;
 		while(j >= size) j-=size;
 		p->E = E[j];
-		printf("Field %d updates particle %d E=%10.3e\n", j, i, E[j]);
+		dbg("Field %d updates particle %d E=%10.3e\n", j, i, E[j]);
 	}
 	return 0;
 }
@@ -110,7 +120,7 @@ particle_u(specie_t *s)
 	{
 		p = &(s->particles[i]);
 		incr = dt * s->q * p->E / s->m;
-		printf("Particle %d increases speed by %10.3e\n", i, incr);
+		dbg("Particle %d increases speed by %10.3e\n", i, incr);
 		p->u += incr;
 	}
 	return 0;
@@ -131,9 +141,9 @@ particle_x(specie_t *s)
 		incr = dt * p->u;
 		if(fabs(incr) > s->dx)
 		{
-			printf("Particle %d has exceeded dx with x+=%10.3e\n", i, incr);
-			printf("Please, reduce dx\n");
-			abort();
+			err("Particle %d has exceeded dx with x+=%10.3e\n", i, incr);
+			err("Please, reduce dt or increase dx\n");
+			exit(1);
 		}
 		p->x += incr;
 	}
@@ -177,9 +187,10 @@ main()
 	particle_J(s);
 	field_J(s);
 
-	for(i = 0; i < max_it; i++)
+	//for(i = 0; i < max_it; i++)
+	while(1)
 	{
-		printf("------ Begin iteration i=%d ------\n", i);
+		dbg("------ Begin iteration i=%d ------\n", i);
 
 
 		/* Phase CP:FS. Field solver, calculation of the electric field
@@ -213,6 +224,8 @@ main()
 
 		/* Print the status */
 		specie_print(s);
+
+		specie_step(s);
 	}
 
 }
