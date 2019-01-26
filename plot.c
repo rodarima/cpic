@@ -47,208 +47,15 @@
 
 #include "specie.h"
 
-enum {
-	NORMAL = 0,
-	WEIRD = 1
-};
-
-enum {
-	STREAK = 0,
-	CIRCLE = 1
-};
-
-#define MAXSTARS 4000
-#define MAXPOS 10000
-#define MAXWARP 10
-#define MAXANGLES 6000
-
-typedef struct _starRec {
-	GLint type;
-	float x[2], y[2], z[2];
-	float offsetX, offsetY, offsetR, rotation;
-} starRec;
-
 GLenum doubleBuffer;
 GLint windW = 500, windH = 500;
 
-GLenum flag = NORMAL;
-GLint starCount = MAXSTARS / 2;
-float speed = 1.0;
-GLint nitro = 0;
-starRec stars[MAXSTARS];
-float sinTable[MAXANGLES];
-
-particle_t *particles;
+particle_t *particles0;
+particle_t *particles1;
 int nparticles;
 int shape;
 float dx, dt;
-int play = 0;
-
-float
-Sin(float angle)
-{
-	return (sinTable[(GLint) angle]);
-}
-
-float
-Cos(float angle)
-{
-	return (sinTable[((GLint) angle + (MAXANGLES / 4)) % MAXANGLES]);
-}
-
-void
-NewStar(GLint n, GLint d)
-{
-	if (rand() % 4 == 0) {
-		stars[n].type = CIRCLE;
-	} else {
-		stars[n].type = STREAK;
-	}
-	stars[n].x[0] = (float) (rand() % MAXPOS - MAXPOS / 2);
-	stars[n].y[0] = (float) (rand() % MAXPOS - MAXPOS / 2);
-	stars[n].z[0] = (float) (rand() % MAXPOS + d);
-	stars[n].x[1] = stars[n].x[0];
-	stars[n].y[1] = stars[n].y[0];
-	stars[n].z[1] = stars[n].z[0];
-	if (rand() % 4 == 0 && flag == WEIRD) {
-		stars[n].offsetX = (float) (rand() % 100 - 100 / 2);
-		stars[n].offsetY = (float) (rand() % 100 - 100 / 2);
-		stars[n].offsetR = (float) (rand() % 25 - 25 / 2);
-	} else {
-		stars[n].offsetX = 0.0;
-		stars[n].offsetY = 0.0;
-		stars[n].offsetR = 0.0;
-	}
-}
-
-void
-RotatePoint(float *x, float *y, float rotation)
-{
-	float tmpX, tmpY;
-
-	tmpX = *x * Cos(rotation) - *y * Sin(rotation);
-	tmpY = *y * Cos(rotation) + *x * Sin(rotation);
-	*x = tmpX;
-	*y = tmpY;
-}
-
-void
-MoveStars(void)
-{
-	float offset;
-	GLint n;
-
-	offset = speed * 60.0;
-
-	for (n = 0; n < starCount; n++) {
-		stars[n].x[1] = stars[n].x[0];
-		stars[n].y[1] = stars[n].y[0];
-		stars[n].z[1] = stars[n].z[0];
-		stars[n].x[0] += stars[n].offsetX;
-		stars[n].y[0] += stars[n].offsetY;
-		stars[n].z[0] -= offset;
-		stars[n].rotation += stars[n].offsetR;
-		if (stars[n].rotation > MAXANGLES) {
-			stars[n].rotation = 0.0;
-		}
-	}
-}
-
-GLenum
-StarPoint(GLint n)
-{
-	float x0, y0;
-
-	x0 = stars[n].x[0] * windW / stars[n].z[0];
-	y0 = stars[n].y[0] * windH / stars[n].z[0];
-	RotatePoint(&x0, &y0, stars[n].rotation);
-	x0 += windW / 2.0;
-	y0 += windH / 2.0;
-
-	if (x0 >= 0.0 && x0 < windW && y0 >= 0.0 && y0 < windH) {
-		return GL_TRUE;
-	} else {
-		return GL_FALSE;
-	}
-}
-
-void
-ShowStar(GLint n)
-{
-	float x0, y0, x1, y1, width;
-	GLint i;
-
-	x0 = stars[n].x[0] * windW / stars[n].z[0];
-	y0 = stars[n].y[0] * windH / stars[n].z[0];
-	RotatePoint(&x0, &y0, stars[n].rotation);
-	x0 += windW / 2.0;
-	y0 += windH / 2.0;
-
-	if (x0 >= 0.0 && x0 < windW && y0 >= 0.0 && y0 < windH) {
-		if (stars[n].type == STREAK) {
-			x1 = stars[n].x[1] * windW / stars[n].z[1];
-			y1 = stars[n].y[1] * windH / stars[n].z[1];
-			RotatePoint(&x1, &y1, stars[n].rotation);
-			x1 += windW / 2.0;
-			y1 += windH / 2.0;
-
-			glLineWidth(MAXPOS / 100.0 / stars[n].z[0] + 1.0);
-			glColor3f(1.0, (MAXWARP - speed) / MAXWARP, (MAXWARP - speed) / MAXWARP);
-			if (fabs(x0 - x1) < 1.0 && fabs(y0 - y1) < 1.0) {
-				glBegin(GL_POINTS);
-				glVertex2f(x0, y0);
-				glEnd();
-			} else {
-				glBegin(GL_LINES);
-				glVertex2f(x0, y0);
-				glVertex2f(x1, y1);
-				glEnd();
-			}
-		} else {
-			width = MAXPOS / 10.0 / stars[n].z[0] + 1.0;
-			glColor3f(1.0, 0.0, 0.0);
-			glBegin(GL_POLYGON);
-			for (i = 0; i < 8; i++) {
-				float x = x0 + width * Cos((float) i * MAXANGLES / 8.0);
-				float y = y0 + width * Sin((float) i * MAXANGLES / 8.0);
-				glVertex2f(x, y);
-			};
-			glEnd();
-		}
-	}
-}
-
-void
-UpdateStars(void)
-{
-	GLint n;
-
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	for (n = 0; n < starCount; n++) {
-		if (stars[n].z[0] > speed || (stars[n].z[0] > 0.0 && speed < MAXWARP)) {
-			if (StarPoint(n) == GL_FALSE) {
-				NewStar(n, MAXPOS);
-			}
-		} else {
-			NewStar(n, MAXPOS);
-		}
-	}
-}
-
-void
-ShowStars(void)
-{
-	GLint n;
-
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	for (n = 0; n < starCount; n++) {
-		if (stars[n].z[0] > speed || (stars[n].z[0] > 0.0 && speed < MAXWARP)) {
-			ShowStar(n);
-		}
-	}
-}
+int play = 1;
 
 static void
 Init(void)
@@ -259,7 +66,8 @@ Init(void)
 	scanf("%d %d %f %f", &nparticles, &shape, &dx, &dt);
 	printf("Number of particles=%d, shape=%d\n", nparticles, shape);
 
-	particles = calloc(sizeof(particle_t), nparticles);
+	particles0 = calloc(sizeof(particle_t), nparticles);
+	particles1 = calloc(sizeof(particle_t), nparticles);
 
 	glClearColor(0.0, 0.0, 0.0, 0.0);
 
@@ -285,9 +93,6 @@ static void
 Key(unsigned char key, int x, int y)
 {
 	switch (key) {
-	case ' ':
-		flag = (flag == NORMAL) ? WEIRD : NORMAL;
-		break;
 	case 'p':
 		play = !play;
 		break;
@@ -312,7 +117,7 @@ Idle(void)
 
 	for(i = 0; i < nparticles; i++)
 	{
-		p = &particles[i];
+		p = &particles0[i];
 		ret = scanf("%d %f %f",
 				&j, &p->x, &p->u);
 		if(ret == EOF)
@@ -332,16 +137,29 @@ Idle(void)
 }
 
 static void
-plot_particle(int i, particle_t *p)
+plot_particle(int i)
 {
+	particle_t *p0 = &particles0[i];
+	particle_t *p1 = &particles1[i];
 
-	float x, y;
+	float x0, y0;
 	float x1, y1, width;
 
-	x = (p->x / (dx * shape)) * windW;
-	y = (p->u / (4.0 * 3e8)) * windH;
-	//x += windW / 2.0;
-	y += windH / 2.0;
+	x0 = (p0->x / (dx * shape)) * windW;
+	y0 = (p0->u / (4.0 * 3e8)) * windH;
+	//y0 = ((float) i / (float) nparticles) * windH;
+	//x0 += windW / 2.0;
+	y0 += windH / 2.0;
+
+	x1 = (p1->x / (dx * shape)) * windW;
+	y1 = (p1->u / (4.0 * 3e8)) * windH;
+	//y0 = ((float) i / (float) nparticles) * windH;
+	//x0 += windW / 2.0;
+	y1 += windH / 2.0;
+
+	if(fabs(x0 - x1) > dx)
+		x1 = x0;
+
 
 //	if (!(x >= 0.0 && x < windW && y >= 0.0 && y < windH))
 //	{
@@ -349,16 +167,17 @@ plot_particle(int i, particle_t *p)
 //				x, windW, y, windH);
 //	}
 
-	glLineWidth(1.0);
+	glLineWidth(2.0);
 	if(i % 2)
 		glColor3f(1.0, 0.3, 0.3);
 	else
 		glColor3f(0.3, 1.0, 0.3);
-	glBegin(GL_POINTS);
-	glVertex2f(x, y);
-	glVertex2f(x, y+1);
-	glVertex2f(x+1, y);
-	glVertex2f(x+1, y+1);
+
+	glBegin(GL_LINES);
+	glVertex2f(x0, y0);
+	glVertex2f(x1, y1);
+//	glVertex2f(x+1, y);
+//	glVertex2f(x+1, y+1);
 	glEnd();
 }
 
@@ -371,7 +190,8 @@ plot_particles()
 
 	for(i=0; i<nparticles; i++)
 	{
-		plot_particle(i, &particles[i]);
+		plot_particle(i);
+		memcpy(&particles1[i], &particles0[i], sizeof(particle_t));
 	}
 }
 

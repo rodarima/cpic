@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #define DEBUG 0
 
@@ -14,32 +15,6 @@
 #endif
 
 #define err(...) fprintf(stderr, __VA_ARGS__);
-
-/* The density of charge is computed from the distribution of particles around
- * each node. The interpolation function used is simply the nearest neigbour */
-int
-particle_rho(specie_t *s)
-{
-	int i, j;
-	float *E = s->E->data;
-	particle_t *p;
-	int size = s->E->size;
-
-	/* Erase previous charge density */
-	memset(s->E->data, 0, sizeof(float) * s->E->size);
-
-	for(i = 0; i < s->nparticles; i++)
-	{
-		p = &(s->particles[i]);
-		/* By now simply use nearest neighbour */
-
-		j = (int) floor(p->x / s->dx);
-		while(j < 0) j+=size;
-		while(j >= size) j-=size;
-		E[j] += s->q;
-		dbg("Particle %d updates E[%d]=%10.3e\n", i, j, E[j]);
-	}
-}
 
 int
 field_E(specie_t *s)
@@ -65,8 +40,9 @@ int
 field_J(specie_t *s)
 {
 	particle_t *p;
-	int i, j;
+	int i, j0, j1;
 	float *J = s->J->data;
+	float w0, w1;
 	int size = s->J->size;
 
 	/* Erase previous current */
@@ -75,20 +51,26 @@ field_J(specie_t *s)
 	for(i = 0; i < s->nparticles; i++)
 	{
 		p = &(s->particles[i]);
-		/* By now simply use nearest neighbour */
 
-		j = (int) floor(p->x / s->dx);
-		while(j < 0) j+=size;
-		while(j >= size) j-=size;
-		J[j] += p->J;
-		dbg("Particle %d updates J[%d]=%10.3e\n", i, j, J[j]);
+		j0 = (int) floor(p->x / s->dx);
+		j0 = j0 % size;
+		j1 = (j0 + 1) % size;
+
+		/* As p->x approaches to j0, the weight w1 must be close to 1 */
+		w1 = (p->x/s->dx) - j0;
+		w0 = 1.0 - w1;
+
+		J[j0] += w0 * p->J;
+		J[j1] += w1 * p->J;
+		dbg("Particle %d updates J[%d]=%10.3e\n", i, j0, J[j0]);
 	}
 }
 int
 particle_E(specie_t *s)
 {
-	int i, j, size;
+	int i, j0, j1, size;
 	float *E = s->E->data;
+	float w0, w1;
 	particle_t *p;
 
 	size = s->E->size;
@@ -98,10 +80,15 @@ particle_E(specie_t *s)
 		p = &(s->particles[i]);
 		/* By now simply use nearest neighbour */
 
-		j = (int) floor(p->x / s->dx);
-		while(j < 0) j+=size;
-		while(j >= size) j-=size;
-		p->E = E[j];
+		j0 = (int) floor(p->x / s->dx);
+		j0 = j0 % size;
+		j1 = (j0 + 1) % size;
+
+		/* As p->x approaches to j0, the weight w1 must be close to 1 */
+		w1 = (p->x/s->dx) - j0;
+		w0 = 1.0 - w1;
+
+		p->E = w0 * E[j0] + w1 * E[j1];
 		dbg("Field %d updates particle %d E=%10.3e\n", j, i, E[j]);
 	}
 	return 0;
@@ -143,12 +130,21 @@ particle_x(specie_t *s)
 		if(fabs(incr) > s->dx)
 		{
 			err("Particle %d has exceeded dx with x+=%10.3e\n", i, incr);
-			err("Please, reduce dt or increase dx\n");
+			err("Please, reduce dt=%10.3e or increase dx=%10.3e\n",
+					s->dt, s->dx);
 			exit(1);
 		}
 		p->x += incr;
-		if(p->x > max_x)
+		if(p->x >= max_x)
 			p->x -= max_x;
+		else if(p->x < 0.0)
+			p->x += max_x;
+		if((p->x < 0.0) || (p->x >= max_x + 0.01*s->dx))
+		{
+			err("Particle %d is at x=%10.3e with max_x=%10.e\n",
+					i, p->x, max_x);
+			exit(1);
+		}
 	}
 	return 0;
 }
