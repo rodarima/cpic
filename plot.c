@@ -117,6 +117,9 @@ Idle(void)
 
 	for(i = 0; i < nparticles; i++)
 	{
+		/* Copy old particle into particles1 */
+		memcpy(&particles1[i], &particles0[i], sizeof(particle_t));
+
 		p = &particles0[i];
 		ret = scanf("%d %f %f",
 				&j, &p->x, &p->u);
@@ -191,7 +194,6 @@ plot_particles()
 	for(i=0; i<nparticles; i++)
 	{
 		plot_particle(i);
-		memcpy(&particles1[i], &particles0[i], sizeof(particle_t));
 	}
 }
 
