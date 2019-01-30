@@ -61,9 +61,9 @@ specie_init()
 {
 	specie_t *s;
 	int dim = 1;
-	int shape[] = {20};
+	int shape[] = {1024};
 	int nfields = 1;
-	int nparticles = 3000;
+	int nparticles = 20000;
 
 	s = specie_alloc(dim, shape, nparticles);
 

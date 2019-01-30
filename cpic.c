@@ -7,6 +7,9 @@
 #include <assert.h>
 
 #define DEBUG 0
+#define BLOCK_SIZE 10240
+
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
 #if DEBUG
 #define dbg(...) fprintf(stderr, __VA_ARGS__);
@@ -19,7 +22,7 @@
 int
 field_E(specie_t *s)
 {
-	int i;
+	int i,iend,b;
 	float *E = s->E->data;
 	float *J = s->J->data;
 	int size = s->E->size;
@@ -27,11 +30,20 @@ field_E(specie_t *s)
 	float e0 = s->e0;
 	float coef = -dt/e0;
 
-	for(i = 0; i < size; i++)
+
+	//#pragma oss task in(J[0:size-1]) out(E[0:size-1]) label(field_E)
+	for(b = 0; b < size; b+=BLOCK_SIZE)
 	{
-		E[i] += coef * J[i];
-		dbg("Current updates E[%d]=%10.3e\n", i, E[i]);
+		iend = MIN(b+BLOCK_SIZE, size);
+		i = b;
+		#pragma oss task in(J[i:iend-1]) out(E[i:iend-1]) label(field_E)
+		for(; i < iend; i++)
+		{
+			E[i] += coef * J[i];
+			dbg("Current updates E[%d]=%10.3e\n", i, E[i]);
+		}
 	}
+	//#pragma oss taskwait
 }
 
 /* The field J is updated based on the electric current computed on each
@@ -40,29 +52,39 @@ int
 field_J(specie_t *s)
 {
 	particle_t *p;
-	int i, j0, j1;
+	int i, iend, b, j0, j1;
 	float *J = s->J->data;
 	float w0, w1;
 	int size = s->J->size;
 
 	/* Erase previous current */
-	memset(s->J->data, 0, sizeof(float) * size);
+	#pragma oss task out(J[0:size-1])
+	memset(J, 0, sizeof(float) * size);
 
-	for(i = 0; i < s->nparticles; i++)
+	for(b = 0; b < s->nparticles; b+=BLOCK_SIZE)
 	{
-		p = &(s->particles[i]);
+		iend = MIN(b+BLOCK_SIZE, s->nparticles);
+		i = b;
+		#pragma oss task in(s->particles[i:iend-1]) inout(J[i:iend-1])
+		for(i = 0; i < iend; i++)
+		{
+			p = &(s->particles[i]);
 
-		j0 = (int) floor(p->x / s->dx);
-		j0 = j0 % size;
-		j1 = (j0 + 1) % size;
+			j0 = (int) floor(p->x / s->dx);
+			j0 = j0 % size;
+			j1 = (j0 + 1) % size;
 
-		/* As p->x approaches to j0, the weight w1 must be close to 1 */
-		w1 = (p->x/s->dx) - j0;
-		w0 = 1.0 - w1;
+			#pragma oss task in(p->x, p->J) inout(J[j0], J[j1])
+			{
+				/* As p->x approaches to j0, the weight w1 must be close to 1 */
+				w1 = (p->x/s->dx) - j0;
+				w0 = 1.0 - w1;
 
-		J[j0] += w0 * p->J;
-		J[j1] += w1 * p->J;
-		dbg("Particle %d updates J[%d]=%10.3e\n", i, j0, J[j0]);
+				J[j0] += w0 * p->J;
+				J[j1] += w1 * p->J;
+				dbg("Particle %d updates J[%d]=%10.3e\n", i, j0, J[j0]);
+			}
+		}
 	}
 }
 int
@@ -75,21 +97,24 @@ particle_E(specie_t *s)
 
 	size = s->E->size;
 
+	#pragma oss task inout(s->particles[0:s->nparticles-1]) in(E[0:size-1])
 	for (i = 0; i < s->nparticles; i++)
 	{
 		p = &(s->particles[i]);
-		/* By now simply use nearest neighbour */
 
 		j0 = (int) floor(p->x / s->dx);
 		j0 = j0 % size;
 		j1 = (j0 + 1) % size;
 
-		/* As p->x approaches to j0, the weight w1 must be close to 1 */
-		w1 = (p->x/s->dx) - j0;
-		w0 = 1.0 - w1;
+		//#pragma oss task in(p->x, E[j0], E[j1]) out(p->E)
+		{
+			/* As p->x approaches to j0, the weight w1 must be close to 1 */
+			w1 = (p->x/s->dx) - j0;
+			w0 = 1.0 - w1;
 
-		p->E = w0 * E[j0] + w1 * E[j1];
-		dbg("Field %d updates particle %d E=%10.3e\n", j, i, E[j]);
+			p->E = w0 * E[j0] + w1 * E[j1];
+			dbg("Field %d updates particle %d E=%10.3e\n", j0, i, E[j0]);
+		}
 	}
 	return 0;
 }
@@ -103,12 +128,16 @@ particle_u(specie_t *s)
 	float dt = s->dt;
 	float incr;
 
+	#pragma oss task inout(s->particles[0:s->nparticles-1])
 	for (i = 0; i < s->nparticles; i++)
 	{
 		p = &(s->particles[i]);
-		incr = dt * s->q * p->E / s->m;
-		dbg("Particle %d increases speed by %10.3e\n", i, incr);
-		p->u += incr;
+		//#pragma oss task in(p->E) out(p->u)
+		{
+			incr = dt * s->q * p->E / s->m;
+			dbg("Particle %d increases speed by %10.3e\n", i, incr);
+			p->u += incr;
+		}
 	}
 	return 0;
 }
@@ -123,27 +152,31 @@ particle_x(specie_t *s)
 	float incr;
 	float max_x = s->dx * s->E->size;
 
+	#pragma oss task inout(s->particles[0:s->nparticles-1])
 	for (i = 0; i < s->nparticles; i++)
 	{
 		p = &(s->particles[i]);
-		incr = dt * p->u;
-		if(fabs(incr) > s->dx)
+		//#pragma oss task in(p->u) out(p->x)
 		{
-			err("Particle %d has exceeded dx with x+=%10.3e\n", i, incr);
-			err("Please, reduce dt=%10.3e or increase dx=%10.3e\n",
-					s->dt, s->dx);
-			exit(1);
-		}
-		p->x += incr;
-		if(p->x >= max_x)
-			p->x -= max_x;
-		else if(p->x < 0.0)
-			p->x += max_x;
-		if((p->x < 0.0) || (p->x >= max_x + 0.01*s->dx))
-		{
-			err("Particle %d is at x=%10.3e with max_x=%10.e\n",
-					i, p->x, max_x);
-			exit(1);
+			incr = dt * p->u;
+			if(fabs(incr) > s->dx)
+			{
+				err("Particle %d has exceeded dx with x+=%10.3e\n", i, incr);
+				err("Please, reduce dt=%10.3e or increase dx=%10.3e\n",
+						s->dt, s->dx);
+				exit(1);
+			}
+			p->x += incr;
+			if(p->x >= max_x)
+				p->x -= max_x;
+			else if(p->x < 0.0)
+				p->x += max_x;
+			if((p->x < 0.0) || (p->x >= max_x + 0.01*s->dx))
+			{
+				err("Particle %d is at x=%10.3e with max_x=%10.e\n",
+						i, p->x, max_x);
+				exit(1);
+			}
 		}
 	}
 	return 0;
@@ -159,35 +192,31 @@ particle_J(specie_t *s)
 
 	float dt = s->dt;
 
+	#pragma oss task inout(s->particles[0:s->nparticles-1])
 	for (i = 0; i < s->nparticles; i++)
 	{
 		p = &(s->particles[i]);
+
 		p->J = s->q * p->u / dt;
 	}
 	return 0;
 }
 
 int
-moments()
-{
-	return 0;
-}
-
-int
 main()
 {
-	int i, max_it = 30;
+	int i, max_it = 3;
 	specie_t *s;
 
 	s = specie_init();
 
-	specie_print(s);
+	//specie_print(s);
 
 	particle_J(s);
 	field_J(s);
 
-	//for(i = 0; i < max_it; i++)
-	while(1)
+	for(i = 0; i < max_it; i++)
+	//while(1)
 	{
 		dbg("------ Begin iteration i=%d ------\n", i);
 
@@ -222,9 +251,12 @@ main()
 		field_J(s);
 
 		/* Print the status */
-		specie_print(s);
+		//specie_print(s);
 
 		specie_step(s);
 	}
+
+	/* sync before leaving the program */
+	#pragma oss taskwait
 
 }
