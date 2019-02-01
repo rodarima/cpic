@@ -1,5 +1,7 @@
 #pragma once
 
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+
 typedef struct
 {
 	float *data;
@@ -25,3 +27,6 @@ mat_alloc(int dim, int *shape);
 
 mat_t *
 mat_init(int dim, int *shape, float v);
+
+mat_t *
+vec_init(int size, float v);

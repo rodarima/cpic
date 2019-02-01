@@ -1,8 +1,10 @@
 #include "specie.h"
 #include "mat.h"
+#include "block.h"
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 specie_t *
 specie_alloc(int dim, int *shape, int nparticles)
@@ -41,44 +43,64 @@ int
 particles_init(specie_t *s)
 {
 	int i;
+	int total_nodes = s->blocksize * s->nblocks;
 	particle_t *p;
 
 	for(i = 0; i < s->nparticles; i++)
 	{
 		p = &s->particles[i];
+
+		p->i = i;
 		//p->x = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
-		p->x = ((float) rand() / RAND_MAX) * s->E->size * s->dx;
+		p->x = ((float) rand() / RAND_MAX) * total_nodes * s->dx;
 		//p->x = s->E->size * s->dx / 2.0;
 		p->u = (2.0 * ((i % 2) - 0.5)) * 0.5 * s->C; /* m/s */
 		//p->u = 0.5 * s->C; /* m/s */
 		p->E = 0.0;
 		p->J = 0.0;
 	}
+
+	return 0;
 }
 
 specie_t *
 specie_init()
 {
 	specie_t *s;
+	int i;
 	int dim = 1;
-	int shape[] = {1024};
+	int shape = 4;
 	int nfields = 1;
-	int nparticles = 20000;
+	int nparticles = 1;
 
-	s = specie_alloc(dim, shape, nparticles);
+	s = specie_alloc(dim, &shape, nparticles);
 
-	s->C = 2.99792458e+8;
-	s->dt = 2.0e-8;
+	s->shape = malloc(sizeof(int) * 1);
+	s->shape[0] = shape;
+
+
+	/* Physical parameters */
 	s->t = 0.0;
-	s->dx = 10.0 * (s->C/2.0) * s->dt;
+	s->C = 2.99792458e+8;
 	s->q = -1.60217662e-19; /* The charge of an electron in coulombs */
 	s->m = 9.10938356e-31; /* The electron mass */
 	s->e0 = 8.85e-12; /* Vacuum permittivity */
 
+	/* Discretization values */
+	s->dt = 2.0e-8;
+	s->dx = 10.0 * (s->C/2.0) * s->dt;
+	s->nblocks = shape;
+	s->blocksize = 1; /* The number of nodes in each block */
+
 	printf("%d %d %10.e %10.e\n",
-			nparticles, shape[0], s->dx, s->dt);
+			nparticles, s->shape[0], s->dx, s->dt);
+
 
 	particles_init(s);
+
+	blocks_init(s);
+
+	//blocks_print(s->blocks, s->nblocks);
 
 	return s;
 }

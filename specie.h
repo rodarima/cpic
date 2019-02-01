@@ -1,6 +1,13 @@
 #pragma once
 
+struct particle;
+struct specie;
+
+typedef struct particle particle_t;
+typedef struct specie specie_t;
+
 #include "mat.h"
+#include "block.h"
 
 //typedef struct
 //{
@@ -8,8 +15,9 @@
 //	mat_t **fields;
 //} block_t;
 
-typedef struct
-{
+struct particle {
+	int i; /* Particle number */
+
 	float x; /* Position in 1st dimension */
 	float u; /* Speed in 1st dimension */
 
@@ -17,11 +25,18 @@ typedef struct
 	float E;
 	float B;
 	float J;
-} particle_t;
 
-typedef struct
+	/* Node element in a list */
+	struct particle *next, *prev;
+};
+
+
+
+struct specie
 {
 	int dim;
+	int *shape;
+
 
 	/* All particles of the same specie have the same mass and charge. */
 	float q; /* Electric charge */
@@ -53,14 +68,24 @@ typedef struct
 
 	/* Particles */
 	int nparticles;
-	particle_t *particles;
-} specie_t;
+	struct particle *particles;
 
-specie_t *
+	/* Number of blocks */
+	int nblocks;
+
+	/* The number of nodes in a block */
+	int blocksize;
+
+	/* Array of blocks */
+	block_t *blocks;
+
+};
+
+struct specie *
 specie_init();
 
 int
-specie_print(specie_t *s);
+specie_print(struct specie *s);
 
 void
-specie_step(specie_t *s);
+specie_step(struct specie *s);

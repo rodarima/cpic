@@ -18,6 +18,8 @@ mat_alloc(int dim, int *shape)
 	m->size = size;
 
 	m->data = malloc(sizeof(float) * size);
+
+	return m;
 }
 
 mat_t *
@@ -38,4 +40,18 @@ void
 mat_set1d(mat_t *m, int pos, float v)
 {
 	((float*) m)[pos] = v;
+}
+
+mat_t *
+vec_init(int size, float v)
+{
+	mat_t *m;
+	int i;
+
+	m = mat_alloc(1, &size);
+
+	for(i = 0; i < m->size; i++)
+		m->data[i] = v;
+
+	return m;
 }
