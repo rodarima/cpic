@@ -14,15 +14,27 @@
 int
 field_E(specie_t *s)
 {
-	int i;
-	block_t *b;
+	int i, ri;
+	block_t *b, *rb;
 
 	for (i = 0; i < s->nblocks; i++)
 	{
 		b = &(s->blocks[i]);
 
-		#pragma oss task inout(b)
+		#pragma oss task inout(b) label(block_field_E)
 		block_field_E(s, b);
+	}
+
+	/* Communication */
+	for (i = 0; i < s->nblocks; i++)
+	{
+		ri = (i + 1) % s->nblocks;
+
+		b = &(s->blocks[i]);
+		rb = &(s->blocks[ri]);
+
+		#pragma oss task in(b) inout(rb) label(block_comm_field_E)
+		block_comm_field_E(b, rb);
 	}
 	return 0;
 }
@@ -33,8 +45,8 @@ field_E(specie_t *s)
 int
 field_J(specie_t *s)
 {
-	int i, ri;
-	block_t *b, *rb;
+	int i, li;
+	block_t *b, *lb;
 
 	/* Computation */
 	for (i = 0; i < s->nblocks; i++)
@@ -48,13 +60,13 @@ field_J(specie_t *s)
 	/* Communication */
 	for (i = 0; i < s->nblocks; i++)
 	{
-		ri = (i + 1) % s->nblocks;
+		li = (s->nblocks + i - 1) % s->nblocks;
 
 		b = &(s->blocks[i]);
-		rb = &(s->blocks[ri]);
+		lb = &(s->blocks[li]);
 
-		#pragma oss task in(b) inout(rb) label(block_field_J)
-		block_comm_field_J(b, rb);
+		#pragma oss task in(b) inout(rb) label(block_comm_field_J)
+		block_comm_field_J(b, lb);
 	}
 	return 0;
 }

@@ -61,3 +61,6 @@ block_comm_particles(specie_t *s, block_t *left, block_t *b, block_t *right);
 
 int
 block_print_particles(specie_t *s, block_t *b);
+
+int
+block_comm_field_E(block_t *from, block_t *to);

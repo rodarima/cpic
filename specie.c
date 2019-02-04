@@ -69,9 +69,8 @@ specie_init()
 	specie_t *s;
 	int i;
 	int dim = 1;
-	int shape = 4;
-	int nfields = 1;
-	int nparticles = 1;
+	int shape = 20;
+	int nparticles = 3000;
 
 	s = specie_alloc(dim, &shape, nparticles);
 
@@ -125,7 +124,7 @@ specie_print(specie_t *s)
 		p = &s->particles[i];
 		//printf("%10.3e %d %10.3e %10.3e %10.3e %10.3e\n",
 		//	s->t, i, p->x, p->u, p->E, p->J);
-		printf("%d %10.3e %10.3e\n", i, p->x, p->u);
+		printf("%d %10.3e %10.3e\n", p->i, p->x, p->u);
 	}
 
 	return 0;

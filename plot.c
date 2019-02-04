@@ -56,6 +56,7 @@ int nparticles;
 int shape;
 float dx, dt;
 int play = 1;
+int clear = 1;
 
 static void
 Init(void)
@@ -96,6 +97,9 @@ Key(unsigned char key, int x, int y)
 	case 'p':
 		play = !play;
 		break;
+	case 'c':
+		clear = !clear;
+		break;
 	case 'q':
 	case 27:
 		exit(0);
@@ -105,7 +109,7 @@ Key(unsigned char key, int x, int y)
 void
 Idle(void)
 {
-	float t;
+	float t, x, u;
 	int i, j, ret;
 	particle_t *p;
 
@@ -120,20 +124,23 @@ Idle(void)
 		/* Copy old particle into particles1 */
 		memcpy(&particles1[i], &particles0[i], sizeof(particle_t));
 
-		p = &particles0[i];
 		ret = scanf("%d %f %f",
-				&j, &p->x, &p->u);
+				&j, &x, &u);
 		if(ret == EOF)
 		{
 			printf("EOF reached\n");
 			exit(0);
 		}
 
-		if((ret != 3) || (j != i))
+		if(ret != 3)
 		{
 			printf("ret=%d i=%d j=%d, exitting\n", ret, i, j);
 			exit(1);
 		}
+
+		p = &particles0[j];
+		p->x = x;
+		p->u = u;
 	}
 
 	glutPostRedisplay();
@@ -154,14 +161,19 @@ plot_particle(int i)
 	//x0 += windW / 2.0;
 	y0 += windH / 2.0;
 
-	x1 = (p1->x / (dx * shape)) * windW;
+	if(fabs(p0->x - p1->x) > dx) // Wrap around the screen
+		x1 = x0 + 2;
+	else
+		x1 = (p1->x / (dx * shape)) * windW;
+
 	y1 = (p1->u / (4.0 * 3e8)) * windH;
 	//y0 = ((float) i / (float) nparticles) * windH;
 	//x0 += windW / 2.0;
 	y1 += windH / 2.0;
 
-	if(fabs(x0 - x1) > dx)
-		x1 = x0;
+	/* For plotting purposes, we need at least one pixel drawn */
+	if(fabs(x0 - x1) < 1.0)
+		x1 = x0 + 1.0;
 
 
 //	if (!(x >= 0.0 && x < windW && y >= 0.0 && y < windH))
@@ -189,7 +201,9 @@ static void
 plot_particles()
 {
 	int i;
-	glClear(GL_COLOR_BUFFER_BIT);
+
+	if(clear)
+		glClear(GL_COLOR_BUFFER_BIT);
 
 	for(i=0; i<nparticles; i++)
 	{

@@ -5,7 +5,7 @@
 #include <math.h>
 #include <string.h>
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 /* Inits a new block, and sets the initial n particles */
@@ -143,8 +143,8 @@ block_field_J(specie_t *s, block_t *b)
 
 		assert(j0 >= 0);
 
-		/* As p->x approaches to j0, the weight w1 must be close to 1 */
-		w1 = (p->x/s->dx) - j0;
+		/* As p->x approaches to j0, the weight w0 must be close to 1 */
+		w1 = deltax / s->dx;
 		w0 = 1.0 - w1;
 
 		/* Last node updates the ghost */
@@ -170,9 +170,11 @@ block_field_J(specie_t *s, block_t *b)
 
 /* The ghost node of J (from->rB) is added in to->J[0] */
 int
-block_comm_field_J(block_t *from, block_t *to)
+block_comm_field_J(block_t *dst, block_t *left)
 {
-	to->J->data[0] += from->rJ;
+	dst->J->data[0] += left->rJ;
+	/* from->rJ cannot be used */
+	left->rJ = 0.0;
 	return 0;
 }
 
@@ -191,6 +193,14 @@ block_field_E(specie_t *s, block_t *b)
 		dbg("Block %d current updates E[%d]=%10.3e\n", b->i, i, E[i]);
 	}
 
+	return 0;
+}
+
+/* We need to get the field from the neighbour at E[0] */
+int
+block_comm_field_E(block_t *dst, block_t *right)
+{
+	dst->rE = right->E->data[0];
 	return 0;
 }
 
@@ -331,13 +341,21 @@ block_comm_particles(specie_t *s, block_t *left, block_t *b, block_t *right)
 
 		/* Wrap position if max_x or 0 are exceeded */
 		if(p->x >= max_x)
-			p->x -= max_x;
-		else if(p->x < 0.0)
-			p->x += max_x;
-
-		if((p->x < 0.0) || (p->x >= max_x))
 		{
-			err("Particle %d is at x=%.3e with max_x=%.e\n",
+			dbg("Wrapping particle %d from x=%.3e to x=%.3e\n",
+				p->i, p->x, p->x - max_x);
+			p->x -= max_x;
+		}
+		else if(p->x < 0.0)
+		{
+			dbg("Wrapping particle %d from x=%.3e to x=%.3e\n",
+				p->i, p->x, p->x + max_x);
+			p->x += max_x;
+		}
+
+		if((p->x < 0.0) || (p->x > max_x))
+		{
+			err("Particle %d is at x=%.3e with max_x=%10.3e\n",
 				p->i, p->x, max_x);
 			exit(1);
 		}
