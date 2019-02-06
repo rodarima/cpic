@@ -1,43 +1,3 @@
-
-/* Copyright (c) Mark J. Kilgard, 1994. */
-
-/**
- * (c) Copyright 1993, Silicon Graphics, Inc.
- * ALL RIGHTS RESERVED 
- * Permission to use, copy, modify, and distribute this software for 
- * any purpose and without fee is hereby granted, provided that the above
- * copyright notice appear in all copies and that both the copyright notice
- * and this permission notice appear in supporting documentation, and that 
- * the name of Silicon Graphics, Inc. not be used in advertising
- * or publicity pertaining to distribution of the software without specific,
- * written prior permission. 
- *
- * THE MATERIAL EMBODIED ON THIS SOFTWARE IS PROVIDED TO YOU "AS-IS"
- * AND WITHOUT WARRANTY OF ANY KIND, EXPRESS, IMPLIED OR OTHERWISE,
- * INCLUDING WITHOUT LIMITATION, ANY WARRANTY OF MERCHANTABILITY OR
- * FITNESS FOR A PARTICULAR PURPOSE.  IN NO EVENT SHALL SILICON
- * GRAPHICS, INC.  BE LIABLE TO YOU OR ANYONE ELSE FOR ANY DIRECT,
- * SPECIAL, INCIDENTAL, INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY
- * KIND, OR ANY DAMAGES WHATSOEVER, INCLUDING WITHOUT LIMITATION,
- * LOSS OF PROFIT, LOSS OF USE, SAVINGS OR REVENUE, OR THE CLAIMS OF
- * THIRD PARTIES, WHETHER OR NOT SILICON GRAPHICS, INC.  HAS BEEN
- * ADVISED OF THE POSSIBILITY OF SUCH LOSS, HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE
- * POSSESSION, USE OR PERFORMANCE OF THIS SOFTWARE.
- * 
- * US Government Users Restricted Rights 
- * Use, duplication, or disclosure by the Government is subject to
- * restrictions set forth in FAR 52.227.19(c)(2) or subparagraph
- * (c)(1)(ii) of the Rights in Technical Data and Computer Software
- * clause at DFARS 252.227-7013 and/or in similar or successor
- * clauses in the FAR or the DOD or NASA FAR Supplement.
- * Unpublished-- rights reserved under the copyright laws of the
- * United States.  Contractor/manufacturer is Silicon Graphics,
- * Inc., 2011 N.  Shoreline Blvd., Mountain View, CA 94039-7311.
- *
- * OpenGL(TM) is a trademark of Silicon Graphics, Inc.
- */
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -50,8 +10,11 @@
 GLenum doubleBuffer;
 GLint windW = 500, windH = 500;
 
-particle_t *particles0;
-particle_t *particles1;
+#define MAX_HIST 30
+
+particle_t *particles[MAX_HIST];
+int hist = 0;
+
 int nparticles;
 int shape;
 float dx, dt;
@@ -67,8 +30,8 @@ Init(void)
 	scanf("%d %d %f %f", &nparticles, &shape, &dx, &dt);
 	printf("Number of particles=%d, shape=%d\n", nparticles, shape);
 
-	particles0 = calloc(sizeof(particle_t), nparticles);
-	particles1 = calloc(sizeof(particle_t), nparticles);
+	for(i = 0; i < MAX_HIST; i++)
+		particles[i] = calloc(sizeof(particle_t), nparticles);
 
 	glClearColor(0.0, 0.0, 0.0, 0.0);
 
@@ -119,10 +82,12 @@ Idle(void)
 		return;
 	}
 
+	hist = (hist + 1) % MAX_HIST;
+
 	for(i = 0; i < nparticles; i++)
 	{
 		/* Copy old particle into particles1 */
-		memcpy(&particles1[i], &particles0[i], sizeof(particle_t));
+		//memcpy(&particles1[prev_hist][i], &particles[hist][i], sizeof(particle_t));
 
 		ret = scanf("%d %f %f",
 				&j, &x, &u);
@@ -138,7 +103,7 @@ Idle(void)
 			exit(1);
 		}
 
-		p = &particles0[j];
+		p = &particles[hist][j];
 		p->x = x;
 		p->u = u;
 	}
@@ -146,54 +111,81 @@ Idle(void)
 	glutPostRedisplay();
 }
 
-static void
-plot_particle(int i)
+static int
+get_curve(float *xx, float *yy, int *segment, int pi)
 {
-	particle_t *p0 = &particles0[i];
-	particle_t *p1 = &particles1[i];
+	particle_t *p;
+	int from_hist = (hist + 1) % MAX_HIST;
+	float x0 = 0, y0 = 0, x1, y1;
+	int i, si = 0, sl = 0;
 
-	float x0, y0;
-	float x1, y1, width;
+	for(i = 0; i < MAX_HIST; i++, from_hist = (from_hist + 1) % MAX_HIST, sl++)
+	{
+		p = &particles[from_hist][pi];
 
-	x0 = (p0->x / (dx * shape)) * windW;
-	y0 = (p0->u / (4.0 * 3e8)) * windH;
-	//y0 = ((float) i / (float) nparticles) * windH;
-	//x0 += windW / 2.0;
-	y0 += windH / 2.0;
+		x1 = (p->x / (dx * shape)) * windW;
+		y1 = (p->u / (8.0 * 3e8)) * windH;
 
-	if(fabs(p0->x - p1->x) > dx) // Wrap around the screen
-		x1 = x0 + 2;
-	else
-		x1 = (p1->x / (dx * shape)) * windW;
+		/* Center y, as u goes from about -c to +c */
+		y1 += windH / 2.0;
 
-	y1 = (p1->u / (4.0 * 3e8)) * windH;
-	//y0 = ((float) i / (float) nparticles) * windH;
-	//x0 += windW / 2.0;
-	y1 += windH / 2.0;
+		if(i > 0 && fabs(x1 - x0) > windW/4) // Wrap around the screen
+		{
+			/* Create another segment */
+			segment[si++] = sl;
+			sl = 0;
+		}
 
-	/* For plotting purposes, we need at least one pixel drawn */
-	if(fabs(x0 - x1) < 1.0)
-		x1 = x0 + 1.0;
+//		/* For plotting purposes, we need at least one pixel drawn */
+//		if(i > 0 && fabs(x0 - x1) < 1.0)
+//		{
+//			x1 = x0 + 1.0;
+//		}
 
+		xx[i] = x1;
+		yy[i] = y1;
 
-//	if (!(x >= 0.0 && x < windW && y >= 0.0 && y < windH))
-//	{
-//		printf("Particle out of bounds x=%f(%d) y=%f(%d)\n",
-//				x, windW, y, windH);
-//	}
+		x0 = x1;
+		y0 = y1;
+	}
+
+	segment[si++] = sl;
+
+	return si;
+}
+
+static void
+plot_particle(int pi)
+{
+	float x[MAX_HIST], y[MAX_HIST];
+	int segments[MAX_HIST];
+	int i, j, k=0, n;
+	float cm, ch, cl;
+	float h = 1.0, l = 0.1;
+
+	n = get_curve(x, y, segments, pi);
 
 	glLineWidth(2.0);
-	if(i % 2)
-		glColor3f(1.0, 0.3, 0.3);
-	else
-		glColor3f(0.3, 1.0, 0.3);
 
-	glBegin(GL_LINES);
-	glVertex2f(x0, y0);
-	glVertex2f(x1, y1);
-//	glVertex2f(x+1, y);
-//	glVertex2f(x+1, y+1);
-	glEnd();
+	for(i = 0; i < n; i++)
+	{
+
+		glBegin(GL_LINE_STRIP);
+		for(j = 0; j<segments[i]; j++)
+		{
+			cm = (float) k / MAX_HIST;
+			if(cm < 0.2) cm = 0.2;
+			ch = cm * h;
+			cl = cm * l;
+			if(pi % 2)
+				glColor3f(ch, cl, cl);
+			else
+				glColor3f(cl, ch, cl);
+			glVertex2f(x[k], y[k]);
+			k++;
+		}
+		glEnd();
+	}
 }
 
 

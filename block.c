@@ -142,6 +142,7 @@ block_field_J(specie_t *s, block_t *b)
 		j0 = (int) floor(deltax / s->dx);
 
 		assert(j0 >= 0);
+		assert(j0 < size);
 
 		/* As p->x approaches to j0, the weight w0 must be close to 1 */
 		w1 = deltax / s->dx;
@@ -157,7 +158,7 @@ block_field_J(specie_t *s, block_t *b)
 		}
 		else
 		{
-			j1 = j0 + 1;
+			j1 = (j0 + 1) % size;
 			assert(j1 < size);
 			J[j0] += w0 * p->J;
 			J[j1] += w1 * p->J;

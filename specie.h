@@ -9,6 +9,8 @@ typedef struct specie specie_t;
 #include "mat.h"
 #include "block.h"
 
+#define MAX_PART 500
+
 //typedef struct
 //{
 //	int dim;

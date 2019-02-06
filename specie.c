@@ -55,6 +55,7 @@ particles_init(specie_t *s)
 		p->x = ((float) rand() / RAND_MAX) * total_nodes * s->dx;
 		//p->x = s->E->size * s->dx / 2.0;
 		p->u = (2.0 * ((i % 2) - 0.5)) * 0.5 * s->C; /* m/s */
+		//p->u = (((float) rand() / RAND_MAX) - 0.5) * s->C; /* m/s */
 		//p->u = 0.5 * s->C; /* m/s */
 		p->E = 0.0;
 		p->J = 0.0;
@@ -69,8 +70,8 @@ specie_init()
 	specie_t *s;
 	int i;
 	int dim = 1;
-	int shape = 20;
-	int nparticles = 3000;
+	int shape = 200;
+	int nparticles = 5000;
 
 	s = specie_alloc(dim, &shape, nparticles);
 
@@ -86,13 +87,13 @@ specie_init()
 	s->e0 = 8.85e-12; /* Vacuum permittivity */
 
 	/* Discretization values */
-	s->dt = 2.0e-8;
+	s->dt = 1.0e-8;
 	s->dx = 10.0 * (s->C/2.0) * s->dt;
 	s->nblocks = shape;
 	s->blocksize = 1; /* The number of nodes in each block */
 
 	printf("%d %d %10.e %10.e\n",
-			nparticles, s->shape[0], s->dx, s->dt);
+		nparticles, s->shape[0], s->dx, s->dt);
 
 
 	particles_init(s);
@@ -119,6 +120,7 @@ specie_print(specie_t *s)
 	//printf("The specie %p has %d dimensions with %d particles\n",
 	//	s, s->dim, s->nparticles);
 
+	//for(i = 0; i < s->nparticles; i++)
 	for(i = 0; i < s->nparticles; i++)
 	{
 		p = &s->particles[i];
