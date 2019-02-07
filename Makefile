@@ -1,11 +1,12 @@
-CC=clang
+CC=gcc
 LDLIBS=-lm
-CFLAGS=-g
+CFLAGS=-g -I.
 
-USE_OMPSS=no
+USE_OMPSS=yes
 
 OMPSS_CC=mcc
-OMPSS_CFLAGS=--ompss-2 --instrumentation
+OMPSS_CFLAGS=-k --ompss-2
+#OMPSS_CFLAGS=-k --ompss-2 --instrumentation
 
 ifeq ($(USE_OMPSS),yes)
 	CC=$(OMPSS_CC)
@@ -21,3 +22,10 @@ plot: plot.c
 
 clean:
 	rm -rf *.o cpic
+
+load:
+	module load gcc/7.2.0 extrae ompss-2
+
+run:
+	NANOS6=extrae taskset -c 0-20 ./cpic
+	${EXTRAE_HOME}/bin/mpi2prv -f TRACE.mpits -o output.prv

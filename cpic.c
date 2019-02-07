@@ -11,6 +11,8 @@
 
 #include "log.h"
 
+#include <unistd.h>
+
 int
 field_E(specie_t *s)
 {
@@ -21,8 +23,11 @@ field_E(specie_t *s)
 	{
 		b = &(s->blocks[i]);
 
-		#pragma oss task inout(b) label(block_field_E)
+		#pragma oss task inout(*b) label(block_field_E)
+{
+usleep(100);
 		block_field_E(s, b);
+}
 	}
 
 	/* Communication */
@@ -33,8 +38,11 @@ field_E(specie_t *s)
 		b = &(s->blocks[i]);
 		rb = &(s->blocks[ri]);
 
-		#pragma oss task in(b) inout(rb) label(block_comm_field_E)
+		#pragma oss task inout(*b) in(*rb) label(block_comm_field_E)
+{
+usleep(100);
 		block_comm_field_E(b, rb);
+}
 	}
 	return 0;
 }
@@ -53,7 +61,7 @@ field_J(specie_t *s)
 	{
 		b = &(s->blocks[i]);
 
-		#pragma oss task inout(b) label(block_field_J)
+		#pragma oss task inout(*b) label(block_field_J)
 		block_field_J(s, b);
 	}
 
@@ -65,7 +73,7 @@ field_J(specie_t *s)
 		b = &(s->blocks[i]);
 		lb = &(s->blocks[li]);
 
-		#pragma oss task in(b) inout(rb) label(block_comm_field_J)
+		#pragma oss task inout(*b, *lb) label(block_comm_field_J)
 		block_comm_field_J(b, lb);
 	}
 	return 0;
@@ -83,7 +91,7 @@ particle_E(specie_t *s)
 	{
 		b = &(s->blocks[i]);
 
-		#pragma oss task inout(b) label(block_particle_E)
+		#pragma oss task inout(*b) label(block_particle_E)
 		block_particle_E(s, b);
 	}
 
@@ -104,7 +112,7 @@ particle_x(specie_t *s)
 	{
 		b = &(s->blocks[i]);
 
-		#pragma oss task inout(b) label(block_particle_x)
+		#pragma oss task inout(*b) label(block_particle_x)
 		block_particle_x(s, b);
 	}
 
@@ -121,7 +129,7 @@ particle_x(specie_t *s)
 		/* We left lb and rb with the inout directive, as we need to
 		 * wait for any modification to those blocks before we write to
 		 * them (lb->particles->next->next... */
-		#pragma oss task inout(b, lb, rb) label(block_comm_particle_x)
+		#pragma oss task inout(*b, *lb, *rb) label(block_comm_particle_x)
 		block_comm_particles(s, lb, b, rb);
 	}
 
@@ -140,7 +148,7 @@ particle_J(specie_t *s)
 	{
 		b = &(s->blocks[i]);
 
-		#pragma oss task inout(b)
+		#pragma oss task inout(*b)
 		block_particle_J(s, b);
 	}
 	return 0;
@@ -166,18 +174,18 @@ print_particles(specie_t *s)
 int
 main()
 {
-	int i, max_it = 3;
+	int i, max_it = 10;
 	specie_t *s;
 
 	s = specie_init();
 
-	specie_print(s);
+	//specie_print(s);
 
 	particle_J(s);
 	field_J(s);
 
-	//for(i = 0; i < max_it; i++)
-	while(1)
+	for(i = 0; i < max_it; i++)
+	//while(1)
 	{
 		dbg("------ Begin iteration i=%d ------\n", i);
 
@@ -211,8 +219,9 @@ main()
 		field_J(s);
 
 		/* Print the status */
-		specie_print(s);
+		//specie_print(s);
 
+		//#pragma oss taskwait
 		specie_step(s);
 	}
 

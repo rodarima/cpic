@@ -78,6 +78,9 @@ struct specie
 	/* The number of nodes in a block */
 	int blocksize;
 
+	/* Total number of nodes with all blocks */
+	int nnodes;
+
 	/* Array of blocks */
 	block_t *blocks;
 
