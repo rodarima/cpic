@@ -5,3 +5,4 @@
 *.so
 data/
 mcc_*.c
+trace/

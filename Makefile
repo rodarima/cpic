@@ -1,8 +1,8 @@
 CC=gcc
 LDLIBS=-lm
-CFLAGS=-g -I.
+CFLAGS=-g -Iinclude/
 
-USE_OMPSS=yes
+USE_OMPSS=no
 
 OMPSS_CC=mcc
 OMPSS_CFLAGS=-k --ompss-2
