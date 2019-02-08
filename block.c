@@ -175,7 +175,7 @@ block_comm_field_J(block_t *dst, block_t *left)
 {
 	dst->J->data[0] += left->rJ;
 	/* from->rJ cannot be used */
-	left->rJ = 0.0;
+	/*left->rJ = 0.0;*/
 	return 0;
 }
 

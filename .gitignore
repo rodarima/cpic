@@ -4,3 +4,4 @@
 *.o
 *.so
 data/
+mcc_*.c

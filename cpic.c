@@ -65,6 +65,7 @@ field_J(specie_t *s)
 		block_field_J(s, b);
 	}
 
+	#pragma oss task inout(s->blocks[0, s->nblocks-1]) label(block_comm_field_J)
 	/* Communication */
 	for (i = 0; i < s->nblocks; i++)
 	{
@@ -73,7 +74,6 @@ field_J(specie_t *s)
 		b = &(s->blocks[i]);
 		lb = &(s->blocks[li]);
 
-		#pragma oss task inout(*b, *lb) label(block_comm_field_J)
 		block_comm_field_J(b, lb);
 	}
 	return 0;
