@@ -70,8 +70,8 @@ specie_init()
 	specie_t *s;
 	int i;
 	int dim = 1;
-	int shape = 400;
-	int nparticles = 100000;
+	int shape = 10;
+	int nparticles = 10000;
 
 	s = specie_alloc(dim, &shape, nparticles);
 
@@ -90,7 +90,7 @@ specie_init()
 	s->dt = 1.0e-8;
 	s->dx = 10.0 * (s->C/2.0) * s->dt * 1e2;
 	s->nblocks = shape;
-	s->blocksize = 10000; /* The number of nodes in each block */
+	s->blocksize = 200000; /* The number of nodes in each block */
 	s->nnodes = s->nblocks * s->blocksize;
 
 	printf("%d %d %10.e %10.e\n",

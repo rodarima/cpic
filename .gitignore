@@ -6,3 +6,6 @@
 data/
 mcc_*.c
 trace/
+*.mcc.c
+TRACE.mpits
+set-0/

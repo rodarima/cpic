@@ -6,10 +6,11 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#define DEBUG 0
+#define DEBUG 1
 #define BLOCK_SIZE 10240
 
 #include "log.h"
+#include "loader.h"
 
 #include <unistd.h>
 
@@ -24,10 +25,10 @@ field_E(specie_t *s)
 		b = &(s->blocks[i]);
 
 		#pragma oss task inout(*b) label(block_field_E)
-{
-usleep(100);
-		block_field_E(s, b);
-}
+		{
+			//usleep(100);
+			block_field_E(s, b);
+		}
 	}
 
 	/* Communication */
@@ -39,10 +40,10 @@ usleep(100);
 		rb = &(s->blocks[ri]);
 
 		#pragma oss task inout(*b) in(*rb) label(block_comm_field_E)
-{
-usleep(100);
-		block_comm_field_E(b, rb);
-}
+		{
+			//usleep(100);
+			block_comm_field_E(b, rb);
+		}
 	}
 	return 0;
 }
@@ -172,7 +173,7 @@ print_particles(specie_t *s)
 }
 
 int
-main()
+start_task()
 {
 	int i, max_it = 10;
 	specie_t *s;
@@ -225,7 +226,15 @@ main()
 		specie_step(s);
 	}
 
+	printf("Loop finished\n");
+
 	/* sync before leaving the program */
 	#pragma oss taskwait
 
+}
+
+int main(int argc, char *argv[])
+{
+	start_nanos6(start_task, argc, argv);
+	return 0;
 }
