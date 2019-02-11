@@ -20,9 +20,10 @@ struct block
 	/* The fields */
 	mat_t *E;
 	mat_t *J;
+	mat_t *rho;
 	/*mat_t *B;*/
 
-	float rE, lE, rJ, lJ;
+	float rE, rJ, rrho;
 
 	/* Particles of the block */
 	particle_t *particles;

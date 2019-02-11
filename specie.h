@@ -44,15 +44,6 @@ struct specie
 	float q; /* Electric charge */
 	float m; /* Mass of the particle */
 
-
-	/* The fields */
-	mat_t *E;
-	mat_t *B;
-	mat_t *J;
-
-	/* Density of charge */
-	mat_t *rho;
-
 	/* Time step in seconds*/
 	float dt;
 

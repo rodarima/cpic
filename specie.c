@@ -17,11 +17,6 @@ specie_alloc(int dim, int *shape, int nparticles)
 
 	s->particles = malloc(nparticles * sizeof(particle_t));
 
-	s->E = mat_init(dim, shape, 0.0);
-	s->B = mat_init(dim, shape, 0.0);
-	s->J = mat_init(dim, shape, 0.0);
-	s->rho = mat_init(dim, shape, 0.0);
-
 	return s;
 }
 
@@ -70,8 +65,8 @@ specie_init()
 	specie_t *s;
 	int i;
 	int dim = 1;
-	int shape = 10;
-	int nparticles = 10000;
+	int shape = 20;
+	int nparticles = 5000;
 
 	s = specie_alloc(dim, &shape, nparticles);
 
@@ -82,15 +77,15 @@ specie_init()
 	/* Physical parameters */
 	s->t = 0.0;
 	s->C = 2.99792458e+8;
-	s->q = -1.60217662e-19 * 1e-3; /* The charge of an electron in coulombs */
+	s->q = -1.60217662e-19; /* The charge of an electron in coulombs */
 	s->m = 9.10938356e-31; /* The electron mass */
 	s->e0 = 8.85e-12; /* Vacuum permittivity */
 
 	/* Discretization values */
 	s->dt = 1.0e-8;
-	s->dx = 10.0 * (s->C/2.0) * s->dt * 1e2;
+	s->dx = 10.0 * (s->C/2.0) * s->dt;
 	s->nblocks = shape;
-	s->blocksize = 200000; /* The number of nodes in each block */
+	s->blocksize = 10; /* The number of nodes in each block */
 	s->nnodes = s->nblocks * s->blocksize;
 
 	printf("%d %d %10.e %10.e\n",

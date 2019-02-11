@@ -8,17 +8,6 @@
 #define DEBUG 0
 #include "log.h"
 
-/* Inits a new block, and sets the initial n particles */
-int
-block_init(block_t *b, size_t blocksize, particle_t *particles, size_t n)
-{
-
-	b->E = vec_init(blocksize, 0.0);
-	b->J = vec_init(blocksize, 0.0);
-
-	return 0;
-}
-
 void
 block_add_particle(block_t *b, particle_t *p)
 {
@@ -47,6 +36,7 @@ blocks_init(specie_t *s)
 
 		b->E = vec_init(s->blocksize, 0.0);
 		b->J = vec_init(s->blocksize, 0.0);
+		b->rho = vec_init(s->blocksize, 0.0);
 		b->x = i * s->dx * s->blocksize;
 
 	}
@@ -112,7 +102,8 @@ block_field_J(specie_t *s, block_t *b)
 	particle_t *p;
 	int i, j0, j1;
 	float *J = b->J->data;
-	float w0, w1, px, deltax;
+	float *rho = b->rho->data;
+	float w0, w1, px, deltax, deltaxj;
 	int size = b->J->size;
 	float dx = s->dx;
 	float x0 = b->x;
@@ -123,6 +114,9 @@ block_field_J(specie_t *s, block_t *b)
 	memset(J, 0, sizeof(float) * size);
 	b->rJ = 0.0;
 
+	memset(rho, 0, sizeof(float) * size);
+	b->rrho = 0.0;
+
 	dbg("Block %d boundary [%e, %e]\n", b->i, x0, x1);
 
 	for(p = b->particles; p; p = p->next)
@@ -130,6 +124,7 @@ block_field_J(specie_t *s, block_t *b)
 		/* The particle position */
 		px = p->x;
 		deltax = px - x0;
+		assert(deltax >= 0.0);
 
 		/* Ensure the particle is in the block boundary */
 		if(!(x0 <= px && px <= x1))
@@ -140,12 +135,13 @@ block_field_J(specie_t *s, block_t *b)
 		}
 
 		j0 = (int) floor(deltax / s->dx);
+		deltaxj = deltax - j0 * s->dx;
 
 		assert(j0 >= 0);
 		assert(j0 < size);
 
 		/* As p->x approaches to j0, the weight w0 must be close to 1 */
-		w1 = deltax / s->dx;
+		w1 = deltaxj / s->dx;
 		w0 = 1.0 - w1;
 
 		/* Last node updates the ghost */
@@ -153,6 +149,11 @@ block_field_J(specie_t *s, block_t *b)
 		{
 			J[j0] += w0 * p->J;
 			b->rJ += w1 * p->J;
+
+			/* Approximate the charge by a triangle */
+			rho[j0] += w0 * s->q;
+			b->rrho += w1 * s->q;
+
 			dbg("Particle %d at x=%e (deltax=%e) updates J[%d] and rJ\n",
 				p->i, px, deltax, j0);
 		}
@@ -162,6 +163,11 @@ block_field_J(specie_t *s, block_t *b)
 			assert(j1 < size);
 			J[j0] += w0 * p->J;
 			J[j1] += w1 * p->J;
+
+			/* Approximate the charge by a triangle */
+			rho[j0] += w0 * s->q;
+			rho[j1] += w1 * s->q;
+
 			dbg("Particle %d at x=%e (deltax=%e) updates J[%d] and J[%d]\n",
 				p->i, px, deltax, j0, j1);
 		}
@@ -174,6 +180,7 @@ int
 block_comm_field_J(block_t *dst, block_t *left)
 {
 	dst->J->data[0] += left->rJ;
+	dst->rho->data[0] += left->rrho;
 	/* from->rJ cannot be used */
 	/*left->rJ = 0.0;*/
 	return 0;
@@ -211,14 +218,14 @@ block_particle_E(specie_t *s, block_t *b)
 	int j0, j1;
 	float *E = b->E->data;
 	int size = b->E->size;
-	float w0, w1, px, deltax;
+	float w0, w1, px, deltax, deltaxj;
 	float dx = s->dx;
 	float x0 = b->x;
 	float x1 = b->x + dx*size;
 	float xhalf = (x0 + x1) / 2.0;
 	particle_t *p;
 
-	size = s->E->size;
+	size = s->blocksize;
 
 	dbg("Updating particle E in block %d boundary [%e, %e]\n",
 		b->i, x0, x1);
@@ -239,11 +246,12 @@ block_particle_E(specie_t *s, block_t *b)
 
 		j0 = (int) floor(deltax / s->dx);
 		j1 = j0 + 1;
+		deltaxj = deltax - j0 * s->dx;
 
 		assert(j0 >= 0);
 
 		/* As p->x approaches to j0, the weight w0 must be close to 1 */
-		w1 = deltax / s->dx;
+		w1 = deltaxj / s->dx;
 		w0 = 1.0 - w1;
 
 		/* First part, from the node (which is always on the block) */

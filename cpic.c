@@ -9,6 +9,8 @@
 #define DEBUG 1
 #define BLOCK_SIZE 10240
 
+#define ENERGY_CHECK 1
+
 #include "log.h"
 #include "loader.h"
 
@@ -173,6 +175,36 @@ print_particles(specie_t *s)
 }
 
 int
+conservation_energy(specie_t *s)
+{
+	int i,j,k;
+	particle_t *p;
+	block_t *b;
+
+	float EE = 0.0; /* Electrostatic energy */
+	float KE = 0.0; /* Kinetic energy */
+
+	/* We need all previous tasks to finish before computing the energy, but
+	 * the check is only needed for validation */
+	#pragma oss taskwait
+	for(i=0; i<s->nblocks; i++)
+	{
+		for(j=0; j < s->blocksize; j++)
+		{
+			b = &s->blocks[i];
+			EE += 0.5 * b->rho->data[j] * b->J->data[j];
+		}
+	}
+
+	for(i=0; i<s->nparticles; i++)
+	{
+		p = &s->particles[i];
+		KE += 0.5 * s->m * p->u * p->u;
+	}
+	dbg("E=%e EE=%e KE=%e\n", EE+KE, EE, KE);
+}
+
+int
 start_task()
 {
 	int i, max_it = 10;
@@ -185,10 +217,10 @@ start_task()
 	particle_J(s);
 	field_J(s);
 
-	for(i = 0; i < max_it; i++)
-	//while(1)
+	//for(i = 0; i < max_it; i++)
+	while(1)
 	{
-		dbg("------ Begin iteration i=%d ------\n", i);
+		//dbg("------ Begin iteration i=%d ------\n", i);
 
 
 		/* Phase CP:FS. Field solver, calculation of the electric field
@@ -220,7 +252,11 @@ start_task()
 		field_J(s);
 
 		/* Print the status */
-		//specie_print(s);
+		specie_print(s);
+
+#if ENERGY_CHECK
+		conservation_energy(s);
+#endif
 
 		//#pragma oss taskwait
 		specie_step(s);
@@ -231,10 +267,15 @@ start_task()
 	/* sync before leaving the program */
 	#pragma oss taskwait
 
+	return 0;
 }
 
 int main(int argc, char *argv[])
 {
+#ifdef _OMPSS_2
 	start_nanos6(start_task, argc, argv);
+#else
+	start_task();
+#endif
 	return 0;
 }
