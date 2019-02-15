@@ -22,7 +22,7 @@ CPIC_OBJ=$(CPIC_SRC:.c=.o)
 SRC=$(CPIC_SRC)
 OBJ=$(SRC:.c=.o)
 
-all: cpic plot test config
+all: cpic eplot pplot test config
 
 test: test.mcc.c
 	$(CC) $(CFLAGS) $(LDLIBS) $^ -o $@
@@ -35,7 +35,10 @@ cpic: $(CPIC_OBJ)
 %.mcc.c: %.c
 	$(OCC) $(CFLAGS) $(OCFLAGS) -y -o $@ $<
 
-plot: plot.c
+pplot: pplot.c
+	$(CC) -lGL -lGLU -lglut -lm $< -o $@
+
+eplot: eplot.c
 	$(CC) -lGL -lGLU -lglut -lm $< -o $@
 
 config: config.o

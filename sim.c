@@ -1,11 +1,13 @@
 #include <libconfig.h>
 #include "sim.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include "specie.h"
 #include "particle.h"
 #include "field.h"
+
+#define ENERGY_CHECK 1
 
 sim_t *
 sim_init(config_t *conf)
@@ -64,7 +66,11 @@ conservation_energy(specie_t *s)
 		p = &s->particles[i];
 		KE += 0.5 * s->m * p->u * p->u;
 	}
-	dbg("E=%e EE=%e KE=%e\n", EE+KE, EE, KE);
+
+	/* Change units to eV */
+	EE /= 1.6021766208e-19;
+	KE /= 1.6021766208e-19;
+	printf("e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE);
 
 	return 0;
 }
@@ -81,7 +87,7 @@ sim_header(sim_t *sim)
 	nnodes = nblocks * blocksize;
 	nparticles = sim->species[0].nparticles;
 
-	printf("%d %d %10.e %10.e\n",
+	printf("p %d %d %10.e %10.e\n",
 		nparticles, nnodes, sim->dx, sim->dt);
 
 	return 0;
@@ -146,7 +152,8 @@ sim_run(sim_t *sim)
 		specie_print(s);
 
 #if ENERGY_CHECK
-		conservation_energy(s);
+		if((i % 5) == 0)
+			conservation_energy(s);
 #endif
 
 		//#pragma oss taskwait

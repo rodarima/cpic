@@ -11,6 +11,8 @@ GLenum doubleBuffer;
 GLint windW = 500, windH = 500;
 
 #define MAX_HIST 30
+#define TAG 'p'
+#define MAX_LINE 256
 
 particle_t *particles[MAX_HIST];
 int hist = 0;
@@ -20,14 +22,36 @@ int shape;
 float dx, dt;
 int play = 1;
 int clear = 0;
+int plotting = 1;
+
+static int
+get_line(char *buf, size_t n)
+{
+	while(getline(&buf, &n, stdin))
+	{
+		if(buf[0] == TAG)
+			return 0;
+
+		printf("%s", buf);
+		fflush(stdout);
+	}
+	return -1;
+}
 
 static void
 Init(void)
 {
 	int i;
 	particle_t *p;
+	char buf[MAX_LINE];
 
-	scanf("%d %d %f %f", &nparticles, &shape, &dx, &dt);
+	if(get_line(buf, MAX_LINE))
+	{
+		fprintf(stderr, "EOF before read config\n");
+		exit(1);
+	}
+
+	sscanf(buf, "p %d %d %f %f", &nparticles, &shape, &dx, &dt);
 	printf("Number of particles=%d, shape=%d\n", nparticles, shape);
 
 	for(i = 0; i < MAX_HIST; i++)
@@ -63,6 +87,9 @@ Key(unsigned char key, int x, int y)
 	case 'c':
 		clear = !clear;
 		break;
+	case 'n':
+		plotting = !plotting;
+		break;
 	case 'q':
 	case 27:
 		exit(0);
@@ -75,6 +102,7 @@ Idle(void)
 	float t, x, u;
 	int i, j, ret;
 	particle_t *p;
+	char buf[MAX_LINE];
 
 	if(!play)
 	{
@@ -89,13 +117,14 @@ Idle(void)
 		/* Copy old particle into particles1 */
 		//memcpy(&particles1[prev_hist][i], &particles[hist][i], sizeof(particle_t));
 
-		ret = scanf("%d %f %f",
-				&j, &x, &u);
-		if(ret == EOF)
+		if(get_line(buf, MAX_LINE))
 		{
-			printf("EOF reached\n");
+			fprintf(stderr, "EOF reached\n");
 			exit(0);
 		}
+
+		ret = sscanf(buf, "p %d %f %f",
+				&j, &x, &u);
 
 		if(ret != 3)
 		{
@@ -161,7 +190,7 @@ plot_particle(int pi)
 	int segments[MAX_HIST];
 	int i, j, k=0, n;
 	float cm, ch, cl;
-	float h = 1.0, l = 0.1;
+	float h = 1.0, l = 0.3;
 
 	n = get_curve(x, y, segments, pi);
 
@@ -174,7 +203,7 @@ plot_particle(int pi)
 		for(j = 0; j<segments[i]; j++)
 		{
 			cm = (float) k / MAX_HIST;
-			if(cm < 0.2) cm = 0.2;
+			if(cm < 0.3) cm = 0.3;
 			ch = cm * h;
 			cl = cm * l;
 			if(pi % 2)
@@ -206,6 +235,9 @@ plot_particles()
 void
 Display(void)
 {
+	if(!plotting)
+		return;
+
 	plot_particles();
 
 	if (doubleBuffer) {

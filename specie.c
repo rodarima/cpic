@@ -142,7 +142,7 @@ specie_print(specie_t *s)
 		p = &s->particles[i];
 		//printf("%10.3e %d %10.3e %10.3e %10.3e %10.3e\n",
 		//	s->t, i, p->x, p->u, p->E, p->J);
-		printf("%d %10.3e %10.3e\n", p->i, p->x, p->u);
+		printf("p %d %10.3e %10.3e\n", p->i, p->x, p->u);
 	}
 
 	return 0;
