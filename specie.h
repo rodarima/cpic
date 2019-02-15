@@ -8,6 +8,7 @@ typedef struct specie specie_t;
 
 #include "mat.h"
 #include "block.h"
+#include <libconfig.h>
 
 #define MAX_PART 500
 
@@ -36,28 +37,9 @@ struct particle {
 
 struct specie
 {
-	int dim;
-	int *shape;
-
-
 	/* All particles of the same specie have the same mass and charge. */
-	float q; /* Electric charge */
-	float m; /* Mass of the particle */
-
-	/* Time step in seconds*/
-	float dt;
-
-	/* The current simulation time in seconds */
-	float t;
-
-	/* Spacial step in meters */
-	float dx;
-
-	/* Speed of light in meters/second */
-	float C;
-
-	/* Vacuum permittivity in Farad/meter (F/m) */
-	float e0;
+	double q; /* Electric charge */
+	double m; /* Mass of the particle */
 
 	/* Particles */
 	int nparticles;
@@ -74,14 +56,18 @@ struct specie
 
 	/* Array of blocks */
 	block_t *blocks;
-
 };
 
-struct specie *
-specie_init();
+#include "sim.h"
+
+int
+species_init(sim_t *sim, config_t *conf);
+
+int
+specie_init(sim_t *sim, config_setting_t *cs, specie_t *s);
 
 int
 specie_print(struct specie *s);
 
 void
-specie_step(struct specie *s);
+specie_step(sim_t *sim);

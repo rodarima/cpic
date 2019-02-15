@@ -5,8 +5,10 @@ typedef struct block block_t;
 
 #include "mat.h"
 #include "specie.h"
+#include "field.h"
 
 #include <stdlib.h>
+#include <libconfig.h>
 
 /* A block is designed to run in a node, where the memory can be shared */
 struct block
@@ -17,13 +19,8 @@ struct block
 	/* Position of the first node of the block */
 	float x;
 
-	/* The fields */
-	mat_t *E;
-	mat_t *J;
-	mat_t *rho;
-	/*mat_t *B;*/
-
-	float rE, rJ, rrho;
+	/* The field over the space chunk */
+	field_t field;
 
 	/* Particles of the block */
 	particle_t *particles;
@@ -34,7 +31,7 @@ struct block
 };
 
 int
-blocks_init(specie_t *s);
+blocks_init(sim_t *sim, specie_t *s);
 
 void
 blocks_print(block_t *blocks, size_t n);

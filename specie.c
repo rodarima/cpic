@@ -2,6 +2,9 @@
 #include "mat.h"
 #include "block.h"
 
+#define DEBUG 0
+#include "log.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
@@ -12,7 +15,6 @@ specie_alloc(int dim, int *shape, int nparticles)
 	specie_t *s;
 
 	s = malloc(sizeof(specie_t));
-	s->dim = dim;
 	s->nparticles = nparticles;
 
 	s->particles = malloc(nparticles * sizeof(particle_t));
@@ -35,7 +37,7 @@ field_init(mat_t *f)
 }
 
 int
-particles_init(specie_t *s)
+particles_init(sim_t *sim, specie_t *s)
 {
 	int i;
 	int total_nodes = s->blocksize * s->nblocks;
@@ -47,9 +49,9 @@ particles_init(specie_t *s)
 
 		p->i = i;
 		//p->x = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
-		p->x = ((float) rand() / RAND_MAX) * total_nodes * s->dx;
+		p->x = ((float) rand() / RAND_MAX) * total_nodes * sim->dx;
 		//p->x = s->E->size * s->dx / 2.0;
-		p->u = (2.0 * ((i % 2) - 0.5)) * 0.5 * s->C; /* m/s */
+		p->u = (2.0 * ((i % 2) - 0.5)) * 0.5 * sim->C; /* m/s */
 		//p->u = (((float) rand() / RAND_MAX) - 0.5) * s->C; /* m/s */
 		//p->u = 0.5 * s->C; /* m/s */
 		p->E = 0.0;
@@ -59,52 +61,70 @@ particles_init(specie_t *s)
 	return 0;
 }
 
-specie_t *
-specie_init()
+int
+specie_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
-	specie_t *s;
-	int i;
-	int dim = 1;
-	int shape = 20;
-	int nparticles = 5000;
+	config_setting_lookup_float(cs, "charge", &s->q);
+	config_setting_lookup_float(cs, "mass", &s->m);
+	config_setting_lookup_int(cs, "particles", &s->nparticles);
 
-	s = specie_alloc(dim, &shape, nparticles);
+	config_lookup_int(sim->conf, "grid.blocks", &s->nblocks);
+	config_lookup_int(sim->conf, "grid.blocksize", &s->blocksize);
 
-	s->shape = malloc(sizeof(int) * 1);
-	s->shape[0] = shape;
+	if(s->nparticles <= 0)
+	{
+		err("The number of particles must be greater than 0\n");
+		return 1;
+	}
 
+	s->particles = malloc(s->nparticles * sizeof(particle_t));
 
-	/* Physical parameters */
-	s->t = 0.0;
-	s->C = 2.99792458e+8;
-	s->q = -1.60217662e-19; /* The charge of an electron in coulombs */
-	s->m = 9.10938356e-31; /* The electron mass */
-	s->e0 = 8.85e-12; /* Vacuum permittivity */
+	if(particles_init(sim, s))
+		return 1;
 
-	/* Discretization values */
-	s->dt = 1.0e-8;
-	s->dx = 10.0 * (s->C/2.0) * s->dt;
-	s->nblocks = shape;
-	s->blocksize = 10; /* The number of nodes in each block */
-	s->nnodes = s->nblocks * s->blocksize;
+	if(blocks_init(sim, s))
+		return 1;
 
-	printf("%d %d %10.e %10.e\n",
-		nparticles, s->nnodes, s->dx, s->dt);
+	return 0;
+}
 
+int
+species_init(sim_t *sim, config_t *conf)
+{
+	config_setting_t *cs, *specie;
+	int i, ns;
 
-	particles_init(s);
+	cs = config_lookup(conf, "species");
 
-	blocks_init(s);
+	ns = config_setting_length(cs);
 
-	//blocks_print(s->blocks, s->nblocks);
+	if(ns <= 0)
+	{
+		err("The number of species must be at least 1.\n");
+		return 1;
+	}
 
-	return s;
+	sim->nspecies = ns;
+	sim->species = calloc(ns, sizeof(specie_t));
+
+	for(i=0; i < ns; i++)
+	{
+		specie = config_setting_get_elem(cs, i);
+		dbg("specie_init for sim %p, specie conf %p, specie %p\n",
+				sim, specie, &sim->species[i]);
+		if(specie_init(sim, specie, &sim->species[i]))
+		{
+			err("specie_init failed\n");
+			return 1;
+		}
+	}
+	return 0;
 }
 
 void
-specie_step(specie_t *s)
+specie_step(sim_t *sim)
 {
-	s->t += s->dt;
+	sim->t += sim->dt;
 }
 
 int

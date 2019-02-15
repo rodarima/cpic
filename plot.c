@@ -19,7 +19,7 @@ int nparticles;
 int shape;
 float dx, dt;
 int play = 1;
-int clear = 1;
+int clear = 0;
 
 static void
 Init(void)
@@ -236,7 +236,8 @@ main(int argc, char **argv)
 	type = GLUT_RGB;
 	type |= (doubleBuffer) ? GLUT_DOUBLE : GLUT_SINGLE;
 	glutInitDisplayMode(type);
-	glutCreateWindow("two streams");
+	glutCreateWindow("plot");
+	//glutCreateWindow("two streams");
 	//glutFullScreen();
 
 	Init();

@@ -93,10 +93,13 @@ int start_nanos6(void *start_task, int argc, char **argv)
 		printf("Waiting cond wait\n");
 		pthread_cond_wait(&condVar._cond, &condVar._mutex);
 	}
+	printf("While loop finished\n");
 	pthread_mutex_unlock(&condVar._mutex);
 
+	printf("Terminating nanos6\n");
 	// Terminate
 	nanos6_shutdown();
+	printf("Done\n");
 
 	return argsBlock.returnCode;
 }

@@ -17,13 +17,13 @@ mat_alloc(int dim, int *shape)
 
 	m->size = size;
 
-	m->data = malloc(sizeof(float) * size);
+	m->data = malloc(sizeof(double) * size);
 
 	return m;
 }
 
 mat_t *
-mat_init(int dim, int *shape, float v)
+mat_init(int dim, int *shape, double v)
 {
 	mat_t *m;
 	int i;
@@ -37,13 +37,13 @@ mat_init(int dim, int *shape, float v)
 }
 
 void
-mat_set1d(mat_t *m, int pos, float v)
+mat_set1d(mat_t *m, int pos, double v)
 {
-	((float*) m)[pos] = v;
+	((double*) m)[pos] = v;
 }
 
 mat_t *
-vec_init(int size, float v)
+vec_init(int size, double v)
 {
 	mat_t *m;
 	int i;
