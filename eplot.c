@@ -23,7 +23,7 @@ float dx, dt;
 int play = 1;
 int clear = 0;
 
-double maxy = 0;
+double maxEE = 0, maxTE = 0, maxKE = 0;
 int cursor_x;
 double TE0, EE0, KE0;
 double TE=0, EE=0, KE=0;
@@ -119,38 +119,39 @@ plot()
 {
 	char buf[MAX_LINE];
 	int i;
-	double x, yt, yt0, ye, ye0;
+	double x, yTE, yTE0, yEE, yEE0;
+	double lTE = (TE);
+	double lEE = (EE);
+	double lKE = (KE);
+	double lTE0 = (TE0);
+	double lEE0 = (EE0);
+	double lKE0 = (KE0);
 
 	if(clear)
 		glClear(GL_COLOR_BUFFER_BIT);
 
 	//fprintf(stderr, "TE=%e\n", TE);
 	//fprintf(stderr, "EE=%e\n", EE);
-	if (maxy < log(TE))
-	{
-		fprintf(stderr, "max y = %e\n", maxy);
-		maxy = log(TE);
-	}
 
-	if(maxy != 0.0)
-	{
-		yt = log(TE)/maxy * windH;
-		yt0 = log(TE0)/maxy * windH;
-		ye = 1e4 * EE/maxy * windH + windH/2;
-		ye0 = 1e4 * EE0/maxy * windH + windH/2;
-	}
-	else
-	{
-		yt = 0.0;
-		ye = windH/2;
-	}
+	if(lTE > maxEE) maxTE = lTE;
+	if(lEE > maxEE) maxEE = lEE;
+	if(lKE > maxEE) maxKE = lKE;
+
+	if(maxTE == 0.0) maxTE = 1e-10;
+	if(maxEE == 0.0) maxEE = 1e-10;
+	if(maxKE == 0.0) maxKE = 1e-10;
+
+	yTE  = lTE  / maxTE * windH;
+	yTE0 = lTE0 / maxTE * windH;
+	yEE  = lEE  / maxEE / 2 * windH + windH/2;
+	yEE0 = lEE0 / maxEE / 2 * windH + windH/2;
 
 	x = (double) cursor_x;
 
 	cursor_x = (cursor_x + 1) % windW;
 
-	//fprintf(stderr, "x=%e yt0=%e\n", x, yt0);
-	//fprintf(stderr, "x=%e yt=%e\n", x-1, yt);
+	//fprintf(stderr, "x=%e yTE0=%e\n", x, yTE0);
+	//fprintf(stderr, "x=%e yTE=%e\n", x-1, yTE);
 
 	glLineWidth(1.0);
 	glColor3f(0.0, 0.0, 0.0);
@@ -161,14 +162,14 @@ plot()
 
 	glColor3f(1.0, 0.0, 0.0);
 	glBegin(GL_LINES);
-	glVertex2f(x-1, yt0);
-	glVertex2f(x, yt);
+	glVertex2f(x-1, yTE0);
+	glVertex2f(x, yTE);
 	glEnd();
 
 	glColor3f(1.0, 1.0, 0.5);
 	glBegin(GL_LINES);
-	glVertex2f(x-1, ye0);
-	glVertex2f(x, ye);
+	glVertex2f(x-1, yEE0);
+	glVertex2f(x, yEE);
 	glEnd();
 
 

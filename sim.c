@@ -152,8 +152,8 @@ sim_run(sim_t *sim)
 		specie_print(s);
 
 #if ENERGY_CHECK
-		if((i % 5) == 0)
-			conservation_energy(s);
+		//if((i % 5) == 0)
+		conservation_energy(s);
 #endif
 
 		//#pragma oss taskwait

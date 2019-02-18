@@ -37,11 +37,14 @@ field_init(mat_t *f)
 }
 
 int
-particles_init(sim_t *sim, specie_t *s)
+particles_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
 	int i;
 	int total_nodes = s->blocksize * s->nblocks;
 	particle_t *p;
+	double v;
+
+	config_setting_lookup_float(cs, "drift_velocity", &v);
 
 	for(i = 0; i < s->nparticles; i++)
 	{
@@ -51,7 +54,7 @@ particles_init(sim_t *sim, specie_t *s)
 		//p->x = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
 		p->x = ((float) rand() / RAND_MAX) * total_nodes * sim->dx;
 		//p->x = s->E->size * s->dx / 2.0;
-		p->u = (2.0 * ((i % 2) - 0.5)) * 0.5 * sim->C; /* m/s */
+		p->u = (2.0 * ((i % 2) - 0.5)) * v; /* m/s */
 		//p->u = (((float) rand() / RAND_MAX) - 0.5) * s->C; /* m/s */
 		//p->u = 0.5 * s->C; /* m/s */
 		p->E = 0.0;
@@ -79,7 +82,7 @@ specie_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 
 	s->particles = malloc(s->nparticles * sizeof(particle_t));
 
-	if(particles_init(sim, s))
+	if(particles_init(sim, cs, s))
 		return 1;
 
 	if(blocks_init(sim, s))
