@@ -32,6 +32,10 @@ int cursor_x;
 double TE0, EE0, KE0;
 double TE=0, EE=0, KE=0;
 
+#define ENERGY_HIST 1024
+
+double EV[ENERGY_HIST];
+
 static int
 get_line(char *buf, size_t n, int prefix)
 {
@@ -351,7 +355,7 @@ plot()
 {
 	char buf[MAX_LINE];
 	int i;
-	double x, yTE, yTE0, yEE, yEE0;
+	double x, yTE, yTE0, yEE, yEE0, yKE, yKE0;
 	double lTE = (TE);
 	double lEE = (EE);
 	double lKE = (KE);
@@ -367,17 +371,21 @@ plot()
 	if(lKE > maxKE) maxKE = 1.5 * lKE;
 
 	if(lTE < minTE) minTE = lTE;
-	if(lEE < minEE) minEE = lEE;
-	if(lKE < minKE) minKE = lKE;
+	//if(lEE < minEE) minEE = lEE;
+	//if(lKE < minKE) minKE = lKE;
 
 	if(maxTE == 0.0) maxTE = 1e-10;
 	if(maxEE == 0.0) maxEE = 1e-10;
 	if(maxKE == 0.0) maxKE = 1e-10;
 
+	maxEE = maxKE;
+
 	yTE  = (lTE  - minTE) / (maxTE - minTE) * windH/2;
 	yTE0 = (lTE0 - minTE) / (maxTE - minTE) * windH/2;
-	yEE  = (lEE  - minEE) / (maxEE - minEE) / 2 * windH/2 + 3*windH/4;
-	yEE0 = (lEE0 - minEE) / (maxEE - minEE) / 2 * windH/2 + 3*windH/4;
+	yEE  = (lEE  - minEE) / (maxEE - minEE) * windH/2 + 1*windH/2;
+	yEE0 = (lEE0 - minEE) / (maxEE - minEE) * windH/2 + 1*windH/2;
+	yKE  = (lKE  - minKE) / (maxKE - minKE) * windH/2 + 1*windH/2;
+	yKE0 = (lKE0 - minKE) / (maxKE - minKE) * windH/2 + 1*windH/2;
 
 	x = (double) cursor_x;
 
@@ -407,6 +415,13 @@ plot()
 	glBegin(GL_LINES);
 	glVertex2f(x-1, yEE0);
 	glVertex2f(x, yEE);
+	glEnd();
+
+	/* Draw kinetic energy */
+	glColor3f(0.0, 1.0, 0.0);
+	glBegin(GL_LINES);
+	glVertex2f(x-1, yKE0);
+	glVertex2f(x, yKE);
 	glEnd();
 
 

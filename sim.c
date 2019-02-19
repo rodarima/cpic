@@ -52,9 +52,9 @@ sim_init(config_t *conf)
 
 	fprintf(stderr, "plasma_frequency = %e Hz (period %e iterations)\n", wp, 1/(wp*s->dt));
 
-	fprintf(stderr, "wp * dt = %e\n", wp * s->dt);
-	assert(wp * s->dt <= 0.2);
-	assert(wp * s->dt >= 0.1);
+	fprintf(stderr, "wp * dt = %e (should be between 0.1 and 0.2)\n", wp * s->dt);
+	//assert(wp * s->dt <= 0.2);
+	//assert(wp * s->dt >= 0.1);
 
 	return s;
 }
@@ -66,9 +66,11 @@ conservation_energy(sim_t *sim, specie_t *s)
 	particle_t *p;
 	block_t *b;
 
+	double E;
 	double EE = 0.0; /* Electrostatic energy */
 	double KE = 0.0; /* Kinetic energy */
-	double L = sim->L;
+	//double L = sim->L;
+	double dx = sim->dx;
 
 
 
@@ -80,7 +82,11 @@ conservation_energy(sim_t *sim, specie_t *s)
 		for(j=0; j < s->blocksize; j++)
 		{
 			b = &s->blocks[i];
-			EE += b->field.rho->data[j] * b->field.J->data[j];
+			//EE += b->field.rho->data[j] * b->field.J->data[j];
+			//EE += b->field.E->data[j] * b->field.E->data[j];
+			E = b->field.E->data[j];
+
+			EE += E * E * dx / (8.0 * M_PI);
 		}
 	}
 
@@ -91,11 +97,13 @@ conservation_energy(sim_t *sim, specie_t *s)
 //		EE += p->E * p->E;
 	}
 
-	EE /= L*2.0;
+	//EE /= L*2.0;
 
 	/* Change units to eV */
-	EE /= 1.6021766208e-19;
-	KE /= 1.6021766208e-19;
+	//EE /= 1.6021766208e-19;
+	KE /= 1.6021766208e-19; /* ??? */
+	//KE *= 8.0; /* FIXME: Where this 8 comes from ? */
+	KE *= 8.0; /* FIXME: Where this 8 comes from ? */
 	printf("e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE);
 
 	return 0;
