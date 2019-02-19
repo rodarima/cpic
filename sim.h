@@ -15,6 +15,9 @@ struct sim
 	/* Spacial step in meters */
 	double dx;
 
+	/* Length of the simulation in meters */
+	double L;
+
 	/* The current simulation time in seconds */
 	double t;
 
@@ -26,6 +29,8 @@ struct sim
 
 	/* Number of simulation steps */
 	int cycles;
+
+	int energy_cycles;
 
 	/* Species of particles */
 	int nspecies;

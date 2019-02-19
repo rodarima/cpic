@@ -7,6 +7,9 @@
 #include "particle.h"
 #include "field.h"
 
+#include <math.h>
+#include <assert.h>
+
 #define ENERGY_CHECK 1
 
 sim_t *
@@ -14,7 +17,9 @@ sim_init(config_t *conf)
 {
 	sim_t *s;
 	int ns, nblocks, blocksize;
-	double space_length;
+	int seed;
+	double wp;
+	specie_t *sp;
 
 	s = calloc(1, sizeof(sim_t));
 
@@ -22,32 +27,50 @@ sim_init(config_t *conf)
 
 	config_lookup_int(conf, "simulation.cycles", &s->cycles);
 	config_lookup_float(conf, "simulation.time_step", &s->dt);
-	config_lookup_float(conf, "simulation.space_length", &space_length);
+	config_lookup_float(conf, "simulation.space_length", &s->L);
+	config_lookup_int(conf, "simulation.random_seed", &seed);
+	config_lookup_int(conf, "plot.energy_cycles", &s->energy_cycles);
+
+	srand(seed);
 
 	config_lookup_int(conf, "grid.blocks", &nblocks);
 	config_lookup_int(conf, "grid.blocksize", &blocksize);
 
-	s->dx = space_length / (nblocks * blocksize);
+	s->dx = s->L / (nblocks * blocksize);
 
 	s->t = 0.0;
 
 	config_lookup_float(conf, "constants.light_speed", &s->C);
 	config_lookup_float(conf, "constants.vacuum_permittivity", &s->e0);
 
+
 	species_init(s, conf);
+
+	sp = &s->species[0];
+
+	wp = sqrt(sp->nparticles * sp->q*sp->q / s->e0 / sp->m);
+
+	fprintf(stderr, "plasma_frequency = %e Hz (period %e iterations)\n", wp, 1/(wp*s->dt));
+
+	fprintf(stderr, "wp * dt = %e\n", wp * s->dt);
+	assert(wp * s->dt <= 0.2);
+	assert(wp * s->dt >= 0.1);
 
 	return s;
 }
 
 static int
-conservation_energy(specie_t *s)
+conservation_energy(sim_t *sim, specie_t *s)
 {
 	int i,j,k;
 	particle_t *p;
 	block_t *b;
 
-	float EE = 0.0; /* Electrostatic energy */
-	float KE = 0.0; /* Kinetic energy */
+	double EE = 0.0; /* Electrostatic energy */
+	double KE = 0.0; /* Kinetic energy */
+	double L = sim->L;
+
+
 
 	/* We need all previous tasks to finish before computing the energy, but
 	 * the check is only needed for validation */
@@ -57,7 +80,7 @@ conservation_energy(specie_t *s)
 		for(j=0; j < s->blocksize; j++)
 		{
 			b = &s->blocks[i];
-			EE += 0.5 * b->field.rho->data[j] * b->field.J->data[j];
+			EE += b->field.rho->data[j] * b->field.J->data[j];
 		}
 	}
 
@@ -65,7 +88,10 @@ conservation_energy(specie_t *s)
 	{
 		p = &s->particles[i];
 		KE += 0.5 * s->m * p->u * p->u;
+//		EE += p->E * p->E;
 	}
+
+	EE /= L*2.0;
 
 	/* Change units to eV */
 	EE /= 1.6021766208e-19;
@@ -87,7 +113,7 @@ sim_header(sim_t *sim)
 	nnodes = nblocks * blocksize;
 	nparticles = sim->species[0].nparticles;
 
-	printf("p %d %d %10.e %10.e\n",
+	printf("p %d %d %e %e\n",
 		nparticles, nnodes, sim->dx, sim->dt);
 
 	return 0;
@@ -149,11 +175,11 @@ sim_run(sim_t *sim)
 		field_J(sim, s);
 
 		/* Print the status */
-		specie_print(s);
+		specie_print(sim, s);
 
 #if ENERGY_CHECK
-		//if((i % 5) == 0)
-		conservation_energy(s);
+		if((i % sim->energy_cycles) == 0)
+			conservation_energy(sim, s);
 #endif
 
 		//#pragma oss taskwait

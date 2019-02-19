@@ -22,7 +22,9 @@ CPIC_OBJ=$(CPIC_SRC:.c=.o)
 SRC=$(CPIC_SRC)
 OBJ=$(SRC:.c=.o)
 
-all: cpic eplot pplot test config
+BIN=cpic eplot pplot plot test config
+
+all: $(BIN)
 
 test: test.mcc.c
 	$(CC) $(CFLAGS) $(LDLIBS) $^ -o $@
@@ -35,16 +37,19 @@ cpic: $(CPIC_OBJ)
 %.mcc.c: %.c
 	$(OCC) $(CFLAGS) $(OCFLAGS) -y -o $@ $<
 
+plot: plot.c
+	$(CC) $(CFLAGS) -lGL -lGLU -lglut -lm $< -o $@
+
 pplot: pplot.c
-	$(CC) -lGL -lGLU -lglut -lm $< -o $@
+	$(CC) $(CFLAGS) -lGL -lGLU -lglut -lm $< -o $@
 
 eplot: eplot.c
-	$(CC) -lGL -lGLU -lglut -lm $< -o $@
+	$(CC) $(CFLAGS) -lGL -lGLU -lglut -lm $< -o $@
 
 config: config.o
 
 clean:
-	rm -rf *.o *.mcc.c cpic
+	rm -rf *.o *.mcc.c $(BIN)
 
 load:
 	module load gcc/7.2.0 extrae ompss-2

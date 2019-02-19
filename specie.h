@@ -67,7 +67,7 @@ int
 specie_init(sim_t *sim, config_setting_t *cs, specie_t *s);
 
 int
-specie_print(struct specie *s);
+specie_print(sim_t *sim, struct specie *s);
 
 void
 specie_step(sim_t *sim);

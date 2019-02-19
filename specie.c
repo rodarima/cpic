@@ -54,8 +54,9 @@ particles_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 		//p->x = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
 		p->x = ((float) rand() / RAND_MAX) * total_nodes * sim->dx;
 		//p->x = s->E->size * s->dx / 2.0;
-		p->u = (2.0 * ((i % 2) - 0.5)) * v; /* m/s */
-		//p->u = (((float) rand() / RAND_MAX) - 0.5) * s->C; /* m/s */
+		//p->u = (2.0 * ((i % 2) - 0.5)) * v; /* m/s */
+		//p->u = v; /* m/s */
+		p->u = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
 		//p->u = 0.5 * s->C; /* m/s */
 		p->E = 0.0;
 		p->J = 0.0;
@@ -73,6 +74,8 @@ specie_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 
 	config_lookup_int(sim->conf, "grid.blocks", &s->nblocks);
 	config_lookup_int(sim->conf, "grid.blocksize", &s->blocksize);
+
+	s->nnodes = s->nblocks * s->blocksize;
 
 	if(s->nparticles <= 0)
 	{
@@ -131,22 +134,34 @@ specie_step(sim_t *sim)
 }
 
 int
-specie_print(specie_t *s)
+specie_print(sim_t *sim, specie_t *s)
 {
 	int i;
 	particle_t *p;
+	double x, u, max_x;
 
 	//printf("The specie %p has %d dimensions with %d particles\n",
 	//	s, s->dim, s->nparticles);
 
 	//for(i = 0; i < s->nparticles; i++)
-	for(i = 0; i < s->nparticles; i++)
+	printf("p\n");
+	for(i = 0; i < s->nparticles/* - 1*/; i++)
 	{
 		p = &s->particles[i];
 		//printf("%10.3e %d %10.3e %10.3e %10.3e %10.3e\n",
 		//	s->t, i, p->x, p->u, p->E, p->J);
-		printf("p %d %10.3e %10.3e\n", p->i, p->x, p->u);
+		printf("%d %10.3e %10.3e\n", p->i, p->x, p->u);
 	}
+
+//	max_x = 1 * sim->dx;
+//
+//	x = ((double) rand() / RAND_MAX) * max_x;
+//	//x = s->nnodes * sim->dx;
+//	//x = 2.0 * sim->dx;
+//	u = (((double) rand() - RAND_MAX/2.0) / RAND_MAX) * 0.99 * 8 * 3e8;
+//
+//	/* The last particle is a test one, just to ensure proper rendering */
+//	printf("%d %10.3e %10.3e\n", s->nparticles - 1, x, u);
 
 	return 0;
 }
