@@ -27,7 +27,9 @@ int plotting = 1;
 int grid = 1;
 
 double maxEE = 0, maxTE = 0, maxKE = 0;
-double minEE = 0, minTE = 0, minKE = 0;
+double minEE = 1e30, minTE = 1e30, minKE = 1e30;
+double maxEE2 = 0, maxTE2 = 0, maxKE2 = 0;
+double minEE2 = 1e30, minTE2 = 1e30, minKE2 = 1e30;
 int cursor_x;
 double TE0, EE0, KE0;
 double TE=0, EE=0, KE=0;
@@ -362,34 +364,45 @@ plot()
 	double lTE0 = (TE0);
 	double lEE0 = (EE0);
 	double lKE0 = (KE0);
+	int dirty = 0;
 
 	//fprintf(stderr, "TE=%e\n", TE);
 	//fprintf(stderr, "EE=%e\n", EE);
 
-	if(lTE > maxTE) maxTE = 1.5 * lTE;
-	if(lEE > maxEE) maxEE = 1.5 * lEE;
-	if(lKE > maxKE) maxKE = 1.5 * lKE;
-
-	if(lTE < minTE) minTE = lTE;
-	//if(lEE < minEE) minEE = lEE;
-	//if(lKE < minKE) minKE = lKE;
-
-	if(maxTE == 0.0) maxTE = 1e-10;
-	if(maxEE == 0.0) maxEE = 1e-10;
-	if(maxKE == 0.0) maxKE = 1e-10;
-
-	maxEE = maxKE;
-
-	yTE  = (lTE  - minTE) / (maxTE - minTE) * windH/2;
-	yTE0 = (lTE0 - minTE) / (maxTE - minTE) * windH/2;
-	yEE  = (lEE  - minEE) / (maxEE - minEE) * windH/2 + 1*windH/2;
-	yEE0 = (lEE0 - minEE) / (maxEE - minEE) * windH/2 + 1*windH/2;
-	yKE  = (lKE  - minKE) / (maxKE - minKE) * windH/2 + 1*windH/2;
-	yKE0 = (lKE0 - minKE) / (maxKE - minKE) * windH/2 + 1*windH/2;
-
 	x = (double) cursor_x;
 
 	cursor_x = (cursor_x + 1) % windW;
+
+	if(lTE > maxTE)
+	{
+		maxTE = 1.2 * lTE;
+		dirty = 1;
+	}
+
+	//if(lEE > maxEE) maxEE = lEE;
+	//if(lKE > maxKE) maxKE = lKE;
+
+	//if(lTE < minTE) minTE = lTE;
+	//if(lEE < minEE) minEE = lEE;
+	//if(lKE < minKE) minKE = lKE;
+
+	//if(maxTE == 0.0) maxTE = 1e-10;
+	//if(maxEE == 0.0) maxEE = 1e-10;
+	//if(maxKE == 0.0) maxKE = 1e-10;
+	minTE = 0.0;
+	minKE = 0.0;
+	minEE = 0.0;
+
+	maxEE = maxTE;
+	maxKE = maxTE;
+
+	yTE  = (lTE  - minTE) / (maxTE - minTE) * windH;
+	yTE0 = (lTE0 - minTE) / (maxTE - minTE) * windH;
+	yEE  = (lEE  - minEE) / (maxEE - minEE) * windH;
+	yEE0 = (lEE0 - minEE) / (maxEE - minEE) * windH;
+	yKE  = (lKE  - minKE) / (maxKE - minKE) * windH;
+	yKE0 = (lKE0 - minKE) / (maxKE - minKE) * windH;
+
 
 	//fprintf(stderr, "x=%e yTE0=%e\n", x, yTE0);
 	//fprintf(stderr, "x=%e yTE=%e\n", x-1, yTE);
@@ -397,7 +410,10 @@ plot()
 	glLineWidth(1.0);
 
 	/* Clear previous segment */
-	glColor3f(0.0, 0.0, 0.0);
+	if(dirty)
+		glColor3f(0.5, 0.5, 0.5);
+	else
+		glColor3f(0.0, 0.0, 0.0);
 	glBegin(GL_LINES);
 	glVertex2f(x, 0);
 	glVertex2f(x, windH);

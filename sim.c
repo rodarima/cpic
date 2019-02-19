@@ -86,7 +86,8 @@ conservation_energy(sim_t *sim, specie_t *s)
 			//EE += b->field.E->data[j] * b->field.E->data[j];
 			E = b->field.E->data[j];
 
-			EE += E * E * dx / (8.0 * M_PI);
+			//EE += E * E * dx / (8.0 * M_PI);
+			EE += E * E / (8.0 * M_PI);
 		}
 	}
 
@@ -98,12 +99,12 @@ conservation_energy(sim_t *sim, specie_t *s)
 	}
 
 	//EE /= L*2.0;
+	EE *= 2.0 * M_PI;
 
 	/* Change units to eV */
 	//EE /= 1.6021766208e-19;
 	KE /= 1.6021766208e-19; /* ??? */
 	//KE *= 8.0; /* FIXME: Where this 8 comes from ? */
-	KE *= 8.0; /* FIXME: Where this 8 comes from ? */
 	printf("e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE);
 
 	return 0;
