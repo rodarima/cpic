@@ -104,7 +104,6 @@ conservation_energy(sim_t *sim, specie_t *s)
 	/* Change units to eV */
 	//EE /= 1.6021766208e-19;
 	KE /= 1.6021766208e-19; /* ??? */
-	//KE *= 8.0; /* FIXME: Where this 8 comes from ? */
 	printf("e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE);
 
 	return 0;
