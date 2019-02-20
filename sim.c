@@ -18,7 +18,7 @@ sim_init(config_t *conf)
 	sim_t *s;
 	int ns, nblocks, blocksize;
 	int seed;
-	double wp;
+	double wp, fp;
 	specie_t *sp;
 
 	s = calloc(1, sizeof(sim_t));
@@ -49,8 +49,9 @@ sim_init(config_t *conf)
 	sp = &s->species[0];
 
 	wp = sqrt(sp->nparticles * sp->q*sp->q / s->e0 / sp->m);
+	fp = wp / (2*M_PI);
 
-	fprintf(stderr, "plasma_frequency = %e Hz (period %e iterations)\n", wp, 1/(wp*s->dt));
+	fprintf(stderr, "plasma_frequency = %e Hz (period %e iterations)\n", fp, fp / s->dt);
 
 	fprintf(stderr, "wp * dt = %e (should be between 0.1 and 0.2)\n", wp * s->dt);
 	//assert(wp * s->dt <= 0.2);
@@ -87,7 +88,7 @@ conservation_energy(sim_t *sim, specie_t *s)
 			E = b->field.E->data[j];
 
 			//EE += E * E * dx / (8.0 * M_PI);
-			EE += E * E / (8.0 * M_PI);
+			EE += E * E / (4.0);
 		}
 	}
 
@@ -99,7 +100,6 @@ conservation_energy(sim_t *sim, specie_t *s)
 	}
 
 	//EE /= L*2.0;
-	EE *= 2.0 * M_PI;
 
 	/* Change units to eV */
 	//EE /= 1.6021766208e-19;
