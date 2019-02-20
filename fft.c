@@ -2,7 +2,7 @@
 
 #include <fftw3.h>
 
-#define NUM_POINTS 10000
+#define NUM_POINTS 2000
 
 
 /* Never mind this bit */
@@ -33,8 +33,8 @@ void do_something_with(fftw_complex* result) {
 		double mag = sqrt(result[i][REAL] * result[i][REAL] +
 			  result[i][IMAG] * result[i][IMAG]);
 
-		printf("%g\n", result[i][REAL]);
-		//printf("%g\n", mag);
+		//printf("%g\n", result[i][REAL]);
+		printf("%g\n", mag);
 	}
 }
 
