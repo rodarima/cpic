@@ -1,6 +1,6 @@
 CC=clang
 OCC=mcc
-LDLIBS=-lm -lconfig
+LDLIBS=-lm -lconfig -lfftw3
 CFLAGS=-g -I./include/ -I/apps/PM/ompss-2/2018.11/include/ -L /apps/PM/ompss-2/2018.11/lib
 
 USE_OMPSS=yes
@@ -22,9 +22,10 @@ CPIC_OBJ=$(CPIC_SRC:.c=.o)
 SRC=$(CPIC_SRC)
 OBJ=$(SRC:.c=.o)
 
-BIN=cpic eplot pplot plot test config
+BIN=cpic eplot pplot plot test config fft
 
 all: $(BIN)
+
 
 test: test.mcc.c
 	$(CC) $(CFLAGS) $(LDLIBS) $^ -o $@
