@@ -54,9 +54,9 @@ particles_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 		//p->x = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
 		p->x = ((float) rand() / RAND_MAX) * total_nodes * sim->dx;
 		//p->x = s->E->size * s->dx / 2.0;
-		//p->u = (2.0 * ((i % 2) - 0.5)) * v; /* m/s */
+		p->u = (2.0 * ((i % 2) - 0.5)) * v; /* m/s */
 		//p->u = v; /* m/s */
-		p->u = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
+		//p->u = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
 		//p->u = 0.5 * s->C; /* m/s */
 		p->E = 0.0;
 		p->J = 0.0;

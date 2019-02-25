@@ -4,19 +4,32 @@
 #include <math.h>
 #include <time.h>
 #include <GL/glut.h>
+#include <fftw3.h>
+#include <unistd.h>
 
 #include "specie.h"
 
 GLenum doubleBuffer = GL_FALSE;
-GLint windW = 1400, windH = 400;
-int win1, win2;
+GLint windW = 800, windH = 300;
+int win1, win2, win3;
 
 #define MAX_HIST 10
 #define MAX_LINE 256
 #define MAX_V 6e8
+#define MAX_POS 819
 
 particle_t *particles[MAX_HIST];
 int hist = 0;
+
+double pos_vec[MAX_POS];
+double pos_fft[MAX_POS];
+int pos_i = 0;
+int redraw_fft = 0, recompute_fft = 0;
+double maxfft = 0.0;
+double last_freq_peak = 0.0;
+double freq_peak = 0.0;
+double max_freq_peak = 0.0;
+int cursor_fft = 0;
 
 int nparticles;
 int shape;
@@ -25,6 +38,8 @@ int play = 1;
 int clear = 0;
 int plotting = 1;
 int grid = 1;
+
+int arg_freq = 0, arg_energy = 0, arg_particles = 0;
 
 double maxEE = 0, maxTE = 0, maxKE = 0;
 double minEE = 1e30, minTE = 1e30, minKE = 1e30;
@@ -71,9 +86,6 @@ init_particles(void)
 	for(i = 0; i < MAX_HIST; i++)
 		particles[i] = calloc(sizeof(particle_t), nparticles);
 
-	glClearColor(0.0, 0.0, 0.0, 0.0);
-
-	glDisable(GL_DITHER);
 }
 
 void
@@ -104,7 +116,6 @@ Key(unsigned char key, int x, int y)
 		break;
 	case 'n':
 		plotting = !plotting;
-		fprintf(stderr, "plotting = %d\n", plotting);
 		break;
 	case 'q':
 	case 27:
@@ -121,15 +132,20 @@ idle_particles(char *line)
 	char buf[MAX_LINE];
 	size_t n = MAX_LINE;
 
-	glutSetWindow(win1);
 
 	if(!play)
 	{
-		glutPostRedisplay();
+		//glutPostRedisplay();
 		return;
 	}
 
 	hist = (hist + 1) % MAX_HIST;
+	pos_i = (pos_i + 1) % MAX_POS;
+	if(pos_i == 0)
+	{
+		//fprintf(stderr, "Completed FFT reached\n");
+		recompute_fft = 1;
+	}
 
 	for(i = 0; i < nparticles; i++)
 	{
@@ -154,9 +170,16 @@ idle_particles(char *line)
 		p = &particles[hist][j];
 		p->x = x;
 		p->u = u;
+
+		if(i == 0)
+			pos_vec[pos_i] = u;
 	}
 
-	glutPostRedisplay();
+	if(arg_particles)
+	{
+		glutSetWindow(win1);
+		glutPostRedisplay();
+	}
 }
 
 static int
@@ -328,11 +351,9 @@ idle_energy(char *line)
 {
 	int ret;
 
-	glutSetWindow(win2);
-
 	if(!play)
 	{
-		glutPostRedisplay();
+		//glutPostRedisplay();
 		return;
 	}
 
@@ -349,6 +370,7 @@ idle_energy(char *line)
 		exit(1);
 	}
 
+	glutSetWindow(win2);
 	glutPostRedisplay();
 }
 
@@ -375,7 +397,7 @@ plot()
 
 	if(lTE > maxTE)
 	{
-		maxTE = 1.2 * lTE;
+		maxTE = 2.0 * lTE;
 		dirty = 1;
 	}
 
@@ -458,9 +480,138 @@ display_energy(void)
 	}
 }
 
+static void
+plot_fft()
+{
+	int x;
+//	glClear(GL_COLOR_BUFFER_BIT);
+
+	glLineWidth(1.0);
+
+	glColor3f(0., 0., 0.);
+	glBegin(GL_LINES);
+	glVertex2f((double) cursor_fft, -1.0);
+	glVertex2f((double) cursor_fft, windH+1);
+	glEnd();
+
+	glColor3f(1., 1., 0.);
+	glBegin(GL_LINES);
+	glVertex2f((double) cursor_fft - 1, (last_freq_peak/max_freq_peak) * windH);
+	glVertex2f((double) cursor_fft, (freq_peak/max_freq_peak) * windH);
+	glEnd();
+
+
+	//fprintf(stderr, "Freq y = %f\n", (freq_peak/max_freq_peak) * windH);
+
+//	glBegin(GL_LINES);
+//	//glVertex2f(10.0, 20.0);
+//	//glVertex2f(50.0, 100.0);
+//	for(x = 0; x < windW; x++)
+//	{
+//		glVertex2f((double) x, -1.0);
+//		glVertex2f((double) x, pos_fft[x]/maxfft * windH);
+//	}
+//	glEnd();
+
+	cursor_fft = (cursor_fft + 1) % windW;
+}
+
+void
+display_fft(void)
+{
+	if(!play)
+		return;
+	//fprintf(stderr, "Plotting fft\n");
+	plot_fft();
+	//fprintf(stderr, "Done plotting\n");
+
+
+	if (doubleBuffer) {
+		glutSwapBuffers();
+	} else {
+		glFlush();
+	}
+}
+
+void
+idle_fft()
+{
+	int i;
+	//fprintf(stderr, "idle fft\n");
+
+	if(!play)
+		return;
+
+	if(!recompute_fft)
+		return;
+
+	recompute_fft = 0;
+	redraw_fft = 1;
+	//fprintf(stderr, "idle fft runs\n");
+
+	/* Compute the FFT and plot it */
+	fftw_complex signal[MAX_POS];
+	fftw_complex result[MAX_POS];
+
+	fftw_plan plan = fftw_plan_dft_1d(MAX_POS, signal, result,
+			FFTW_FORWARD, FFTW_ESTIMATE);
+
+	for (i = 0; i < MAX_POS; ++i)
+	{
+		signal[i][0] = pos_vec[i];
+		signal[i][1] = 0.0;
+	}
+
+	fftw_execute(plan);
+
+	last_freq_peak = freq_peak;
+
+	maxfft = 0.0;
+	for (i = 1; i < MAX_POS/2; i++)
+	{
+		pos_fft[i] = sqrt(result[i][0] * result[i][0] +
+			  result[i][1] * result[i][1]);
+
+		pos_fft[i] = (pos_fft[i]);
+
+		if(pos_fft[i] > maxfft)
+		{
+			maxfft = pos_fft[i];
+			/* FIXME: The FFT is symmetric */
+			freq_peak = ((double) i * 2.0) / (MAX_POS * 5.0e-7);
+			//fprintf(stderr, "maxfft = %e\n", maxfft);
+			if (max_freq_peak < freq_peak) max_freq_peak = 3.0 * freq_peak;
+		}
+	}
+
+	//fprintf(stderr, "Frequency peak at %e Hz (max %e Hz)\n", freq_peak, max_freq_peak);
+//	maxfft = 0.0;
+//	for (i = 1; i < windW; i++)
+//	{
+//		pos_fft[i] = sqrt(result[i][0] * result[i][0] +
+//			  result[i][1] * result[i][1]);
+//
+//		pos_fft[i] = (pos_fft[i]);
+//
+//		if(pos_fft[i] > maxfft)
+//		{
+//			maxfft = 1.5 * pos_fft[i];
+//			//fprintf(stderr, "maxfft = %e\n", maxfft);
+//		}
+//	}
+	//fprintf(stderr, "Finally set maxfft = %e\n", maxfft);
+
+	fftw_destroy_plan(plan);
+
+	/* Mark for redisplay */
+	glutSetWindow(win3);
+	glutPostRedisplay();
+}
+
 void
 idle()
 {
+	//fprintf(stderr, "idle\n");
 	if(!play)
 		return;
 
@@ -474,18 +625,17 @@ idle()
 
 	if(buf[0] == 'p')
 		idle_particles(buf);
-	else if(buf[0] == 'e')
+	else if(buf[0] == 'e' && arg_energy)
 		idle_energy(buf);
 
-	if(play)
-	{
-		glutPostRedisplay();
-	}
+	if(arg_freq)
+		idle_fft();
 }
 
 void
 idle_redisplay()
 {
+	//fprintf(stderr, "idle redisplay\n");
 	if(plotting)
 	{
 		//fprintf(stderr, "Calling redisplay for particles\n");
@@ -513,10 +663,51 @@ visible_particles(int state)
 		glutIdleFunc(NULL);
 	}
 }
+
+int
+parse_args(int argc, char *argv[])
+{
+	int opt;
+	int any = 0;
+
+	while((opt = getopt(argc, argv, "epf")) != -1)
+	{
+		switch(opt)
+		{
+			case 'e':
+				arg_energy = 1;
+				any = 1;
+				break;
+			case 'p':
+				arg_particles = 1;
+				any = 1;
+				break;
+			case 'f':
+				arg_freq = 1;
+				any = 1;
+				break;
+			default:
+				fprintf(stderr, "Usage: %s [-e] [-p] [-f]\n", argv[0]);
+				exit(EXIT_FAILURE);
+		}
+	}
+
+	if(!any)
+	{
+		fprintf(stderr, "Please choose at least one plot: -e, -p or -f\n");
+		exit(EXIT_FAILURE);
+	}
+
+	return 0;
+}
+
 int
 main(int argc, char **argv)
 {
+	int show_energy = 1;
 	GLenum type;
+
+	parse_args(argc, argv);
 
 	glutInitWindowSize(windW, windH);
 	glutInit(&argc, argv);
@@ -524,25 +715,41 @@ main(int argc, char **argv)
 	type = GLUT_RGB;
 	type |= (doubleBuffer) ? GLUT_DOUBLE : GLUT_SINGLE;
 	glutInitDisplayMode(type);
-	win1 = glutCreateWindow("plot");
-	glutPositionWindow(50, 50);
 
 	init_particles();
 
-	glutReshapeFunc(Reshape);
-	glutKeyboardFunc(Key);
-	//glutVisibilityFunc(visible_particles);
-	glutIdleFunc(idle_redisplay);
-	glutDisplayFunc(display_particles);
+	if(arg_particles)
+	{
+		win1 = glutCreateWindow("plot");
+		glutPositionWindow(50, 50);
+		glutReshapeFunc(Reshape);
+		glutKeyboardFunc(Key);
+		glutDisplayFunc(display_particles);
+		glClearColor(0.0, 0.0, 0.0, 0.0);
+		glDisable(GL_DITHER);
+	}
 
-	win2 = glutCreateWindow("plot energy");
-	glutPositionWindow(50, 100 + windH);
-	glutReshapeFunc(Reshape);
-	glutKeyboardFunc(Key);
-	//glutVisibilityFunc(visible_energy);
+	if (arg_energy)
+	{
+		win2 = glutCreateWindow("plot energy");
+		glutPositionWindow(50, 100 + windH);
+		glutReshapeFunc(Reshape);
+		glutKeyboardFunc(Key);
+		glutDisplayFunc(display_energy);
+	}
+
+
+	if(arg_freq)
+	{
+		win3 = glutCreateWindow("plot frequency");
+		glutPositionWindow(50, (100 + windH)*2);
+		glutReshapeFunc(Reshape);
+		glutKeyboardFunc(Key);
+		//glutVisibilityFunc(visible_energy);
+		glutDisplayFunc(display_fft);
+	}
+
 	glutIdleFunc(idle);
-	glutDisplayFunc(display_energy);
-
 
 	glutMainLoop();
 	return 0;             /* ANSI C requires main to return int. */

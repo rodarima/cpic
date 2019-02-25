@@ -22,7 +22,7 @@ CPIC_OBJ=$(CPIC_SRC:.c=.o)
 SRC=$(CPIC_SRC)
 OBJ=$(SRC:.c=.o)
 
-BIN=cpic eplot pplot plot test config fft
+BIN=cpic eplot pplot plot config fft
 
 all: $(BIN)
 
@@ -39,7 +39,7 @@ cpic: $(CPIC_OBJ)
 	$(OCC) $(CFLAGS) $(OCFLAGS) -y -o $@ $<
 
 plot: plot.c
-	$(CC) $(CFLAGS) -lGL -lGLU -lglut -lm $< -o $@
+	$(CC) $(CFLAGS) $(LDLIBS) -lGL -lGLU -lglut -lm $< -o $@
 
 pplot: pplot.c
 	$(CC) $(CFLAGS) -lGL -lGLU -lglut -lm $< -o $@

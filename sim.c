@@ -48,7 +48,7 @@ sim_init(config_t *conf)
 
 	sp = &s->species[0];
 
-	wp = sqrt(sp->nparticles * sp->q*sp->q / s->e0 / sp->m);
+	wp = sqrt((sp->nparticles / s->L) * sp->q*sp->q / (s->e0 * sp->m));
 	fp = wp / (2*M_PI);
 
 	fprintf(stderr, "plasma_frequency = %e Hz (period %e iterations)\n", fp, fp / s->dt);
