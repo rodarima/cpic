@@ -9,37 +9,37 @@ typedef struct sim sim_t;
 
 struct sim
 {
-	/* Time step in seconds*/
+	/** Time step in seconds*/
 	double dt;
 
-	/* Spacial step in meters */
+	/** Spacial step in meters */
 	double dx;
 
-	/* Length of the simulation in meters */
+	/** Length of the simulation in meters */
 	double L;
 
-	/* The current simulation time in seconds */
+	/** The current simulation time in seconds */
 	double t;
 
-	/* Speed of light in meters/second */
+	/** Speed of light in meters/second */
 	double C;
 
-	/* Vacuum permittivity in Farad/meter (F/m) */
+	/** Vacuum permittivity in Farad/meter (F/m) */
 	double e0;
 
-	/* Number of simulation steps */
+	/** Number of simulation steps */
 	int cycles;
 
 	int energy_cycles;
 
-	/* Species of particles */
+	/** Species of particles */
 	int nspecies;
 	specie_t *species;
 
-	/* Global field: TODO: May be reused? Sync? */
+	/** Global field: TODO: May be reused? Sync? */
 	field_t *field;
 
-	/* Simulation configuration */
+	/** Simulation configuration */
 	config_t *conf;
 
 };

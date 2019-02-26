@@ -15,7 +15,7 @@ int win1, win2, win3;
 
 #define MAX_HIST 10
 #define MAX_LINE 256
-#define MAX_V 6e8
+#define MAX_V 3e8
 #define MAX_POS 819
 
 particle_t *particles[MAX_HIST];
@@ -721,7 +721,7 @@ main(int argc, char **argv)
 	if(arg_particles)
 	{
 		win1 = glutCreateWindow("plot");
-		glutPositionWindow(50, 50);
+		glutPositionWindow(5, 20);
 		glutReshapeFunc(Reshape);
 		glutKeyboardFunc(Key);
 		glutDisplayFunc(display_particles);
@@ -732,7 +732,7 @@ main(int argc, char **argv)
 	if (arg_energy)
 	{
 		win2 = glutCreateWindow("plot energy");
-		glutPositionWindow(50, 100 + windH);
+		glutPositionWindow(5, 20 + windH);
 		glutReshapeFunc(Reshape);
 		glutKeyboardFunc(Key);
 		glutDisplayFunc(display_energy);
@@ -742,7 +742,7 @@ main(int argc, char **argv)
 	if(arg_freq)
 	{
 		win3 = glutCreateWindow("plot frequency");
-		glutPositionWindow(50, (100 + windH)*2);
+		glutPositionWindow(5, (20 + windH)*2);
 		glutReshapeFunc(Reshape);
 		glutKeyboardFunc(Key);
 		//glutVisibilityFunc(visible_energy);

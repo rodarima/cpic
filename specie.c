@@ -139,13 +139,19 @@ specie_print(sim_t *sim, specie_t *s)
 	int i;
 	particle_t *p;
 	double x, u, max_x;
+	int np;
+
+	config_lookup_int(sim->conf, "plot.track_particles", &np);
+
+	if(np > s->nparticles)
+		np = s->nparticles;
 
 	//printf("The specie %p has %d dimensions with %d particles\n",
 	//	s, s->dim, s->nparticles);
 
 	//for(i = 0; i < s->nparticles; i++)
 	printf("p\n");
-	for(i = 0; i < s->nparticles/* - 1*/; i++)
+	for(i = 0; i < np; i++)
 	{
 		p = &s->particles[i];
 		//printf("%10.3e %d %10.3e %10.3e %10.3e %10.3e\n",

@@ -113,16 +113,20 @@ int
 sim_header(sim_t *sim)
 {
 	/* FIXME: By now we only use the first configuration (only one specie)*/
-	int nparticles, nblocks, blocksize, nnodes;
+	int trackp, nparticles, nblocks, blocksize, nnodes;
 
 	config_lookup_int(sim->conf, "grid.blocks", &nblocks);
 	config_lookup_int(sim->conf, "grid.blocksize", &blocksize);
+	config_lookup_int(sim->conf, "plot.track_particles", &trackp);
 
-	nnodes = nblocks * blocksize;
 	nparticles = sim->species[0].nparticles;
+	nnodes = nblocks * blocksize;
+
+	if(nparticles < trackp)
+		trackp = nparticles;
 
 	printf("p %d %d %e %e\n",
-		nparticles, nnodes, sim->dx, sim->dt);
+		trackp, nnodes, sim->dx, sim->dt);
 
 	return 0;
 }

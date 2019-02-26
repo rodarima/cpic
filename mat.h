@@ -30,3 +30,9 @@ mat_init(int dim, int *shape, double v);
 
 mat_t *
 vec_init(int size, double v);
+
+int
+vec_print(mat_t *m, char *title);
+
+int
+mat_print(mat_t *m, char *title);

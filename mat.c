@@ -1,6 +1,7 @@
 #include "mat.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 
 mat_t *
 mat_alloc(int dim, int *shape)
@@ -16,6 +17,7 @@ mat_alloc(int dim, int *shape)
 		size *= shape[i];
 
 	m->size = size;
+	m->shape = shape;
 
 	m->data = malloc(sizeof(double) * size);
 
@@ -54,4 +56,45 @@ vec_init(int size, double v)
 		m->data[i] = v;
 
 	return m;
+}
+
+int
+vec_print(mat_t *m, char *title)
+{
+	int i, j;
+
+	if(m->dim != 1)
+		return -1;
+
+	if(title) printf("Vector %s:\n", title);
+	for(i=0; i<m->shape[0]; i++)
+	{
+		printf("%10.2e ", m->data[i]);
+	}
+	printf("\n");
+	return 0;
+}
+
+int
+mat_print(mat_t *m, char *title)
+{
+	int i, j;
+
+	if(m->dim == 1)
+		return vec_print(m, title);
+
+	if(m->dim > 2)
+		return -1;
+
+	if(title) printf("Matrix %s:\n", title);
+	for(i=0; i<m->shape[0]; i++)
+	{
+		for(j=0; j<m->shape[1]; j++)
+		{
+			printf("%10.2e ", m->data[m->shape[0] * i + j]);
+		}
+		printf("\n");
+	}
+
+	return 0;
 }

@@ -1,6 +1,6 @@
 CC=clang
 OCC=mcc
-LDLIBS=-lm -lconfig -lfftw3
+LDLIBS=-lm -lconfig -lfftw3 -lgsl -lgslcblas
 CFLAGS=-g -I./include/ -I/apps/PM/ompss-2/2018.11/include/ -L /apps/PM/ompss-2/2018.11/lib
 
 USE_OMPSS=yes
@@ -22,7 +22,7 @@ CPIC_OBJ=$(CPIC_SRC:.c=.o)
 SRC=$(CPIC_SRC)
 OBJ=$(SRC:.c=.o)
 
-BIN=cpic eplot pplot plot config fft
+BIN=cpic eplot pplot plot config fft solver
 
 all: $(BIN)
 
@@ -37,6 +37,8 @@ cpic: $(CPIC_OBJ)
 
 %.mcc.c: %.c
 	$(OCC) $(CFLAGS) $(OCFLAGS) -y -o $@ $<
+
+solver: mat.o solver.o
 
 plot: plot.c
 	$(CC) $(CFLAGS) $(LDLIBS) -lGL -lGLU -lglut -lm $< -o $@
@@ -66,5 +68,10 @@ runmn:
 
 vg: cpic
 	valgrind --fair-sched=yes ./cpic
+
+doc: $(SRC)
+	doxygen .doxygen
+
+.PHONY: doc
 
 .PRECIOUS: %.mcc.c
