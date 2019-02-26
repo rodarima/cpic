@@ -69,7 +69,7 @@ vec_print(mat_t *m, char *title)
 	if(title) printf("Vector %s:\n", title);
 	for(i=0; i<m->shape[0]; i++)
 	{
-		printf("%10.2e ", m->data[i]);
+		printf("%10.3e ", m->data[i]);
 	}
 	printf("\n");
 	return 0;
