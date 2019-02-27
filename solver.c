@@ -63,15 +63,15 @@ solve_gsl(mat_t *A, mat_t *b, mat_t *x)
 	gsl_vector_view gdiag
 		= gsl_vector_view_array(diag, N);
 	gsl_vector_view ge
-		= gsl_vector_view_array(e, N-1);
+		= gsl_vector_view_array(e, N);
 
 	//gsl_linalg_QR_decomp(&gA.matrix, tau);
 	//gsl_linalg_QR_solve(&gA.matrix, tau, &gb.vector, &gx.vector);
 	//gsl_linalg_LU_decomp(&gA.matrix, p, &s);
 	//gsl_linalg_LU_solve(&gA.matrix, p, &gb.vector, &gx.vector);
 	//gsl_linalg_HH_solve(&gA.matrix, &gb.vector, &gx.vector);
-	//ret = gsl_linalg_solve_symm_tridiag(&gdiag.vector, &ge.vector, &gb.vector, &gx.vector);
-	ret = gsl_linalg_solve_tridiag(&gdiag.vector, &ge.vector, &ge.vector, &gb.vector, &gx.vector);
+	ret = gsl_linalg_solve_symm_cyc_tridiag(&gdiag.vector, &ge.vector, &gb.vector, &gx.vector);
+	//ret = gsl_linalg_solve_tridiag(&gdiag.vector, &ge.vector, &ge.vector, &gb.vector, &gx.vector);
 
 	printf("ret = %d\n", ret);
 
@@ -144,6 +144,7 @@ main(int argc, char *argv[])
 	{
 		b->data[i] = cos(M_PI * i / N);
 		b->data[N/2 + i] = -b->data[i];
+		//b->data[i] = i + 1 ;
 	}
 
 	/* Ensure charge is neutral */
