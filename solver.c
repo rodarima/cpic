@@ -3,7 +3,7 @@
 #include "mat.h"
 #include <gsl/gsl_linalg.h>
 
-#define N 10
+#define N 4
 #define H 1.0
 #define H2 (1.0*1.0)
 #define BELOW (1.0/H2)
@@ -28,9 +28,9 @@ test(mat_t *A, mat_t *b, mat_t *x)
 		err += fabs(b->data[i] - row);
 	}
 
-	mat_print(A, "A");
+	//mat_print(A, "A");
 	mat_print(x, "x");
-	mat_print(b, "b");
+	//mat_print(b, "b");
 	printf("Error is %e\n", err);
 	return 0;
 }
@@ -79,18 +79,13 @@ solve_gsl(mat_t *A, mat_t *b, mat_t *x)
 }
 
 int
-solve_tridiag(mat_t *A, mat_t *b, mat_t *x)
+solve_tridiag(double alpha, mat_t *b, mat_t *x)
 {
 	int i;
 	double *xx = x->data;
 	double *bb = b->data;
 
 	//mat_print(b, "b tridiag");
-
-	for(i=0; i<N; i++)
-	{
-		xx[0] = 0.0;
-	}
 
 	xx[0] = 0.0;
 	for(i=0; i<N; i++)
@@ -105,6 +100,41 @@ solve_tridiag(mat_t *A, mat_t *b, mat_t *x)
 	}
 
 	//mat_print(x, "x tridiag");
+	return 0;
+}
+
+int
+solve_thomas(mat_t *A, mat_t *rhs, mat_t *x)
+{
+	int i;
+	double w[N-1], g[N], *d, *phi;
+	double a,b,c;
+
+	a = BELOW;
+	b = DIAG;
+	c = ABOVE;
+	d = rhs->data;
+	phi = x->data;
+
+	/* Fordward elimination */
+	w[0] = c/b;
+	for(i=1; i<N-1; i++)
+	{
+		w[i] = c/(b - a*w[i-1]);
+	}
+	g[0] = d[0]/b;
+	for(i=1; i<N; i++)
+	{
+		g[i] = (d[i] - a*g[i-1])/(b - a*w[i-1]);
+	}
+
+	/* Back substitution */
+	phi[N-1] = g[N-1];
+	for(i=N-2; i>=0; i--)
+	{
+		phi[i] = g[i] - w[i]*phi[i+1];
+	}
+
 	return 0;
 }
 
@@ -147,12 +177,24 @@ main(int argc, char *argv[])
 		//b->data[i] = i + 1 ;
 	}
 
+	for(i=0; i<N; i++)
+	{
+		//b->data[i] = cos(M_PI * i / N);
+		//b->data[i] = i + 1 ;
+		b->data[i] = 0.0;
+	}
+	b->data[0] = -1;
+	b->data[1] = -.5;
+	b->data[2] = 0;
+	b->data[3] = -.5;
+
 	/* Ensure charge is neutral */
 	double sum = 0.0;
 	for(i=0; i<N; i++)
 	{
 		sum += b->data[i];
 	}
+
 	if(sum != 0.0)
 	{
 		printf("WARNING: Sum is not 0: %e\n", sum);
@@ -163,7 +205,9 @@ main(int argc, char *argv[])
 
 	solve_gsl(A, b, x);
 	test(A, b, x);
-	solve_tridiag(A, b, x);
+	solve_tridiag(1.0, b, x);
+	test(A, b, x);
+	solve_thomas(A, b, x);
 	test(A, b, x);
 
 	return 0;

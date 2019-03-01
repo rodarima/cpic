@@ -157,7 +157,7 @@ sim_run(sim_t *sim)
 		 * from the current */
 
 		/* Line 6: Update E on the grid, eq 5 */
-		field_E(sim, s);
+		field_E(sim);
 
 		for(j = 0; j < sim->nspecies; j++)
 		{
@@ -183,6 +183,8 @@ sim_run(sim_t *sim)
 			/* Line 10: Update the current field on grid, algorithm 3 */
 			particle_J(sim, s);
 		}
+
+		s = &sim->species[0];
 
 		field_J(sim, s);
 

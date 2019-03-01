@@ -5,6 +5,19 @@
 #include <assert.h>
 #include <math.h>
 
+//int
+//field_init(sim_t *sim, field_t *f)
+//{
+//	int n;
+//
+//	n = sim->nnodes;
+//
+//	f->E = vec_init(n, 0.0);
+//	f->J = vec_init(n, 0.0);
+//	f->rho = vec_init(n, 0.0);
+//
+//	return 0;
+//}
 
 /* The field J is updated based on the electric current computed on each
  * particle p, by using an interpolation function */
@@ -156,9 +169,93 @@ block_E_comm(block_t *dst, block_t *right)
 	return 0;
 }
 
+//int
+//field_solve_E(field_t *f)
+//{
+//	mat_t *b = f->b;
+//
+//	solve_tridiag(b, x);
+//	return 0;
+//}
 
 int
-field_E(sim_t *sim, specie_t *s)
+field_rho_collect(sim_t *sim, specie_t *s)
+{
+	int k = 0;
+	int size;
+	double *rho;
+	double *global_rho;
+
+	global_rho = sim->field->rho->data;
+
+	for(i=0; i<s->nblocks; i++)
+	{
+		b = &(s->blocks[i]);
+
+		rho = b->field.rho->data;
+		size = b->field.rho->size;
+
+		for(j=0; j<size; j++)
+		{
+			global_rho[k++] = rho[j];
+		}
+	}
+
+	return 0;
+}
+
+int
+field_E_spread(sim_t *sim, specie_t *s)
+{
+	int k = 0;
+	int size;
+	double *E;
+	double *global_E;
+
+	global_E = sim->field->E->data;
+
+	for(i=0; i<s->nblocks; i++)
+	{
+		b = &(s->blocks[i]);
+
+		rho = b->field.E->data;
+		size = b->field.E->size;
+
+		for(j=0; j<size; j++)
+		{
+			E[j] = global_E[k++];
+		}
+	}
+
+	return 0;
+}
+
+int
+field_E_solve(sim_t *sim)
+{
+	return 0;
+}
+
+int
+field_E(sim_t *sim)
+{
+	int i, ri;
+	block_t *b, *rb;
+
+	/* TODO: Support multiple species */
+
+	/* In order to solve the field we need the charge density */
+	field_rho_collect(sim, &sim->species[0]);
+
+	field_E_solve(sim);
+
+	/* After solving the electric field, we can now distribute it in each
+	 * block, as the force can be computed easily from the grid points */
+	field_E_spread(sim, &sim->species[0]);
+}
+
+int
+field_E2(sim_t *sim, specie_t *s)
 {
 	int i, ri;
 	block_t *b, *rb;

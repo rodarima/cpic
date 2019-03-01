@@ -36,6 +36,9 @@ struct sim
 	int nspecies;
 	specie_t *species;
 
+	/* Total number of nodes with all blocks */
+	int nnodes;
+
 	/** Global field: TODO: May be reused? Sync? */
 	field_t *field;
 
