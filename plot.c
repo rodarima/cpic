@@ -11,7 +11,7 @@
 
 GLenum doubleBuffer = GL_FALSE;
 GLint windW = 800, windH = 300;
-int win1, win2, win3;
+int win1, win2, win3, win4;
 
 #define MAX_HIST 10
 #define MAX_LINE 256
@@ -32,14 +32,14 @@ double max_freq_peak = 0.0;
 int cursor_fft = 0;
 
 int nparticles;
-int shape;
+int nnodes;
 double dx, dt;
 int play = 1;
 int clear = 0;
 int plotting = 1;
 int grid = 1;
 
-int arg_freq = 0, arg_energy = 0, arg_particles = 0;
+int arg_freq = 0, arg_energy = 0, arg_particles = 0, arg_field = 0;
 
 double maxEE = 0, maxTE = 0, maxKE = 0;
 double minEE = 1e30, minTE = 1e30, minKE = 1e30;
@@ -52,6 +52,14 @@ double TE=0, EE=0, KE=0;
 #define ENERGY_HIST 1024
 
 double EV[ENERGY_HIST];
+
+double *gE, *grho, *gphi;
+double maxphi = -1e10;
+double maxrho = -1e10;
+double maxE = -1e10;
+double minphi = 1e10;
+double minrho = 1e10;
+double minE = 1e10;
 
 static int
 get_line(char *buf, size_t n, int prefix)
@@ -80,11 +88,16 @@ init_particles(void)
 		exit(1);
 	}
 
-	sscanf(buf, "p %d %d %le %le", &nparticles, &shape, &dx, &dt);
-	printf("Number of particles=%d, shape=%d\n", nparticles, shape);
+	sscanf(buf, "p %d %d %le %le", &nparticles, &nnodes, &dx, &dt);
+	printf("Number of particles=%d, nnodes=%d\n", nparticles, nnodes);
 
 	for(i = 0; i < MAX_HIST; i++)
 		particles[i] = calloc(sizeof(particle_t), nparticles);
+
+
+	grho = malloc(nnodes*sizeof(double));
+	gphi = malloc(nnodes*sizeof(double));
+	gE = malloc(nnodes*sizeof(double));
 
 }
 
@@ -194,7 +207,7 @@ get_curve(float *xx, float *yy, int *segment, int pi)
 	{
 		p = &particles[from_hist][pi];
 
-		x1 = (p->x / (dx * shape)) * windW;
+		x1 = (p->x / (dx * nnodes)) * windW;
 		y1 = (p->u / (MAX_V)) * windH;
 
 		/* Center y, as u goes from about -c to +c */
@@ -296,9 +309,9 @@ plot_grid()
 
 	glColor3f(gray, gray, gray);
 
-	for(i=0; i<shape; i++)
+	for(i=0; i<nnodes; i++)
 	{
-		x = ((double)i) / shape * windW;
+		x = ((double)i) / nnodes * windW;
 
 		glBegin(GL_LINES);
 		glVertex2f(x, -1);
@@ -609,6 +622,111 @@ idle_fft()
 }
 
 void
+idle_field(char *line)
+{
+	int i, j, ret;
+	particle_t *p;
+	char buf[MAX_LINE];
+	size_t n = MAX_LINE;
+	double rho, phi, E;
+
+	if(!play)
+	{
+		//glutPostRedisplay();
+		return;
+	}
+
+//	maxphi = -1e10;
+//	maxrho = -1e10;
+//	maxE = -1e10;
+
+	for(i = 0; i < nnodes; i++)
+	{
+		/* Copy old particle into particles1 */
+		//memcpy(&particles1[prev_hist][i], &particles[hist][i], sizeof(particle_t));
+
+		if(!fgets(buf, n, stdin))
+		{
+			fprintf(stderr, "EOF reached\n");
+			exit(0);
+		}
+
+		ret = sscanf(buf, "%lf %lf %lf",
+				&rho, &phi, &E);
+
+		if(ret != 3)
+		{
+			printf("ret=%d i=%d, exitting\n", ret, i);
+			exit(1);
+		}
+
+		if(maxphi < phi) maxphi = phi;
+		if(maxrho < rho) maxrho = rho;
+		if(maxE   < E)   maxE   = E;
+
+		if(minphi > phi) minphi = phi;
+		if(minrho > rho) minrho = rho;
+		if(minE   > E)   minE   = E;
+
+		grho[i] = rho;
+		gphi[i] = phi;
+		gE[i] = E;
+	}
+
+	if(arg_field)
+	{
+		glutSetWindow(win4);
+		glutPostRedisplay();
+	}
+}
+
+static void
+display_field()
+{
+	int i;
+	double x, x0;
+	double gray = 0.1;
+
+	//glutSetWindow(win4);
+	//glClearColor(0.0, 0.0, 0.0, 0.0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glColor3f(1.0, 1.0, 0.0);
+
+	//glBegin(GL_LINES);
+	glBegin(GL_LINE_STRIP);
+	for(i=0; i<nnodes; i++)
+	{
+		x = ((double)i) / (nnodes) * windW;
+		glVertex2f(x, (grho[i] - minrho)/(maxrho - minrho) * windH);
+		glVertex2f(x+2, (grho[i] - minrho)/(maxrho - minrho) * windH);
+	}
+	glEnd();
+	glColor3f(1.0, 0.0, 0.0);
+	glBegin(GL_LINE_STRIP);
+	for(i=0; i<nnodes; i++)
+	{
+		x = ((double)i) / (nnodes) * windW;
+		glVertex2f(x, (gphi[i] - minphi)/(maxphi - minphi) * windH);
+		glVertex2f(x+2, (gphi[i] - minphi)/(maxphi - minphi) * windH);
+	}
+	glEnd();
+	glColor3f(0.0, 1.0, 0.0);
+	glBegin(GL_LINE_STRIP);
+	for(i=0; i<nnodes; i++)
+	{
+		x = ((double)i) / (nnodes) * windW;
+		glVertex2f(x, (gE[i] - minE)/(maxE - minE) * windH);
+		glVertex2f(x+2, (gE[i] - minE)/(maxE - minE) * windH);
+	}
+	glEnd();
+	glBegin(GL_LINES);
+	glVertex2f(0, (0.0 - minE)/(maxE - minE) * windH);
+	glVertex2f(windW, (0.0 - minE)/(maxE - minE) * windH);
+	glEnd();
+
+}
+
+void
 idle()
 {
 	//fprintf(stderr, "idle\n");
@@ -627,6 +745,8 @@ idle()
 		idle_particles(buf);
 	else if(buf[0] == 'e' && arg_energy)
 		idle_energy(buf);
+	else if(buf[0] == 'f' && arg_field)
+		idle_field(buf);
 
 	if(arg_freq)
 		idle_fft();
@@ -670,7 +790,7 @@ parse_args(int argc, char *argv[])
 	int opt;
 	int any = 0;
 
-	while((opt = getopt(argc, argv, "epf")) != -1)
+	while((opt = getopt(argc, argv, "epfF")) != -1)
 	{
 		switch(opt)
 		{
@@ -683,11 +803,15 @@ parse_args(int argc, char *argv[])
 				any = 1;
 				break;
 			case 'f':
+				arg_field = 1;
+				any = 1;
+				break;
+			case 'F':
 				arg_freq = 1;
 				any = 1;
 				break;
 			default:
-				fprintf(stderr, "Usage: %s [-e] [-p] [-f]\n", argv[0]);
+				fprintf(stderr, "Usage: %s [-e] [-p] [-f] [-F]\n", argv[0]);
 				exit(EXIT_FAILURE);
 		}
 	}
@@ -705,6 +829,7 @@ int
 main(int argc, char **argv)
 {
 	int show_energy = 1;
+	int winy = 20;
 	GLenum type;
 
 	parse_args(argc, argv);
@@ -721,7 +846,8 @@ main(int argc, char **argv)
 	if(arg_particles)
 	{
 		win1 = glutCreateWindow("plot");
-		glutPositionWindow(5, 20);
+		glutPositionWindow(5, winy);
+		winy += windH + 30;
 		glutReshapeFunc(Reshape);
 		glutKeyboardFunc(Key);
 		glutDisplayFunc(display_particles);
@@ -729,10 +855,22 @@ main(int argc, char **argv)
 		glDisable(GL_DITHER);
 	}
 
+	if(arg_field)
+	{
+		win4 = glutCreateWindow("plot fields");
+		glutPositionWindow(5, winy);
+		winy += windH + 30;
+		glutReshapeFunc(Reshape);
+		glutKeyboardFunc(Key);
+		//glutVisibilityFunc(visible_energy);
+		glutDisplayFunc(display_field);
+	}
+
 	if (arg_energy)
 	{
 		win2 = glutCreateWindow("plot energy");
-		glutPositionWindow(5, 20 + windH);
+		glutPositionWindow(5, winy);
+		winy += windH + 30;
 		glutReshapeFunc(Reshape);
 		glutKeyboardFunc(Key);
 		glutDisplayFunc(display_energy);
@@ -742,12 +880,14 @@ main(int argc, char **argv)
 	if(arg_freq)
 	{
 		win3 = glutCreateWindow("plot frequency");
-		glutPositionWindow(5, (20 + windH)*2);
+		glutPositionWindow(5, winy);
+		winy += windH + 30;
 		glutReshapeFunc(Reshape);
 		glutKeyboardFunc(Key);
 		//glutVisibilityFunc(visible_energy);
 		glutDisplayFunc(display_fft);
 	}
+
 
 	glutIdleFunc(idle);
 

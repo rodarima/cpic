@@ -56,7 +56,7 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 		/* The particle position */
 		px = p->x;
 		deltax = px - x0;
-		assert(deltax >= 0.0);
+		//assert(deltax >= 0.0);
 
 		/* Ensure the particle is in the block boundary */
 		if(!(x0 <= px && px <= x1))
@@ -243,10 +243,46 @@ int
 field_E_solve(sim_t *sim)
 {
 	field_t *f;
+	int i, n, np;
+	double *E, *phi, *rho;
+	double H, q;
 
 	f = sim->field;
+	n = f->E->size;
+	E = f->E->data;
+	rho = f->rho->data;
+	phi = f->phi->data;
+	H = sim->dx;
+	q = sim->species[0].q;
+	np = sim->species[0].nparticles;
+
+	/* Fix charge neutrality */
+	for(i=0; i<n; i++)
+	{
+		rho[i] += -q*np/n;
+	}
 
 	solve(f->phi, f->rho);
+
+
+	for(i=1; i<n-1; i++)
+	{
+		/* E = -d phi / dx, eq. 2-34 Hockney */
+		E[i] = (phi[i-1] - phi[i+1]) / (2*H);
+	}
+
+	/* We assume a periodic domain */
+	E[0] = (phi[n-1] - phi[1]) / (2*H);
+	E[n-1] = (phi[n-2] - phi[0]) / (2*H);
+
+
+	printf("f\n");
+	for(i=0; i<n; i++)
+	{
+		printf("%e %e %e\n",
+				rho[i], phi[i], E[i]);
+	}
+
 	return 0;
 }
 

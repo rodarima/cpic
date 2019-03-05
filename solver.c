@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 #include "mat.h"
+#include "log.h"
 #include <gsl/gsl_linalg.h>
 
 #define STANDALONE 0
@@ -88,7 +89,7 @@ solve_tridiag(mat_t *b, mat_t *x)
 	double *bb = b->data;
 	size_t n = b->size;
 
-	mat_print(b, "b tridiag");
+//	mat_print(b, "b tridiag");
 
 	xx[0] = 0.0;
 	for(i=0; i<n; i++)
@@ -102,7 +103,7 @@ solve_tridiag(mat_t *b, mat_t *x)
 		xx[i] = bb[i-1] + 2.0*xx[i-1] - xx[i-2];
 	}
 
-	mat_print(x, "x tridiag");
+//	mat_print(x, "x tridiag");
 	return 0;
 }
 
@@ -144,8 +145,25 @@ solve_thomas(mat_t *A, mat_t *rhs, mat_t *x)
 int
 solve(mat_t *phi, mat_t *rho)
 {
+	int i, n;
+	double sum = 0.0;
+
+	n = rho->size;
+
+	/* First ensure total charge is close to zero */
+	for(i=0; i<n; i++)
+	{
+		sum += rho->data[i];
+	}
+
+//	if(sum != 0.0)
+//	{
+//		err("WARNING: Total charge is not zero, sum = %e\n", sum);
+//	}
+
 	solve_tridiag(rho, phi);
-	mat_print(phi, "phi");
+//	mat_print(phi, "phi");
+
 	return 0;
 }
 
