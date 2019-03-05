@@ -1,23 +1,30 @@
 #include "field.h"
+#include "solver.h"
 #include "log.h"
 
 #include <string.h>
 #include <assert.h>
 #include <math.h>
+#include <libconfig.h>
 
-//int
-//field_init(sim_t *sim, field_t *f)
-//{
-//	int n;
-//
-//	n = sim->nnodes;
-//
-//	f->E = vec_init(n, 0.0);
-//	f->J = vec_init(n, 0.0);
-//	f->rho = vec_init(n, 0.0);
-//
-//	return 0;
-//}
+int
+field_init(sim_t *sim)
+{
+	field_t *f;
+	int n;
+
+	n = sim->nnodes;
+
+	f = malloc(sizeof(field_t));
+	sim->field = f;
+
+	f->E = vec_init(n, 0.0);
+	f->J = vec_init(n, 0.0);
+	f->phi = vec_init(n, 0.0);
+	f->rho = vec_init(n, 0.0);
+
+	return 0;
+}
 
 /* The field J is updated based on the electric current computed on each
  * particle p, by using an interpolation function */
@@ -181,10 +188,11 @@ block_E_comm(block_t *dst, block_t *right)
 int
 field_rho_collect(sim_t *sim, specie_t *s)
 {
-	int k = 0;
+	int i, j, k = 0;
 	int size;
 	double *rho;
 	double *global_rho;
+	block_t *b;
 
 	global_rho = sim->field->rho->data;
 
@@ -207,10 +215,11 @@ field_rho_collect(sim_t *sim, specie_t *s)
 int
 field_E_spread(sim_t *sim, specie_t *s)
 {
-	int k = 0;
+	int i, j, k = 0;
 	int size;
 	double *E;
 	double *global_E;
+	block_t *b;
 
 	global_E = sim->field->E->data;
 
@@ -218,7 +227,7 @@ field_E_spread(sim_t *sim, specie_t *s)
 	{
 		b = &(s->blocks[i]);
 
-		rho = b->field.E->data;
+		E = b->field.E->data;
 		size = b->field.E->size;
 
 		for(j=0; j<size; j++)
@@ -233,6 +242,11 @@ field_E_spread(sim_t *sim, specie_t *s)
 int
 field_E_solve(sim_t *sim)
 {
+	field_t *f;
+
+	f = sim->field;
+
+	solve(f->phi, f->rho);
 	return 0;
 }
 
@@ -252,6 +266,8 @@ field_E(sim_t *sim)
 	/* After solving the electric field, we can now distribute it in each
 	 * block, as the force can be computed easily from the grid points */
 	field_E_spread(sim, &sim->species[0]);
+
+	return 0;
 }
 
 int

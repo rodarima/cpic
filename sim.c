@@ -25,27 +25,29 @@ sim_init(config_t *conf)
 
 	s->conf = conf;
 
+	/* First set all direct configuration variables */
 	config_lookup_int(conf, "simulation.cycles", &s->cycles);
 	config_lookup_float(conf, "simulation.time_step", &s->dt);
 	config_lookup_float(conf, "simulation.space_length", &s->L);
 	config_lookup_int(conf, "simulation.random_seed", &seed);
 	config_lookup_int(conf, "plot.energy_cycles", &s->energy_cycles);
-
-	srand(seed);
-
 	config_lookup_int(conf, "grid.blocks", &nblocks);
 	config_lookup_int(conf, "grid.blocksize", &blocksize);
-
-	s->dx = s->L / (nblocks * blocksize);
-
-	s->t = 0.0;
-
 	config_lookup_float(conf, "constants.light_speed", &s->C);
 	config_lookup_float(conf, "constants.vacuum_permittivity", &s->e0);
 
+	/* Then compute the rest */
+	srand(seed);
+	s->nnodes = nblocks * blocksize;
+	s->dx = s->L / s->nnodes;
+	s->t = 0.0;
 
+	/* And finally, call all other initialization methods */
+	field_init(s);
 	species_init(s, conf);
 
+
+	/* Testing */
 	sp = &s->species[0];
 
 	wp = sqrt((sp->nparticles / s->L) * sp->q*sp->q / (s->e0 * sp->m));

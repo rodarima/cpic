@@ -3,6 +3,8 @@
 #include "mat.h"
 #include <gsl/gsl_linalg.h>
 
+#define STANDALONE 0
+
 #define N 4
 #define H 1.0
 #define H2 (1.0*1.0)
@@ -79,27 +81,28 @@ solve_gsl(mat_t *A, mat_t *b, mat_t *x)
 }
 
 int
-solve_tridiag(double alpha, mat_t *b, mat_t *x)
+solve_tridiag(mat_t *b, mat_t *x)
 {
 	int i;
 	double *xx = x->data;
 	double *bb = b->data;
+	size_t n = b->size;
 
-	//mat_print(b, "b tridiag");
+	mat_print(b, "b tridiag");
 
 	xx[0] = 0.0;
-	for(i=0; i<N; i++)
+	for(i=0; i<n; i++)
 	{
 		xx[0] += ((double) i) * bb[i];
 	}
-	xx[0] /= (double) N;
+	xx[0] /= (double) n;
 	xx[1] = bb[0] + 2.0 * xx[0];
-	for(i=2; i<N; i++)
+	for(i=2; i<n; i++)
 	{
 		xx[i] = bb[i-1] + 2.0*xx[i-1] - xx[i-2];
 	}
 
-	//mat_print(x, "x tridiag");
+	mat_print(x, "x tridiag");
 	return 0;
 }
 
@@ -137,6 +140,16 @@ solve_thomas(mat_t *A, mat_t *rhs, mat_t *x)
 
 	return 0;
 }
+
+int
+solve(mat_t *phi, mat_t *rho)
+{
+	solve_tridiag(rho, phi);
+	mat_print(phi, "phi");
+	return 0;
+}
+
+#if STANDALONE
 
 int
 main(int argc, char *argv[])
@@ -205,10 +218,11 @@ main(int argc, char *argv[])
 
 	solve_gsl(A, b, x);
 	test(A, b, x);
-	solve_tridiag(1.0, b, x);
+	solve_tridiag(b, x);
 	test(A, b, x);
 	solve_thomas(A, b, x);
 	test(A, b, x);
 
 	return 0;
 }
+#endif

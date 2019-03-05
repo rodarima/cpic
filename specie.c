@@ -23,20 +23,6 @@ specie_alloc(int dim, int *shape, int nparticles)
 }
 
 int
-field_init(mat_t *f)
-{
-	int i;
-	particle_t *p;
-
-	for(i = 0; i < f->size; i++)
-	{
-		((float *) f->data)[i] = 0.0;
-	}
-
-	return 0;
-}
-
-int
 particles_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
 	int i;

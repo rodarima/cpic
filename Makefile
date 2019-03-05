@@ -6,7 +6,7 @@ CFLAGS=-g -I./include/ -I/apps/PM/ompss-2/2018.11/include/ -L /apps/PM/ompss-2/2
 USE_OMPSS=yes
 
 CPIC_SRC=specie.c particle.c block.c mat.c block.c sim.c \
-	 field.c cpic.c
+	 field.c cpic.c solver.c
 
 
 ifeq ($(USE_OMPSS), no)
@@ -22,7 +22,7 @@ CPIC_OBJ=$(CPIC_SRC:.c=.o)
 SRC=$(CPIC_SRC)
 OBJ=$(SRC:.c=.o)
 
-BIN=cpic eplot pplot plot config fft solver
+BIN=cpic eplot pplot plot config fft # solver
 
 all: $(BIN)
 
@@ -38,7 +38,7 @@ cpic: $(CPIC_OBJ)
 %.mcc.c: %.c
 	$(OCC) $(CFLAGS) $(OCFLAGS) -y -o $@ $<
 
-solver: mat.o solver.o
+#solver: mat.o solver.o
 
 plot: plot.c
 	$(CC) $(CFLAGS) $(LDLIBS) -lGL -lGLU -lglut -lm $< -o $@

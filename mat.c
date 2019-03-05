@@ -50,7 +50,11 @@ vec_init(int size, double v)
 	mat_t *m;
 	int i;
 
-	m = mat_alloc(1, &size);
+	int *sizev = malloc(sizeof(int));
+
+	sizev[0] = size;
+
+	m = mat_alloc(1, sizev);
 
 	for(i = 0; i < m->size; i++)
 		m->data[i] = v;
