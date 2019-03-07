@@ -15,7 +15,7 @@ int win1, win2, win3, win4;
 
 #define MAX_HIST 10
 #define MAX_LINE 256
-#define MAX_V 3e8
+#define MAX_V 20.0
 #define MAX_POS 819
 
 particle_t *particles[MAX_HIST];
@@ -660,13 +660,9 @@ idle_field(char *line)
 			exit(1);
 		}
 
-		if(maxphi < phi) maxphi = phi;
-		if(maxrho < rho) maxrho = rho;
-		if(maxE   < E)   maxE   = E;
-
-		if(minphi > phi) minphi = phi;
-		if(minrho > rho) minrho = rho;
-		if(minE   > E)   minE   = E;
+		if(maxphi < fabs(phi)) maxphi = fabs(phi);
+		if(maxrho < fabs(rho)) maxrho = fabs(rho);
+		if(maxE   < fabs(E))   maxE   = fabs(E);
 
 		grho[i] = rho;
 		gphi[i] = phi;
@@ -697,8 +693,7 @@ display_field()
 	for(i=0; i<nnodes; i++)
 	{
 		x = ((double)i) / (nnodes) * windW;
-		glVertex2f(x, (grho[i] - minrho)/(maxrho - minrho) * windH);
-		glVertex2f(x+2, (grho[i] - minrho)/(maxrho - minrho) * windH);
+		glVertex2f(x, grho[i]/maxrho * windH/2 + windH/2);
 	}
 	glEnd();
 	glColor3f(1.0, 0.0, 0.0);
@@ -706,8 +701,8 @@ display_field()
 	for(i=0; i<nnodes; i++)
 	{
 		x = ((double)i) / (nnodes) * windW;
-		glVertex2f(x, (gphi[i] - minphi)/(maxphi - minphi) * windH);
-		glVertex2f(x+2, (gphi[i] - minphi)/(maxphi - minphi) * windH);
+		glVertex2f(x, (gphi[i]/maxphi) * windH/2 + windH/2);
+//		glVertex2f(x+2, (gphi[i] - minphi)/(maxphi - minphi) * windH);
 	}
 	glEnd();
 	glColor3f(0.0, 1.0, 0.0);
@@ -715,13 +710,14 @@ display_field()
 	for(i=0; i<nnodes; i++)
 	{
 		x = ((double)i) / (nnodes) * windW;
-		glVertex2f(x, (gE[i] - minE)/(maxE - minE) * windH);
-		glVertex2f(x+2, (gE[i] - minE)/(maxE - minE) * windH);
+		glVertex2f(x, gE[i]/maxE * windH/2 + windH/2);
+//		glVertex2f(x+2, (gE[i] - minE)/(maxE - minE) * windH);
 	}
 	glEnd();
+	glColor3f(.4, .4, .4);
 	glBegin(GL_LINES);
-	glVertex2f(0, (0.0 - minE)/(maxE - minE) * windH);
-	glVertex2f(windW, (0.0 - minE)/(maxE - minE) * windH);
+	glVertex2f(0, windH/2);
+	glVertex2f(windW, windH/2);
 	glEnd();
 
 }

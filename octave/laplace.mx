@@ -1,0 +1,3 @@
+laplace(exp(-b*t)*cos(w*t),t,s);
+assume(w > 0);
+ilt(%, s, t);

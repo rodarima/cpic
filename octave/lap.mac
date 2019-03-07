@@ -1,0 +1,11 @@
+eq1: 'diff(phi(x), x, 2) = -rho(x);
+
+ode2(eq1,phi(x),x);
+
+lap:laplace(eq1, x, s);
+
+solve(lap);
+
+lap;
+
+

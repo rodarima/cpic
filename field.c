@@ -41,6 +41,7 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 	double x0 = b->x;
 	double x1 = b->x + dx*size;
 	double xhalf = (x0 + x1) / 2.0;
+	int inv = 1;
 
 	/* Erase previous current */
 	memset(J, 0, sizeof(double) * size);
@@ -53,6 +54,7 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 
 	for(p = b->particles; p; p = p->next)
 	{
+		//inv = (p->i % 2) ? -1 : 1;
 		/* The particle position */
 		px = p->x;
 		deltax = px - x0;
@@ -83,8 +85,8 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 			b->field.rJ += w1 * p->J;
 
 			/* Approximate the charge by a triangle */
-			rho[j0] += w0 * s->q;
-			b->field.rrho += w1 * s->q;
+			rho[j0] += w0 * s->q * inv;
+			b->field.rrho += w1 * s->q * inv;
 
 			dbg("Particle %d at x=%e (deltax=%e) updates J[%d] and rJ\n",
 				p->i, px, deltax, j0);
@@ -97,8 +99,8 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 			J[j1] += w1 * p->J;
 
 			/* Approximate the charge by a triangle */
-			rho[j0] += w0 * s->q;
-			rho[j1] += w1 * s->q;
+			rho[j0] += w0 * s->q * inv;
+			rho[j1] += w1 * s->q * inv;
 
 			dbg("Particle %d at x=%e (deltax=%e) updates J[%d] and J[%d]\n",
 				p->i, px, deltax, j0, j1);
@@ -234,6 +236,8 @@ field_E_spread(sim_t *sim, specie_t *s)
 		{
 			E[j] = global_E[k++];
 		}
+
+		b->field.rE = global_E[k % s->nblocks];
 	}
 
 	return 0;
@@ -260,6 +264,7 @@ field_E_solve(sim_t *sim)
 	for(i=0; i<n; i++)
 	{
 		rho[i] += -q*np/n;
+		rho[i] *= -1.0;
 	}
 
 	solve(f->phi, f->rho);
@@ -316,10 +321,7 @@ field_E2(sim_t *sim, specie_t *s)
 	{
 		b = &(s->blocks[i]);
 
-		{
-			//usleep(100);
-			block_E_update(sim, s, b);
-		}
+		block_E_update(sim, s, b);
 	}
 
 	/* Communication */
@@ -330,10 +332,7 @@ field_E2(sim_t *sim, specie_t *s)
 		b = &(s->blocks[i]);
 		rb = &(s->blocks[ri]);
 
-		{
-			//usleep(100);
-			block_E_comm(b, rb);
-		}
+		block_E_comm(b, rb);
 	}
 	return 0;
 }

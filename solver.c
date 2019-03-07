@@ -147,6 +147,7 @@ solve(mat_t *phi, mat_t *rho)
 {
 	int i, n;
 	double sum = 0.0;
+	double err = 1e-15;
 
 	n = rho->size;
 
@@ -156,10 +157,10 @@ solve(mat_t *phi, mat_t *rho)
 		sum += rho->data[i];
 	}
 
-//	if(sum != 0.0)
-//	{
-//		err("WARNING: Total charge is not zero, sum = %e\n", sum);
-//	}
+	if(fabs(sum) > err)
+	{
+		err("WARNING: Total charge is not zero, sum = %e\n", sum);
+	}
 
 	solve_tridiag(rho, phi);
 //	mat_print(phi, "phi");

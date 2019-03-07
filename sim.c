@@ -65,7 +65,7 @@ sim_init(config_t *conf)
 static int
 conservation_energy(sim_t *sim, specie_t *s)
 {
-	int i,j,k;
+	int i,j,k,nn;
 	particle_t *p;
 	block_t *b;
 
@@ -73,8 +73,13 @@ conservation_energy(sim_t *sim, specie_t *s)
 	double EE = 0.0; /* Electrostatic energy */
 	double KE = 0.0; /* Kinetic energy */
 	//double L = sim->L;
-	double dx = sim->dx;
+	double H = sim->dx;
 
+	double *phi, *rho;
+
+	rho = sim->field->rho->data;
+	phi = sim->field->phi->data;
+	nn = sim->nnodes;
 
 
 	/* We need all previous tasks to finish before computing the energy, but
@@ -89,23 +94,30 @@ conservation_energy(sim_t *sim, specie_t *s)
 			//EE += b->field.E->data[j] * b->field.E->data[j];
 			E = b->field.E->data[j];
 
-			//EE += E * E * dx / (8.0 * M_PI);
-			EE += E * E / (4.0);
+			//EE += E * E * H / (8.0 * M_PI);
+			EE += E * E;
 		}
 	}
 
+//	for(i=0; i<nn; i++)
+//	{
+//		p = &s->particles[i];
+//		KE += 0.5 * phi[i] * rho[i];
+////		EE += p->E * p->E;
+//	}
 	for(i=0; i<s->nparticles; i++)
 	{
 		p = &s->particles[i];
-		KE += 0.5 * s->m * p->u * p->u;
+		KE += s->m * p->u * p->u;
 //		EE += p->E * p->E;
 	}
 
-	//EE /= L*2.0;
+	EE *= H/(8 * M_PI);
+	KE *= H/8;
 
 	/* Change units to eV */
 	//EE /= 1.6021766208e-19;
-	KE /= 1.6021766208e-19; /* ??? */
+	//KE /= 1.6021766208e-19; /* ??? */
 	printf("e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE);
 
 	return 0;

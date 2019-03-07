@@ -1,10 +1,142 @@
+#include "particle.h"
 #include "sim.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include <math.h>
 #include <assert.h>
 #include <utlist.h>
+#include <string.h>
+
+int
+init_default(sim_t *sim, config_setting_t *cs, specie_t *s);
+
+int
+init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s);
+
+int
+init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s);
+
+particle_config_t pc[] =
+{
+	{"default",			init_default},
+	{"harmonic two electrons",	init_h2e},
+	{"random position",		init_randpos},
+	{NULL, NULL}
+};
+
+int
+particles_init(sim_t *sim, config_setting_t *cs, specie_t *s)
+{
+	int i;
+	const char *method;
+
+	if(config_setting_lookup_string(cs, "init_method", &method) != CONFIG_TRUE)
+	{
+		err("WARNING: Particle init method not specified. Using \"default\".\n");
+		method = "default";
+	}
+
+	for(i = 0; pc[i].name; i++)
+	{
+		if(strcmp(pc[i].name, method) != 0)
+			continue;
+
+		if(!pc[i].init)
+		{
+			err("The init method is NULL, aborting.\n");
+			exit(1);
+		}
+
+		return pc[i].init(sim, cs, s);
+	}
+
+	err("Unknown init method \"%s\", aborting.\n", method);
+	exit(1);
+
+	return 0;
+}
+
+int
+init_default(sim_t *sim, config_setting_t *cs, specie_t *s)
+{
+	return init_randpos(sim, cs, s);
+}
+
+
+int
+init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
+{
+	int i;
+	int total_nodes = s->blocksize * s->nblocks;
+	particle_t *p;
+	double v;
+	double L;
+
+	L = total_nodes * sim->dx;
+
+	config_setting_lookup_float(cs, "drift_velocity", &v);
+
+	for(i = 0; i < s->nparticles; i++)
+	{
+		p = &s->particles[i];
+
+		p->i = i;
+		//p->x = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
+		p->x = ((float) rand() / RAND_MAX) * total_nodes * sim->dx;
+//		if((i%2) == 0)
+//		{
+//			p->x = 3./8. * L;
+//		}
+//		else
+//		{
+//			p->x = 5./8. * L;
+//		}
+		//p->x = s->E->size * s->dx / 2.0;
+		p->u = (2.0 * ((i % 2) - 0.5)) * v; /* m/s */
+		//p->u = v; /* m/s */
+		//p->u = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
+		//p->u = 0.5 * s->C; /* m/s */
+		p->E = 0.0;
+		p->J = 0.0;
+	}
+
+	return 0;
+}
+
+int
+init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
+{
+	int i, odd;
+	int total_nodes = s->blocksize * s->nblocks;
+	particle_t *p;
+	double v;
+	double L;
+
+	L = total_nodes * sim->dx;
+
+	config_setting_lookup_float(cs, "drift_velocity", &v);
+
+	if(s->nparticles != 2)
+	{
+		err("Use only 2 particles\n");
+		exit(1);
+	}
+
+	for(i = 0; i < s->nparticles; i++)
+	{
+		odd = i % 2;
+		p = &s->particles[i];
+
+		p->i = i;
+		p->x = L * (odd ? 5./8. : 3./8.);
+		p->u = odd ? -v : v;
+		p->E = 0.0;
+		p->J = 0.0;
+	}
+
+	return 0;
+}
 
 /* At each particle p, the current J_p is computed based on the charge and speed
  * of the particle */
@@ -87,10 +219,12 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 	double coef = - sim->dt / sim->e0;
 	double delta_u, delta_x;
 	double dt = sim->dt;
+	int inv = 1.0;
 
 	for (p = b->particles; p; p = p->next)
 	{
-		delta_u = dt * s->q * p->E / s->m;
+		//inv = p->i % 2 ? 1 : -1;
+		delta_u = dt * inv * s->q * p->E / s->m;
 		dbg("Particle %d at x=%.3e increases speed by %.3e\n", p->i, p->x, delta_u);
 
 		p->u += delta_u;

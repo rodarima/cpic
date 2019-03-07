@@ -1,6 +1,7 @@
 #include "specie.h"
 #include "mat.h"
 #include "block.h"
+#include "particle.h"
 
 #define DEBUG 0
 #include "log.h"
@@ -20,35 +21,6 @@ specie_alloc(int dim, int *shape, int nparticles)
 	s->particles = malloc(nparticles * sizeof(particle_t));
 
 	return s;
-}
-
-int
-particles_init(sim_t *sim, config_setting_t *cs, specie_t *s)
-{
-	int i;
-	int total_nodes = s->blocksize * s->nblocks;
-	particle_t *p;
-	double v;
-
-	config_setting_lookup_float(cs, "drift_velocity", &v);
-
-	for(i = 0; i < s->nparticles; i++)
-	{
-		p = &s->particles[i];
-
-		p->i = i;
-		//p->x = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
-		p->x = ((float) rand() / RAND_MAX) * total_nodes * sim->dx;
-		//p->x = s->E->size * s->dx / 2.0;
-		p->u = (2.0 * ((i % 2) - 0.5)) * v; /* m/s */
-		//p->u = v; /* m/s */
-		//p->u = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
-		//p->u = 0.5 * s->C; /* m/s */
-		p->E = 0.0;
-		p->J = 0.0;
-	}
-
-	return 0;
 }
 
 int
