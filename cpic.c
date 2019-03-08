@@ -36,23 +36,48 @@ print_particles(specie_t *s)
 
 }
 
+int
+usage(int argc, char *argv[])
+{
+	fprintf(stderr, "Simulation of plasma using particle in cell method.\n");
+	fprintf(stderr, "Usage: %s <config file>\n", argv[0]);
 
+	return 1;
+}
 
 int
-start()
+start(int argc, char *argv[])
 {
 	int ret;
 	sim_t *sim;
 	config_t conf;
+	const char *fn;
+	FILE *f;
+
+	if(argc != 2)
+		return usage(argc, argv);
+
+	fn = argv[1];
+	f = fopen(fn, "r");
+
+	if(!f)
+	{
+		perror("fopen");
+		return 1;
+	}
 
 	config_init(&conf);
 
 	/* Read the configuration from stdin */
-	if(config_read(&conf, stdin) == CONFIG_FALSE)
+	if(config_read(&conf, f) == CONFIG_FALSE)
 	{
 		err("Configuration read failed\n");
 		return -1;
 	}
+
+	fclose(f);
+
+	printf("%s\n", fn);
 
 	if(!(sim = sim_init(&conf)))
 	{
@@ -63,6 +88,7 @@ start()
 	if(sim_run(sim))
 		return -1;
 
+
 	//sim_free(sim);
 
 	return 0;
@@ -70,7 +96,7 @@ start()
 
 int main(int argc, char *argv[])
 {
-	start();
+	return start(argc, argv);
 
 //#ifdef _OMPSS_2
 //#error "OmpSs-2 not yet available"
@@ -78,5 +104,4 @@ int main(int argc, char *argv[])
 //#else
 //	start();
 //#endif
-	return 0;
 }

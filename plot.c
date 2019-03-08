@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "specie.h"
+#include "log.h"
 
 GLenum doubleBuffer = GL_FALSE;
 GLint windW = 800, windH = 300;
@@ -15,9 +16,8 @@ int win1, win2, win3, win4;
 
 #define MAX_HIST 10
 #define MAX_LINE 256
-#define MAX_V 20.0
 #define MAX_POS 819
-#define DT 5.0e-4
+#define MAX_LOOP 5
 
 particle_t *particles[MAX_HIST];
 int hist = 0;
@@ -25,6 +25,7 @@ int hist = 0;
 double pos_vec[MAX_POS];
 double pos_fft[MAX_POS];
 int pos_i = 0;
+int maxloops = 0;
 int redraw_fft = 0, recompute_fft = 0;
 double maxfft = 0.0;
 double last_freq_peak = 0.0;
@@ -33,13 +34,17 @@ double max_freq_peak = 0.0;
 int cursor_fft = 0;
 
 int nparticles;
-int nnodes;
-double dx, dt;
+int nblocks, blocksize, nnodes;
+double L, dx, dt;
 int play = 1;
 int clear = 0;
 int plotting = 1;
 int grid = 1;
 int iter = 0;
+int loop_n = 0;
+double maxfps = 0.0;
+double maxv = 0.0;
+double frame_dt = 0.0;
 
 int arg_freq = 0, arg_energy = 0, arg_particles = 0, arg_field = 0;
 
@@ -62,6 +67,8 @@ double maxE = -1e10;
 double minphi = 1e10;
 double minrho = 1e10;
 double minE = 1e10;
+
+config_t conf;
 
 static int
 get_line(char *buf, size_t n, int prefix)
@@ -192,10 +199,20 @@ idle_particles(char *line)
 		{
 			pos_vec[pos_i] = u;
 			j = (pos_i + MAX_POS-1) % MAX_POS;
-			if(pos_vec[j] <= 0 && pos_vec[pos_i] > 0)
+
+			if(maxloops > 0)
 			{
-				printf("loop iterations %d\n", iter);
-				iter = 0;
+				if(pos_vec[j] <= 0 && pos_vec[pos_i] > 0)
+				{
+					if(loop_n > 0)
+						printf("loop iterations %d\n", iter);
+
+					if(loop_n >= maxloops)
+						exit(0);
+
+					loop_n++;
+					iter = 0;
+				}
 			}
 		}
 	}
@@ -220,7 +237,7 @@ get_curve(float *xx, float *yy, int *segment, int pi)
 		p = &particles[from_hist][pi];
 
 		x1 = (p->x / (dx * nnodes)) * windW;
-		y1 = (p->u / (MAX_V)) * windH;
+		y1 = (p->u / (maxv)) * windH;
 
 		/* Center y, as u goes from about -c to +c */
 		y1 += windH / 2.0;
@@ -349,6 +366,19 @@ plot_particles()
 }
 
 void
+sync_particles()
+{
+	struct timespec delay;
+
+	if(maxfps == 0.0)
+		return;
+
+	delay.tv_sec = (long) floor(frame_dt);
+	delay.tv_nsec = (long) floor(frame_dt*1e9);
+	nanosleep(&delay, NULL);
+}
+
+void
 display_particles(void)
 {
 	if(!plotting)
@@ -369,6 +399,7 @@ display_particles(void)
 	} else {
 		glFlush();
 	}
+	sync_particles();
 }
 
 
@@ -423,7 +454,7 @@ plot()
 
 	if(lTE > maxTE)
 	{
-		maxTE = 2.0 * lTE;
+		maxTE = 1.2 * lTE;
 		dirty = 1;
 	}
 
@@ -604,7 +635,7 @@ idle_fft()
 		{
 			maxfft = pos_fft[i];
 			/* FIXME: The FFT is symmetric */
-			freq_peak = ((double) i * 2.0) / (MAX_POS * DT);
+			freq_peak = ((double) i * 2.0) / (MAX_POS * dt);
 			//fprintf(stderr, "maxfft = %e\n", maxfft);
 			if (max_freq_peak < freq_peak) max_freq_peak = 3.0 * freq_peak;
 		}
@@ -835,6 +866,68 @@ parse_args(int argc, char *argv[])
 }
 
 int
+parse_config(config_t *conf)
+{
+	/* First set all direct configuration variables */
+	config_lookup_float(conf, "simulation.time_step", &dt);
+	config_lookup_float(conf, "simulation.space_length", &L);
+	config_lookup_int(conf, "grid.blocks", &nblocks);
+	config_lookup_int(conf, "grid.blocksize", &blocksize);
+	config_lookup_float(conf, "plot.max_fps", &maxfps);
+	config_lookup_float(conf, "plot.max_velocity", &maxv);
+	config_lookup_int(conf, "plot.max_loops", &maxloops);
+
+	/* Then compute the rest */
+	nnodes = nblocks * blocksize;
+	dx = L / nnodes;
+
+	if(maxfps > 0)
+		frame_dt = 1/maxfps;
+
+	fprintf(stderr, "maxfps set to %f, frame_dt = %e\n", maxfps, frame_dt);
+
+	return 0;
+}
+
+int
+read_config(config_t *conf)
+{
+	char buf[MAX_LINE];
+	size_t n = MAX_LINE;
+	FILE *f;
+
+	if(!fgets(buf, n, stdin))
+	{
+		fprintf(stderr, "EOF before reading config file line\n");
+		return 1;
+	}
+
+	/* Remove newline if any */
+	buf[strcspn(buf, "\n")] = 0;
+
+	f = fopen(buf, "r");
+
+	if(!f)
+	{
+		perror("fopen");
+		return 1;
+	}
+
+	config_init(conf);
+
+	/* Read the configuration from stdin */
+	if(config_read(conf, f) == CONFIG_FALSE)
+	{
+		err("Configuration read failed\n");
+		return 1;
+	}
+
+	fclose(f);
+
+	return 0;
+}
+
+int
 main(int argc, char **argv)
 {
 	int show_energy = 1;
@@ -849,6 +942,11 @@ main(int argc, char **argv)
 	type = GLUT_RGB;
 	type |= (doubleBuffer) ? GLUT_DOUBLE : GLUT_SINGLE;
 	glutInitDisplayMode(type);
+
+	if(read_config(&conf))
+		return 1;
+
+	parse_config(&conf);
 
 	init_particles();
 

@@ -50,7 +50,8 @@ sim_init(config_t *conf)
 	/* Testing */
 	sp = &s->species[0];
 
-	n = sp->nparticles / s->L;
+	//n = sp->nparticles / s->L;
+	n = 1.0;
 	q = sp->q;
 	e0 = s->e0;
 	m = sp->m;
@@ -58,7 +59,8 @@ sim_init(config_t *conf)
 	fp = wp / (2*M_PI);
 	Tp = 1/fp;
 
-	fprintf(stderr, "plasma_frequency = %e Hz (period %e iterations)\n", fp, Tp / s->dt);
+	fprintf(stderr, "omega_p = %e rad/s, f_p = %e, tau_p = %e (%e iterations)\n",
+			wp, fp, Tp, Tp / s->dt);
 
 	fprintf(stderr, "wp * dt = %e (should be between 0.1 and 0.2)\n", wp * s->dt);
 	//assert(wp * s->dt <= 0.2);
@@ -70,11 +72,11 @@ sim_init(config_t *conf)
 static int
 conservation_energy(sim_t *sim, specie_t *s)
 {
-	int i,j,k,nn;
+	int i, j, k, nn, np;
 	particle_t *p;
 	block_t *b;
 
-	double E;
+	double E,L;
 	double EE = 0.0; /* Electrostatic energy */
 	double KE = 0.0; /* Kinetic energy */
 	//double L = sim->L;
@@ -85,40 +87,44 @@ conservation_energy(sim_t *sim, specie_t *s)
 	rho = sim->field->rho->data;
 	phi = sim->field->phi->data;
 	nn = sim->nnodes;
+	np = s->nparticles;
+	L = sim->L;
 
 
 	/* We need all previous tasks to finish before computing the energy, but
 	 * the check is only needed for validation */
-	#pragma oss taskwait
-	for(i=0; i<s->nblocks; i++)
-	{
-		for(j=0; j < s->blocksize; j++)
-		{
-			b = &s->blocks[i];
-			//EE += b->field.rho->data[j] * b->field.J->data[j];
-			//EE += b->field.E->data[j] * b->field.E->data[j];
-			E = b->field.E->data[j];
+//	#pragma oss taskwait
+//	for(i=0; i<s->nblocks; i++)
+//	{
+//		for(j=0; j < s->blocksize; j++)
+//		{
+//			b = &s->blocks[i];
+//			//EE += b->field.rho->data[j] * b->field.J->data[j];
+//			//EE += b->field.E->data[j] * b->field.E->data[j];
+//			E = b->field.E->data[j];
+//
+//			//EE += E * E * H / (8.0 * M_PI);
+//			EE += E * E;
+//		}
+//	}
 
-			//EE += E * E * H / (8.0 * M_PI);
-			EE += E * E;
-		}
+	/* From Hockney book */
+	for(i=0; i<nn; i++)
+	{
+		EE += phi[i] * rho[i];
 	}
 
-//	for(i=0; i<nn; i++)
-//	{
-//		p = &s->particles[i];
-//		KE += 0.5 * phi[i] * rho[i];
-////		EE += p->E * p->E;
-//	}
+	EE *= -16 * (2 / L) / (0.25*0.25);
+
 	for(i=0; i<s->nparticles; i++)
 	{
 		p = &s->particles[i];
 		KE += s->m * p->u * p->u;
-//		EE += p->E * p->E;
 	}
 
-	EE *= H/(8 * M_PI);
-	KE *= H/8;
+	//EE *= H/(8 * M_PI);
+//	KE *= H/8;
+	KE *= 8;
 
 	/* Change units to eV */
 	//EE /= 1.6021766208e-19;
