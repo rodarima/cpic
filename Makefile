@@ -1,7 +1,7 @@
 CC=clang
 OCC=mcc
 LDLIBS=-lm -lconfig -lfftw3 -lgsl -lgslcblas
-CFLAGS=-g -I./include/ -I/apps/PM/ompss-2/2018.11/include/ -L /apps/PM/ompss-2/2018.11/lib
+CFLAGS=-g
 
 USE_OMPSS=yes
 
@@ -12,6 +12,7 @@ CPIC_SRC=specie.c particle.c block.c mat.c block.c sim.c \
 ifeq ($(USE_OMPSS), no)
 #OMPSS_CFLAGS=-k --ompss-2 --instrumentation
 OCFLAGS=--ompss-2
+CFLAGS+=-I./include/ -I/apps/PM/ompss-2/2018.11/include/ -L /apps/PM/ompss-2/2018.11/lib
 LDLIBS+=-lnanos6-optimized
 CPIC_SRC:=$(CPIC_SRC:.c=.mcc.c)
 CPIC_SRC+=loader.c

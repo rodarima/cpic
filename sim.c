@@ -18,7 +18,7 @@ sim_init(config_t *conf)
 	sim_t *s;
 	int ns, nblocks, blocksize;
 	int seed;
-	double wp, fp;
+	double wp, fp, n, q, e0, m, Tp;
 	specie_t *sp;
 
 	s = calloc(1, sizeof(sim_t));
@@ -50,10 +50,15 @@ sim_init(config_t *conf)
 	/* Testing */
 	sp = &s->species[0];
 
-	wp = sqrt((sp->nparticles / s->L) * sp->q*sp->q / (s->e0 * sp->m));
+	n = sp->nparticles / s->L;
+	q = sp->q;
+	e0 = s->e0;
+	m = sp->m;
+	wp = sqrt(n * q * q / (e0 * m));
 	fp = wp / (2*M_PI);
+	Tp = 1/fp;
 
-	fprintf(stderr, "plasma_frequency = %e Hz (period %e iterations)\n", fp, fp / s->dt);
+	fprintf(stderr, "plasma_frequency = %e Hz (period %e iterations)\n", fp, Tp / s->dt);
 
 	fprintf(stderr, "wp * dt = %e (should be between 0.1 and 0.2)\n", wp * s->dt);
 	//assert(wp * s->dt <= 0.2);

@@ -17,6 +17,7 @@ int win1, win2, win3, win4;
 #define MAX_LINE 256
 #define MAX_V 20.0
 #define MAX_POS 819
+#define DT 5.0e-4
 
 particle_t *particles[MAX_HIST];
 int hist = 0;
@@ -38,6 +39,7 @@ int play = 1;
 int clear = 0;
 int plotting = 1;
 int grid = 1;
+int iter = 0;
 
 int arg_freq = 0, arg_energy = 0, arg_particles = 0, arg_field = 0;
 
@@ -159,6 +161,8 @@ idle_particles(char *line)
 		//fprintf(stderr, "Completed FFT reached\n");
 		recompute_fft = 1;
 	}
+
+	iter++;
 
 	for(i = 0; i < nparticles; i++)
 	{
@@ -350,6 +354,7 @@ display_particles(void)
 		grid = 0;
 	}
 	plot_particles();
+	//printf("iteration %d\n", iter);
 
 	if (doubleBuffer) {
 		glutSwapBuffers();
@@ -591,13 +596,13 @@ idle_fft()
 		{
 			maxfft = pos_fft[i];
 			/* FIXME: The FFT is symmetric */
-			freq_peak = ((double) i * 2.0) / (MAX_POS * 5.0e-7);
+			freq_peak = ((double) i * 2.0) / (MAX_POS * DT);
 			//fprintf(stderr, "maxfft = %e\n", maxfft);
 			if (max_freq_peak < freq_peak) max_freq_peak = 3.0 * freq_peak;
 		}
 	}
 
-	//fprintf(stderr, "Frequency peak at %e Hz (max %e Hz)\n", freq_peak, max_freq_peak);
+	fprintf(stderr, "Frequency peak at %e Hz (max %e Hz)\n", freq_peak, max_freq_peak);
 //	maxfft = 0.0;
 //	for (i = 1; i < windW; i++)
 //	{
