@@ -189,7 +189,15 @@ idle_particles(char *line)
 		p->u = u;
 
 		if(i == 0)
+		{
 			pos_vec[pos_i] = u;
+			j = (pos_i + MAX_POS-1) % MAX_POS;
+			if(pos_vec[j] <= 0 && pos_vec[pos_i] > 0)
+			{
+				printf("loop iterations %d\n", iter);
+				iter = 0;
+			}
+		}
 	}
 
 	if(arg_particles)
