@@ -67,6 +67,7 @@ double maxE = -1e10;
 double minphi = 1e10;
 double minrho = 1e10;
 double minE = 1e10;
+double trigger_factor = 0.0;
 
 config_t conf;
 
@@ -443,12 +444,22 @@ plot()
 	double lTE0 = (TE0);
 	double lEE0 = (EE0);
 	double lKE0 = (KE0);
+	double trigger = trigger_factor * TE;
 	int dirty = 0;
 
 	//fprintf(stderr, "TE=%e\n", TE);
 	//fprintf(stderr, "EE=%e\n", EE);
 
 	x = (double) cursor_x;
+
+	/* Wait for the trigger */
+	if((cursor_x == windW-1) && (trigger_factor > 0))
+	{
+		if(lKE0 >= trigger)
+			return;
+		if(lKE < trigger)
+			return;
+	}
 
 	cursor_x = (cursor_x + 1) % windW;
 
@@ -496,6 +507,13 @@ plot()
 	glBegin(GL_LINES);
 	glVertex2f(x, 0);
 	glVertex2f(x, windH);
+	glEnd();
+
+	/* Draw cursor */
+	glColor3f(0.2, 0.2, 0.2);
+	glBegin(GL_LINES);
+	glVertex2f(x+1, -1);
+	glVertex2f(x+1, windH+1);
 	glEnd();
 
 	/* Draw total energy */
@@ -876,6 +894,7 @@ parse_config(config_t *conf)
 	config_lookup_float(conf, "plot.max_fps", &maxfps);
 	config_lookup_float(conf, "plot.max_velocity", &maxv);
 	config_lookup_int(conf, "plot.max_loops", &maxloops);
+	config_lookup_float(conf, "plot.trigger_factor", &trigger_factor);
 
 	/* Then compute the rest */
 	nnodes = nblocks * blocksize;

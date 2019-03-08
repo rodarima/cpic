@@ -169,8 +169,8 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 	return 0;
 }
 
-#pragma oss task inout(*b) in(*rb) label(field_block_E_comm)
 /* We need to get the field from the neighbour at E[0] */
+#pragma oss task inout(*b) in(*rb) label(field_block_E_comm)
 static int
 block_E_comm(block_t *dst, block_t *right)
 {

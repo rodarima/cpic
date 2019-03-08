@@ -231,7 +231,7 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 
 		delta_x = dt * p->u;
 
-		if(fabs(delta_x) > sim->dx)
+		if(fabs(delta_x) > sim->dx * s->blocksize)
 		{
 			err("Particle %d at x=%.3e has exceeded dx with delta_x=%.3e\n",
 					p->i, p->x, delta_x);
