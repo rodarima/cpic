@@ -510,7 +510,7 @@ plot()
 	glEnd();
 
 	/* Draw cursor */
-	glColor3f(0.2, 0.2, 0.2);
+	glColor3f(0.5, 0.5, 0.5);
 	glBegin(GL_LINES);
 	glVertex2f(x+1, -1);
 	glVertex2f(x+1, windH+1);
@@ -782,6 +782,11 @@ display_field()
 	glVertex2f(windW, windH/2);
 	glEnd();
 
+	if (doubleBuffer) {
+		glutSwapBuffers();
+	} else {
+		glFlush();
+	}
 }
 
 void
@@ -969,16 +974,17 @@ main(int argc, char **argv)
 
 	init_particles();
 
+	glDisable(GL_DITHER);
+
 	if(arg_particles)
 	{
-		win1 = glutCreateWindow("plot");
+		win1 = glutCreateWindow("plot particles");
 		glutPositionWindow(5, winy);
 		winy += windH + 30;
 		glutReshapeFunc(Reshape);
 		glutKeyboardFunc(Key);
 		glutDisplayFunc(display_particles);
 		glClearColor(0.0, 0.0, 0.0, 0.0);
-		glDisable(GL_DITHER);
 	}
 
 	if(arg_field)
@@ -990,6 +996,7 @@ main(int argc, char **argv)
 		glutKeyboardFunc(Key);
 		//glutVisibilityFunc(visible_energy);
 		glutDisplayFunc(display_field);
+		glClearColor(0.0, 0.0, 0.0, 0.0);
 	}
 
 	if (arg_energy)

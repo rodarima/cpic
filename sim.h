@@ -9,6 +9,9 @@ typedef struct sim sim_t;
 
 struct sim
 {
+	/* Current iteration */
+	int iter;
+
 	/** Time step in seconds*/
 	double dt;
 
@@ -30,7 +33,9 @@ struct sim
 	/** Number of simulation steps */
 	int cycles;
 
-	int energy_cycles;
+	int period_particle;
+	int period_field;
+	int period_energy;
 
 	/** Species of particles */
 	int nspecies;

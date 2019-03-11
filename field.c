@@ -281,11 +281,14 @@ field_E_solve(sim_t *sim)
 	E[n-1] = (phi[n-2] - phi[0]) / (2*H);
 
 
-	printf("f\n");
-	for(i=0; i<n; i++)
+	if(sim->period_field && ((sim->iter % sim->period_field) == 0))
 	{
-		printf("%e %e %e\n",
-				rho[i], phi[i], E[i]);
+		printf("f\n");
+		for(i=0; i<n; i++)
+		{
+			printf("%e %e %e\n",
+					rho[i], phi[i], E[i]);
+		}
 	}
 
 	return 0;

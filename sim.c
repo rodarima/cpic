@@ -30,11 +30,13 @@ sim_init(config_t *conf)
 	config_lookup_float(conf, "simulation.time_step", &s->dt);
 	config_lookup_float(conf, "simulation.space_length", &s->L);
 	config_lookup_int(conf, "simulation.random_seed", &seed);
-	config_lookup_int(conf, "plot.energy_cycles", &s->energy_cycles);
 	config_lookup_int(conf, "grid.blocks", &nblocks);
 	config_lookup_int(conf, "grid.blocksize", &blocksize);
 	config_lookup_float(conf, "constants.light_speed", &s->C);
 	config_lookup_float(conf, "constants.vacuum_permittivity", &s->e0);
+	config_lookup_int(conf, "simulation.sampling_period.energy", &s->period_energy);
+	config_lookup_int(conf, "simulation.sampling_period.field", &s->period_field);
+	config_lookup_int(conf, "simulation.sampling_period.particle", &s->period_particle);
 
 	/* Then compute the rest */
 	srand(seed);
@@ -175,6 +177,7 @@ sim_run(sim_t *sim)
 
 	for(i = 0; i < sim->cycles; i++)
 	{
+		sim->iter = i;
 		//dbg("------ Begin iteration i=%d ------\n", i);
 
 
@@ -214,10 +217,11 @@ sim_run(sim_t *sim)
 		field_J(sim, s);
 
 		/* Print the status */
-		specie_print(sim, s);
+		if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
+			specie_print(sim, s);
 
 #if ENERGY_CHECK
-		if((i % sim->energy_cycles) == 0)
+		if(sim->period_energy && ((sim->iter % sim->period_energy) == 0))
 			conservation_energy(sim, s);
 #endif
 
