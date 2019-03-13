@@ -1,0 +1,13 @@
+//func 'prepare2d'
+new a 50 40 '0.6*sin(pi*(x+1))*sin(1.5*pi*(y+1))+0.4*cos(0.75*pi*(x+1)*(y+1))'
+new b 50 40 '0.6*cos(pi*(x+1))*cos(1.5*pi*(y+1))+0.4*cos(0.75*pi*(x+1)*(y+1))'
+//return
+
+//call 'prepare2d'
+//list v -0.5 -0.15 0 0.15 0.5
+//subplot 2 2 0:title 'Cont plot (default)':rotate 50 60:box:cont a
+//subplot 2 2 1:title 'manual levels':rotate 50 60:box:cont v a
+//subplot 2 2 2:title '"\_" and "." styles':rotate 50 60:box:cont a '_':cont a '_.2k'
+//subplot 2 2 3 '':title '"t" style':box:cont a 't'
+
+cont a 't'
