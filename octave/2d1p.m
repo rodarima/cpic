@@ -11,6 +11,9 @@ H2 = H*H;
 tol = 1e-10;
 maxit = 1000;
 use_contour = 1;
+scale_arrows = 2.0;
+wx = 1500;
+wy = 500;
 
 range = linspace(xmin, xmax, N);
 [X, Y] = meshgrid(range, range);
@@ -18,8 +21,10 @@ range = linspace(xmin, xmax, N);
 % Add one charge exactly in the middle of the grid
 rho = zeros(Nt, 1);
 %rho = rho - q/(Nt-1);
-rho(Nt/2 + N*2/8) = -q/(e0*H2);
-rho(Nt/2 + N*6/8) = -q/(e0*H2);
+rho(Nt*1/4 + N*12/16) = -q/(e0*H2);
+rho(Nt*2/4 + N*4/16) = +q/(e0*H2);
+%rho(Nt*3/4:Nt*3/4+N/2) = + q/(e0*H2*3);
+rho(Nt*3/4 + N*8/16) = -q/(e0*H2);
 
 A = gallery("tridiag", N, 1, -4, 1);
 
@@ -50,7 +55,7 @@ phi = A\rho;
 
 phi = reshape(phi, N, N);
 
-E = -gradient(phi);
+[Ex, Ey] = gradient(-phi, H);
 
 graphics_toolkit qt;
 f = figure('visible','off');
@@ -65,12 +70,13 @@ endif
 title("Electric potential (\\phi)");
 
 subplot(1, 2, 2);
-if(use_contour)
-	contourf(X, Y, E);
-	colorbar()
-else
-	surf(X, Y, E);
-endif
+%contourf(X, Y, E);
+%colorbar()
+q=quiver(X, Y, Ex, Ey, scale_arrows);
+%set(q, "showarrowhead", false);
+set(q, "maxheadsize", 0.1);
+
 title("Electric field (E)");
 
-print('contour2d.png', '-dpng', '-S1024,300');
+size_str = sprintf("-S%d,%d", wx, wy);
+print('contour2d.png', '-dpng', size_str);
