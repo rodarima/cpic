@@ -30,8 +30,8 @@ specie_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 	config_setting_lookup_float(cs, "mass", &s->m);
 	config_setting_lookup_int(cs, "particles", &s->nparticles);
 
-	config_lookup_int(sim->conf, "grid.blocks", &s->nblocks);
-	config_lookup_int(sim->conf, "grid.blocksize", &s->blocksize);
+	s->nblocks = sim->nblocks[0];
+	s->blocksize = sim->blocksize[0];
 
 	s->nnodes = s->nblocks * s->blocksize;
 

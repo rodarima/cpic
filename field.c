@@ -13,7 +13,7 @@ field_init(sim_t *sim)
 	field_t *f;
 	int n;
 
-	n = sim->nnodes;
+	n = sim->nnodes[0];
 
 	f = malloc(sizeof(field_t));
 	sim->field = f;
@@ -37,7 +37,7 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 	double *rho = b->field.rho->data;
 	double w0, w1, px, deltax, deltaxj;
 	int size = b->field.J->size;
-	double dx = sim->dx;
+	double dx = sim->dx[0];
 	double x0 = b->x;
 	double x1 = b->x + dx*size;
 	double xhalf = (x0 + x1) / 2.0;
@@ -256,7 +256,7 @@ field_E_solve(sim_t *sim)
 	E = f->E->data;
 	rho = f->rho->data;
 	phi = f->phi->data;
-	H = sim->dx;
+	H = sim->dx[0];
 	q = sim->species[0].q;
 	np = sim->species[0].nparticles;
 

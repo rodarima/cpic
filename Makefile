@@ -6,7 +6,7 @@ CFLAGS=-g
 USE_OMPSS=yes
 
 CPIC_SRC=specie.c particle.c block.c mat.c block.c sim.c \
-	 field.c cpic.c solver.c
+	 field.c cpic.c solver.c config.c
 
 
 ifeq ($(USE_OMPSS), no)
@@ -23,7 +23,7 @@ CPIC_OBJ=$(CPIC_SRC:.c=.o)
 SRC=$(CPIC_SRC)
 OBJ=$(SRC:.c=.o)
 
-BIN=cpic eplot pplot plot config fft # solver
+BIN=cpic eplot pplot plot fft # solver
 
 all: $(BIN)
 
@@ -49,8 +49,6 @@ pplot: pplot.c
 
 eplot: eplot.c
 	$(CC) $(CFLAGS) -lGL -lGLU -lglut -lm $< -o $@
-
-config: config.o
 
 clean:
 	rm -rf *.o *.mcc.c $(BIN)

@@ -7,19 +7,25 @@ typedef struct sim sim_t;
 #include "field.h"
 #include <libconfig.h>
 
+/* Lets keep the simulation reasonable */
+#define MAX_DIM 3
+
 struct sim
 {
 	/* Current iteration */
 	int iter;
 
+	/* Number of dimensions used */
+	int dim;
+
 	/** Time step in seconds*/
 	double dt;
 
 	/** Spacial step in meters */
-	double dx;
+	double dx[MAX_DIM];
 
 	/** Length of the simulation in meters */
-	double L;
+	double L[MAX_DIM];
 
 	/** The current simulation time in seconds */
 	double t;
@@ -41,8 +47,14 @@ struct sim
 	int nspecies;
 	specie_t *species;
 
-	/* Total number of nodes with all blocks */
-	int nnodes;
+	int nblocks[MAX_DIM];
+	int blocksize[MAX_DIM];
+
+	/* The number of nodes with all blocks of the specified dimension */
+	int nnodes[MAX_DIM];
+
+	/* The total number of nodes in all dimensions */
+	int total_nodes;
 
 	/** Global field: TODO: May be reused? Sync? */
 	field_t *field;

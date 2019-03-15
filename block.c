@@ -5,7 +5,7 @@
 #include <math.h>
 #include <string.h>
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 void
@@ -40,7 +40,7 @@ blocks_init(sim_t *sim, specie_t *s)
 		b->field.E = vec_init(s->blocksize, 0.0);
 		b->field.J = vec_init(s->blocksize, 0.0);
 		b->field.rho = vec_init(s->blocksize, 0.0);
-		b->x = i * sim->dx * s->blocksize;
+		b->x = i * sim->dx[0] * s->blocksize;
 
 	}
 
@@ -48,7 +48,7 @@ blocks_init(sim_t *sim, specie_t *s)
 	{
 		p = &s->particles[i];
 
-		j = (int) floor(p->x / (sim->dx * s->blocksize));
+		j = (int) floor(p->x / (sim->dx[0] * s->blocksize));
 
 		block_add_particle(&s->blocks[j], p);
 	}

@@ -6,6 +6,7 @@
 #include "specie.h"
 #include "particle.h"
 #include "field.h"
+#include "config.h"
 
 #include <math.h>
 #include <assert.h>
@@ -16,32 +17,43 @@ sim_t *
 sim_init(config_t *conf)
 {
 	sim_t *s;
-	int ns, nblocks, blocksize;
+	int i;
 	int seed;
 	double wp, fp, n, q, e0, m, Tp;
 	specie_t *sp;
+	config_setting_t *cs;
 
 	s = calloc(1, sizeof(sim_t));
 
 	s->conf = conf;
 
 	/* First set all direct configuration variables */
+	config_lookup_int(conf, "simulation.dimensions", &s->dim);
 	config_lookup_int(conf, "simulation.cycles", &s->cycles);
 	config_lookup_float(conf, "simulation.time_step", &s->dt);
-	config_lookup_float(conf, "simulation.space_length", &s->L);
 	config_lookup_int(conf, "simulation.random_seed", &seed);
-	config_lookup_int(conf, "grid.blocks", &nblocks);
-	config_lookup_int(conf, "grid.blocksize", &blocksize);
 	config_lookup_float(conf, "constants.light_speed", &s->C);
 	config_lookup_float(conf, "constants.vacuum_permittivity", &s->e0);
 	config_lookup_int(conf, "simulation.sampling_period.energy", &s->period_energy);
 	config_lookup_int(conf, "simulation.sampling_period.field", &s->period_field);
 	config_lookup_int(conf, "simulation.sampling_period.particle", &s->period_particle);
 
+	/* Load all dimension related vectors */
+	config_array_float(conf, "simulation.space_length", s->L, s->dim);
+	config_array_int(conf, "grid.blocks", s->nblocks, s->dim);
+	config_array_int(conf, "grid.blocksize", s->blocksize, s->dim);
+
+	fprintf(stderr, "L[0]=%f\n", s->L[0]);
+
 	/* Then compute the rest */
 	srand(seed);
-	s->nnodes = nblocks * blocksize;
-	s->dx = s->L / s->nnodes;
+	s->total_nodes = 0;
+	for(i=0; i<s->dim; i++)
+	{
+		s->nnodes[i] = s->nblocks[i] * s->blocksize[i];
+		s->dx[i] = s->L[i] / s->nnodes[i];
+		s->total_nodes += s->nnodes[i];
+	}
 	s->t = 0.0;
 
 	/* And finally, call all other initialization methods */
@@ -82,15 +94,15 @@ conservation_energy(sim_t *sim, specie_t *s)
 	double EE = 0.0; /* Electrostatic energy */
 	double KE = 0.0; /* Kinetic energy */
 	//double L = sim->L;
-	double H = sim->dx;
+	double H = sim->dx[0];
 
 	double *phi, *rho;
 
 	rho = sim->field->rho->data;
 	phi = sim->field->phi->data;
-	nn = sim->nnodes;
+	nn = sim->nnodes[0];
 	np = s->nparticles;
-	L = sim->L;
+	L = sim->L[0];
 
 
 	/* We need all previous tasks to finish before computing the energy, but
@@ -140,20 +152,17 @@ int
 sim_header(sim_t *sim)
 {
 	/* FIXME: By now we only use the first configuration (only one specie)*/
-	int trackp, nparticles, nblocks, blocksize, nnodes;
+	int trackp, nparticles;
 
-	config_lookup_int(sim->conf, "grid.blocks", &nblocks);
-	config_lookup_int(sim->conf, "grid.blocksize", &blocksize);
 	config_lookup_int(sim->conf, "plot.track_particles", &trackp);
 
 	nparticles = sim->species[0].nparticles;
-	nnodes = nblocks * blocksize;
 
 	if(nparticles < trackp)
 		trackp = nparticles;
 
 	printf("p %d %d %e %e\n",
-		trackp, nnodes, sim->dx, sim->dt);
+		trackp, sim->nnodes[0], sim->dx[0], sim->dt);
 
 	return 0;
 }

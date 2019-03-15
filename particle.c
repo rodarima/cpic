@@ -68,12 +68,9 @@ int
 init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
 	int i;
-	int total_nodes = s->blocksize * s->nblocks;
 	particle_t *p;
 	double v;
 	double L;
-
-	L = total_nodes * sim->dx;
 
 	config_setting_lookup_float(cs, "drift_velocity", &v);
 
@@ -83,7 +80,7 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 
 		p->i = i;
 		//p->x = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
-		p->x = ((float) rand() / RAND_MAX) * total_nodes * sim->dx;
+		p->x = ((float) rand() / RAND_MAX) * sim->L[0];
 //		if((i%2) == 0)
 //		{
 //			p->x = 3./8. * L;
@@ -111,9 +108,6 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 	int total_nodes = s->blocksize * s->nblocks;
 	particle_t *p;
 	double v;
-	double L;
-
-	L = total_nodes * sim->dx;
 
 	config_setting_lookup_float(cs, "drift_velocity", &v);
 
@@ -129,7 +123,7 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 		p = &s->particles[i];
 
 		p->i = i;
-		p->x = L * (odd ? 5./8. : 3./8.);
+		p->x = sim->L[0] * (odd ? 5./8. : 3./8.);
 		p->u = odd ? -v : v;
 		p->E = 0.0;
 		p->J = 0.0;
@@ -161,7 +155,7 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 	double *E = b->field.E->data;
 	int size = b->field.E->size;
 	double w0, w1, px, deltax, deltaxj;
-	double dx = sim->dx;
+	double dx = sim->dx[0];
 	double x0 = b->x;
 	double x1 = b->x + dx*size;
 	particle_t *p;
@@ -231,12 +225,12 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 
 		delta_x = dt * p->u;
 
-		if(fabs(delta_x) > sim->dx * s->blocksize)
+		if(fabs(delta_x) > sim->L[0])
 		{
 			err("Particle %d at x=%.3e has exceeded dx with delta_x=%.3e\n",
 					p->i, p->x, delta_x);
 			err("Please, reduce dt=%.3e or increase dx=%.3e\n",
-					sim->dt, sim->dx);
+					sim->dt, sim->dx[0]);
 			exit(1);
 		}
 
@@ -260,8 +254,8 @@ block_comm(sim_t *sim, specie_t *s, block_t *left, block_t *b, block_t *right)
 	particle_t *p, *tmp;
 	double px;
 	double x0 = b->x;
-	double x1 = b->x + sim->dx * s->blocksize;
-	double max_x = sim->dx * s->blocksize * s->nblocks;
+	double x1 = b->x + sim->dx[0] * s->blocksize;
+	double max_x = sim->L[0];
 
 	dbg("Moving particles for block %d (l=%d r=%d)\n",
 		b->i, left->i, right->i);
