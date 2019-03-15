@@ -1,4 +1,11 @@
-CC=clang
-LDLIBS=-lm -lGL -lGLU -lglut -lmgl2-glut -lmgl2 -lplplot
+CC=gcc
+LDLIBS=-lm -lstdc++ -lGL -lGLU -lglut -lmgl2-glut -lmgl2 -lplplot
 
-all: mgl plplot
+BIN=mgl
+
+all: $(BIN) plplot
+
+mgl: mgl-glue.o
+
+clean:
+	rm -rf *.o $(BIN)

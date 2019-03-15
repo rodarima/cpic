@@ -6,8 +6,7 @@
 #include <stdio.h>
 #include <GL/glut.h>
 
-/* FIXME: If the title is called, nothing is shown on the plot */
-#define SHOW_TITLE 0
+#include "mgl-glue.h"
 
 #define N 100
 #define FPS 30
@@ -15,13 +14,14 @@
 
 HMGL gr;
 HMDT dat, du, dv;
+
 double zz[N*N], uu[N*N], vv[N*N], shift = 0.0;
 GLenum doubleBuffer = GL_FALSE;
-GLint windW = 800, windH = 800;
+GLint windW = 1000, windH = 500;
+
 int win1;
-int frames = 0;
+int frames = 0, updates = 0;
 struct timespec later = {0, 0};
-struct timespec next_frame = {0, 0};
 
 void
 draw()
@@ -29,13 +29,20 @@ draw()
 	mgl_clf(gr);
 	//printf("draw called\n");
 
-#if SHOW_TITLE
-	mgl_title(gr, "This title", "", 10);
-#endif
-	mgl_axis(gr, "xy", "", "");
-	mgl_box(gr);
-	//mgl_title(gr, "This title", "#", 2.0);
-	//mgl_axis_grid(gr, "xy", "", "");
+	//mgl_set_size(gr, windW, windH);
+
+	mgl_subplot(gr, 2, 1, 0, "");
+	mgl_title(gr, "Electric potential \\phi", "", 5.0);
+	//mgl_dens(gr, (HCDT) dat, 0, 0);
+	mgl_contf(gr, (HCDT) dat, "", "");
+	mgl_axis_grid(gr, "xy", "", "");
+
+	mgl_subplot(gr, 2, 1, 1, "");
+
+	mgl_title(gr, "Electric field \\textbf{E}", "", 5.0);
+//	mgl_axis(gr, "xy", "", "");
+//	mgl_box(gr);
+	mgl_axis_grid(gr, "xy", "", "");
 	//mgl_plot(gr, (HCDT) dat, "b", "");
 	//mgl_contf(gr, (HCDT) dat, "", "");
 	//mgl_colorbar(gr, ">");
@@ -46,18 +53,12 @@ draw()
 	//mgl_vect_2d(gr,du,dv,"BbcyrR2", "");
 	//mgl_dew_2d(gr,du,dv,0,"");
 	//mgl_flow_2d(gr,du,dv,"","");
+
 	mgl_finish(gr);
 	glFlush();
 	//glFinish();
 
 	frames++;
-	clock_gettime(CLOCK_MONOTONIC, &next_frame);
-	next_frame.tv_nsec += FRAME_PERIOD;
-	if(next_frame.tv_nsec >= 1000000000)
-	{
-		next_frame.tv_nsec -= 1000000000;
-		next_frame.tv_sec += 1;
-	}
 }
 
 void
@@ -79,6 +80,8 @@ idle()
 			//cos((double) i/N * 10.0 + shift);
 		}
 	}
+
+	updates++;
 	shift += 0.05;
 	mgl_data_set_double(dat, zz, N, N, 1);
 	mgl_data_set_double(du, uu, N, N, 1);
@@ -92,12 +95,10 @@ idle()
 		later.tv_sec = now.tv_sec + 1;
 		//later.tv_nsec = now.tv_nsec;
 
-		fprintf(stderr, "FPS = %d\n", frames);
+		fprintf(stderr, "FPS = %d, UPS = %d\n", frames, updates);
 		frames = 0;
+		updates = 0;
 	}
-
-	/* Before calling the redraw function, we can sleep here */
-	//clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_frame, NULL);
 
 	glutSetWindow(win1);
 	glutPostRedisplay();
@@ -105,31 +106,22 @@ idle()
 
 void timer(int value)
 {
-	//glutPostRedisplay();
 	glutTimerFunc(1000.0/FPS, timer, 0);
 	idle();
 }
 
 void
-reload(void *p)
-{
-	//printf("reload called\n");
-}
-
-void
 Reshape(int width, int height)
 {
-//	windW = width;
-//	windH = height;
-//
-//	glViewport(0, 0, windW, windH);
-//
-//	glMatrixMode(GL_PROJECTION);
-//	glLoadIdentity();
-//	gluOrtho2D(-0.5, windW + 0.5, -0.5, windH + 0.5);
-//	glMatrixMode(GL_MODELVIEW);
+	windW = width;
+	windH = height;
 
-	mgl_clf(gr);
+	fprintf(stderr, "Window size is now %dx%d\n", width, height);
+
+	glViewport(0, 0, windW, windH);
+
+	// FIXME: Neither this one
+	mgl_set_size(gr, windW, windH);
 }
 
 /* ARGSUSED1 */
@@ -171,9 +163,18 @@ int main(int argc, char *argv[])
 	dv = mgl_create_data_size(N, N, 1);
 
 	gr = mgl_create_graph_gl();
+
+	//gr = canvas_create();
+
+	// FIXME: This doesn't set the size properly
+	mgl_set_size(gr, windW, windH);
+
+	fprintf(stderr, "Canvas size %dx%d, window size %dx%d\n",
+		mgl_get_width(gr),
+		mgl_get_height(gr),
+		windW, windH);
+
 	mgl_set_font_size(gr, 2.0);
-	//mgl_load_font(gr, "DejaVu Sans", NULL);
-	//mgl_create_graph_glut(draw, "title", (void *) dat, reload);
 
 	//glutIdleFunc(idle);
 	timer(0);
