@@ -17,7 +17,7 @@ sim_t *
 sim_init(config_t *conf)
 {
 	sim_t *s;
-	int i;
+	int i, mode;
 	int seed;
 	double wp, fp, n, q, e0, m, Tp;
 	specie_t *sp;
@@ -37,6 +37,7 @@ sim_init(config_t *conf)
 	config_lookup_int(conf, "simulation.sampling_period.energy", &s->period_energy);
 	config_lookup_int(conf, "simulation.sampling_period.field", &s->period_field);
 	config_lookup_int(conf, "simulation.sampling_period.particle", &s->period_particle);
+	config_lookup_int(conf, "simulation.realtime_plot", &mode);
 
 	/* Load all dimension related vectors */
 	config_lookup_array_float(conf, "simulation.space_length", s->L, s->dim);
@@ -44,6 +45,11 @@ sim_init(config_t *conf)
 	config_lookup_array_int(conf, "grid.blocksize", s->blocksize, s->dim);
 
 	/* Then compute the rest */
+	if(mode == 0)
+		s->mode = SIM_MODE_NORMAL;
+	else
+		s->mode = SIM_MODE_DEBUG;
+
 	srand(seed);
 	s->total_nodes = 0;
 	for(i=0; i<s->dim; i++)

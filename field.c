@@ -11,23 +11,23 @@ field_t *
 field_init(sim_t *sim)
 {
 	field_t *f;
-	int i, d, *gs;
+	int i, d, *bs;
 
 	d = sim->dim;
-	gs = sim->ghostsize;
+	bs = sim->blocksize;
 
 	f = malloc(sizeof(field_t));
 
 	for(i=0; i<sim->dim; i++)
 	{
-		f->E[i] = mat_alloc(d, gs);
+		f->E[i] = mat_alloc(d, bs);
 
 		/* J is not needed */
-		f->J[i] = mat_alloc(d, gs);
+		f->J[i] = mat_alloc(d, bs);
 	}
 
-	f->phi = mat_alloc(d, gs);
-	f->rho = mat_alloc(d, gs);
+	f->phi = mat_alloc(d, bs);
+	f->rho = mat_alloc(d, bs);
 
 	return f;
 }
@@ -117,8 +117,11 @@ block_J_comm(sim_t *sim, block_t *dst, block_t *left)
 	/* FIXME: Only one by now */
 	MAT_XY(df->J[0], 0, 0) += MAT_XY(lf->J[0], bsize, 0);
 	MAT_XY(df->rho, 0, 0) += MAT_XY(lf->rho, bsize, 0);
-	/* from->rJ cannot be used */
-	/*left->rJ = 0.0;*/
+
+	/* The ghost cannot be used now */
+	MAT_XY(lf->rho, bsize, 0) = 1e100;
+	MAT_XY(lf->J[0], bsize, 0) = 1e100;
+
 	return 0;
 }
 
@@ -158,22 +161,22 @@ field_rho_collect(sim_t *sim, specie_t *s)
 {
 	int i, j, k = 0;
 	int size;
-	double *rho;
-	double *global_rho;
+	mat_t *rho;
+	mat_t *global_rho;
 	block_t *b;
 
-	global_rho = sim->field->rho->data;
+	global_rho = sim->field->rho;
 
 	for(i=0; i<s->nblocks; i++)
 	{
 		b = &(s->blocks[i]);
 
-		rho = b->field.rho->data;
-		size = b->field.rho->size;
+		rho = b->field.rho;
+		size = sim->blocksize[0];
 
 		for(j=0; j<size; j++)
 		{
-			global_rho[k++] = rho[j];
+			MAT_XY(global_rho, k++, 0) = MAT_XY(rho, j, 0);
 		}
 	}
 

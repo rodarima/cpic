@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 #include "mat.h"
+#define DEBUG 0
 #include "log.h"
 #include <gsl/gsl_linalg.h>
 
@@ -87,7 +88,7 @@ solve_tridiag(mat_t *b, mat_t *x)
 	int i;
 	double *xx = x->data;
 	double *bb = b->data;
-	size_t n = b->size;
+	size_t n = b->shape[0];
 
 //	mat_print(b, "b tridiag");
 
@@ -102,6 +103,8 @@ solve_tridiag(mat_t *b, mat_t *x)
 	{
 		xx[i] = bb[i-1] + 2.0*xx[i-1] - xx[i-2];
 	}
+
+	dbg(stderr, "The error is %e\n", xx[n-1]);
 
 //	mat_print(x, "x tridiag");
 	return 0;
@@ -149,7 +152,10 @@ solve(mat_t *phi, mat_t *rho)
 	double sum = 0.0;
 	double err = 1e-15;
 
-	n = rho->size;
+	/* FIXME: Use 2D solver */
+	n = rho->shape[0];
+
+	dbg("n = %d\n", n);
 
 	/* First ensure total charge is close to zero */
 	for(i=0; i<n; i++)
@@ -160,6 +166,7 @@ solve(mat_t *phi, mat_t *rho)
 	if(fabs(sum) > err)
 	{
 		err("WARNING: Total charge is not zero, sum = %e\n", sum);
+//		exit(1);
 	}
 
 	solve_tridiag(rho, phi);

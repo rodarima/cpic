@@ -85,6 +85,7 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 		p->i = i;
 		//p->x[0] = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
 		p->x[0] = ((float) rand() / RAND_MAX) * sim->L[0];
+		p->x[1] = 0.0;
 //		if((i%2) == 0)
 //		{
 //			p->x[0] = 3./8. * L;
@@ -95,6 +96,7 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 //		}
 		//p->x[0] = s->E->size * s->dx / 2.0;
 		p->u[0] = (2.0 * ((i % 2) - 0.5)) * v[0]; /* m/s */
+		p->u[1] = 0.0;
 		//p->u[0] = v; /* m/s */
 		//p->u[0] = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
 		//p->u[0] = 0.5 * s->C; /* m/s */
