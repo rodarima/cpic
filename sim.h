@@ -8,6 +8,11 @@ typedef struct sim sim_t;
 #include "field.h"
 #include <libconfig.h>
 
+enum sim_mode {
+	SIM_MODE_NORMAL,
+	SIM_MODE_DEBUG,
+};
+
 struct sim
 {
 	/* Current iteration */
@@ -68,6 +73,9 @@ struct sim
 
 	/* The configuration file */
 	char *conf_path;
+
+	/* Simulation mode */
+	enum sim_mode mode;
 
 };
 
