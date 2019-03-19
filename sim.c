@@ -7,6 +7,7 @@
 #include "particle.h"
 #include "field.h"
 #include "config.h"
+#include "plot.h"
 
 #include <math.h>
 #include <assert.h>
@@ -50,6 +51,9 @@ sim_init(config_t *conf)
 	else
 		s->mode = SIM_MODE_DEBUG;
 
+	/* Begin the simulation rather than the plotting */
+	s->run = 1;
+
 	srand(seed);
 	s->total_nodes = 0;
 	for(i=0; i<s->dim; i++)
@@ -66,6 +70,14 @@ sim_init(config_t *conf)
 
 	if(species_init(s, conf))
 		return NULL;
+
+	/* We are set now, start the plotter if needed */
+	if(s->mode == SIM_MODE_DEBUG)
+	{
+		pthread_cond_init(&s->signal, NULL);
+		pthread_mutex_init(&s->lock, NULL);
+		plot_init(s);
+	}
 
 
 	/* Testing */
@@ -175,6 +187,21 @@ sim_header(sim_t *sim)
 }
 
 int
+sim_plot(sim_t *sim)
+{
+	pthread_mutex_lock(&sim->lock);
+	sim->run = 0;
+
+	pthread_cond_signal(&sim->signal);
+
+	while(sim->run == 0)
+		pthread_cond_wait(&sim->signal, &sim->lock);
+
+	pthread_mutex_unlock(&sim->lock);
+	return 0;
+}
+
+int
 sim_run(sim_t *sim)
 {
 	int i, j;
@@ -235,6 +262,9 @@ sim_run(sim_t *sim)
 		/* Print the status */
 		if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
 			specie_print(sim, s);
+
+		if(sim->mode == SIM_MODE_DEBUG)
+			sim_plot(sim);
 
 #if ENERGY_CHECK
 		if(sim->period_energy && ((sim->iter % sim->period_energy) == 0))

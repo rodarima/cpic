@@ -33,14 +33,12 @@ double freq_peak = 0.0;
 double max_freq_peak = 0.0;
 int cursor_fft = 0;
 
-int dim;
 int nparticles;
 int nblocks, blocksize, nnodes;
 double L, dx, dt;
 int play = 1;
 int clear = 0;
 int plotting = 1;
-int fast = 0;
 int grid = 1;
 int iter = 0;
 int loop_n = 0;
@@ -142,9 +140,6 @@ Key(unsigned char key, int x, int y)
 	case 'n':
 		plotting = !plotting;
 		break;
-	case 'f':
-		fast = !fast;
-		break;
 	case 'q':
 	case 27:
 		exit(0);
@@ -155,7 +150,7 @@ void
 idle_particles(char *line)
 {
 	float t, x, u;
-	int i, j, d, dd, ret;
+	int i, j, ret;
 	particle_t *p;
 	char buf[MAX_LINE];
 	size_t n = MAX_LINE;
@@ -182,27 +177,24 @@ idle_particles(char *line)
 		/* Copy old particle into particles1 */
 		//memcpy(&particles1[prev_hist][i], &particles[hist][i], sizeof(particle_t));
 
-		for(d=0; d<dim; d++)
+		if(!fgets(buf, n, stdin))
 		{
-			if(!fgets(buf, n, stdin))
-			{
-				fprintf(stderr, "EOF reached\n");
-				exit(0);
-			}
-
-			ret = sscanf(buf, "%d %d %f %f",
-					&j, &dd, &x, &u);
-
-			if(ret != 4)
-			{
-				printf("ret=%d i=%d j=%d, exitting\n", ret, i, j);
-				exit(1);
-			}
-
-			p = &particles[hist][j];
-			p->x[d] = x;
-			p->u[d] = u;
+			fprintf(stderr, "EOF reached\n");
+			exit(0);
 		}
+
+		ret = sscanf(buf, "%d %f %f",
+				&j, &x, &u);
+
+		if(ret != 3)
+		{
+			printf("ret=%d i=%d j=%d, exitting\n", ret, i, j);
+			exit(1);
+		}
+
+		p = &particles[hist][j];
+		p->x[0] = x;
+		p->u[0] = u;
 
 		if(i == 0)
 		{
@@ -246,7 +238,6 @@ get_curve(float *xx, float *yy, int *segment, int pi)
 		p = &particles[from_hist][pi];
 
 		x1 = (p->x[0] / (dx * nnodes)) * windW;
-		//y1 = (p->x[1] / (dx * nnodes)) * windH;
 		y1 = (p->u[0] / (maxv)) * windH;
 
 		/* Center y, as u goes from about -c to +c */
@@ -380,7 +371,7 @@ sync_particles()
 {
 	struct timespec delay;
 
-	if(maxfps == 0.0 || fast)
+	if(maxfps == 0.0)
 		return;
 
 	delay.tv_sec = (long) floor(frame_dt);
@@ -700,7 +691,6 @@ idle_field(char *line)
 	char buf[MAX_LINE];
 	size_t n = MAX_LINE;
 	double rho, phi, E;
-	int ix, iy;
 
 	if(!play)
 	{
@@ -723,10 +713,10 @@ idle_field(char *line)
 			exit(0);
 		}
 
-		ret = sscanf(buf, "%d %d %lf %lf %lf",
-				&ix, &iy, &rho, &phi, &E);
+		ret = sscanf(buf, "%lf %lf %lf",
+				&rho, &phi, &E);
 
-		if(ret != 5)
+		if(ret != 3)
 		{
 			printf("ret=%d i=%d, exitting\n", ret, i);
 			exit(1);
@@ -736,12 +726,9 @@ idle_field(char *line)
 		if(maxrho < fabs(rho)) maxrho = fabs(rho);
 		if(maxE   < fabs(E))   maxE   = fabs(E);
 
-		if(iy == 0)
-		{
-			grho[ix] = rho;
-			gphi[ix] = phi;
-			gE[ix] = E;
-		}
+		grho[i] = rho;
+		gphi[i] = phi;
+		gE[i] = E;
 	}
 
 	if(arg_field)
@@ -913,7 +900,6 @@ parse_config(config_t *conf)
 	config_lookup_float(conf, "plot.max_velocity", &maxv);
 	config_lookup_int(conf, "plot.max_loops", &maxloops);
 	config_lookup_float(conf, "plot.trigger_factor", &trigger_factor);
-	config_lookup_int(conf, "simulation.dimensions", &dim);
 
 	/* Then compute the rest */
 	nnodes = nblocks * blocksize;

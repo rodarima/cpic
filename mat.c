@@ -9,11 +9,11 @@ mat_alloc(int dim, int *shape)
 	mat_t *m;
 	int i, size;
 
+	if(dim > MAX_DIM)
+		return NULL;
+
 	m = malloc(sizeof(mat_t));
 	m->dim = dim;
-
-	/* Should we fix the maximum number of dimensions? */
-	m->shape = malloc(sizeof(int) * dim);
 
 	size = 1;
 	for(i = 0; i < dim; i++)

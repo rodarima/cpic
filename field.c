@@ -29,6 +29,11 @@ field_init(sim_t *sim)
 	f->phi = mat_alloc(d, bs);
 	f->rho = mat_alloc(d, bs);
 
+	MAT_FILL(f->E[0], 0.0);
+	MAT_FILL(f->J[0], 0.0);
+	MAT_FILL(f->phi, 0.0);
+	MAT_FILL(f->rho, 0.0);
+
 	return f;
 }
 
@@ -221,6 +226,7 @@ field_E_solve(sim_t *sim)
 {
 	field_t *f;
 	int i, n, np;
+	int ix, iy;
 	mat_t *E;
 	double *phi, *rho;
 	double H, q;
@@ -258,10 +264,16 @@ field_E_solve(sim_t *sim)
 	if(sim->period_field && ((sim->iter % sim->period_field) == 0))
 	{
 		printf("f\n");
-		for(i=0; i<n; i++)
+		for(iy=0; iy<n; iy++)
 		{
-			printf("%e %e %e\n",
-					rho[i], phi[i], MAT_XY(E, i, 0));
+			for(ix=0; ix<n; ix++)
+			{
+				printf("%d %d %e %e %e\n",
+					ix, iy,
+					MAT_XY(f->rho, ix, iy),
+					MAT_XY(f->phi, ix, iy),
+					MAT_XY(E, ix, iy));
+			}
 		}
 	}
 

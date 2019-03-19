@@ -1,12 +1,13 @@
 CC=clang
 OCC=mcc
-LDLIBS=-lm -lconfig -lfftw3 -lgsl -lgslcblas
-CFLAGS=-g
+LDLIBS=-lm -lconfig -lfftw3 -lgsl -lgslcblas -lGL -lGLU -lglut
+CFLAGS=-g -pthread
+LDFLAGS=-pthread
 
 USE_OMPSS=yes
 
 CPIC_SRC=specie.c particle.c block.c mat.c block.c sim.c \
-	 field.c cpic.c solver.c config.c
+	 field.c cpic.c solver.c config.c plot.c
 
 
 ifeq ($(USE_OMPSS), no)
@@ -23,7 +24,7 @@ CPIC_OBJ=$(CPIC_SRC:.c=.o)
 SRC=$(CPIC_SRC)
 OBJ=$(SRC:.c=.o)
 
-BIN=cpic eplot pplot plot fft 2dplot# solver
+BIN=cpic
 
 all: $(BIN)
 
@@ -38,20 +39,6 @@ cpic: $(CPIC_OBJ)
 
 %.mcc.c: %.c
 	$(OCC) $(CFLAGS) $(OCFLAGS) -y -o $@ $<
-
-#solver: mat.o solver.o
-
-2dplot: 2dplot.c
-	$(CC) $(CFLAGS) $(LDLIBS) -lGL -lGLU -lglut -lm $< -o $@
-
-plot: plot.c
-	$(CC) $(CFLAGS) $(LDLIBS) -lGL -lGLU -lglut -lm $< -o $@
-
-pplot: pplot.c
-	$(CC) $(CFLAGS) -lGL -lGLU -lglut -lm $< -o $@
-
-eplot: eplot.c
-	$(CC) $(CFLAGS) -lGL -lGLU -lglut -lm $< -o $@
 
 clean:
 	rm -rf *.o *.mcc.c $(BIN)

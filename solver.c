@@ -88,7 +88,9 @@ solve_tridiag(mat_t *b, mat_t *x)
 	int i;
 	double *xx = x->data;
 	double *bb = b->data;
-	size_t n = b->shape[0];
+
+	/* FIXME: This is incomplete at best */
+	size_t n = b->shape[SHAPE_X];
 
 //	mat_print(b, "b tridiag");
 

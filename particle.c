@@ -133,7 +133,9 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 
 		p->i = i;
 		p->x[0] = sim->L[0] * (odd ? 5./8. : 3./8.);
+		p->x[1] = 0.0;
 		p->u[0] = odd ? -v[0] : v[0];
+		p->u[1] = 0.0;
 		p->E[0] = 0.0;
 		p->J[0] = 0.0;
 	}

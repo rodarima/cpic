@@ -1,3 +1,5 @@
+#include "plot.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -33,12 +35,14 @@ double freq_peak = 0.0;
 double max_freq_peak = 0.0;
 int cursor_fft = 0;
 
+int dim;
 int nparticles;
 int nblocks, blocksize, nnodes;
 double L, dx, dt;
 int play = 1;
 int clear = 0;
 int plotting = 1;
+int fast = 0;
 int grid = 1;
 int iter = 0;
 int loop_n = 0;
@@ -70,6 +74,11 @@ double minE = 1e10;
 double trigger_factor = 0.0;
 
 config_t conf;
+
+/* The GLUT callback doesn't accepts any arguments, so a global pointer is
+ * required. FreeGLUT allows finer loop control, with only one iteration, but is
+ * not portable... */
+plot_t *global_plot;
 
 static int
 get_line(char *buf, size_t n, int prefix)
@@ -140,6 +149,9 @@ Key(unsigned char key, int x, int y)
 	case 'n':
 		plotting = !plotting;
 		break;
+	case 'f':
+		fast = !fast;
+		break;
 	case 'q':
 	case 27:
 		exit(0);
@@ -150,7 +162,7 @@ void
 idle_particles(char *line)
 {
 	float t, x, u;
-	int i, j, ret;
+	int i, j, d, dd, ret;
 	particle_t *p;
 	char buf[MAX_LINE];
 	size_t n = MAX_LINE;
@@ -177,24 +189,27 @@ idle_particles(char *line)
 		/* Copy old particle into particles1 */
 		//memcpy(&particles1[prev_hist][i], &particles[hist][i], sizeof(particle_t));
 
-		if(!fgets(buf, n, stdin))
+		for(d=0; d<dim; d++)
 		{
-			fprintf(stderr, "EOF reached\n");
-			exit(0);
+			if(!fgets(buf, n, stdin))
+			{
+				fprintf(stderr, "EOF reached\n");
+				exit(0);
+			}
+
+			ret = sscanf(buf, "%d %d %f %f",
+					&j, &dd, &x, &u);
+
+			if(ret != 4)
+			{
+				printf("ret=%d i=%d j=%d, exitting\n", ret, i, j);
+				exit(1);
+			}
+
+			p = &particles[hist][j];
+			p->x[d] = x;
+			p->u[d] = u;
 		}
-
-		ret = sscanf(buf, "%d %f %f",
-				&j, &x, &u);
-
-		if(ret != 3)
-		{
-			printf("ret=%d i=%d j=%d, exitting\n", ret, i, j);
-			exit(1);
-		}
-
-		p = &particles[hist][j];
-		p->x[0] = x;
-		p->u[0] = u;
 
 		if(i == 0)
 		{
@@ -238,6 +253,7 @@ get_curve(float *xx, float *yy, int *segment, int pi)
 		p = &particles[from_hist][pi];
 
 		x1 = (p->x[0] / (dx * nnodes)) * windW;
+		//y1 = (p->x[1] / (dx * nnodes)) * windH;
 		y1 = (p->u[0] / (maxv)) * windH;
 
 		/* Center y, as u goes from about -c to +c */
@@ -371,7 +387,7 @@ sync_particles()
 {
 	struct timespec delay;
 
-	if(maxfps == 0.0)
+	if(maxfps == 0.0 || fast)
 		return;
 
 	delay.tv_sec = (long) floor(frame_dt);
@@ -691,6 +707,7 @@ idle_field(char *line)
 	char buf[MAX_LINE];
 	size_t n = MAX_LINE;
 	double rho, phi, E;
+	int ix, iy;
 
 	if(!play)
 	{
@@ -713,10 +730,10 @@ idle_field(char *line)
 			exit(0);
 		}
 
-		ret = sscanf(buf, "%lf %lf %lf",
-				&rho, &phi, &E);
+		ret = sscanf(buf, "%d %d %lf %lf %lf",
+				&ix, &iy, &rho, &phi, &E);
 
-		if(ret != 3)
+		if(ret != 5)
 		{
 			printf("ret=%d i=%d, exitting\n", ret, i);
 			exit(1);
@@ -726,9 +743,12 @@ idle_field(char *line)
 		if(maxrho < fabs(rho)) maxrho = fabs(rho);
 		if(maxE   < fabs(E))   maxE   = fabs(E);
 
-		grho[i] = rho;
-		gphi[i] = phi;
-		gE[i] = E;
+		if(iy == 0)
+		{
+			grho[ix] = rho;
+			gphi[ix] = phi;
+			gE[ix] = E;
+		}
 	}
 
 	if(arg_field)
@@ -792,7 +812,11 @@ display_field()
 void
 idle()
 {
-	//fprintf(stderr, "idle\n");
+	fprintf(stderr, "idle is running\n");
+
+	return;
+
+
 	if(!play)
 		return;
 
@@ -879,11 +903,11 @@ parse_args(int argc, char *argv[])
 		}
 	}
 
-	if(!any)
-	{
-		fprintf(stderr, "Please choose at least one plot: -e, -p or -f\n");
-		exit(EXIT_FAILURE);
-	}
+	//if(!any)
+	//{
+	//	fprintf(stderr, "Please choose at least one plot: -e, -p or -f\n");
+	//	exit(EXIT_FAILURE);
+	//}
 
 	return 0;
 }
@@ -900,6 +924,7 @@ parse_config(config_t *conf)
 	config_lookup_float(conf, "plot.max_velocity", &maxv);
 	config_lookup_int(conf, "plot.max_loops", &maxloops);
 	config_lookup_float(conf, "plot.trigger_factor", &trigger_factor);
+	config_lookup_int(conf, "simulation.dimensions", &dim);
 
 	/* Then compute the rest */
 	nnodes = nblocks * blocksize;
@@ -951,12 +976,52 @@ read_config(config_t *conf)
 	return 0;
 }
 
+void
+display_test(void)
+{
+	glClearColor(0.0, 0.0, 0.0, 0.0);
+
+	if (doubleBuffer) {
+		glutSwapBuffers();
+	} else {
+		glFlush();
+	}
+}
+
+void
+sync_idle()
+{
+	plot_t *plot;
+	sim_t *sim;
+
+	plot = global_plot;
+	sim = plot->sim;
+
+	fprintf(stderr, "Plotter waits for the simulator\n");
+
+	pthread_mutex_lock(&sim->lock);
+	while(sim->run == 1)
+		pthread_cond_wait(&sim->signal, &sim->lock);
+
+	fprintf(stderr, "Plotter runs now\n");
+	idle();
+
+	sim->run = 1;
+	pthread_cond_signal(&sim->signal);
+	pthread_mutex_unlock(&sim->lock);
+}
+
 int
-main(int argc, char **argv)
+oldmain(plot_t *plot, int argc, char **argv)
 {
 	int show_energy = 1;
 	int winy = 20;
 	GLenum type;
+
+	fprintf(stderr, "plotter main is running\n");
+
+	/* Required by the idle function */
+	global_plot = plot;
 
 	parse_args(argc, argv);
 
@@ -967,14 +1032,19 @@ main(int argc, char **argv)
 	type |= (doubleBuffer) ? GLUT_DOUBLE : GLUT_SINGLE;
 	glutInitDisplayMode(type);
 
-	if(read_config(&conf))
-		return 1;
+	//if(read_config(&conf))
+	//	return 1;
 
-	parse_config(&conf);
+	//parse_config(&conf);
 
-	init_particles();
+	//init_particles();
 
 	glDisable(GL_DITHER);
+	glutCreateWindow("plot testing");
+	glutPositionWindow(50, 50);
+	glutDisplayFunc(display_test);
+	glutReshapeFunc(Reshape);
+	glClearColor(0.0, 0.0, 0.0, 0.0);
 
 	if(arg_particles)
 	{
@@ -1022,8 +1092,42 @@ main(int argc, char **argv)
 	}
 
 
-	glutIdleFunc(idle);
+	glutIdleFunc(sync_idle);
 
 	glutMainLoop();
 	return 0;             /* ANSI C requires main to return int. */
+}
+
+/* Executed in plotter thread */
+void *
+plot_start(void *p)
+{
+	int argc = 1;
+	char *argv[1] = { "plot" };
+
+	plot_t *plot;
+	sim_t *sim;
+
+	plot = malloc(sizeof(plot_t));
+
+	sim = (sim_t *) p;
+	plot->sim = sim;
+
+	oldmain(plot, argc, argv);
+
+	return NULL;
+}
+
+/* Executed in the simulator thread. Just create the plotter thread and exit */
+int
+plot_init(sim_t *sim)
+{
+	if(pthread_create(&sim->plot_thread, NULL,
+				plot_start, (void *) sim) != 0)
+	{
+		perror("pthread_create");
+		return 1;
+	}
+
+	return 0;
 }

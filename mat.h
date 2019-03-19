@@ -1,11 +1,19 @@
 #pragma once
 
+#include "def.h"
+
+enum shape_dim {
+	SHAPE_X = 0,
+	SHAPE_Y = 1,
+	SHAPE_Z = 2
+};
+
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
 typedef struct
 {
 	double *data;
-	int *shape; /* z,y,x order or rows, columns, ... */
+	int shape[MAX_DIM];
 	int dim;
 	int size;
 } mat_t;

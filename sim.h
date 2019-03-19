@@ -7,6 +7,7 @@ typedef struct sim sim_t;
 #include "specie.h"
 #include "field.h"
 #include <libconfig.h>
+#include <pthread.h>
 
 enum sim_mode {
 	SIM_MODE_NORMAL,
@@ -77,6 +78,13 @@ struct sim
 	/* Simulation mode */
 	enum sim_mode mode;
 
+	/* The plotter */
+	pthread_t plot_thread;
+
+	/* Syncronization part between simulator and plotter */
+	pthread_mutex_t lock;
+	pthread_cond_t signal;
+	int run;
 };
 
 
