@@ -133,8 +133,8 @@ Idle(void)
 		}
 
 		p = &particles[hist][j];
-		p->x = x;
-		p->u = u;
+		p->x[0] = x;
+		p->u[0] = u;
 	}
 
 	glutPostRedisplay();
@@ -152,8 +152,8 @@ get_curve(float *xx, float *yy, int *segment, int pi)
 	{
 		p = &particles[from_hist][pi];
 
-		x1 = (p->x / (dx * shape)) * windW;
-		y1 = (p->u / (8.0 * 3e8)) * windH;
+		x1 = (p->x[0] / (dx * shape)) * windW;
+		y1 = (p->u[0] / (8.0 * 3e8)) * windH;
 
 		/* Center y, as u goes from about -c to +c */
 		y1 += windH / 2.0;

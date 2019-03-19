@@ -48,7 +48,7 @@ draw()
 	//mgl_colorbar(gr, ">");
 	//mgl_dens(gr, (HCDT) dat, 0, 0);
 	//mgl_grad(gr, (HCDT) dat, 0, 0);
-	mgl_set_meshnum(gr, 30);
+	mgl_set_meshnum(gr, 20);
 	mgl_vect_2d(gr,du,dv,"b2", "");
 	//mgl_vect_2d(gr,du,dv,"BbcyrR2", "");
 	//mgl_dew_2d(gr,du,dv,0,"");

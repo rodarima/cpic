@@ -19,7 +19,7 @@ block_add_particle(block_t *b, particle_t *p)
 int
 blocks_init(sim_t *sim, specie_t *s)
 {
-	size_t i, j, count;
+	size_t i, j, d, count;
 	block_t *b;
 	particle_t *p;
 
@@ -37,9 +37,15 @@ blocks_init(sim_t *sim, specie_t *s)
 
 		b->i = i;
 
-		b->field.E = vec_init(s->blocksize, 0.0);
-		b->field.J = vec_init(s->blocksize, 0.0);
-		b->field.rho = vec_init(s->blocksize, 0.0);
+		for(d=0; d<sim->dim; d++)
+		{
+			b->field.E[d] = mat_alloc(sim->dim, sim->ghostsize);
+			b->field.J[d] = mat_alloc(sim->dim, sim->ghostsize);
+		}
+
+		b->field.rho = mat_alloc(sim->dim, sim->ghostsize);
+
+		/* FIXME: Position is a vector */
 		b->x = i * sim->dx[0] * s->blocksize;
 
 	}
@@ -48,7 +54,7 @@ blocks_init(sim_t *sim, specie_t *s)
 	{
 		p = &s->particles[i];
 
-		j = (int) floor(p->x / (sim->dx[0] * s->blocksize));
+		j = (int) floor(p->x[0] / (sim->dx[0] * s->blocksize));
 
 		block_add_particle(&s->blocks[j], p);
 	}
@@ -65,7 +71,7 @@ block_print(block_t *block)
 	p = block->particles;
 
 	for(p = block->particles, i=0; p; p = p->next, i++)
-		printf("%zu %10.3e %10.3e\n", i, p->x, p->u);
+		printf("%zu %10.3e %10.3e\n", i, p->x[0], p->u[0]);
 }
 
 void
@@ -88,7 +94,7 @@ block_print_particles(specie_t *s, block_t *b)
 
 	DL_FOREACH(b->particles, p)
 	{
-		printf("%d %10.3e %10.3e\n", p->i, p->x, p->u);
+		printf("%d %10.3e %10.3e\n", p->i, p->x[0], p->u[0]);
 	}
 
 	return 0;

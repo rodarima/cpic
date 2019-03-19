@@ -5,6 +5,7 @@ typedef struct block block_t;
 
 #include "mat.h"
 #include "specie.h"
+#include "particle.h"
 #include "field.h"
 
 #include <stdlib.h>

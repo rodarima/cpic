@@ -39,11 +39,9 @@ sim_init(config_t *conf)
 	config_lookup_int(conf, "simulation.sampling_period.particle", &s->period_particle);
 
 	/* Load all dimension related vectors */
-	config_array_float(conf, "simulation.space_length", s->L, s->dim);
-	config_array_int(conf, "grid.blocks", s->nblocks, s->dim);
-	config_array_int(conf, "grid.blocksize", s->blocksize, s->dim);
-
-	fprintf(stderr, "L[0]=%f\n", s->L[0]);
+	config_lookup_array_float(conf, "simulation.space_length", s->L, s->dim);
+	config_lookup_array_int(conf, "grid.blocks", s->nblocks, s->dim);
+	config_lookup_array_int(conf, "grid.blocksize", s->blocksize, s->dim);
 
 	/* Then compute the rest */
 	srand(seed);
@@ -53,12 +51,15 @@ sim_init(config_t *conf)
 		s->nnodes[i] = s->nblocks[i] * s->blocksize[i];
 		s->dx[i] = s->L[i] / s->nnodes[i];
 		s->total_nodes += s->nnodes[i];
+		s->ghostsize[i] = s->blocksize[i] + 1;
 	}
 	s->t = 0.0;
 
 	/* And finally, call all other initialization methods */
-	field_init(s);
-	species_init(s, conf);
+	s->field = field_init(s);
+
+	if(species_init(s, conf))
+		return NULL;
 
 
 	/* Testing */
@@ -133,7 +134,7 @@ conservation_energy(sim_t *sim, specie_t *s)
 	for(i=0; i<s->nparticles; i++)
 	{
 		p = &s->particles[i];
-		KE += s->m * p->u * p->u;
+		KE += s->m * p->u[0] * p->u[0];
 	}
 
 	//EE *= H/(8 * M_PI);
@@ -158,7 +159,7 @@ sim_header(sim_t *sim)
 
 	nparticles = sim->species[0].nparticles;
 
-	if(nparticles < trackp)
+	if(trackp == 0 || nparticles < trackp)
 		trackp = nparticles;
 
 	printf("p %d %d %e %e\n",

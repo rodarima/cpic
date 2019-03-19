@@ -7,23 +7,29 @@
 #include <math.h>
 #include <libconfig.h>
 
-int
+field_t *
 field_init(sim_t *sim)
 {
 	field_t *f;
-	int n;
+	int i, d, *gs;
 
-	n = sim->nnodes[0];
+	d = sim->dim;
+	gs = sim->ghostsize;
 
 	f = malloc(sizeof(field_t));
-	sim->field = f;
 
-	f->E = vec_init(n, 0.0);
-	f->J = vec_init(n, 0.0);
-	f->phi = vec_init(n, 0.0);
-	f->rho = vec_init(n, 0.0);
+	for(i=0; i<sim->dim; i++)
+	{
+		f->E[i] = mat_alloc(d, gs);
 
-	return 0;
+		/* J is not needed */
+		f->J[i] = mat_alloc(d, gs);
+	}
+
+	f->phi = mat_alloc(d, gs);
+	f->rho = mat_alloc(d, gs);
+
+	return f;
 }
 
 /* The field J is updated based on the electric current computed on each
@@ -33,22 +39,21 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	particle_t *p;
 	int i, j0, j1;
-	double *J = b->field.J->data;
-	double *rho = b->field.rho->data;
+	int ix0, ix1, iy = 0;
+	mat_t *J = b->field.J[0];
+	mat_t *rho = b->field.rho;
 	double w0, w1, px, deltax, deltaxj;
-	int size = b->field.J->size;
+	int bsize = sim->blocksize[0];
+	int gsize = sim->ghostsize[0];
 	double dx = sim->dx[0];
 	double x0 = b->x;
-	double x1 = b->x + dx*size;
+	double x1 = b->x + dx*bsize;
 	double xhalf = (x0 + x1) / 2.0;
 	int inv = 1;
 
 	/* Erase previous current */
-	memset(J, 0, sizeof(double) * size);
-	b->field.rJ = 0.0;
-
-	memset(rho, 0, sizeof(double) * size);
-	b->field.rrho = 0.0;
+	MAT_FILL(J, 0.0);
+	MAT_FILL(rho, 0.0);
 
 	dbg("Block %d boundary [%e, %e]\n", b->i, x0, x1);
 
@@ -56,7 +61,7 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 	{
 		//inv = (p->i % 2) ? -1 : 1;
 		/* The particle position */
-		px = p->x;
+		px = p->x[0];
 		deltax = px - x0;
 		//assert(deltax >= 0.0);
 
@@ -72,49 +77,46 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 		deltaxj = deltax - j0 * dx;
 
 		assert(j0 >= 0);
-		assert(j0 < size);
+		assert(j0 < bsize);
 
-		/* As p->x approaches to j0, the weight w0 must be close to 1 */
+		/* As p->x[0] approaches to j0, the weight w0 must be close to 1 */
 		w1 = deltaxj / dx;
 		w0 = 1.0 - w1;
 
+		j1 = j0 + 1;
+
+		dbg("Particle %d at x=%e (deltax=%e) updates J[%d] and J[%d]\n",
+			p->i, px, deltax, j0, j1);
+
 		/* Last node updates the ghost */
 		if(px >= x1 - dx)
-		{
-			J[j0] += w0 * p->J;
-			b->field.rJ += w1 * p->J;
-
-			/* Approximate the charge by a triangle */
-			rho[j0] += w0 * s->q * inv;
-			b->field.rrho += w1 * s->q * inv;
-
-			dbg("Particle %d at x=%e (deltax=%e) updates J[%d] and rJ\n",
-				p->i, px, deltax, j0);
-		}
+			assert(j1 == bsize);
 		else
-		{
-			j1 = (j0 + 1) % size;
-			assert(j1 < size);
-			J[j0] += w0 * p->J;
-			J[j1] += w1 * p->J;
+			assert(j1 < bsize);
 
-			/* Approximate the charge by a triangle */
-			rho[j0] += w0 * s->q * inv;
-			rho[j1] += w1 * s->q * inv;
+		MAT_XY(J, j0, 0) += w0 * p->J[0];
+		MAT_XY(J, j1, 0) += w1 * p->J[0];
 
-			dbg("Particle %d at x=%e (deltax=%e) updates J[%d] and J[%d]\n",
-				p->i, px, deltax, j0, j1);
-		}
+		/* Approximate the charge by a triangle */
+		MAT_XY(rho, j0, 0) += w0 * s->q * inv;
+		MAT_XY(rho, j1, 0) += w1 * s->q * inv;
+
+
 	}
 	return 0;
 }
 
 /* The ghost node of J (from->rB) is added in to->J[0] */
 static int
-block_J_comm(block_t *dst, block_t *left)
+block_J_comm(sim_t *sim, block_t *dst, block_t *left)
 {
-	dst->field.J->data[0] += left->field.rJ;
-	dst->field.rho->data[0] += left->field.rrho;
+	int bsize = sim->blocksize[0];
+	field_t *df = &dst->field;
+	field_t *lf = &left->field;
+
+	/* FIXME: Only one by now */
+	MAT_XY(df->J[0], 0, 0) += MAT_XY(lf->J[0], bsize, 0);
+	MAT_XY(df->rho, 0, 0) += MAT_XY(lf->rho, bsize, 0);
 	/* from->rJ cannot be used */
 	/*left->rJ = 0.0;*/
 	return 0;
@@ -145,47 +147,11 @@ field_J(sim_t *sim, specie_t *s)
 		b = &(s->blocks[i]);
 		lb = &(s->blocks[li]);
 
-		block_J_comm(b, lb);
+		block_J_comm(sim, b, lb);
 	}
 	return 0;
 }
 
-#pragma oss task inout(*b) label(field_block_E_update)
-static int
-block_E_update(sim_t *sim, specie_t *s, block_t *b)
-{
-	particle_t *p;
-	int i, size = b->field.E->size;
-	double *E = b->field.E->data;
-	double *J = b->field.J->data;
-	double coef = - sim->dt / sim->e0;
-
-	for(i=0; i < size; i++)
-	{
-		E[i] += coef * J[i];
-		dbg("Block %d current updates E[%d]=%10.3e\n", b->i, i, E[i]);
-	}
-
-	return 0;
-}
-
-/* We need to get the field from the neighbour at E[0] */
-#pragma oss task inout(*b) in(*rb) label(field_block_E_comm)
-static int
-block_E_comm(block_t *dst, block_t *right)
-{
-	dst->field.rE = right->field.E->data[0];
-	return 0;
-}
-
-//int
-//field_solve_E(field_t *f)
-//{
-//	mat_t *b = f->b;
-//
-//	solve_tridiag(b, x);
-//	return 0;
-//}
 
 int
 field_rho_collect(sim_t *sim, specie_t *s)
@@ -217,27 +183,31 @@ field_rho_collect(sim_t *sim, specie_t *s)
 int
 field_E_spread(sim_t *sim, specie_t *s)
 {
-	int i, j, k = 0;
-	int size;
-	double *E;
-	double *global_E;
+	int i, j, k = 0, maxk;
 	block_t *b;
+	mat_t *E;
+	mat_t *global_E;
 
-	global_E = sim->field->E->data;
+	global_E = sim->field->E[0];
 
-	for(i=0; i<s->nblocks; i++)
+	/* FIXME: Introduce 2 dimensions here */
+	maxk = sim->nnodes[0];
+
+	for(i=0; i<sim->nblocks[0]; i++)
 	{
 		b = &(s->blocks[i]);
 
-		E = b->field.E->data;
-		size = b->field.E->size;
+		E = b->field.E[0];
 
-		for(j=0; j<size; j++)
+		for(j=0; j<sim->blocksize[0]; j++)
 		{
-			E[j] = global_E[k++];
+			/* WARNING: In-place operator add one (++) may be
+			 * considered dangerous when used in a macro argument.
+			 * */
+			MAT_XY(E, j, 0) = MAT_XY(global_E, k++, 0);
 		}
 
-		b->field.rE = global_E[k % s->nblocks];
+		MAT_XY(E, sim->blocksize[0], 0) = MAT_XY(global_E, k % maxk, 0);
 	}
 
 	return 0;
@@ -248,12 +218,13 @@ field_E_solve(sim_t *sim)
 {
 	field_t *f;
 	int i, n, np;
-	double *E, *phi, *rho;
+	mat_t *E;
+	double *phi, *rho;
 	double H, q;
 
 	f = sim->field;
-	n = f->E->size;
-	E = f->E->data;
+	n = sim->blocksize[0];
+	E = f->E[0];
 	rho = f->rho->data;
 	phi = f->phi->data;
 	H = sim->dx[0];
@@ -273,12 +244,12 @@ field_E_solve(sim_t *sim)
 	for(i=1; i<n-1; i++)
 	{
 		/* E = -d phi / dx, eq. 2-34 Hockney */
-		E[i] = (phi[i-1] - phi[i+1]) / (2*H);
+		MAT_XY(E, i, 0) = (phi[i-1] - phi[i+1]) / (2*H);
 	}
 
 	/* We assume a periodic domain */
-	E[0] = (phi[n-1] - phi[1]) / (2*H);
-	E[n-1] = (phi[n-2] - phi[0]) / (2*H);
+	MAT_XY(E, 0, 0) = (phi[n-1] - phi[1]) / (2*H);
+	MAT_XY(E, n-1, 0) = (phi[n-2] - phi[0]) / (2*H);
 
 
 	if(sim->period_field && ((sim->iter % sim->period_field) == 0))
@@ -287,7 +258,7 @@ field_E_solve(sim_t *sim)
 		for(i=0; i<n; i++)
 		{
 			printf("%e %e %e\n",
-					rho[i], phi[i], E[i]);
+					rho[i], phi[i], MAT_XY(E, i, 0));
 		}
 	}
 
@@ -311,31 +282,5 @@ field_E(sim_t *sim)
 	 * block, as the force can be computed easily from the grid points */
 	field_E_spread(sim, &sim->species[0]);
 
-	return 0;
-}
-
-int
-field_E2(sim_t *sim, specie_t *s)
-{
-	int i, ri;
-	block_t *b, *rb;
-
-	for (i = 0; i < s->nblocks; i++)
-	{
-		b = &(s->blocks[i]);
-
-		block_E_update(sim, s, b);
-	}
-
-	/* Communication */
-	for (i = 0; i < s->nblocks; i++)
-	{
-		ri = (i + 1) % s->nblocks;
-
-		b = &(s->blocks[i]);
-		rb = &(s->blocks[ri]);
-
-		block_E_comm(b, rb);
-	}
 	return 0;
 }

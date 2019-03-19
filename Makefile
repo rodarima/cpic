@@ -23,7 +23,7 @@ CPIC_OBJ=$(CPIC_SRC:.c=.o)
 SRC=$(CPIC_SRC)
 OBJ=$(SRC:.c=.o)
 
-BIN=cpic eplot pplot plot fft # solver
+BIN=cpic eplot pplot plot fft 2dplot# solver
 
 all: $(BIN)
 
@@ -40,6 +40,9 @@ cpic: $(CPIC_OBJ)
 	$(OCC) $(CFLAGS) $(OCFLAGS) -y -o $@ $<
 
 #solver: mat.o solver.o
+
+2dplot: 2dplot.c
+	$(CC) $(CFLAGS) $(LDLIBS) -lGL -lGLU -lglut -lm $< -o $@
 
 plot: plot.c
 	$(CC) $(CFLAGS) $(LDLIBS) -lGL -lGLU -lglut -lm $< -o $@

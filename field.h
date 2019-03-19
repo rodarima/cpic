@@ -3,25 +3,22 @@
 struct field;
 typedef struct field field_t;
 
+#include "def.h"
 #include "mat.h"
 
 struct field
 {
 	/* The fields */
-	mat_t *E;
-	mat_t *J;
+	mat_t *E[MAX_DIM];
+	mat_t *J[MAX_DIM];
 	mat_t *phi; /* Electric potential */
 	mat_t *rho;
 	/*mat_t *B;*/
-
-	/* TODO: This should disappear */
-	double rE, rJ, rrho;
 };
 
-#include "sim.h"
 #include "specie.h"
 
-int
+field_t *
 field_init(sim_t *sim);
 
 int

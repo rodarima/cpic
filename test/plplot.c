@@ -67,7 +67,7 @@ main( int argc, char *argv[] )
 
 	while(1)
 	{
-		pllab( "x", "y=100 x#u2#d", "Simple PLplot demo of a 2D line plot" );
+		//pllab( "x", "y=100 x#u2#d", "Simple PLplot demo of a 2D line plot" );
 		data(NSIZE, x, y, t);
 		t += DT;
 		// Plot the data that was prepared above.

@@ -1,5 +1,6 @@
 #include "particle.h"
 #include "sim.h"
+#include "config.h"
 
 #define DEBUG 0
 #include "log.h"
@@ -69,33 +70,36 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
 	int i;
 	particle_t *p;
-	double v;
+	double v[MAX_DIM];
 	double L;
+	config_setting_t *cs_v;
 
-	config_setting_lookup_float(cs, "drift_velocity", &v);
+	cs_v = config_setting_get_member(cs, "drift_velocity");
+	if(config_array_float(cs_v, v, sim->dim))
+		return 1;
 
 	for(i = 0; i < s->nparticles; i++)
 	{
 		p = &s->particles[i];
 
 		p->i = i;
-		//p->x = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
-		p->x = ((float) rand() / RAND_MAX) * sim->L[0];
+		//p->x[0] = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
+		p->x[0] = ((float) rand() / RAND_MAX) * sim->L[0];
 //		if((i%2) == 0)
 //		{
-//			p->x = 3./8. * L;
+//			p->x[0] = 3./8. * L;
 //		}
 //		else
 //		{
-//			p->x = 5./8. * L;
+//			p->x[0] = 5./8. * L;
 //		}
-		//p->x = s->E->size * s->dx / 2.0;
-		p->u = (2.0 * ((i % 2) - 0.5)) * v; /* m/s */
-		//p->u = v; /* m/s */
-		//p->u = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
-		//p->u = 0.5 * s->C; /* m/s */
-		p->E = 0.0;
-		p->J = 0.0;
+		//p->x[0] = s->E->size * s->dx / 2.0;
+		p->u[0] = (2.0 * ((i % 2) - 0.5)) * v[0]; /* m/s */
+		//p->u[0] = v; /* m/s */
+		//p->u[0] = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
+		//p->u[0] = 0.5 * s->C; /* m/s */
+		p->E[0] = 0.0;
+		p->J[0] = 0.0;
 	}
 
 	return 0;
@@ -107,9 +111,12 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 	int i, odd;
 	int total_nodes = s->blocksize * s->nblocks;
 	particle_t *p;
-	double v;
+	double v[MAX_DIM];
+	config_setting_t *cs_v;
 
-	config_setting_lookup_float(cs, "drift_velocity", &v);
+	cs_v = config_setting_get_member(cs, "drift_velocity");
+	if(config_array_float(cs_v, v, sim->dim))
+		return 1;
 
 	if(s->nparticles != 2)
 	{
@@ -123,10 +130,10 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 		p = &s->particles[i];
 
 		p->i = i;
-		p->x = sim->L[0] * (odd ? 5./8. : 3./8.);
-		p->u = odd ? -v : v;
-		p->E = 0.0;
-		p->J = 0.0;
+		p->x[0] = sim->L[0] * (odd ? 5./8. : 3./8.);
+		p->u[0] = odd ? -v[0] : v[0];
+		p->E[0] = 0.0;
+		p->J[0] = 0.0;
 	}
 
 	return 0;
@@ -142,7 +149,7 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 
 	for (p = b->particles; p; p = p->next)
 	{
-		p->J = s->q * p->u / sim->dt;
+		p->J[0] = s->q * p->u[0] / sim->dt;
 	}
 
 	return 0;
@@ -152,15 +159,18 @@ static int
 block_E_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	int j0, j1;
-	double *E = b->field.E->data;
-	int size = b->field.E->size;
+	double *E;
+	int size, gsize;
 	double w0, w1, px, deltax, deltaxj;
-	double dx = sim->dx[0];
-	double x0 = b->x;
-	double x1 = b->x + dx*size;
+	double dx, x0, x1;
 	particle_t *p;
 
-	size = s->blocksize;
+	E = b->field.E[0]->data;
+	dx = sim->dx[0];
+	size = sim->blocksize[0];
+	gsize = sim->ghostsize[0];
+	x0 = b->x;
+	x1 = b->x + dx*size;
 
 	dbg("Updating particle E in block %d boundary [%e, %e]\n",
 		b->i, x0, x1);
@@ -168,7 +178,7 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 	for (p = b->particles; p; p = p->next)
 	{
 		/* The particle position */
-		px = p->x;
+		px = p->x[0];
 		deltax = px - x0;
 
 		/* Ensure the particle is in the block boundary */
@@ -185,21 +195,23 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 
 		assert(j0 >= 0);
 
-		/* As p->x approaches to j0, the weight w0 must be close to 1 */
+		/* As p->x[0] approaches to j0, the weight w0 must be close to 1 */
 		w1 = deltaxj / dx;
 		w0 = 1.0 - w1;
 
 		/* First part, from the node (which is always on the block) */
-		p->E = w0 * E[j0];
+		assert(j0 < size);
+		p->E[0]  = w0 * E[j0];
 
 		/* A particle in the last cell updates from the ghost */
 		if(px >= x1 - dx)
-			p->E += w1 * b->field.rE;
-		else
-			p->E += w1 * E[j1];
+			assert(j1 == gsize-1);
+
+		assert(j1 < gsize);
+		p->E[0] += w1 * E[j1];
 
 		dbg("Particle at x=%.3e updates E=%.3e from E[%d] and E[%d]\n",
-			px, p->E, j0, j1);
+			px, p->E[0], j0, j1);
 	}
 	return 0;
 }
@@ -218,23 +230,23 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 	for (p = b->particles; p; p = p->next)
 	{
 		//inv = p->i % 2 ? 1 : -1;
-		delta_u = dt * inv * s->q * p->E / s->m;
-		dbg("Particle %d at x=%.3e increases speed by %.3e\n", p->i, p->x, delta_u);
+		delta_u = dt * inv * s->q * p->E[0] / s->m;
+		dbg("Particle %d at x=%.3e increases speed by %.3e\n", p->i, p->x[0], delta_u);
 
-		p->u += delta_u;
+		p->u[0] += delta_u;
 
-		delta_x = dt * p->u;
+		delta_x = dt * p->u[0];
 
 		if(fabs(delta_x) > sim->L[0])
 		{
 			err("Particle %d at x=%.3e has exceeded dx with delta_x=%.3e\n",
-					p->i, p->x, delta_x);
+					p->i, p->x[0], delta_x);
 			err("Please, reduce dt=%.3e or increase dx=%.3e\n",
 					sim->dt, sim->dx[0]);
 			exit(1);
 		}
 
-		p->x += delta_x;
+		p->x[0] += delta_x;
 
 		/* Wrapping is done after the particle is moved to the right
 		 * block */
@@ -262,7 +274,7 @@ block_comm(sim_t *sim, specie_t *s, block_t *left, block_t *b, block_t *right)
 
 	DL_FOREACH_SAFE(b->particles, p, tmp)
 	{
-		px = p->x;
+		px = p->x[0];
 
 		/* Move to the left */
 		if(px < x0)
@@ -288,23 +300,23 @@ block_comm(sim_t *sim, specie_t *s, block_t *left, block_t *b, block_t *right)
 
 
 		/* Wrap position if max_x or 0 are exceeded */
-		if(p->x >= max_x)
+		if(p->x[0] >= max_x)
 		{
 			dbg("Wrapping particle %d from x=%.3e to x=%.3e\n",
-				p->i, p->x, p->x - max_x);
-			p->x -= max_x;
+				p->i, p->x[0], p->x[0] - max_x);
+			p->x[0] -= max_x;
 		}
-		else if(p->x < 0.0)
+		else if(p->x[0] < 0.0)
 		{
 			dbg("Wrapping particle %d from x=%.3e to x=%.3e\n",
-				p->i, p->x, p->x + max_x);
-			p->x += max_x;
+				p->i, p->x[0], p->x[0] + max_x);
+			p->x[0] += max_x;
 		}
 
-		if((p->x < 0.0) || (p->x > max_x))
+		if((p->x[0] < 0.0) || (p->x[0] > max_x))
 		{
 			err("Particle %d is at x=%.3e with max_x=%10.3e\n",
-				p->i, p->x, max_x);
+				p->i, p->x[0], max_x);
 			exit(1);
 		}
 	}
@@ -330,7 +342,7 @@ particle_E(sim_t *sim, specie_t *s)
 		block_E_update(sim, s, b);
 	}
 
-	/* No communication required, as only p->E is updated */
+	/* No communication required, as only p->E[0] is updated */
 
 	return 0;
 }

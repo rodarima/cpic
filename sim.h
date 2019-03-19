@@ -3,12 +3,10 @@
 struct sim;
 typedef struct sim sim_t;
 
+#include "def.h"
 #include "specie.h"
 #include "field.h"
 #include <libconfig.h>
-
-/* Lets keep the simulation reasonable */
-#define MAX_DIM 3
 
 struct sim
 {
@@ -47,8 +45,14 @@ struct sim
 	int nspecies;
 	specie_t *species;
 
+	/* Number of blocks */
 	int nblocks[MAX_DIM];
+
+	/* Shape of the block, without ghosts cells */
 	int blocksize[MAX_DIM];
+
+	/* Shape of the block, including the ghosts cells */
+	int ghostsize[MAX_DIM];
 
 	/* The number of nodes with all blocks of the specified dimension */
 	int nnodes[MAX_DIM];
@@ -61,6 +65,9 @@ struct sim
 
 	/** Simulation configuration */
 	config_t *conf;
+
+	/* The configuration file */
+	char *conf_path;
 
 };
 

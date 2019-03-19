@@ -94,14 +94,14 @@ specie_step(sim_t *sim)
 int
 specie_print(sim_t *sim, specie_t *s)
 {
-	int i;
+	int i,j;
 	particle_t *p;
 	double x, u, max_x;
 	int np;
 
 	config_lookup_int(sim->conf, "plot.track_particles", &np);
 
-	if(np > s->nparticles)
+	if((np == 0) || (np > s->nparticles))
 		np = s->nparticles;
 
 	//printf("The specie %p has %d dimensions with %d particles\n",
@@ -114,7 +114,8 @@ specie_print(sim_t *sim, specie_t *s)
 		p = &s->particles[i];
 		//printf("%10.3e %d %10.3e %10.3e %10.3e %10.3e\n",
 		//	s->t, i, p->x, p->u, p->E, p->J);
-		printf("%d %10.3e %10.3e\n", p->i, p->x, p->u);
+		for(j=0; j<sim->dim; j++)
+			printf("%d %d %10.3e %10.3e\n", p->i, j, p->x[j], p->u[j]);
 	}
 
 //	max_x = 1 * sim->dx;

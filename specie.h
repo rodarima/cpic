@@ -1,13 +1,11 @@
 #pragma once
 
-struct particle;
 struct specie;
-
-typedef struct particle particle_t;
 typedef struct specie specie_t;
 
 #include "mat.h"
 #include "block.h"
+#include "particle.h"
 #include <libconfig.h>
 
 #define MAX_PART 500
@@ -17,21 +15,6 @@ typedef struct specie specie_t;
 //	int dim;
 //	mat_t **fields;
 //} block_t;
-
-struct particle {
-	int i; /* Particle number */
-
-	float x; /* Position in 1st dimension */
-	float u; /* Speed in 1st dimension */
-
-	/* Interpolation fields at particle position */
-	float E;
-	float B;
-	float J;
-
-	/* Node element in a list */
-	struct particle *next, *prev;
-};
 
 
 

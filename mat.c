@@ -12,16 +12,33 @@ mat_alloc(int dim, int *shape)
 	m = malloc(sizeof(mat_t));
 	m->dim = dim;
 
+	/* Should we fix the maximum number of dimensions? */
+	m->shape = malloc(sizeof(int) * dim);
+
 	size = 1;
 	for(i = 0; i < dim; i++)
+	{
+		m->shape[i] = shape[i];
 		size *= shape[i];
+	}
+
 
 	m->size = size;
-	m->shape = shape;
 
 	m->data = malloc(sizeof(double) * size);
 
 	return m;
+}
+
+mat_t *
+mat_alloc_square(int dim, int shape)
+{
+	int i, v[dim];
+
+	for(i=0; i<dim; i++)
+		v[i] = shape;
+
+	return mat_alloc(dim, v);
 }
 
 mat_t *

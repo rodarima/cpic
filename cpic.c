@@ -77,13 +77,14 @@ start(int argc, char *argv[])
 
 	fclose(f);
 
-	printf("%s\n", fn);
 
 	if(!(sim = sim_init(&conf)))
 	{
 		err("sim_init failed\n");
 		return -1;
 	}
+
+	printf("%s\n", fn);
 
 	if(sim_run(sim))
 		return -1;
