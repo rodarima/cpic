@@ -1,10 +1,9 @@
 #include <stdbool.h>
 #include <mgl2/mgl_cf.h>
-#include <mgl2/glut.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <GL/glut.h>
+#include <GLFW/glfw3.h>
 
 #include "mgl-glue.h"
 
@@ -16,15 +15,12 @@ HMGL gr;
 HMDT dat, du, dv;
 
 double zz[N*N], uu[N*N], vv[N*N], shift = 0.0;
-GLenum doubleBuffer = GL_FALSE;
-GLint windW = 1000, windH = 500;
 
-int win1;
 int frames = 0, updates = 0;
 struct timespec later = {0, 0};
 
 void
-draw()
+plot()
 {
 	mgl_clf(gr);
 	//printf("draw called\n");
@@ -62,7 +58,7 @@ draw()
 }
 
 void
-idle()
+update_data()
 {
 	int i, j;
 	double x, y;
@@ -99,62 +95,33 @@ idle()
 		frames = 0;
 		updates = 0;
 	}
-
-	glutSetWindow(win1);
-	glutPostRedisplay();
 }
 
-void timer(int value)
-{
-	glutTimerFunc(1000.0/FPS, timer, 0);
-	idle();
-}
-
-void
-Reshape(int width, int height)
-{
-	windW = width;
-	windH = height;
-
-	fprintf(stderr, "Window size is now %dx%d\n", width, height);
-
-	glViewport(0, 0, windW, windH);
-
-	// FIXME: Neither this one
-	mgl_set_size(gr, windW, windH);
-}
-
-/* ARGSUSED1 */
 static void
-Key(unsigned char key, int x, int y)
+key(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	switch (key) {
-	case 'q':
-	case 27:
-		exit(0);
-	}
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, GLFW_TRUE);
 }
 
 int main(int argc, char *argv[])
 {
-	int i;
-	GLenum type;
+	int width = 1000, height = 500;
 
-	glutInitWindowSize(windW, windH);
-	glutInit(&argc, argv);
+	if(!glfwInit())
+		return 1;
 
-	type = GLUT_RGB;
-	type |= (doubleBuffer) ? GLUT_DOUBLE : GLUT_SINGLE;
-	glutInitDisplayMode(type);
+	GLFWwindow* window = glfwCreateWindow(width, height,
+			"plot particles", NULL, NULL);
 
-	glDisable(GL_DITHER);
+	if(!window)
+		return 1;
 
-	win1 = glutCreateWindow("plot particles");
-	glutPositionWindow(5, 5);
-	glutReshapeFunc(Reshape);
-	glutKeyboardFunc(Key);
-	glutDisplayFunc(draw);
-	glClearColor(0.0, 0.0, 0.0, 0.0);
+	glfwSetKeyCallback(window, key);
+	glfwMakeContextCurrent(window);
+	glfwSwapInterval(1);
+
+
 
 	mgl_set_num_thr(1);
 
@@ -164,22 +131,30 @@ int main(int argc, char *argv[])
 
 	gr = mgl_create_graph_gl();
 
-	//gr = canvas_create();
-
-	// FIXME: This doesn't set the size properly
-	mgl_set_size(gr, windW, windH);
-
-	fprintf(stderr, "Canvas size %dx%d, window size %dx%d\n",
-		mgl_get_width(gr),
-		mgl_get_height(gr),
-		windW, windH);
-
 	mgl_set_font_size(gr, 2.0);
 
-	//glutIdleFunc(idle);
-	timer(0);
 
-	glutMainLoop();
+
+
+	while (!glfwWindowShouldClose(window))
+	{
+
+		update_data();
+
+		glfwGetFramebufferSize(window, &width, &height);
+
+		glViewport(0, 0, width, height);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		mgl_set_size(gr, width, height);
+
+		plot();
+
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
+
+	glfwTerminate();
 
 	return 0;
 }
