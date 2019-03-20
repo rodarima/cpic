@@ -5,10 +5,12 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
-#include <GL/glut.h>
+#include <GLFW/glfw3.h>
 #include <fftw3.h>
 #include <unistd.h>
 
+#include "mat.h"
+#include "sim.h"
 #include "specie.h"
 #include "log.h"
 
@@ -75,11 +77,7 @@ double trigger_factor = 0.0;
 
 config_t conf;
 
-/* The GLUT callback doesn't accepts any arguments, so a global pointer is
- * required. FreeGLUT allows finer loop control, with only one iteration, but is
- * not portable... */
-plot_t *global_plot = NULL;
-
+#if 0
 static int
 get_line(char *buf, size_t n, int prefix)
 {
@@ -120,43 +118,30 @@ init_particles(void)
 
 }
 
-void
-Reshape(int width, int height)
-{
-	windW = width;
-	windH = height;
 
-	glViewport(0, 0, windW, windH);
-
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluOrtho2D(-0.5, windW + 0.5, -0.5, windH + 0.5);
-	glMatrixMode(GL_MODELVIEW);
-}
-
-/* ARGSUSED1 */
-static void
-Key(unsigned char key, int x, int y)
-{
-	switch (key) {
-	case 'p':
-		play = !play;
-		break;
-	case 'c':
-		clear = !clear;
-		grid = 1;
-		break;
-	case 'n':
-		plotting = !plotting;
-		break;
-	case 'f':
-		fast = !fast;
-		break;
-	case 'q':
-	case 27:
-		exit(0);
-	}
-}
+///* ARGSUSED1 */
+//static void
+//Key(unsigned char key, int x, int y)
+//{
+//	switch (key) {
+//	case 'p':
+//		play = !play;
+//		break;
+//	case 'c':
+//		clear = !clear;
+//		grid = 1;
+//		break;
+//	case 'n':
+//		plotting = !plotting;
+//		break;
+//	case 'f':
+//		fast = !fast;
+//		break;
+//	case 'q':
+//	case 27:
+//		exit(0);
+//	}
+//}
 
 void
 idle_particles(char *line)
@@ -895,6 +880,8 @@ parse_args(int argc, char *argv[])
 	return 0;
 }
 
+#endif
+
 int
 parse_config(plot_t *plot, config_t *conf)
 {
@@ -954,124 +941,64 @@ read_config(config_t *conf)
 	return 0;
 }
 
-void
-display_test(void)
-{
-	glClearColor(0.0, 0.0, 0.0, 0.0);
-
-	if (doubleBuffer) {
-		glutSwapBuffers();
-	} else {
-		glFlush();
-	}
-}
-
-void
-sync_idle()
-{
-	plot_t *plot;
-	sim_t *sim;
-
-	plot = global_plot;
-	sim = plot->sim;
-
-	fprintf(stderr, "Plotter waits for the simulator\n");
-
-	pthread_mutex_lock(&sim->lock);
-	while(sim->run == 1)
-		pthread_cond_wait(&sim->signal, &sim->lock);
-
-	fprintf(stderr, "Plotter runs now\n");
-	idle(plot);
-
-	sim->run = 1;
-	pthread_cond_signal(&sim->signal);
-	pthread_mutex_unlock(&sim->lock);
-}
-
 int
-oldmain(plot_t *plot, int argc, char **argv)
+plot_redraw(plot_t *plot)
 {
-	int show_energy = 1;
-	int winy = 20;
-	GLenum type;
+	HMGL gr;
+	int i;
+	specie_t *s;
+	particle_t *p;
 
-	fprintf(stderr, "plotter main is running\n");
+	gr = plot->gr;
 
+	mgl_clf(gr);
 
-	parse_args(argc, argv);
-
-	glutInitWindowSize(windW, windH);
-	glutInit(&argc, argv);
-
-	type = GLUT_RGB;
-	type |= (doubleBuffer) ? GLUT_DOUBLE : GLUT_SINGLE;
-	glutInitDisplayMode(type);
-
-	//if(read_config(&conf))
-	//	return 1;
-
-	//parse_config(&conf);
-
-	//init_particles();
-
-	glDisable(GL_DITHER);
-	glutCreateWindow("plot testing");
-	glutPositionWindow(50, 50);
-	glutDisplayFunc(display_test);
-	glutReshapeFunc(Reshape);
-	glClearColor(0.0, 0.0, 0.0, 0.0);
-
-	if(arg_particles)
+	s = &plot->sim->species[0];
+	for(i = 0; i<s->nparticles; i++)
 	{
-		win1 = glutCreateWindow("plot particles");
-		glutPositionWindow(5, winy);
-		winy += windH + 30;
-		glutReshapeFunc(Reshape);
-		glutKeyboardFunc(Key);
-		glutDisplayFunc(display_particles);
-		glClearColor(0.0, 0.0, 0.0, 0.0);
+		p = &s->particles[i];
+
+		mgl_data_set_value(plot->x, p->x[0], i, 0, 0);
+		mgl_data_set_value(plot->v, p->u[0], i, 0, 0);
+		//mgl_mark(gr, p->x[0], p->u[0], 0.0, "o");
 	}
 
-	if(arg_field)
-	{
-		win4 = glutCreateWindow("plot fields");
-		glutPositionWindow(5, winy);
-		winy += windH + 30;
-		glutReshapeFunc(Reshape);
-		glutKeyboardFunc(Key);
-		//glutVisibilityFunc(visible_energy);
-		glutDisplayFunc(display_field);
-		glClearColor(0.0, 0.0, 0.0, 0.0);
-	}
+	mgl_set_mark_size(gr, 5.0);
 
-	if (arg_energy)
-	{
-		win2 = glutCreateWindow("plot energy");
-		glutPositionWindow(5, winy);
-		winy += windH + 30;
-		glutReshapeFunc(Reshape);
-		glutKeyboardFunc(Key);
-		glutDisplayFunc(display_energy);
-	}
+	mgl_subplot(gr, 2, 2, 0, "");
+	mgl_title(gr, "Particle x-v space", "", 5.0);
+	mgl_plot_xy(gr, plot->x, plot->v, "", "");
+	//mgl_axis_grid(gr, "xy", "", "");
+	mgl_axis(gr, "xy", "", "");
+	mgl_set_ranges(gr, 0.0, 64.0, -10, 10, -1, 1);
+	mgl_label(gr, 'x', "Position x_x", 0.0, "");
+	mgl_label(gr, 'y', "Velocity v_x", 0.0, "");
+
+	mgl_subplot(gr, 2, 2, 1, "");
+	mgl_title(gr, "Charge density \\rho", "", 5.0);
+	mgl_contf(gr, (HCDT) plot->rho, "", "");
+	mgl_axis_grid(gr, "xy", "", "");
+	mgl_axis(gr, "xy", "", "");
+	mgl_colorbar(gr, ">");
 
 
-	if(arg_freq)
-	{
-		win3 = glutCreateWindow("plot frequency");
-		glutPositionWindow(5, winy);
-		winy += windH + 30;
-		glutReshapeFunc(Reshape);
-		glutKeyboardFunc(Key);
-		//glutVisibilityFunc(visible_energy);
-		glutDisplayFunc(display_fft);
-	}
+	mgl_subplot(gr, 2, 2, 2, "");
+	mgl_title(gr, "Electric potential \\phi", "", 5.0);
+	mgl_contf(gr, (HCDT) plot->phi, "", "");
+	mgl_colorbar(gr, ">");
+	mgl_axis_grid(gr, "xy", "", "");
+	mgl_axis(gr, "xy", "", "");
 
+	mgl_subplot(gr, 2, 2, 3, "");
+	mgl_title(gr, "Electric field E_x", "", 5.0);
+	mgl_contf(gr, (HCDT) plot->E0, "", "");
+	mgl_axis_grid(gr, "xy", "", "");
+	mgl_axis(gr, "xy", "", "");
+	mgl_colorbar(gr, ">");
 
-	glutIdleFunc(sync_idle);
-
-	glutMainLoop();
-	return 0;             /* ANSI C requires main to return int. */
+	mgl_finish(gr);
+	glFlush();
+	return 0;
 }
 
 plot_t *
@@ -1081,12 +1008,6 @@ plot_init(sim_t *sim)
 
 	plot = malloc(sizeof(plot_t));
 
-	/* Required by the idle function */
-	if(global_plot != NULL)
-		abort();
-
-	global_plot = plot;
-
 	plot->sim = sim;
 
 	if(parse_config(plot, sim->conf))
@@ -1095,25 +1016,85 @@ plot_init(sim_t *sim)
 	return plot;
 }
 
-/* Executed in plotter thread */
-void *
-plot_start(void *p)
+static void
+key(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	int argc = 1;
-	char *argv[1] = { "plot" };
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, GLFW_TRUE);
+}
 
+/* Executed in plotter thread, should never return */
+void *
+plot_loop(void *p)
+{
+	int width = 1000, height = 1000;
 	plot_t *plot;
 	sim_t *sim;
 
 	sim = (sim_t *) p;
 
 	plot = plot_init(sim);
-	plot = malloc(sizeof(plot_t));
 
-	plot->sim = sim;
+	if(!glfwInit())
+		return NULL;
 
-	oldmain(plot, argc, argv);
+	GLFWwindow* window = glfwCreateWindow(width, height,
+			"plot particles", NULL, NULL);
 
+	if(!window)
+		return NULL;
+
+	glfwSetKeyCallback(window, key);
+	glfwMakeContextCurrent(window);
+	glfwSwapInterval(1);
+
+	int mx = sim->nnodes[SHAPE_X];
+	int my = sim->nnodes[SHAPE_Y];
+	int mz = sim->nnodes[SHAPE_Z];
+	int np = sim->species[0].nparticles;
+
+	err("xyz shape %d %d %d\n", mx, my, mz);
+
+	mgl_set_num_thr(1);
+	plot->gr = mgl_create_graph_gl();
+
+	plot->rho = mgl_create_data();
+	plot->phi = mgl_create_data();
+	plot->E0 = mgl_create_data();
+	plot->x = mgl_create_data_size(np, 1, 1);
+	plot->v = mgl_create_data_size(np, 1, 1);
+
+	/* Beware, we are accessing sim without any protection here */
+	mgl_data_link(plot->phi, sim->field->phi->data, mx, my, mz);
+	mgl_data_link(plot->rho, sim->field->rho->data, mx, my, mz);
+	mgl_data_link(plot->E0, sim->field->E[0]->data, mx, my, mz);
+
+	mgl_set_font_size(plot->gr, 2.0);
+
+	while (!glfwWindowShouldClose(window))
+	{
+		glfwGetFramebufferSize(window, &width, &height);
+
+		glViewport(0, 0, width, height);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		mgl_set_size(plot->gr, width, height);
+
+		pthread_mutex_lock(&sim->lock);
+		while(sim->run == 1)
+			pthread_cond_wait(&sim->signal, &sim->lock);
+
+		plot_redraw(plot);
+
+		sim->run = 1;
+		pthread_cond_signal(&sim->signal);
+		pthread_mutex_unlock(&sim->lock);
+
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
+
+	glfwTerminate();
 	return NULL;
 }
 
@@ -1122,7 +1103,7 @@ int
 plot_thread_init(sim_t *sim)
 {
 	if(pthread_create(&sim->plot_thread, NULL,
-				plot_start, (void *) sim) != 0)
+				plot_loop, (void *) sim) != 0)
 	{
 		perror("pthread_create");
 		return 1;

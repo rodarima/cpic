@@ -21,6 +21,8 @@ mat_alloc(int dim, int *shape)
 		m->shape[i] = shape[i];
 		size *= shape[i];
 	}
+	for(i=dim; i<MAX_DIM; i++)
+		m->shape[i] = 1;
 
 
 	m->size = size;

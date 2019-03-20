@@ -63,6 +63,12 @@ sim_init(config_t *conf)
 		s->total_nodes += s->nnodes[i];
 		s->ghostsize[i] = s->blocksize[i] + 1;
 	}
+	for(i=s->dim; i<MAX_DIM; i++)
+	{
+		s->nnodes[i] = 1;
+		s->dx[i] = 0.0;
+		s->ghostsize[i] = 1;
+	}
 	s->t = 0.0;
 
 	/* And finally, call all other initialization methods */
@@ -260,8 +266,8 @@ sim_run(sim_t *sim)
 		field_J(sim, s);
 
 		/* Print the status */
-		if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
-			specie_print(sim, s);
+//		if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
+//			specie_print(sim, s);
 
 		if(sim->mode == SIM_MODE_DEBUG)
 			sim_plot(sim);

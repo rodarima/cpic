@@ -261,6 +261,7 @@ field_E_solve(sim_t *sim)
 	MAT_XY(E, n-1, 0) = (phi[n-2] - phi[0]) / (2*H);
 
 
+#if 0
 	if(sim->period_field && ((sim->iter % sim->period_field) == 0))
 	{
 		printf("f\n");
@@ -276,6 +277,7 @@ field_E_solve(sim_t *sim)
 			}
 		}
 	}
+#endif
 
 	return 0;
 }

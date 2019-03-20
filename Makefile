@@ -1,8 +1,15 @@
 CC=clang
 OCC=mcc
-LDLIBS=-lm -lconfig -lfftw3 -lgsl -lgslcblas -lGL -lGLU -lglut
+LDLIBS=-lm -lconfig -lfftw3 -lgsl -lgslcblas -lGL -lGLU -lglut -lmgl2
 CFLAGS=-g -pthread
 LDFLAGS=-pthread
+
+CFLAGS_GLFW3=`pkg-config --cflags glfw3`
+LDLIBS_GLFW3=`pkg-config --libs glfw3`
+
+CFLAGS+=$(CFLAGS_GLFW3)
+LDLIBS+=$(LDLIBS_GLFW3)
+
 
 USE_OMPSS=yes
 
