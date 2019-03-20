@@ -76,7 +76,7 @@ sim_init(config_t *conf)
 	{
 		pthread_cond_init(&s->signal, NULL);
 		pthread_mutex_init(&s->lock, NULL);
-		plot_init(s);
+		plot_thread_init(s);
 	}
 
 

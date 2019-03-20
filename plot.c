@@ -78,7 +78,7 @@ config_t conf;
 /* The GLUT callback doesn't accepts any arguments, so a global pointer is
  * required. FreeGLUT allows finer loop control, with only one iteration, but is
  * not portable... */
-plot_t *global_plot;
+plot_t *global_plot = NULL;
 
 static int
 get_line(char *buf, size_t n, int prefix)
@@ -809,34 +809,38 @@ display_field()
 	}
 }
 
-void
-idle()
+int
+idle(plot_t *plot)
 {
+	sim_t *sim;
+
+	sim = plot->sim;
+
 	fprintf(stderr, "idle is running\n");
 
-	return;
+	return 0;
 
 
-	if(!play)
-		return;
-
-	char buf[MAX_LINE];
-	size_t n = MAX_LINE;
-
-	if(!fgets(buf, n, stdin))
-		return;
-
-	//fprintf(stderr, "Loading info\n");
-
-	if(buf[0] == 'p')
-		idle_particles(buf);
-	else if(buf[0] == 'e' && arg_energy)
-		idle_energy(buf);
-	else if(buf[0] == 'f' && arg_field)
-		idle_field(buf);
-
-	if(arg_freq)
-		idle_fft();
+//	if(!play)
+//		return;
+//
+//	char buf[MAX_LINE];
+//	size_t n = MAX_LINE;
+//
+//	if(!fgets(buf, n, stdin))
+//		return;
+//
+//	//fprintf(stderr, "Loading info\n");
+//
+//	if(buf[0] == 'p')
+//		idle_particles(buf);
+//	else if(buf[0] == 'e' && arg_energy)
+//		idle_energy(buf);
+//	else if(buf[0] == 'f' && arg_field)
+//		idle_field(buf);
+//
+//	if(arg_freq)
+//		idle_fft();
 }
 
 void
@@ -847,27 +851,6 @@ idle_redisplay()
 	{
 		//fprintf(stderr, "Calling redisplay for particles\n");
 		glutPostRedisplay();
-	}
-}
-
-
-void
-visible_energy(int state)
-{
-	if (state == GLUT_VISIBLE) {
-		glutIdleFunc(idle);
-	} else {
-		glutIdleFunc(NULL);
-	}
-}
-
-void
-visible_particles(int state)
-{
-	if (state == GLUT_VISIBLE) {
-		glutIdleFunc(idle);
-	} else {
-		glutIdleFunc(NULL);
 	}
 }
 
@@ -913,18 +896,13 @@ parse_args(int argc, char *argv[])
 }
 
 int
-parse_config(config_t *conf)
+parse_config(plot_t *plot, config_t *conf)
 {
 	/* First set all direct configuration variables */
-	config_lookup_float(conf, "simulation.time_step", &dt);
-	config_lookup_float(conf, "simulation.space_length", &L);
-	config_lookup_int(conf, "grid.blocks", &nblocks);
-	config_lookup_int(conf, "grid.blocksize", &blocksize);
-	config_lookup_float(conf, "plot.max_fps", &maxfps);
-	config_lookup_float(conf, "plot.max_velocity", &maxv);
-	config_lookup_int(conf, "plot.max_loops", &maxloops);
-	config_lookup_float(conf, "plot.trigger_factor", &trigger_factor);
-	config_lookup_int(conf, "simulation.dimensions", &dim);
+	config_lookup_float(conf, "plot.max_fps", &plot->maxfps);
+	config_lookup_float(conf, "plot.max_velocity", &plot->maxv);
+	config_lookup_int(conf, "plot.max_loops", &plot->maxloops);
+	config_lookup_float(conf, "plot.trigger_factor", &plot->trigger_factor);
 
 	/* Then compute the rest */
 	nnodes = nblocks * blocksize;
@@ -1004,7 +982,7 @@ sync_idle()
 		pthread_cond_wait(&sim->signal, &sim->lock);
 
 	fprintf(stderr, "Plotter runs now\n");
-	idle();
+	idle(plot);
 
 	sim->run = 1;
 	pthread_cond_signal(&sim->signal);
@@ -1020,8 +998,6 @@ oldmain(plot_t *plot, int argc, char **argv)
 
 	fprintf(stderr, "plotter main is running\n");
 
-	/* Required by the idle function */
-	global_plot = plot;
 
 	parse_args(argc, argv);
 
@@ -1098,6 +1074,27 @@ oldmain(plot_t *plot, int argc, char **argv)
 	return 0;             /* ANSI C requires main to return int. */
 }
 
+plot_t *
+plot_init(sim_t *sim)
+{
+	plot_t *plot;
+
+	plot = malloc(sizeof(plot_t));
+
+	/* Required by the idle function */
+	if(global_plot != NULL)
+		abort();
+
+	global_plot = plot;
+
+	plot->sim = sim;
+
+	if(parse_config(plot, sim->conf))
+		return NULL;
+
+	return plot;
+}
+
 /* Executed in plotter thread */
 void *
 plot_start(void *p)
@@ -1108,9 +1105,11 @@ plot_start(void *p)
 	plot_t *plot;
 	sim_t *sim;
 
+	sim = (sim_t *) p;
+
+	plot = plot_init(sim);
 	plot = malloc(sizeof(plot_t));
 
-	sim = (sim_t *) p;
 	plot->sim = sim;
 
 	oldmain(plot, argc, argv);
@@ -1120,7 +1119,7 @@ plot_start(void *p)
 
 /* Executed in the simulator thread. Just create the plotter thread and exit */
 int
-plot_init(sim_t *sim)
+plot_thread_init(sim_t *sim)
 {
 	if(pthread_create(&sim->plot_thread, NULL,
 				plot_start, (void *) sim) != 0)

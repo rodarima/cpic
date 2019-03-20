@@ -4,9 +4,14 @@
 
 struct plot {
 	sim_t *sim;
+	double maxfps;
+	int maxloops;
+	double trigger_factor;
+
+	double maxv; /* FIXME: This should dissapear */
 };
 
 typedef struct plot plot_t;
 
 int
-plot_init(sim_t *sim);
+plot_thread_init(sim_t *sim);
