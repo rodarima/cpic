@@ -2,6 +2,11 @@
 
 #include "def.h"
 
+enum dim {
+	X = 0,
+	Y = 1,
+	Z = 2
+};
 enum shape_dim {
 	SHAPE_X = 0,
 	SHAPE_Y = 1,

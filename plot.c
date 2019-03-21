@@ -960,17 +960,18 @@ plot_redraw(plot_t *plot)
 
 		mgl_data_set_value(plot->x, p->x[0], i, 0, 0);
 		mgl_data_set_value(plot->v, p->u[0], i, 0, 0);
+		mgl_data_set_value(plot->y, p->x[1], i, 0, 0);
 		//mgl_mark(gr, p->x[0], p->u[0], 0.0, "o");
 	}
 
-	mgl_set_mark_size(gr, 5.0);
+	mgl_set_mark_size(gr, 0.35);
 
 	mgl_subplot(gr, 2, 2, 0, "");
-	mgl_title(gr, "Particle x-v space", "", 5.0);
-	mgl_plot_xy(gr, plot->x, plot->v, "", "");
+	mgl_title(gr, "Particle x-y space", "", 5.0);
+	mgl_plot_xy(gr, plot->x, plot->y, "#s ", "");
 	//mgl_axis_grid(gr, "xy", "", "");
 	mgl_axis(gr, "xy", "", "");
-	mgl_set_ranges(gr, 0.0, 64.0, -10, 10, -1, 1);
+	mgl_set_ranges(gr, 0.0, 64.0, -10, 10, -2, 2);
 	mgl_label(gr, 'x', "Position x_x", 0.0, "");
 	mgl_label(gr, 'y', "Velocity v_x", 0.0, "");
 
@@ -997,7 +998,7 @@ plot_redraw(plot_t *plot)
 	mgl_colorbar(gr, ">");
 
 	mgl_finish(gr);
-	glFlush();
+	//glFlush();
 	return 0;
 }
 
@@ -1062,6 +1063,7 @@ plot_loop(void *p)
 	plot->phi = mgl_create_data();
 	plot->E0 = mgl_create_data();
 	plot->x = mgl_create_data_size(np, 1, 1);
+	plot->y = mgl_create_data_size(np, 1, 1);
 	plot->v = mgl_create_data_size(np, 1, 1);
 
 	/* Beware, we are accessing sim without any protection here */
@@ -1070,13 +1072,14 @@ plot_loop(void *p)
 	mgl_data_link(plot->E0, sim->field->E[0]->data, mx, my, mz);
 
 	mgl_set_font_size(plot->gr, 2.0);
+	//mgl_set_quality(plot->gr, 4);
 
 	while (!glfwWindowShouldClose(window))
 	{
 		glfwGetFramebufferSize(window, &width, &height);
 
 		glViewport(0, 0, width, height);
-		glClear(GL_COLOR_BUFFER_BIT);
+		//glClear(GL_COLOR_BUFFER_BIT);
 
 		mgl_set_size(plot->gr, width, height);
 

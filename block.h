@@ -17,8 +17,9 @@ struct block
 	/* Block number */
 	int i;
 
-	/* Position of the first node of the block */
-	float x;
+	/* Dimensions of the bounding box of the block */
+	double x0[MAX_DIM];
+	double x1[MAX_DIM];
 
 	/* The field over the space chunk */
 	field_t field;

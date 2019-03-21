@@ -51,9 +51,8 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 	int bsize = sim->blocksize[0];
 	int gsize = sim->ghostsize[0];
 	double dx = sim->dx[0];
-	double x0 = b->x;
-	double x1 = b->x + dx*bsize;
-	double xhalf = (x0 + x1) / 2.0;
+	double x0 = b->x0[X];
+	double x1 = b->x1[X];
 	int inv = 1;
 
 	/* Erase previous current */
@@ -75,7 +74,7 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 		{
 			dbg("Particle %d at x=%e (deltax=%e) is outside block boundary [%e, %e]\n",
 				p->i, px, deltax, x0, x1);
-			exit(1);
+			abort();
 		}
 
 		j0 = (int) floor(deltax / dx);

@@ -17,13 +17,13 @@ struct particle_config
 struct particle {
 	int i; /* Particle number */
 
-	float x[MAX_DIM]; /* Position in 1st dimension */
-	float u[MAX_DIM]; /* Speed in 1st dimension */
+	double x[MAX_DIM]; /* Position in 1st dimension */
+	double u[MAX_DIM]; /* Speed in 1st dimension */
 
 	/* Interpolation fields at particle position */
-	float E[MAX_DIM];
-	float B[MAX_DIM];
-	float J[MAX_DIM];
+	double E[MAX_DIM];
+	double B[MAX_DIM];
+	double J[MAX_DIM];
 
 	/* Node element in a list */
 	struct particle *next, *prev;

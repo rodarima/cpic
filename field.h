@@ -14,6 +14,12 @@ struct field
 	mat_t *phi; /* Electric potential */
 	mat_t *rho;
 	/*mat_t *B;*/
+
+	/* Matrix A of coefficients used in the solution of:
+	 *
+	 *       A * phi = -rho/epsilon0
+	 */
+	mat_t *A;
 };
 
 #include "specie.h"

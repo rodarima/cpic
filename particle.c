@@ -85,7 +85,7 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 		p->i = i;
 		//p->x[0] = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
 		p->x[0] = ((float) rand() / RAND_MAX) * sim->L[0];
-		p->x[1] = 0.0;
+		p->x[1] = 5.0;
 //		if((i%2) == 0)
 //		{
 //			p->x[0] = 3./8. * L;
@@ -153,7 +153,10 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 
 	for (p = b->particles; p; p = p->next)
 	{
-		p->J[0] = s->q * p->u[0] / sim->dt;
+		/* FIXME Optimize for lower dimensions */
+		p->J[Z] = s->q * p->u[Z] / sim->dt;
+		p->J[Y] = s->q * p->u[Y] / sim->dt;
+		p->J[X] = s->q * p->u[X] / sim->dt;
 	}
 
 	return 0;
@@ -173,8 +176,8 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 	dx = sim->dx[0];
 	size = sim->blocksize[0];
 	gsize = sim->ghostsize[0];
-	x0 = b->x;
-	x1 = b->x + dx*size;
+	x0 = b->x0[X];
+	x1 = x0 + dx*size;
 
 	dbg("Updating particle E in block %d boundary [%e, %e]\n",
 		b->i, x0, x1);
@@ -269,8 +272,8 @@ block_comm(sim_t *sim, specie_t *s, block_t *left, block_t *b, block_t *right)
 {
 	particle_t *p, *tmp;
 	double px;
-	double x0 = b->x;
-	double x1 = b->x + sim->dx[0] * s->blocksize;
+	double x0 = b->x0[X];
+	double x1 = b->x1[X];
 	double max_x = sim->L[0];
 
 	dbg("Moving particles for block %d (l=%d r=%d)\n",

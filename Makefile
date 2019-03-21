@@ -31,7 +31,7 @@ CPIC_OBJ=$(CPIC_SRC:.c=.o)
 SRC=$(CPIC_SRC)
 OBJ=$(SRC:.c=.o)
 
-BIN=cpic
+BIN=cpic interpolate.test
 
 all: $(BIN)
 
@@ -41,6 +41,9 @@ test: test.mcc.c
 
 test2: test2.mcc.c loader.c
 	$(CC) $(CFLAGS) $(LDLIBS) $^ -o $@
+
+interpolate.test: interpolate.test.c interpolate.o
+
 
 cpic: $(CPIC_OBJ)
 

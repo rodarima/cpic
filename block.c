@@ -46,7 +46,7 @@ blocks_init(sim_t *sim, specie_t *s)
 		b->field.rho = mat_alloc(sim->dim, sim->ghostsize);
 
 		/* FIXME: Position is a vector */
-		b->x = i * sim->dx[0] * s->blocksize;
+		b->x0[X] = i * sim->dx[0] * s->blocksize;
 
 	}
 
