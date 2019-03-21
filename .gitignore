@@ -11,3 +11,4 @@ TRACE.mpits
 set-0/
 callgrind.out.*
 vgcore.*
+*.test
