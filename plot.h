@@ -22,6 +22,7 @@ struct plot {
 	HMDT rho;
 	HMDT phi;
 	HMDT E0;
+	HMDT J0;
 	HMDT x;
 	HMDT y;
 	HMDT v;

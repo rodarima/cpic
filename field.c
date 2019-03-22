@@ -1,6 +1,7 @@
 #include "field.h"
 #include "solver.h"
 #include "log.h"
+#include "interpolate.h"
 
 #include <string.h>
 #include <assert.h>
@@ -29,8 +30,10 @@ field_init(sim_t *sim)
 	f->phi = mat_alloc(d, bs);
 	f->rho = mat_alloc(d, bs);
 
-	MAT_FILL(f->E[0], 0.0);
-	MAT_FILL(f->J[0], 0.0);
+	MAT_FILL(f->E[X], 0.0);
+	MAT_FILL(f->E[Y], 0.0);
+	MAT_FILL(f->J[X], 0.0);
+	MAT_FILL(f->J[Y], 0.0);
 	MAT_FILL(f->phi, 0.0);
 	MAT_FILL(f->rho, 0.0);
 
@@ -43,70 +46,24 @@ static int
 block_J_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	particle_t *p;
-	int i, j0, j1;
-	int ix0, ix1, iy = 0;
-	mat_t *J = b->field.J[0];
+	mat_t **J = b->field.J;
 	mat_t *rho = b->field.rho;
-	double w0, w1, px, deltax, deltaxj;
-	int bsize = sim->blocksize[0];
-	int gsize = sim->ghostsize[0];
-	double dx = sim->dx[0];
-	double x0 = b->x0[X];
-	double x1 = b->x1[X];
-	int inv = 1;
 
 	/* Erase previous current */
-	MAT_FILL(J, 0.0);
+	MAT_FILL(J[X], 0.0);
+	MAT_FILL(J[Y], 0.0);
 	MAT_FILL(rho, 0.0);
-
-	dbg("Block %d boundary [%e, %e]\n", b->i, x0, x1);
 
 	for(p = b->particles; p; p = p->next)
 	{
-		//inv = (p->i % 2) ? -1 : 1;
-		/* The particle position */
-		px = p->x[0];
-		deltax = px - x0;
-		//assert(deltax >= 0.0);
+		/* Interpolate the electric current of the particle to the grid
+		 * of the block */
+		interpolate_J_add_to_grid_xy(sim, p, b);
 
-		/* Ensure the particle is in the block boundary */
-		if(!(x0 <= px && px <= x1))
-		{
-			dbg("Particle %d at x=%e (deltax=%e) is outside block boundary [%e, %e]\n",
-				p->i, px, deltax, x0, x1);
-			abort();
-		}
-
-		j0 = (int) floor(deltax / dx);
-		deltaxj = deltax - j0 * dx;
-
-		assert(j0 >= 0);
-		assert(j0 < bsize);
-
-		/* As p->x[0] approaches to j0, the weight w0 must be close to 1 */
-		w1 = deltaxj / dx;
-		w0 = 1.0 - w1;
-
-		j1 = j0 + 1;
-
-		dbg("Particle %d at x=%e (deltax=%e) updates J[%d] and J[%d]\n",
-			p->i, px, deltax, j0, j1);
-
-		/* Last node updates the ghost */
-		if(px >= x1 - dx)
-			assert(j1 == bsize);
-		else
-			assert(j1 < bsize);
-
-		MAT_XY(J, j0, 0) += w0 * p->J[0];
-		MAT_XY(J, j1, 0) += w1 * p->J[0];
-
-		/* Approximate the charge by a triangle */
-		MAT_XY(rho, j0, 0) += w0 * s->q * inv;
-		MAT_XY(rho, j1, 0) += w1 * s->q * inv;
-
-
+		/* Then the charge density */
+		interpolate_add_to_grid_xy(sim, p, b, s->q, rho);
 	}
+
 	return 0;
 }
 
@@ -118,8 +75,10 @@ block_J_comm(sim_t *sim, block_t *dst, block_t *left)
 	field_t *df = &dst->field;
 	field_t *lf = &left->field;
 
-	/* FIXME: Only one by now */
-	MAT_XY(df->J[0], 0, 0) += MAT_XY(lf->J[0], bsize, 0);
+	/* FIXME: Only 2D by now */
+	MAT_XY(df->J[X], 0, 0) += MAT_XY(lf->J[X], bsize, 0);
+	MAT_XY(df->J[Y], 0, 0) += MAT_XY(lf->J[Y], bsize, 0);
+
 	MAT_XY(df->rho, 0, 0) += MAT_XY(lf->rho, bsize, 0);
 
 	/* The ghost cannot be used now */

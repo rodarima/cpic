@@ -967,8 +967,8 @@ plot_redraw(plot_t *plot)
 	mgl_set_mark_size(gr, 0.35);
 
 	mgl_subplot(gr, 2, 2, 0, "");
-	mgl_title(gr, "Particle x-y space", "", 5.0);
-	mgl_plot_xy(gr, plot->x, plot->y, "#s ", "");
+	mgl_title(gr, "Particle x-v space", "", 5.0);
+	mgl_plot_xy(gr, plot->x, plot->v, "#s ", "");
 	//mgl_axis_grid(gr, "xy", "", "");
 	mgl_axis(gr, "xy", "", "");
 	mgl_set_ranges(gr, 0.0, 64.0, -10, 10, -2, 2);
@@ -1066,10 +1066,11 @@ plot_loop(void *p)
 	plot->y = mgl_create_data_size(np, 1, 1);
 	plot->v = mgl_create_data_size(np, 1, 1);
 
-	/* Beware, we are accessing sim without any protection here */
+	pthread_mutex_lock(&sim->lock);
 	mgl_data_link(plot->phi, sim->field->phi->data, mx, my, mz);
 	mgl_data_link(plot->rho, sim->field->rho->data, mx, my, mz);
 	mgl_data_link(plot->E0, sim->field->E[0]->data, mx, my, mz);
+	pthread_mutex_unlock(&sim->lock);
 
 	mgl_set_font_size(plot->gr, 2.0);
 	//mgl_set_quality(plot->gr, 4);

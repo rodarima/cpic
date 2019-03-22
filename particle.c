@@ -1,6 +1,7 @@
 #include "particle.h"
 #include "sim.h"
 #include "config.h"
+#include "interpolate.h"
 
 #define DEBUG 0
 #include "log.h"
@@ -84,8 +85,8 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 
 		p->i = i;
 		//p->x[0] = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
-		p->x[0] = ((float) rand() / RAND_MAX) * sim->L[0];
-		p->x[1] = 5.0;
+		p->x[X] = ((float) rand() / RAND_MAX) * sim->L[X];
+		p->x[Y] = ((float) rand() / RAND_MAX) * sim->L[Y];
 //		if((i%2) == 0)
 //		{
 //			p->x[0] = 3./8. * L;
@@ -95,13 +96,15 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 //			p->x[0] = 5./8. * L;
 //		}
 		//p->x[0] = s->E->size * s->dx / 2.0;
-		p->u[0] = (2.0 * ((i % 2) - 0.5)) * v[0]; /* m/s */
-		p->u[1] = 0.0;
+		p->u[X] = (2.0 * ((i % 2) - 0.5)) * v[X]; /* m/s */
+		p->u[Y] = (2.0 * ((i % 2) - 0.5)) * v[Y]; /* m/s */
 		//p->u[0] = v; /* m/s */
 		//p->u[0] = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
 		//p->u[0] = 0.5 * s->C; /* m/s */
-		p->E[0] = 0.0;
-		p->J[0] = 0.0;
+		p->E[X] = 0.0;
+		p->E[Y] = 0.0;
+		p->J[X] = 0.0;
+		p->J[Y] = 0.0;
 	}
 
 	return 0;
@@ -165,61 +168,13 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 static int
 block_E_update(sim_t *sim, specie_t *s, block_t *b)
 {
-	int j0, j1;
-	double *E;
-	int size, gsize;
-	double w0, w1, px, deltax, deltaxj;
-	double dx, x0, x1;
 	particle_t *p;
-
-	E = b->field.E[0]->data;
-	dx = sim->dx[0];
-	size = sim->blocksize[0];
-	gsize = sim->ghostsize[0];
-	x0 = b->x0[X];
-	x1 = x0 + dx*size;
-
-	dbg("Updating particle E in block %d boundary [%e, %e]\n",
-		b->i, x0, x1);
 
 	for (p = b->particles; p; p = p->next)
 	{
-		/* The particle position */
-		px = p->x[0];
-		deltax = px - x0;
-
-		/* Ensure the particle is in the block boundary */
-		if(!(x0 <= px && px <= x1))
-		{
-			dbg("Particle at x=%e (deltax=%e) is outside block boundary [%e, %e]\n",
-				px, deltax, x0, x1);
-			exit(1);
-		}
-
-		j0 = (int) floor(deltax / dx);
-		j1 = j0 + 1;
-		deltaxj = deltax - j0 * dx;
-
-		assert(j0 >= 0);
-
-		/* As p->x[0] approaches to j0, the weight w0 must be close to 1 */
-		w1 = deltaxj / dx;
-		w0 = 1.0 - w1;
-
-		/* First part, from the node (which is always on the block) */
-		assert(j0 < size);
-		p->E[0]  = w0 * E[j0];
-
-		/* A particle in the last cell updates from the ghost */
-		if(px >= x1 - dx)
-			assert(j1 == gsize-1);
-
-		assert(j1 < gsize);
-		p->E[0] += w1 * E[j1];
-
-		dbg("Particle at x=%.3e updates E=%.3e from E[%d] and E[%d]\n",
-			px, p->E[0], j0, j1);
+		interpolate_E_set_to_particle_xy(sim, p, b);
 	}
+
 	return 0;
 }
 
@@ -291,14 +246,19 @@ block_comm(sim_t *sim, specie_t *s, block_t *left, block_t *b, block_t *right)
 			/* XXX: If the following order is swapped, the particle
 			 * is not removed, nor added. Is this a bug? */
 			DL_DELETE(b->particles, p);
-			DL_APPEND(left->particles, p);
+			/* XXX If the particle is added to the same block again,
+			 * we use prepend to avoid iterating on it */
+			//DL_APPEND(left->particles, p);
+			DL_PREPEND(right->particles, p);
 		}
 		else if(x1 <= px)
 		{
 			dbg("Moving particle %d at x=%e to the right block\n", p->i, px);
 
 			DL_DELETE(b->particles, p);
-			DL_APPEND(right->particles, p);
+			/* Same here */
+			//DL_APPEND(right->particles, p);
+			DL_PREPEND(right->particles, p);
 		}
 		else
 		{

@@ -14,7 +14,7 @@ LDLIBS+=$(LDLIBS_GLFW3)
 USE_OMPSS=yes
 
 CPIC_SRC=specie.c particle.c block.c mat.c block.c sim.c \
-	 field.c cpic.c solver.c config.c plot.c
+	 field.c cpic.c solver.c config.c plot.c interpolate.c
 
 
 ifeq ($(USE_OMPSS), no)

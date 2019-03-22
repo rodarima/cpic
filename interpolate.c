@@ -122,12 +122,48 @@ interpolate_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b,
 	MAT_XY(field,i1[X],i1[Y]) += w[1][1] * val;
 }
 
-
-int
-interpolate_field_to_grid_xy(particle_t *p, block_t *b, int what)
+void
+interpolate_add_to_particle_xy(sim_t *sim, particle_t *p, block_t *b,
+		double *val, mat_t *field)
 {
-	assert(is_particle_in_block_xy(p, b));
+	double w[2][2];
+	int i0[2], i1[2];
 
-	return 0;
+	interpolate_weights_xy(p->x, sim->dx, b->x0, w, i0);
+
+	/* No handling occurs here, as each block has one extra element of
+	 * the neighbour in each dimension, to avoid communication. */
+
+	i1[X] = i0[X] + 1;
+	i1[Y] = i0[Y] + 1;
+
+	assert(i0[X] >= 0 && i0[X] < sim->blocksize[X]);
+	assert(i0[Y] >= 0 && i0[Y] < sim->blocksize[Y]);
+	assert(i1[X] >= 1 && i1[X] < sim->ghostsize[X]);
+	assert(i1[Y] >= 1 && i1[Y] < sim->ghostsize[Y]);
+
+	/* Notice that we only ADD to the existing values of the grid */
+
+	*val += w[0][0] * MAT_XY(field,i0[X],i0[Y]);
+	*val += w[0][1] * MAT_XY(field,i0[X],i1[Y]);
+	*val += w[1][0] * MAT_XY(field,i1[X],i0[Y]);
+	*val += w[1][1] * MAT_XY(field,i1[X],i1[Y]);
+
 }
 
+void
+interpolate_J_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b)
+{
+	interpolate_add_to_grid_xy(sim, p, b, p->J[X], b->field.J[X]);
+	interpolate_add_to_grid_xy(sim, p, b, p->J[Y], b->field.J[Y]);
+}
+
+void
+interpolate_E_set_to_particle_xy(sim_t *sim, particle_t *p, block_t *b)
+{
+	p->E[X] = 0.0;
+	p->E[Y] = 0.0;
+
+	interpolate_add_to_particle_xy(sim, p, b, &p->E[X], b->field.E[X]);
+	interpolate_add_to_particle_xy(sim, p, b, &p->E[Y], b->field.E[Y]);
+}
