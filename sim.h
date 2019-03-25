@@ -6,6 +6,7 @@ typedef struct sim sim_t;
 #include "def.h"
 #include "specie.h"
 #include "field.h"
+#include "solver.h"
 #include <libconfig.h>
 #include <pthread.h>
 
@@ -85,6 +86,9 @@ struct sim
 	pthread_mutex_t lock;
 	pthread_cond_t signal;
 	int run;
+
+	/* The solver needs some information during the simulation */
+	solver_t *solver;
 };
 
 

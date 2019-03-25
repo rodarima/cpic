@@ -20,33 +20,47 @@ int
 blocks_init(sim_t *sim, specie_t *s)
 {
 	size_t i, j, d, count;
+	int ix, iy;
 	block_t *b;
 	particle_t *p;
+	double block_w, block_h;
 
 	dbg("Init blocks at specie %p for sim %p\n", s, sim);
 
-	dbg("Number of blocks %d, blocksize %d\n", s->nblocks, s->blocksize);
+	dbg("Number of blocks in X %d, blocksize %d\n",
+			sim->nblocks[X], sim->blocksize[X]);
 
-	s->blocks = calloc(s->nblocks, sizeof(block_t));
+	dbg("Number of blocks in Y %d, blocksize %d\n",
+			sim->nblocks[Y], sim->blocksize[Y]);
 
-	s->nnodes = s->nblocks * s->blocksize;
+	s->ntblocks = sim->nblocks[X] * sim->nblocks[Y];
 
-	for(i = 0, j = 0; i < s->nblocks; i++)
+	s->blocks = calloc(s->ntblocks, sizeof(block_t));
+
+	block_w = sim->dx[X] * sim->blocksize[X];
+	block_h = sim->dx[Y] * sim->blocksize[Y];
+
+	for(iy=0; iy < sim->nblocks[Y]; iy++)
 	{
-		b = &s->blocks[i];
-
-		b->i = i;
-
-		for(d=0; d<sim->dim; d++)
+		for(ix=0; ix < sim->nblocks[X]; ix++)
 		{
-			b->field.E[d] = mat_alloc(sim->dim, sim->ghostsize);
-			b->field.J[d] = mat_alloc(sim->dim, sim->ghostsize);
+			b = &s->blocks[iy * sim->nblocks[Y] + ix];
+
+			b->i = i;
+
+			for(d=0; d<sim->dim; d++)
+			{
+				b->field.E[d] = mat_alloc(sim->dim, sim->ghostsize);
+				b->field.J[d] = mat_alloc(sim->dim, sim->ghostsize);
+			}
+
+			b->field.rho = mat_alloc(sim->dim, sim->ghostsize);
+
+			b->x0[X] = ix * block_w;
+			b->x0[Y] = iy * block_h;
+			b->x1[X] = (ix + 1) * block_w;
+			b->x1[Y] = (iy + 1) * block_h;
 		}
-
-		b->field.rho = mat_alloc(sim->dim, sim->ghostsize);
-
-		/* FIXME: Position is a vector */
-		b->x0[X] = i * sim->dx[0] * s->blocksize;
 
 	}
 
@@ -54,7 +68,10 @@ blocks_init(sim_t *sim, specie_t *s)
 	{
 		p = &s->particles[i];
 
-		j = (int) floor(p->x[0] / (sim->dx[0] * s->blocksize));
+		ix = (int) floor(p->x[X] / block_w);
+		iy = (int) floor(p->x[Y] / block_h);
+
+		j = iy * sim->nblocks[Y] + ix;
 
 		block_add_particle(&s->blocks[j], p);
 	}

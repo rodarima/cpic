@@ -28,14 +28,8 @@ struct specie
 	int nparticles;
 	struct particle *particles;
 
-	/* Number of blocks */
-	int nblocks;
-
-	/* The number of nodes in a block */
-	int blocksize;
-
-	/* Total number of nodes with all blocks */
-	int nnodes;
+	/* The number of total blocks in all dimensions */
+	int ntblocks;
 
 	/* Array of blocks */
 	block_t *blocks;

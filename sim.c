@@ -8,6 +8,7 @@
 #include "field.h"
 #include "config.h"
 #include "plot.h"
+#include "solver.h"
 
 #include <math.h>
 #include <assert.h>
@@ -76,6 +77,12 @@ sim_init(config_t *conf)
 
 	if(species_init(s, conf))
 		return NULL;
+
+	if((s->solver = solver_init(s)) == NULL)
+	{
+		err("solver_init failed\n");
+		return NULL;
+	}
 
 	/* We are set now, start the plotter if needed */
 	if(s->mode == SIM_MODE_DEBUG)
@@ -232,6 +239,8 @@ sim_run(sim_t *sim)
 
 		/* Phase CP:FS. Field solver, calculation of the electric field
 		 * from the current */
+
+		specie_print(sim, s);
 
 		/* Line 6: Update E on the grid, eq 5 */
 		field_E(sim);

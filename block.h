@@ -11,6 +11,9 @@ typedef struct block block_t;
 #include <stdlib.h>
 #include <libconfig.h>
 
+#define BLOCK_XY(sim, blocks, ix, iy) \
+	(&((blocks)[(iy) * (sim)->nblocks[Y] + (ix)]))
+
 /* A block is designed to run in a node, where the memory can be shared */
 struct block
 {

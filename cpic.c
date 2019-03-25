@@ -20,23 +20,6 @@
 
 
 int
-print_particles(specie_t *s)
-{
-	int i;
-	block_t *b;
-
-	#pragma oss taskwait
-	for (i = 0; i < s->nblocks; i++)
-	{
-		b = &(s->blocks[i]);
-
-		block_print_particles(s, b);
-	}
-	return 0;
-
-}
-
-int
 usage(int argc, char *argv[])
 {
 	fprintf(stderr, "Simulation of plasma using particle in cell method.\n");

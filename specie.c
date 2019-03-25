@@ -30,11 +30,6 @@ specie_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 	config_setting_lookup_float(cs, "mass", &s->m);
 	config_setting_lookup_int(cs, "particles", &s->nparticles);
 
-	s->nblocks = sim->nblocks[0];
-	s->blocksize = sim->blocksize[0];
-
-	s->nnodes = s->nblocks * s->blocksize;
-
 	if(s->nparticles <= 0)
 	{
 		err("The number of particles must be greater than 0\n");

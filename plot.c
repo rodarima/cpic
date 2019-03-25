@@ -968,7 +968,7 @@ plot_redraw(plot_t *plot)
 
 	mgl_subplot(gr, 2, 2, 0, "");
 	mgl_title(gr, "Particle x-v space", "", 5.0);
-	mgl_plot_xy(gr, plot->x, plot->v, "#s ", "");
+	mgl_plot_xy(gr, plot->x, plot->y, "#s ", "");
 	//mgl_axis_grid(gr, "xy", "", "");
 	mgl_axis(gr, "xy", "", "");
 	mgl_set_ranges(gr, 0.0, 64.0, -10, 10, -2, 2);
@@ -1041,6 +1041,8 @@ plot_loop(void *p)
 
 	GLFWwindow* window = glfwCreateWindow(width, height,
 			"plot particles", NULL, NULL);
+
+	glfwSetWindowTitle(window, "plot particles");
 
 	if(!window)
 		return NULL;

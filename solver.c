@@ -1,11 +1,15 @@
+#include "solver.h"
 #include <stdio.h>
 #include <math.h>
 #include "mat.h"
 #define DEBUG 0
 #include "log.h"
 #include <gsl/gsl_linalg.h>
+#include <assert.h>
 
 #define STANDALONE 0
+
+#if 0
 
 #define N 4
 #define H 1.0
@@ -175,6 +179,93 @@ solve(mat_t *phi, mat_t *rho)
 //	mat_print(phi, "phi");
 
 	return 0;
+}
+
+#endif
+
+/* LU is used by now.
+ * NOTE: This function is critical, must be as fast as possible. */
+int
+solve_xy(solver_t *s, mat_t *phi, mat_t *rho)
+{
+	gsl_vector_view b, x;
+
+	/* The size reported from the vector must match the size computed by the
+	 * solver */
+	assert(phi->size == s->N);
+
+	x = gsl_vector_view_array(phi->data, s->N);
+	b = gsl_vector_view_array(rho->data, s->N);
+
+	if(gsl_linalg_LU_solve(s->LU, s->P, &b.vector, &x.vector))
+	{
+		/* No documentation of the return value, source code seems to
+		 * always return GSL_SUCCESS, which is defined to be 0 */
+		perror("gsl_linalg_LU_solve");
+		abort();
+	}
+
+	return 0;
+}
+
+solver_t *
+solver_init(sim_t *sim)
+{
+	size_t N, Nx, Ny;
+	solver_t *solver;
+	gsl_matrix *A;
+	int i, right, left, up, down, signum;
+
+	if(sim->dim != 2)
+	{
+		fprintf(stderr, "The solver only supports 2 dimensions by now\n");
+		abort();
+	}
+
+	solver = malloc(sizeof(solver_t));
+
+	Nx = sim->nnodes[X];
+	Ny = sim->nnodes[Y];
+	N = Nx * Ny;
+
+	solver->N = N;
+	solver->Nx = Nx;
+	solver->Ny = Ny;
+
+	A = gsl_matrix_calloc(N, N);
+
+	/* Build 2D coefficients of A */
+
+	for(i=0; i<N; i++)
+	{
+		left = (i + N - 1) % N;
+		right = (i + 1) % N;
+		up = (i + N - Nx) % N;
+		down = (i + Nx) % N;
+
+		gsl_matrix_set(A, i, i, -4);
+		gsl_matrix_set(A, i, left, 1);
+		gsl_matrix_set(A, i, right, 1);
+		gsl_matrix_set(A, i, up, 1);
+		gsl_matrix_set(A, i, down, 1);
+	}
+
+	/* Fix the value of phi at (0,0) to be 0, thus the equation phi(0,0) = 0
+	 * can be added to the first one, and the sum of all the first N
+	 * equations added to the above, leads to:
+	 * 	0*phi_i = sum_i(rho_i) = 0
+	 * which can be eliminated.
+	 **/
+	gsl_matrix_set(A, 0, 0, -3);
+
+	solver->P = gsl_permutation_calloc(N);
+
+	gsl_linalg_LU_decomp(A, solver->P, &signum);
+
+	/* Now we have the L and U matrix in A */
+	solver->LU = A;
+
+	return solver;
 }
 
 #if STANDALONE

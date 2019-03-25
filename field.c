@@ -14,6 +14,11 @@ field_init(sim_t *sim)
 	field_t *f;
 	int i, d, *bs;
 
+	/* FIXME: The actual size of the global field is not 'blocksize' but
+	 * rather 'nnodes'. Two versions are needed, as the field is also
+	 * included in each block of size 'blocksize', and in the global field,
+	 * of size 'nnodes' */
+
 	d = sim->dim;
 	bs = sim->blocksize;
 
@@ -64,6 +69,8 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 		interpolate_add_to_grid_xy(sim, p, b, s->q, rho);
 	}
 
+	mat_print(rho, "rho after update");
+
 	return 0;
 }
 
@@ -97,7 +104,7 @@ field_J(sim_t *sim, specie_t *s)
 	block_t *b, *lb;
 
 	/* Computation */
-	for (i = 0; i < s->nblocks; i++)
+	for (i = 0; i < s->ntblocks; i++)
 	{
 		b = &(s->blocks[i]);
 
@@ -106,9 +113,10 @@ field_J(sim_t *sim, specie_t *s)
 
 	#pragma oss task inout(sim->blocks[0, sim->nblocks-1]) label(field_blocks_J_update)
 	/* Communication */
-	for (i = 0; i < s->nblocks; i++)
+	for (i = 0; i < s->ntblocks; i++)
 	{
-		li = (s->nblocks + i - 1) % s->nblocks;
+		/* FIXME: Now the communication is 2d */
+		li = (s->ntblocks + i - 1) % s->ntblocks;
 
 		b = &(s->blocks[i]);
 		lb = &(s->blocks[li]);
@@ -123,23 +131,35 @@ int
 field_rho_collect(sim_t *sim, specie_t *s)
 {
 	int i, j, k = 0;
+	int ix, iy;
+	int jx, jy;
+	int gx, gy;
 	int size;
 	mat_t *rho;
 	mat_t *global_rho;
 	block_t *b;
 
 	global_rho = sim->field->rho;
+	assert(global_rho->size == sim->nnodes[X] * sim->nnodes[Y]);
 
-	for(i=0; i<s->nblocks; i++)
+	for(iy=0; iy<sim->nblocks[Y]; iy++)
 	{
-		b = &(s->blocks[i]);
-
-		rho = b->field.rho;
-		size = sim->blocksize[0];
-
-		for(j=0; j<size; j++)
+		for(ix=0; ix<sim->nblocks[X]; ix++)
 		{
-			MAT_XY(global_rho, k++, 0) = MAT_XY(rho, j, 0);
+			b = BLOCK_XY(sim, s->blocks, ix, iy);
+
+			rho = b->field.rho;
+
+			for(jy=0; jy<sim->blocksize[Y]; jy++)
+			{
+				for(jx=0; jx<sim->blocksize[X]; jx++)
+				{
+					gx = ix * sim->blocksize[X] + jx;
+					gy = iy * sim->blocksize[Y] + jy;
+					MAT_XY(global_rho, gx, gy) = MAT_XY(rho, jx, jy);
+				}
+			}
+
 		}
 	}
 
@@ -186,37 +206,39 @@ field_E_solve(sim_t *sim)
 	int i, n, np;
 	int ix, iy;
 	mat_t *E;
-	double *phi, *rho;
 	double H, q;
 
 	f = sim->field;
-	n = sim->blocksize[0];
+	n = sim->nnodes[X] * sim->nnodes[Y];
 	E = f->E[0];
-	rho = f->rho->data;
-	phi = f->phi->data;
 	H = sim->dx[0];
 	q = sim->species[0].q;
 	np = sim->species[0].nparticles;
 
+	assert(f->rho->size == sim->nnodes[X] * sim->nnodes[Y]);
+
 	/* Fix charge neutrality */
-	for(i=0; i<n; i++)
+	for(iy=0; iy<sim->nnodes[Y]; iy++)
 	{
-		rho[i] += -q*np/n;
-		rho[i] *= -1.0;
+		for(ix=0; ix<sim->nnodes[X]; ix++)
+		{
+			MAT_XY(f->rho, ix, iy) += -q * np / n;
+			MAT_XY(f->rho, ix, iy) *= -1.0;
+		}
 	}
 
-	solve(f->phi, f->rho);
+	solve_xy(sim->solver, f->phi, f->rho);
 
 
-	for(i=1; i<n-1; i++)
-	{
-		/* E = -d phi / dx, eq. 2-34 Hockney */
-		MAT_XY(E, i, 0) = (phi[i-1] - phi[i+1]) / (2*H);
-	}
-
-	/* We assume a periodic domain */
-	MAT_XY(E, 0, 0) = (phi[n-1] - phi[1]) / (2*H);
-	MAT_XY(E, n-1, 0) = (phi[n-2] - phi[0]) / (2*H);
+//	for(i=1; i<n-1; i++)
+//	{
+//		/* E = -d phi / dx, eq. 2-34 Hockney */
+//		MAT_XY(E, i, 0) = (phi[i-1] - phi[i+1]) / (2*H);
+//	}
+//
+//	/* We assume a periodic domain */
+//	MAT_XY(E, 0, 0) = (phi[n-1] - phi[1]) / (2*H);
+//	MAT_XY(E, n-1, 0) = (phi[n-2] - phi[0]) / (2*H);
 
 
 #if 0
@@ -250,8 +272,14 @@ field_E(sim_t *sim)
 
 	/* In order to solve the field we need the charge density */
 	field_rho_collect(sim, &sim->species[0]);
+	mat_print(sim->field->rho, "rho");
 
 	field_E_solve(sim);
+
+	/* Exit after 1 iterations to test the solver */
+	mat_print(sim->field->rho, "rho");
+	mat_print(sim->field->phi, "phi");
+	//exit(1);
 
 	/* After solving the electric field, we can now distribute it in each
 	 * block, as the force can be computed easily from the grid points */

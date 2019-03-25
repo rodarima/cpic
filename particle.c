@@ -3,7 +3,7 @@
 #include "config.h"
 #include "interpolate.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include <math.h>
 #include <assert.h>
@@ -101,10 +101,11 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 		//p->u[0] = v; /* m/s */
 		//p->u[0] = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
 		//p->u[0] = 0.5 * s->C; /* m/s */
-		p->E[X] = 0.0;
-		p->E[Y] = 0.0;
+		p->E[X] = 5.0;
+		p->E[Y] = 5.0;
 		p->J[X] = 0.0;
 		p->J[Y] = 0.0;
+		err("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
 	}
 
 	return 0;
@@ -114,7 +115,6 @@ int
 init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
 	int i, odd;
-	int total_nodes = s->blocksize * s->nblocks;
 	particle_t *p;
 	double v[MAX_DIM];
 	config_setting_t *cs_v;
@@ -192,12 +192,14 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 	for (p = b->particles; p; p = p->next)
 	{
 		//inv = p->i % 2 ? 1 : -1;
+		err("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
 		delta_u = dt * inv * s->q * p->E[0] / s->m;
 		dbg("Particle %d at x=%.3e increases speed by %.3e\n", p->i, p->x[0], delta_u);
 
 		p->u[0] += delta_u;
 
 		delta_x = dt * p->u[0];
+
 
 		if(fabs(delta_x) > sim->L[0])
 		{
@@ -301,7 +303,7 @@ particle_E(sim_t *sim, specie_t *s)
 	block_t *b, *rb;
 
 	/* Computation */
-	for (i = 0; i < s->nblocks; i++)
+	for (i = 0; i < s->ntblocks; i++)
 	{
 		b = &(s->blocks[i]);
 
@@ -322,7 +324,7 @@ particle_x(sim_t *sim, specie_t *s)
 	block_t *b, *lb, *rb;
 
 	/* Computation */
-	for (i = 0; i < s->nblocks; i++)
+	for (i = 0; i < s->ntblocks; i++)
 	{
 		b = &(s->blocks[i]);
 
@@ -330,10 +332,10 @@ particle_x(sim_t *sim, specie_t *s)
 	}
 
 	/* Communication */
-	for (i = 0; i < s->nblocks; i++)
+	for (i = 0; i < s->ntblocks; i++)
 	{
-		li = (s->nblocks + i - 1) % s->nblocks;
-		ri = (i + 1) % s->nblocks;
+		li = (s->ntblocks + i - 1) % s->ntblocks;
+		ri = (i + 1) % s->ntblocks;
 
 		b = &(s->blocks[i]);
 		lb = &(s->blocks[li]);
@@ -356,7 +358,7 @@ particle_J(sim_t *sim, specie_t *s)
 	int i;
 	block_t *b;
 
-	for (i = 0; i < s->nblocks; i++)
+	for (i = 0; i < s->ntblocks; i++)
 	{
 		b = &(s->blocks[i]);
 
