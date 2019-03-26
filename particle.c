@@ -187,32 +187,37 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	particle_t *p;
 	double coef = - sim->dt / sim->e0;
-	double delta_u, delta_x;
+	double du[MAX_DIM], dx[MAX_DIM];
 	double dt = sim->dt;
 	int inv = 1.0;
 
+	/* FIXME: Use leapfrog integrator */
+
 	for (p = b->particles; p; p = p->next)
 	{
-		//inv = p->i % 2 ? 1 : -1;
-		err("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
-		delta_u = dt * inv * s->q * p->E[0] / s->m;
-		dbg("Particle %d at x=%.3e increases speed by %.3e\n", p->i, p->x[0], delta_u);
+		du[X] = dt * s->q * p->E[X] / s->m;
+		du[Y] = dt * s->q * p->E[Y] / s->m;
 
-		p->u[0] += delta_u;
+		dbg("Particle %d at x=(%.3e,%.3e) increases speed by (%.3e,%.3e)\n",
+				p->i, p->x[X], p->x[Y], du[X], du[Y]);
 
-		delta_x = dt * p->u[0];
+		p->u[X] += du[X];
+		p->u[Y] += du[Y];
 
+		dx[X] = dt * p->u[X];
+		dx[Y] = dt * p->u[Y];
 
-		if(fabs(delta_x) > sim->L[0])
+		if(fabs(dx[X]) > sim->L[X] || fabs(dx[Y]) > sim->L[Y])
 		{
-			err("Particle %d at x=%.3e has exceeded dx with delta_x=%.3e\n",
-					p->i, p->x[0], delta_x);
-			err("Please, reduce dt=%.3e or increase dx=%.3e\n",
-					sim->dt, sim->dx[0]);
+			err("Particle %d at x=(%.3e,%.3e) has exceeded L with dx=(%.3e,%.3e)\n",
+					p->i, p->x[X], p->x[Y], dx[X], dx[Y]);
+			err("Please, reduce dt=%.3e or increase L\n",
+					sim->dt);
 			exit(1);
 		}
 
-		p->x[0] += delta_x;
+		p->x[X] += dx[X];
+		p->x[Y] += dx[Y];
 
 		/* Wrapping is done after the particle is moved to the right
 		 * block */
@@ -235,8 +240,8 @@ block_comm(sim_t *sim, specie_t *s, block_t *left, block_t *b, block_t *right)
 	double x1 = b->x1[X];
 	double max_x = sim->L[0];
 
-	dbg("Moving particles for block %d (l=%d r=%d)\n",
-		b->i, left->i, right->i);
+	dbg("Moving particles for block (%d,%d) (l=(%d,%d) r=(%d, %d))\n",
+		b->i[X], b->i[Y], left->i[X], left->i[Y], right->i[X], right->i[Y]);
 
 	DL_FOREACH_SAFE(b->particles, p, tmp)
 	{
@@ -333,9 +338,12 @@ particle_x(sim_t *sim, specie_t *s)
 		block_x_update(sim, s, b);
 	}
 
+#if 0
+
 	/* Communication */
 	for (i = 0; i < s->ntblocks; i++)
 	{
+		/* FIXME: Now we need to consider 2D block boundaries */
 		li = (s->ntblocks + i - 1) % s->ntblocks;
 		ri = (i + 1) % s->ntblocks;
 
@@ -348,6 +356,8 @@ particle_x(sim_t *sim, specie_t *s)
 		 * them (lb->particles->next->next... */
 		block_comm(sim, s, lb, b, rb);
 	}
+
+#endif
 
 	return 0;
 }

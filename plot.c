@@ -961,19 +961,20 @@ plot_redraw(plot_t *plot)
 		mgl_data_set_value(plot->x, p->x[0], i, 0, 0);
 		mgl_data_set_value(plot->v, p->u[0], i, 0, 0);
 		mgl_data_set_value(plot->y, p->x[1], i, 0, 0);
+
 		//mgl_mark(gr, p->x[0], p->u[0], 0.0, "o");
 	}
 
 	mgl_set_mark_size(gr, 0.35);
 
 	mgl_subplot(gr, 2, 2, 0, "");
-	mgl_title(gr, "Particle x-v space", "", 5.0);
+	mgl_title(gr, "Particle x-y space", "", 5.0);
 	mgl_plot_xy(gr, plot->x, plot->y, "#s ", "");
 	//mgl_axis_grid(gr, "xy", "", "");
 	mgl_axis(gr, "xy", "", "");
-	mgl_set_ranges(gr, 0.0, 64.0, -10, 10, -1, 1);
-	mgl_label(gr, 'x', "Position x_x", 0.0, "");
-	mgl_label(gr, 'y', "Velocity v_x", 0.0, "");
+	mgl_set_ranges(gr, 0.0, 64.0, 0.0, 64.0, -1, 1);
+	mgl_label(gr, 'x', "Position x", 0.0, "");
+	mgl_label(gr, 'y', "Position y", 0.0, "");
 
 	mgl_subplot(gr, 2, 2, 1, "");
 	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
@@ -995,11 +996,23 @@ plot_redraw(plot_t *plot)
 	mgl_axis(gr, "xy", "", "");
 
 //	mgl_subplot(gr, 2, 2, 3, "");
+//	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
+//			mgl_data_min(plot->E0), mgl_data_max(plot->E0));
 //	mgl_title(gr, "Electric field E_x", "", 5.0);
 //	mgl_contf(gr, (HCDT) plot->E0, "", "");
 //	mgl_axis_grid(gr, "xy", "", "");
 //	mgl_axis(gr, "xy", "", "");
 //	mgl_colorbar(gr, ">");
+
+	mgl_subplot(gr, 2, 2, 3, "");
+	mgl_title(gr, "Electric field E", "", 5.0);
+	mgl_axis_grid(gr, "xy", "", "");
+	mgl_axis(gr, "xy", "", "");
+	mgl_set_meshnum(gr, 20);
+//	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
+//			mgl_data_min(plot->E[X])*0.3,
+//			mgl_data_max(plot->E[Y])*0.3);
+	mgl_vect_2d(gr, plot->E[X], plot->E[Y], "b2", "");
 
 	mgl_finish(gr);
 	//glFlush();
@@ -1067,7 +1080,8 @@ plot_loop(void *p)
 
 	plot->rho = mgl_create_data();
 	plot->phi = mgl_create_data();
-	plot->E0 = mgl_create_data();
+	plot->E[X] = mgl_create_data();
+	plot->E[Y] = mgl_create_data();
 	plot->x = mgl_create_data_size(np, 1, 1);
 	plot->y = mgl_create_data_size(np, 1, 1);
 	plot->v = mgl_create_data_size(np, 1, 1);
@@ -1075,7 +1089,8 @@ plot_loop(void *p)
 	pthread_mutex_lock(&sim->lock);
 	mgl_data_link(plot->phi, sim->field->phi->data, mx, my, mz);
 	mgl_data_link(plot->rho, sim->field->rho->data, mx, my, mz);
-	mgl_data_link(plot->E0, sim->field->E[0]->data, mx, my, mz);
+	mgl_data_link(plot->E[X], sim->field->E[X]->data, mx, my, mz);
+	mgl_data_link(plot->E[Y], sim->field->E[Y]->data, mx, my, mz);
 	pthread_mutex_unlock(&sim->lock);
 
 	mgl_set_font_size(plot->gr, 2.0);

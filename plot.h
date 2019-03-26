@@ -21,8 +21,8 @@ struct plot {
 	/* The fields */
 	HMDT rho;
 	HMDT phi;
-	HMDT E0;
-	HMDT J0;
+	HMDT E[MAX_DIM];
+	HMDT J[MAX_DIM];
 	HMDT x;
 	HMDT y;
 	HMDT v;

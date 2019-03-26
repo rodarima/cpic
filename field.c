@@ -2,6 +2,7 @@
 #include "solver.h"
 #include "log.h"
 #include "interpolate.h"
+#include "mat.h"
 
 #include <string.h>
 #include <assert.h>
@@ -169,34 +170,45 @@ field_rho_collect(sim_t *sim, specie_t *s)
 int
 field_E_spread(sim_t *sim, specie_t *s)
 {
-	int i, j, k = 0, maxk;
+	int ix, iy;
+	int jx, jy;
+	int gx, gy, gnx, gny;
 	block_t *b;
-	mat_t *E;
-	mat_t *global_E;
+	mat_t **E;
+	mat_t **global_E;
 
-	/* Not yet finished */
-	exit(1);
+	global_E = sim->field->E;
 
-	global_E = sim->field->E[0];
+	gnx = sim->nnodes[X];
+	gny = sim->nnodes[Y];
 
-	/* FIXME: Introduce 2 dimensions here */
-	maxk = sim->nnodes[0];
-
-	for(i=0; i<sim->nblocks[0]; i++)
+	for(iy=0; iy<sim->nblocks[Y]; iy++)
 	{
-		b = &(s->blocks[i]);
-
-		E = b->field.E[0];
-
-		for(j=0; j<sim->blocksize[0]; j++)
+		for(ix=0; ix<sim->nblocks[X]; ix++)
 		{
-			/* WARNING: In-place operator add one (++) may be
-			 * considered dangerous when used in a macro argument.
-			 * */
-			MAT_XY(E, j, 0) = MAT_XY(global_E, k++, 0);
-		}
+			b = BLOCK_XY(sim, s->blocks, ix, iy);
 
-		MAT_XY(E, sim->blocksize[0], 0) = MAT_XY(global_E, k % maxk, 0);
+			E = b->field.E;
+
+			/* Set also the ghost points */
+			for(jy=0; jy<sim->ghostsize[Y]; jy++)
+			{
+				for(jx=0; jx<sim->ghostsize[X]; jx++)
+				{
+					gx = (ix * sim->blocksize[X] + jx) % gnx;
+					gy = (iy * sim->blocksize[Y] + jy) % gny;
+
+
+					MAT_XY(E[X], jx, jy) = MAT_XY(global_E[X], gx, gy);
+					MAT_XY(E[Y], jx, jy) = MAT_XY(global_E[Y], gx, gy);
+
+					dbg("Set E[X]=%e and E[Y]=%e at (%d, %d) from (%d, %d)\n",
+						MAT_XY(E[X], jx, jy),
+						MAT_XY(E[Y], jx, jy),
+						jx, jy, gx, gy);
+				}
+			}
+		}
 	}
 
 	return 0;
@@ -207,9 +219,9 @@ field_E_solve(sim_t *sim)
 {
 	field_t *f;
 	int i, n, np;
-	int ix, iy;
+	int ix, iy, x0, x1, y0, y1, nx, ny;
 	mat_t *E;
-	double H, q;
+	double H, q, dx2, dy2;
 
 	f = sim->field;
 	n = sim->nnodes[X] * sim->nnodes[Y];
@@ -217,6 +229,12 @@ field_E_solve(sim_t *sim)
 	H = sim->dx[0];
 	q = sim->species[0].q;
 	np = sim->species[0].nparticles;
+
+	nx = sim->nnodes[X];
+	ny = sim->nnodes[Y];
+
+	dx2 = 2 * sim->dx[X];
+	dy2 = 2 * sim->dx[Y];
 
 	assert(f->rho->size == sim->nnodes[X] * sim->nnodes[Y]);
 
@@ -233,6 +251,27 @@ field_E_solve(sim_t *sim)
 	//mat_print(sim->field->rho, "rho after set sum to 0");
 
 	solve_xy(sim->solver, f->phi, f->rho);
+
+	/* Now we compute the minus centered gradient of phi to get E */
+
+	for(iy=0; iy<sim->nnodes[Y]; iy++)
+	{
+		for(ix=0; ix<sim->nnodes[X]; ix++)
+		{
+			x0 = (ix + nx - 1) % nx;
+			x1 = (ix + 1) % nx;
+			y0 = (iy + ny - 1) % ny;
+			y1 = (iy + 1) % ny;
+
+			MAT_XY(f->E[X], ix, iy) =
+				(MAT_XY(f->phi, x0, iy) - MAT_XY(f->phi, x1, iy))
+				/ dx2;
+
+			MAT_XY(f->E[Y], ix, iy) =
+				(MAT_XY(f->phi, ix, y0) - MAT_XY(f->phi, ix, y1))
+				/ dy2;
+		}
+	}
 
 
 //	for(i=1; i<n-1; i++)
@@ -287,7 +326,7 @@ field_E(sim_t *sim)
 
 	/* After solving the electric field, we can now distribute it in each
 	 * block, as the force can be computed easily from the grid points */
-//	field_E_spread(sim, &sim->species[0]);
+	field_E_spread(sim, &sim->species[0]);
 
 	return 0;
 }

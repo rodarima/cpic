@@ -17,8 +17,8 @@ typedef struct block block_t;
 /* A block is designed to run in a node, where the memory can be shared */
 struct block
 {
-	/* Block number */
-	int i;
+	/* Block index */
+	int i[MAX_DIM];
 
 	/* Dimensions of the bounding box of the block */
 	double x0[MAX_DIM];

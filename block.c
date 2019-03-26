@@ -46,7 +46,8 @@ blocks_init(sim_t *sim, specie_t *s)
 		{
 			b = &s->blocks[iy * sim->nblocks[Y] + ix];
 
-			b->i = i;
+			b->i[X] = ix;
+			b->i[Y] = iy;
 
 			for(d=0; d<sim->dim; d++)
 			{
