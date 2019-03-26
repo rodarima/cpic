@@ -245,6 +245,8 @@ sim_run(sim_t *sim)
 		/* Line 6: Update E on the grid, eq 5 */
 		field_E(sim);
 
+#if 0
+
 		for(j = 0; j < sim->nspecies; j++)
 		{
 			s = &sim->species[j];
@@ -273,7 +275,7 @@ sim_run(sim_t *sim)
 		s = &sim->species[0];
 
 		field_J(sim, s);
-
+#endif
 		/* Print the status */
 //		if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
 //			specie_print(sim, s);

@@ -42,7 +42,7 @@ test: test.mcc.c
 test2: test2.mcc.c loader.c
 	$(CC) $(CFLAGS) $(LDLIBS) $^ -o $@
 
-interpolate.test: interpolate.test.c interpolate.o
+interpolate.test: interpolate.test.c interpolate.o mat.o
 
 
 cpic: $(CPIC_OBJ)

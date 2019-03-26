@@ -69,7 +69,7 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 		interpolate_add_to_grid_xy(sim, p, b, s->q, rho);
 	}
 
-	mat_print(rho, "rho after update");
+	//mat_print(rho, "rho after update");
 
 	return 0;
 }
@@ -174,6 +174,9 @@ field_E_spread(sim_t *sim, specie_t *s)
 	mat_t *E;
 	mat_t *global_E;
 
+	/* Not yet finished */
+	exit(1);
+
 	global_E = sim->field->E[0];
 
 	/* FIXME: Introduce 2 dimensions here */
@@ -217,7 +220,7 @@ field_E_solve(sim_t *sim)
 
 	assert(f->rho->size == sim->nnodes[X] * sim->nnodes[Y]);
 
-	/* Fix charge neutrality */
+	/* Fix charge neutrality and invert */
 	for(iy=0; iy<sim->nnodes[Y]; iy++)
 	{
 		for(ix=0; ix<sim->nnodes[X]; ix++)
@@ -226,6 +229,8 @@ field_E_solve(sim_t *sim)
 			MAT_XY(f->rho, ix, iy) *= -1.0;
 		}
 	}
+
+	//mat_print(sim->field->rho, "rho after set sum to 0");
 
 	solve_xy(sim->solver, f->phi, f->rho);
 
@@ -272,18 +277,17 @@ field_E(sim_t *sim)
 
 	/* In order to solve the field we need the charge density */
 	field_rho_collect(sim, &sim->species[0]);
-	mat_print(sim->field->rho, "rho");
+	//mat_print(sim->field->rho, "rho after collect");
 
 	field_E_solve(sim);
 
 	/* Exit after 1 iterations to test the solver */
-	mat_print(sim->field->rho, "rho");
-	mat_print(sim->field->phi, "phi");
+	//mat_print(sim->field->phi, "phi");
 	//exit(1);
 
 	/* After solving the electric field, we can now distribute it in each
 	 * block, as the force can be computed easily from the grid points */
-	field_E_spread(sim, &sim->species[0]);
+//	field_E_spread(sim, &sim->species[0]);
 
 	return 0;
 }

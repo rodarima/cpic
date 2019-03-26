@@ -7,6 +7,8 @@
 #include <gsl/gsl_linalg.h>
 #include <assert.h>
 
+#define MAX_ERR 1e-15
+
 #define STANDALONE 0
 
 #if 0
@@ -188,11 +190,24 @@ solve(mat_t *phi, mat_t *rho)
 int
 solve_xy(solver_t *s, mat_t *phi, mat_t *rho)
 {
+	int ix, iy;
+	double sum;
 	gsl_vector_view b, x;
 
 	/* The size reported from the vector must match the size computed by the
 	 * solver */
 	assert(phi->size == s->N);
+
+	sum = 0.0;
+
+	for(iy=0; iy<rho->shape[X]; iy++)
+		for(ix=0; ix<rho->shape[X]; ix++)
+			sum += MAT_XY(rho, ix, iy);
+
+	assert(fabs(sum) < MAX_ERR);
+
+	err("sum in rho is %e\n", sum);
+
 
 	x = gsl_vector_view_array(phi->data, s->N);
 	b = gsl_vector_view_array(rho->data, s->N);

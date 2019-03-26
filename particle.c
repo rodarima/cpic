@@ -172,7 +172,9 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 
 	for (p = b->particles; p; p = p->next)
 	{
+		err("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
 		interpolate_E_set_to_particle_xy(sim, p, b);
+		err("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
 	}
 
 	return 0;

@@ -7,11 +7,11 @@ enum dim {
 	Y = 1,
 	Z = 2
 };
-enum shape_dim {
-	SHAPE_X = 0,
-	SHAPE_Y = 1,
-	SHAPE_Z = 2
-};
+//enum shape_dim {
+//	SHAPE_X = 0,
+//	SHAPE_Y = 1,
+//	SHAPE_Z = 2
+//};
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 

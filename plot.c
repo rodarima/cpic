@@ -971,11 +971,13 @@ plot_redraw(plot_t *plot)
 	mgl_plot_xy(gr, plot->x, plot->y, "#s ", "");
 	//mgl_axis_grid(gr, "xy", "", "");
 	mgl_axis(gr, "xy", "", "");
-	mgl_set_ranges(gr, 0.0, 64.0, -10, 10, -2, 2);
+	mgl_set_ranges(gr, 0.0, 64.0, -10, 10, -1, 1);
 	mgl_label(gr, 'x', "Position x_x", 0.0, "");
 	mgl_label(gr, 'y', "Velocity v_x", 0.0, "");
 
 	mgl_subplot(gr, 2, 2, 1, "");
+	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
+			mgl_data_min(plot->rho), mgl_data_max(plot->rho));
 	mgl_title(gr, "Charge density \\rho", "", 5.0);
 	mgl_contf(gr, (HCDT) plot->rho, "", "");
 	mgl_axis_grid(gr, "xy", "", "");
@@ -984,18 +986,20 @@ plot_redraw(plot_t *plot)
 
 
 	mgl_subplot(gr, 2, 2, 2, "");
+	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
+			mgl_data_min(plot->phi), mgl_data_max(plot->phi));
 	mgl_title(gr, "Electric potential \\phi", "", 5.0);
 	mgl_contf(gr, (HCDT) plot->phi, "", "");
 	mgl_colorbar(gr, ">");
 	mgl_axis_grid(gr, "xy", "", "");
 	mgl_axis(gr, "xy", "", "");
 
-	mgl_subplot(gr, 2, 2, 3, "");
-	mgl_title(gr, "Electric field E_x", "", 5.0);
-	mgl_contf(gr, (HCDT) plot->E0, "", "");
-	mgl_axis_grid(gr, "xy", "", "");
-	mgl_axis(gr, "xy", "", "");
-	mgl_colorbar(gr, ">");
+//	mgl_subplot(gr, 2, 2, 3, "");
+//	mgl_title(gr, "Electric field E_x", "", 5.0);
+//	mgl_contf(gr, (HCDT) plot->E0, "", "");
+//	mgl_axis_grid(gr, "xy", "", "");
+//	mgl_axis(gr, "xy", "", "");
+//	mgl_colorbar(gr, ">");
 
 	mgl_finish(gr);
 	//glFlush();
@@ -1051,9 +1055,9 @@ plot_loop(void *p)
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(1);
 
-	int mx = sim->nnodes[SHAPE_X];
-	int my = sim->nnodes[SHAPE_Y];
-	int mz = sim->nnodes[SHAPE_Z];
+	int mx = sim->nnodes[X];
+	int my = sim->nnodes[Y];
+	int mz = sim->nnodes[Z];
 	int np = sim->species[0].nparticles;
 
 	err("xyz shape %d %d %d\n", mx, my, mz);
