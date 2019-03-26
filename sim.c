@@ -240,7 +240,7 @@ sim_run(sim_t *sim)
 		/* Phase CP:FS. Field solver, calculation of the electric field
 		 * from the current */
 
-		specie_print(sim, s);
+		//specie_print(sim, s);
 
 		/* Line 6: Update E on the grid, eq 5 */
 		field_E(sim);

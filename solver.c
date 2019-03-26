@@ -204,9 +204,9 @@ solve_xy(solver_t *s, mat_t *phi, mat_t *rho)
 		for(ix=0; ix<rho->shape[X]; ix++)
 			sum += MAT_XY(rho, ix, iy);
 
-	assert(fabs(sum) < MAX_ERR);
+	//err("sum in rho is %e\n", sum);
+	//assert(fabs(sum) < MAX_ERR);
 
-	err("sum in rho is %e\n", sum);
 
 
 	x = gsl_vector_view_array(phi->data, s->N);
@@ -275,7 +275,11 @@ solver_init(sim_t *sim)
 
 	solver->P = gsl_permutation_calloc(N);
 
+	err("Please wait, solver is precomputing LU\n");
+
 	gsl_linalg_LU_decomp(A, solver->P, &signum);
+
+	err("Done\n");
 
 	/* Now we have the L and U matrix in A */
 	solver->LU = A;

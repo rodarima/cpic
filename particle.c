@@ -3,7 +3,7 @@
 #include "config.h"
 #include "interpolate.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include <math.h>
 #include <assert.h>
@@ -105,7 +105,7 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 		p->E[Y] = 5.0;
 		p->J[X] = 0.0;
 		p->J[Y] = 0.0;
-		err("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+		dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
 	}
 
 	return 0;
@@ -172,9 +172,9 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 
 	for (p = b->particles; p; p = p->next)
 	{
-		err("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+		dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
 		interpolate_E_set_to_particle_xy(sim, p, b);
-		err("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+		dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
 	}
 
 	return 0;
@@ -227,74 +227,113 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 	return 0;
 }
 
+int
+move_particle_to_block(block_t *from, block_t *to, particle_t *p)
+{
+	dbg("Moving particle %d at x=(%.3e,%.3e) from block (%d,%d) to block (%d, %d)\n",
+			p->i, p->x[X], p->x[Y],
+			from->i[X], from->i[X],
+			to->i[X], to->i[Y]);
+
+	/* XXX: If the following order is swapped, the particle
+	 * is not removed, nor added. Is this a bug? */
+	DL_DELETE(from->particles, p);
+	/* XXX If the particle is added to the same block again,
+	 * we use prepend to avoid iterating on it */
+	//DL_APPEND(left->particles, p);
+	DL_PREPEND(to->particles, p);
+
+	return 0;
+}
+
+void
+wrap_particle_position(sim_t *sim, particle_t *p)
+{
+	while(p->x[X] >= sim->L[X])
+		p->x[X] -= sim->L[X];
+
+	while(p->x[X] < 0.0)
+		p->x[X] += sim->L[X];
+
+	while(p->x[Y] >= sim->L[Y])
+		p->x[Y] -= sim->L[Y];
+
+	while(p->x[Y] < 0.0)
+		p->x[Y] += sim->L[Y];
+
+	assert(p->x[X] < sim->L[X]);
+	assert(p->x[X] >= 0.0);
+	assert(p->x[Y] < sim->L[Y]);
+	assert(p->x[Y] >= 0.0);
+}
+
 /* After updating the position of the particles, they may have changed to
  * another block. Remove from the old block, and add in the new one. We assume
  * only one block at each time is allowed */
-#pragma oss task inout(*b, *left, *right) label(particle_block_comm)
+//#pragma oss task inout(*b, *left, *right) label(particle_block_comm)
 static int
-block_comm(sim_t *sim, specie_t *s, block_t *left, block_t *b, block_t *right)
+block_comm(sim_t *sim, specie_t *s, block_t *b)
 {
+	block_t *to_block;
 	particle_t *p, *tmp;
-	double px;
-	double x0 = b->x0[X];
-	double x1 = b->x1[X];
+	double px, py;
+	double x0, x1, y0, y1;
 	double max_x = sim->L[0];
+	int idx, idy, ix, iy, nbx, nby;
+	int jx, jy;
 
-	dbg("Moving particles for block (%d,%d) (l=(%d,%d) r=(%d, %d))\n",
-		b->i[X], b->i[Y], left->i[X], left->i[Y], right->i[X], right->i[Y]);
+	dbg("Moving particles for block (%d,%d)\n",
+		b->i[X], b->i[Y]);
+
+	ix = b->i[X];
+	iy = b->i[Y];
+
+	x0 = b->x0[X];
+	x1 = b->x1[X];
+
+	y0 = b->x0[Y];
+	y1 = b->x1[Y];
+
+	nbx = sim->nblocks[X];
+	nby = sim->nblocks[Y];
 
 	DL_FOREACH_SAFE(b->particles, p, tmp)
 	{
-		px = p->x[0];
+		px = p->x[X];
+		py = p->x[Y];
 
-		/* Move to the left */
-		if(px < x0)
-		{
-			dbg("Moving particle %d at x=%e to the left block\n", p->i, px);
+		idx = 0;
+		idy = 0;
 
-			/* XXX: If the following order is swapped, the particle
-			 * is not removed, nor added. Is this a bug? */
-			DL_DELETE(b->particles, p);
-			/* XXX If the particle is added to the same block again,
-			 * we use prepend to avoid iterating on it */
-			//DL_APPEND(left->particles, p);
-			DL_PREPEND(right->particles, p);
-		}
-		else if(x1 <= px)
-		{
-			dbg("Moving particle %d at x=%e to the right block\n", p->i, px);
+		wrap_particle_position(sim, p);
 
-			DL_DELETE(b->particles, p);
-			/* Same here */
-			//DL_APPEND(right->particles, p);
-			DL_PREPEND(right->particles, p);
-		}
-		else
-		{
-			dbg("Particle %d at x=%e does not need moving\n", p->i, px);
-		}
+		/* FIXME: Allow bigger jumps than 1 block */
 
+		/* First we check the X axis */
+		if(px < x0) idx = -1;
+		else if(px >= x1) idx = +1;
 
-		/* Wrap position if max_x or 0 are exceeded */
-		if(p->x[0] >= max_x)
+		/* Then the Y axis */
+		if(py < y0) idy = -1;
+		else if(py >= y1) idy = +1;
+
+		/* Now we look for the proper block to move the particle if
+		 * needed */
+		if(idx != 0 && idy != 0)
 		{
-			dbg("Wrapping particle %d from x=%.3e to x=%.3e\n",
-				p->i, p->x[0], p->x[0] - max_x);
-			p->x[0] -= max_x;
-		}
-		else if(p->x[0] < 0.0)
-		{
-			dbg("Wrapping particle %d from x=%.3e to x=%.3e\n",
-				p->i, p->x[0], p->x[0] + max_x);
-			p->x[0] += max_x;
+			jx = (ix + idx + nbx) % nbx;
+			jy = (iy + idy + nby) % nby;
+
+			assert(jx >= 0);
+			assert(jy >= 0);
+			assert(jx < nbx);
+			assert(jy < nby);
+
+			to_block = BLOCK_XY(sim, s->blocks, jx, jy);
+
+			move_particle_to_block(b, to_block, p);
 		}
 
-		if((p->x[0] < 0.0) || (p->x[0] > max_x))
-		{
-			err("Particle %d is at x=%.3e with max_x=%10.3e\n",
-				p->i, p->x[0], max_x);
-			exit(1);
-		}
 	}
 
 	return 0;
@@ -338,26 +377,18 @@ particle_x(sim_t *sim, specie_t *s)
 		block_x_update(sim, s, b);
 	}
 
-#if 0
 
 	/* Communication */
 	for (i = 0; i < s->ntblocks; i++)
 	{
-		/* FIXME: Now we need to consider 2D block boundaries */
-		li = (s->ntblocks + i - 1) % s->ntblocks;
-		ri = (i + 1) % s->ntblocks;
-
 		b = &(s->blocks[i]);
-		lb = &(s->blocks[li]);
-		rb = &(s->blocks[ri]);
 
 		/* We left lb and rb with the inout directive, as we need to
 		 * wait for any modification to those blocks before we write to
 		 * them (lb->particles->next->next... */
-		block_comm(sim, s, lb, b, rb);
+		block_comm(sim, s, b);
 	}
 
-#endif
 
 	return 0;
 }

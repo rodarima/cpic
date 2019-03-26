@@ -980,10 +980,10 @@ plot_redraw(plot_t *plot)
 	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
 			mgl_data_min(plot->rho), mgl_data_max(plot->rho));
 	mgl_title(gr, "Charge density \\rho", "", 5.0);
+	mgl_colorbar(gr, "<");
 	mgl_contf(gr, (HCDT) plot->rho, "", "");
 	mgl_axis_grid(gr, "xy", "", "");
 	mgl_axis(gr, "xy", "", "");
-	mgl_colorbar(gr, ">");
 
 
 	mgl_subplot(gr, 2, 2, 2, "");
