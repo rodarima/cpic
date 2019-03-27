@@ -7,7 +7,7 @@ LDLIBS=-lm -lstdc++ -lGL -lmgl2
 CFLAGS+=$(CFLAGS_GLFW3)
 LDLIBS+=$(LDLIBS_GLFW3)
 
-BIN=mgl
+BIN=mgl glvid
 
 all: $(BIN)
 
