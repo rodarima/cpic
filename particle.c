@@ -191,7 +191,8 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 	double dt = sim->dt;
 	int inv = 1.0;
 
-	/* FIXME: Use leapfrog integrator */
+	/* TODO: Set the initial velocity at v(-dt/2), so it is properly
+	 * advanced half a timestep */
 
 	for (p = b->particles; p; p = p->next)
 	{
@@ -203,6 +204,9 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 
 		p->u[X] += du[X];
 		p->u[Y] += du[Y];
+
+		/* Notice we advance the position x by the new velocity just
+		 * computed, following the leapfrog integrator */
 
 		dx[X] = dt * p->u[X];
 		dx[Y] = dt * p->u[Y];
