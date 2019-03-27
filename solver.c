@@ -7,7 +7,7 @@
 #include <gsl/gsl_linalg.h>
 #include <assert.h>
 
-#define MAX_ERR 1e-15
+#define MAX_ERR 1e-12
 
 #define STANDALONE 0
 
@@ -205,7 +205,7 @@ solve_xy(solver_t *s, mat_t *phi, mat_t *rho)
 			sum += MAT_XY(rho, ix, iy);
 
 	//err("sum in rho is %e\n", sum);
-	//assert(fabs(sum) < MAX_ERR);
+	assert(fabs(sum) < MAX_ERR);
 
 
 

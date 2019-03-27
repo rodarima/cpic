@@ -1,8 +1,10 @@
 #include "field.h"
 #include "solver.h"
-#include "log.h"
 #include "interpolate.h"
 #include "mat.h"
+
+#define DEBUG 0
+#include "log.h"
 
 #include <string.h>
 #include <assert.h>
@@ -75,23 +77,118 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 	return 0;
 }
 
+static void
+comm_neigh(sim_t *sim, mat_t *from, mat_t *to, int dir[MAX_DIM])
+{
+	int start[MAX_DIM];
+	int end[MAX_DIM];
+	int j[MAX_DIM];
+	int k[MAX_DIM];
+	int *bs, *gs, d;
+
+	bs = sim->blocksize;
+	gs = sim->ghostsize;
+
+	dbg("comm_neigh called with dir=(%d,%d,%d)\n", dir[X], dir[Y], dir[Z]);
+
+	/* Compute the start and end indices of what is going to be transferred,
+	 * based on the location of the neighbour */
+
+	for(d=X; d<MAX_DIM; d++)
+	{
+		if(dir[d])
+		{
+			/* Copy the ghost part */
+			start[d] = bs[d];
+			end[d] = gs[d];
+		}
+		else
+		{
+			/* Only in the block domain */
+			start[d] = 0;
+			end[d] = bs[d];
+		}
+		dbg("Comm start[%d]=%d end[%d]=%d\n", d, start[d], d, end[d]);
+	}
+
+	/* Then *add* all elements */
+
+	//for(j[Z] = start[Z]; j[Z] < end[Z]; j[Z]++)
+	for(j[Y] = start[Y]; j[Y] < end[Y]; j[Y]++)
+	{
+		k[Y] = j[Y] - start[Y];
+		for(j[X] = start[X]; j[X] < end[X]; j[X]++)
+		{
+			k[X] = j[X] - start[X];
+			MAT_XY(to, k[X], k[Y]) += MAT_XY(from, j[X], j[Y]);
+
+			dbg("Comm from %p (%d,%d) to %p (%d,%d)\n", from, j[X], j[Y], to, k[X], k[Y]);
+		}
+	}
+}
+
 /* The ghost node of J (from->rB) is added in to->J[0] */
 static int
-block_J_comm(sim_t *sim, block_t *dst, block_t *left)
+block_J_comm(sim_t *sim, specie_t *s, block_t *b)
 {
-	int bsize = sim->blocksize[0];
-	field_t *df = &dst->field;
-	field_t *lf = &left->field;
+	block_t *neigh;
 
-	/* FIXME: Only 2D by now */
-	MAT_XY(df->J[X], 0, 0) += MAT_XY(lf->J[X], bsize, 0);
-	MAT_XY(df->J[Y], 0, 0) += MAT_XY(lf->J[Y], bsize, 0);
+	int m[MAX_DIM] = {0,0,0};
+	int j[MAX_DIM] = {0};
+	int i[MAX_DIM] = {0};
 
-	MAT_XY(df->rho, 0, 0) += MAT_XY(lf->rho, bsize, 0);
+	/* Compute the number of neighbours in each dimension we want to
+	 * consider to communicate ghost nodes */
+	switch(sim->dim)
+	{
+		//case 3: m[Z] = 1;
+		case 2: m[Y] = 1;
+		case 1: m[X] = 1;
+			break;
+		default:
+			abort();
+	}
 
+	dbg("Comm m=(%d,%d,%d)\n", m[X], m[Y], m[Z]);
+
+	/* Now iterate for each one of them. Note that we use <= to iterate over
+	 * the current node and each neighbour */
+
+//	for(j[Z]=0; j[Z] <= m[Z]; j[Z]++)
+//	{
+//		i[Z] = (b->i[Z] + j[Z]) % sim->nblocks[Z];
+		for(j[Y]=0; j[Y] <= m[Y]; j[Y]++)
+		{
+			i[Y] = (b->i[Y] + j[Y]) % sim->nblocks[Y];
+			for(j[X]=0; j[X] <= m[X]; j[X]++)
+			{
+				i[X] = (b->i[X] + j[X]) % sim->nblocks[X];
+
+				dbg("Comm neigh at (%d,%d,%d)\n", i[X], i[Y], i[Z]);
+
+				/* Avoid zero displacement, but allow wraping to
+				 * go to the same block. */
+				if((j[X] == 0) && (j[Y] == 0) && (j[Z] == 0))
+					continue;
+
+				assert(j[Z] == 0);
+
+				/* TODO: Allow 3D also */
+				neigh = BLOCK_XY(sim, s->blocks, i[X], i[Y]);
+
+				//assert(neigh != b);
+
+				comm_neigh(sim, b->field.J[X], neigh->field.J[Y], j);
+				comm_neigh(sim, b->field.J[X], neigh->field.J[Y], j);
+				comm_neigh(sim, b->field.rho, neigh->field.rho, j);
+			}
+		}
+//	}
+
+	/* FIXME: This may be useful in 2D also */
 	/* The ghost cannot be used now */
-	MAT_XY(lf->rho, bsize, 0) = 1e100;
-	MAT_XY(lf->J[0], bsize, 0) = 1e100;
+	//MAT_XY(lf->rho, bsize, 0) = 1e100;
+	//MAT_XY(lf->J[0], bsize, 0) = 1e100;
 
 	return 0;
 }
@@ -112,17 +209,12 @@ field_J(sim_t *sim, specie_t *s)
 		block_J_update(sim, s, b);
 	}
 
-	#pragma oss task inout(sim->blocks[0, sim->nblocks-1]) label(field_blocks_J_update)
 	/* Communication */
 	for (i = 0; i < s->ntblocks; i++)
 	{
-		/* FIXME: Now the communication is 2d */
-		li = (s->ntblocks + i - 1) % s->ntblocks;
-
 		b = &(s->blocks[i]);
-		lb = &(s->blocks[li]);
 
-		block_J_comm(sim, b, lb);
+		block_J_comm(sim, s, b);
 	}
 	return 0;
 }
@@ -202,10 +294,10 @@ field_E_spread(sim_t *sim, specie_t *s)
 					MAT_XY(E[X], jx, jy) = MAT_XY(global_E[X], gx, gy);
 					MAT_XY(E[Y], jx, jy) = MAT_XY(global_E[Y], gx, gy);
 
-					dbg("Set E[X]=%e and E[Y]=%e at (%d, %d) from (%d, %d)\n",
-						MAT_XY(E[X], jx, jy),
-						MAT_XY(E[Y], jx, jy),
-						jx, jy, gx, gy);
+//					dbg("Set E[X]=%e and E[Y]=%e at (%d, %d) from (%d, %d)\n",
+//						MAT_XY(E[X], jx, jy),
+//						MAT_XY(E[Y], jx, jy),
+//						jx, jy, gx, gy);
 				}
 			}
 		}

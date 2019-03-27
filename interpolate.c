@@ -10,6 +10,8 @@
 #include <math.h>
 #include <assert.h>
 
+#define MAX_ERR 1e-15
+
 int
 is_particle_in_block_x(particle_t *p, block_t *b)
 {
@@ -114,6 +116,7 @@ interpolate_weights_xy(double x[2], double dx[2], double x0[2],
 	dbg("delta_grid[Y] = %f\n", delta_grid[Y]);
 
 	linear_interpolation_xy(delta_grid, w);
+	assert(fabs(w[0][0] + w[0][1] + w[1][0] + w[1][1] - 1.0) < MAX_ERR);
 }
 
 void

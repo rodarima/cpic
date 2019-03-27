@@ -977,7 +977,7 @@ plot_redraw(plot_t *plot)
 	mgl_label(gr, 'y', "Position y", 0.0, "");
 
 	mgl_subplot(gr, 2, 2, 1, "");
-	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
+	mgl_set_ranges(gr, 0.0, 64.0, 0.0, 64.0,
 			mgl_data_min(plot->rho), mgl_data_max(plot->rho));
 	mgl_title(gr, "Charge density \\rho", "", 5.0);
 	mgl_colorbar(gr, "<");
@@ -987,7 +987,7 @@ plot_redraw(plot_t *plot)
 
 
 	mgl_subplot(gr, 2, 2, 2, "");
-	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
+	mgl_set_ranges(gr, 0.0, 64.0, 0.0, 64.0,
 			mgl_data_min(plot->phi), mgl_data_max(plot->phi));
 	mgl_title(gr, "Electric potential \\phi", "", 5.0);
 	mgl_contf(gr, (HCDT) plot->phi, "", "");
@@ -1008,7 +1008,7 @@ plot_redraw(plot_t *plot)
 	mgl_title(gr, "Electric field E", "", 5.0);
 	mgl_axis_grid(gr, "xy", "", "");
 	mgl_axis(gr, "xy", "", "");
-	mgl_set_meshnum(gr, 20);
+	mgl_set_meshnum(gr, 30);
 //	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
 //			mgl_data_min(plot->E[X])*0.3,
 //			mgl_data_max(plot->E[Y])*0.3);
