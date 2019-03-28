@@ -4,7 +4,7 @@
 #include <string.h>
 #include <GLFW/glfw3.h>
 
-#define N 100
+#define N 1000
 
 #define WIDTH 500
 #define HEIGHT 500
@@ -20,7 +20,8 @@ main(int argc, char *argv[])
 	// start ffmpeg telling it to expect raw rgba 720p-60hz frames
 	// -i - tells it to read frames from stdin
 	asprintf(&cmd, "/usr/bin/ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - "
-		"-threads 0 -preset fast -y -pix_fmt yuv420p -crf 21 -vf vflip output.mp4",
+		"-y -crf 20 -vf vflip output.mp4",
+		//"-y -pix_fmt yuv420p -crf 18 -vf vflip output.mp4",
 		WIDTH, HEIGHT);
 
 
@@ -68,7 +69,7 @@ main(int argc, char *argv[])
 
 		glBegin(GL_LINES);
 		glVertex2f(10.0, 10.0);
-		glVertex2f(50.0, 50.0 + 5.0 * i);
+		glVertex2f(WIDTH * ((double)i/N), HEIGHT * ((double)i/N));
 		glEnd();
 
 		//glFlush();
