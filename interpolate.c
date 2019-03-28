@@ -136,10 +136,11 @@ interpolate_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b,
 	i1[X] = i0[X] + 1;
 	i1[Y] = i0[Y] + 1;
 
-	assert(i0[X] >= 0 && i0[X] < sim->blocksize[X]);
-	assert(i0[Y] >= 0 && i0[Y] < sim->blocksize[Y]);
-	assert(i1[X] >= 1 && i1[X] < sim->ghostsize[X]);
-	assert(i1[Y] >= 1 && i1[Y] < sim->ghostsize[Y]);
+	/* Same here as in wrap_particle_position() */
+	assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
+	assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);
+	assert(i1[X] >= 1 && i1[X] <= sim->ghostsize[X]);
+	assert(i1[Y] >= 1 && i1[Y] <= sim->ghostsize[Y]);
 
 	/* Notice that we only ADD to the existing values of the grid */
 
@@ -164,10 +165,10 @@ interpolate_add_to_particle_xy(sim_t *sim, particle_t *p, block_t *b,
 	i1[X] = i0[X] + 1;
 	i1[Y] = i0[Y] + 1;
 
-	assert(i0[X] >= 0 && i0[X] < sim->blocksize[X]);
-	assert(i0[Y] >= 0 && i0[Y] < sim->blocksize[Y]);
-	assert(i1[X] >= 1 && i1[X] < sim->ghostsize[X]);
-	assert(i1[Y] >= 1 && i1[Y] < sim->ghostsize[Y]);
+	assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
+	assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);
+	assert(i1[X] >= 1 && i1[X] <= sim->ghostsize[X]);
+	assert(i1[Y] >= 1 && i1[Y] <= sim->ghostsize[Y]);
 
 	/* Notice that we only ADD to the existing values of the grid */
 

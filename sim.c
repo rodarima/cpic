@@ -175,6 +175,10 @@ conservation_energy(sim_t *sim, specie_t *s)
 	/* Change units to eV */
 	//EE /= 1.6021766208e-19;
 	//KE /= 1.6021766208e-19; /* ??? */
+
+	EE = sim->energy_electrostatic;
+	KE = sim->energy_kinetic;
+
 	printf("e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE);
 
 	return 0;
@@ -276,8 +280,8 @@ sim_run(sim_t *sim)
 		field_J(sim, s);
 
 		/* Print the status */
-//		if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
-//			specie_print(sim, s);
+		if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
+			specie_print(sim, s);
 
 		if(sim->mode == SIM_MODE_DEBUG)
 			sim_plot(sim);

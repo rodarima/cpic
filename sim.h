@@ -48,6 +48,9 @@ struct sim
 	int period_field;
 	int period_energy;
 
+	double energy_electrostatic;
+	double energy_kinetic;
+
 	/** Species of particles */
 	int nspecies;
 	specie_t *species;

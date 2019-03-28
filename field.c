@@ -340,11 +340,13 @@ field_E_solve(sim_t *sim)
 		}
 	}
 
-	//mat_print(sim->field->rho, "rho after set sum to 0");
+	mat_print(sim->field->rho, "rho after set sum to 0");
 
 	solve_xy(sim->solver, f->phi, f->rho);
 
 	/* Now we compute the minus centered gradient of phi to get E */
+
+	sim->energy_electrostatic = 0.0;
 
 	for(iy=0; iy<sim->nnodes[Y]; iy++)
 	{
@@ -362,8 +364,19 @@ field_E_solve(sim_t *sim)
 			MAT_XY(f->E[Y], ix, iy) =
 				(MAT_XY(f->phi, ix, y0) - MAT_XY(f->phi, ix, y1))
 				/ dy2;
+
+			/* The electrostatic energy is computed from the charge
+			 * density and electric potential just updated */
+
+			sim->energy_electrostatic += MAT_XY(f->rho, ix, iy)
+				* MAT_XY(f->phi, ix, iy);
+
 		}
 	}
+
+	//sim->energy_electrostatic /= (sim->nnodes[X] * sim->nnodes[Y]);
+	//sim->energy_electrostatic *= 16 * 64;
+	sim->energy_electrostatic *= -1.0;
 
 
 //	for(i=1; i<n-1; i++)
@@ -408,12 +421,12 @@ field_E(sim_t *sim)
 
 	/* In order to solve the field we need the charge density */
 	field_rho_collect(sim, &sim->species[0]);
-	//mat_print(sim->field->rho, "rho after collect");
+	mat_print(sim->field->rho, "rho after collect");
 
 	field_E_solve(sim);
 
 	/* Exit after 1 iterations to test the solver */
-	//mat_print(sim->field->phi, "phi");
+	mat_print(sim->field->phi, "phi");
 	//exit(1);
 
 	/* After solving the electric field, we can now distribute it in each

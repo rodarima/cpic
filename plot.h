@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <mgl2/mgl_cf.h>
 
+#define MAX_HIST 1000
+
 struct plot {
 	sim_t *sim;
 	double maxfps;
@@ -12,6 +14,8 @@ struct plot {
 	double trigger_factor;
 
 	double maxv; /* FIXME: This should dissapear */
+
+	int paused;
 
 	/* Graphics */
 
@@ -26,6 +30,9 @@ struct plot {
 	HMDT x;
 	HMDT y;
 	HMDT v;
+
+	HMDT EE, KE, TE;
+	HMDT pE;
 };
 
 typedef struct plot plot_t;

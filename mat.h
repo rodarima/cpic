@@ -15,6 +15,10 @@ enum dim {
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
+/* Wraps the double x in the interval [0, k) so that there exists an integer n
+ * that the result r = x - nh */
+#define WRAP(r, x, h) do { r = fmod(x, h); if(r<0.0) r+=h; } while(0);
+
 typedef struct
 {
 	double *data;

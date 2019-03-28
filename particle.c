@@ -3,7 +3,7 @@
 #include "config.h"
 #include "interpolate.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include <math.h>
 #include <assert.h>
@@ -19,11 +19,15 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s);
 int
 init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s);
 
+int
+init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s);
+
 particle_config_t pc[] =
 {
 	{"default",			init_default},
 	{"harmonic two electrons",	init_h2e},
 	{"random position",		init_randpos},
+	{"position delta",		init_position_delta},
 	{NULL, NULL}
 };
 
@@ -135,12 +139,51 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 		p = &s->particles[i];
 
 		p->i = i;
-		p->x[0] = sim->L[0] * (odd ? 5./8. : 3./8.);
-		p->x[1] = 0.0;
-		p->u[0] = odd ? -v[0] : v[0];
-		p->u[1] = 0.0;
-		p->E[0] = 0.0;
-		p->J[0] = 0.0;
+		p->x[X] = sim->L[X] * (odd ? 5./8. : 3./8.);
+		p->x[Y] = sim->L[Y] / 2.0;
+
+//		p->x[X] += i/1e5;
+
+		p->u[X] = odd ? -v[X] : v[X];
+		p->u[Y] = 0.0;
+
+		p->E[X] = 0.0;
+		p->E[Y] = 0.0;
+
+		p->J[X] = 0.0;
+		p->J[Y] = 0.0;
+	}
+
+	return 0;
+}
+
+int
+init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
+{
+	int i, odd;
+	particle_t *p;
+	double r[MAX_DIM];
+	double dr[MAX_DIM];
+	double *L;
+	config_setting_t *cs_r, *cs_dr;
+
+	L = sim->L;
+
+	cs_dr = config_setting_get_member(cs, "position_delta");
+	if(config_array_float(cs_dr, dr, sim->dim))
+		return 1;
+
+	cs_r = config_setting_get_member(cs, "position_init");
+	if(config_array_float(cs_r, r, sim->dim))
+		return 1;
+
+	for(i = 0; i < s->nparticles; i++)
+	{
+		p = &s->particles[i];
+
+		WRAP(p->x[X], r[X], L[X]);
+		WRAP(p->x[Y], r[Y], L[Y]);
+		WRAP(p->x[Z], r[Z], L[Z]);
 	}
 
 	return 0;
@@ -160,6 +203,7 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 		p->J[Z] = s->q * p->u[Z] / sim->dt;
 		p->J[Y] = s->q * p->u[Y] / sim->dt;
 		p->J[X] = s->q * p->u[X] / sim->dt;
+
 	}
 
 	return 0;
@@ -187,12 +231,14 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	particle_t *p;
 	double coef = - sim->dt / sim->e0;
-	double du[MAX_DIM], dx[MAX_DIM];
+	double u[MAX_DIM], du[MAX_DIM], dx[MAX_DIM], uu, vv;
 	double dt = sim->dt;
 	int inv = 1.0;
 
 	/* TODO: Set the initial velocity at v(-dt/2), so it is properly
 	 * advanced half a timestep */
+
+	sim->energy_kinetic = 0.0;
 
 	for (p = b->particles; p; p = p->next)
 	{
@@ -202,8 +248,19 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 		dbg("Particle %d at x=(%.3e,%.3e) increases speed by (%.3e,%.3e)\n",
 				p->i, p->x[X], p->x[Y], du[X], du[Y]);
 
-		p->u[X] += du[X];
-		p->u[Y] += du[Y];
+		u[X] = p->u[X] + du[X];
+		u[Y] = p->u[Y] + du[Y];
+
+		/* We advance the kinetic energy here, as we know the old
+		 * velocity at t - dt/2 and the new one at t + dt/2. So we take
+		 * the average, to estimate u(t) */
+
+		uu = sqrt(u[X]*u[X] + u[Y]*u[Y]);
+		vv = sqrt(p->u[X]*p->u[X] + p->u[Y]*p->u[Y]);
+		sim->energy_kinetic += ((uu + vv)*(uu + vv)) / 2.0;
+
+		p->u[X] = u[X];
+		p->u[Y] = u[Y];
 
 		/* Notice we advance the position x by the new velocity just
 		 * computed, following the leapfrog integrator */
@@ -227,6 +284,8 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 		 * block */
 
 	}
+
+	sim->energy_kinetic *= s->m / 2.0;
 
 	return 0;
 }
@@ -253,6 +312,9 @@ move_particle_to_block(block_t *from, block_t *to, particle_t *p)
 void
 wrap_particle_position(sim_t *sim, particle_t *p)
 {
+	dbg("Particle %d is at (%.10e, %.10e) before wrap\n",
+			p->i, p->x[X], p->x[Y]);
+
 	while(p->x[X] >= sim->L[X])
 		p->x[X] -= sim->L[X];
 
@@ -265,9 +327,16 @@ wrap_particle_position(sim_t *sim, particle_t *p)
 	while(p->x[Y] < 0.0)
 		p->x[Y] += sim->L[Y];
 
-	assert(p->x[X] < sim->L[X]);
+	dbg("Particle %d is now at (%.10e, %.10e)\n",
+			p->i, p->x[X], p->x[Y]);
+
+	/* Notice that we allow p->x to be equal to L, as when the position is
+	 * wrapped from x<0 but -1e-17 < x, the wrap sets x equal to L, as with
+	 * bigger numbers the error increases, and the round off may set x to
+	 * exactly L */
+	assert(p->x[X] <= sim->L[X]);
 	assert(p->x[X] >= 0.0);
-	assert(p->x[Y] < sim->L[Y]);
+	assert(p->x[Y] <= sim->L[Y]);
 	assert(p->x[Y] >= 0.0);
 }
 

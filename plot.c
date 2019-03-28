@@ -18,7 +18,7 @@ GLenum doubleBuffer = GL_FALSE;
 GLint windW = 800, windH = 300;
 int win1, win2, win3, win4;
 
-#define MAX_HIST 10
+//#define MAX_HIST 10
 #define MAX_LINE 256
 #define MAX_POS 819
 #define MAX_LOOP 5
@@ -948,10 +948,140 @@ plot_redraw(plot_t *plot)
 	int i;
 	specie_t *s;
 	particle_t *p;
+	sim_t *sim;
+
+	sim = plot->sim;
 
 	gr = plot->gr;
 
 	mgl_clf(gr);
+
+	s = &plot->sim->species[0];
+	for(i = 0; i<s->nparticles; i++)
+	{
+		p = &s->particles[i];
+
+		mgl_data_set_value(plot->x, p->x[0], i, 0, 0);
+		mgl_data_set_value(plot->v, p->u[0], i, 0, 0);
+		mgl_data_set_value(plot->y, p->x[1], i, 0, 0);
+
+		//mgl_mark(gr, p->x[0], p->u[0], 0.0, "o");
+	}
+
+	mgl_set_font_size(gr, 3.0);
+	mgl_set_mark_size(gr, 0.35);
+
+	/* Update energies */
+	mgl_data_roll(plot->EE, 'x', 1);
+	mgl_data_roll(plot->KE, 'x', 1);
+	mgl_data_roll(plot->TE, 'x', 1);
+	mgl_data_roll(plot->pE, 'x', 1);
+
+	mgl_data_put_val(plot->EE, sim->energy_electrostatic, MAX_HIST-1, 0, 0);
+	mgl_data_put_val(plot->KE, sim->energy_kinetic, MAX_HIST-1, 0, 0);
+	mgl_data_put_val(plot->TE,
+			sim->energy_kinetic+sim->energy_electrostatic,
+			MAX_HIST-1, 0, 0);
+	mgl_data_put_val(plot->pE, 1000 + 100*sim->species[0].particles[0].E[X], MAX_HIST-1, 0, 0);
+
+
+	mgl_subplot(gr, 2, 2, 0, "");
+	mgl_set_ranges(gr, 0, 1, 0,
+			mgl_data_max(plot->TE), 0, 1);
+	mgl_title(gr, "Energy", "", 5.0);
+	mgl_plot(gr, plot->EE, "r", "");
+	mgl_plot(gr, plot->KE, "b", "");
+	mgl_plot(gr, plot->TE, "k", "");
+	mgl_plot(gr, plot->pE, "g", "");
+	mgl_add_legend(gr, "Total", "k");
+	mgl_add_legend(gr, "Kinetic", "b");
+	mgl_add_legend(gr, "Electrostatic", "r");
+	mgl_legend(gr, 0, "#", "");
+	mgl_axis(gr, "y", "", "");
+
+
+//	mgl_subplot(gr, 2, 2, 0, "");
+//	mgl_title(gr, "Particle x-y space", "", 5.0);
+//	mgl_plot_xy(gr, plot->x, plot->y, "#s ", "");
+//	//mgl_axis_grid(gr, "xy", "", "");
+//	mgl_axis(gr, "xy", "", "");
+//	mgl_set_ranges(gr, 0.0, 64.0, 0.0, 64.0, -1, 1);
+//	mgl_label(gr, 'x', "Position x", 0.0, "");
+//	mgl_label(gr, 'y', "Position y", 0.0, "");
+
+
+	mgl_subplot(gr, 2, 2, 1, "");
+	mgl_set_ranges(gr, 0.0, sim->nnodes[X], 0.0, sim->nnodes[Y],
+			mgl_data_min(plot->rho), mgl_data_max(plot->rho));
+//	mgl_set_ranges(gr, 0.0, sim->nnodes[X]-1, 0.0, sim->nnodes[Y]-1,
+//			-100, 100);
+	mgl_set_ticks(gr, 'x', 1, 1, 0);
+	mgl_set_ticks(gr, 'y', 1, 1, 0);
+	mgl_title(gr, "Charge density \\rho", "", 5.0);
+//	mgl_colorbar(gr, "<");
+	mgl_contf(gr, (HCDT) plot->rho, "", "");
+//	mgl_surf(gr, (HCDT) plot->rho, "b", "");
+	mgl_axis_grid(gr, "xy", "", "");
+	mgl_axis(gr, "xy", "", "");
+//	mgl_boxs(gr, (HCDT) plot->rho, "wk", "");
+
+	mgl_subplot(gr, 2, 2, 2, "");
+	mgl_set_ranges(gr, 0.0, sim->nnodes[X], 0.0, sim->nnodes[Y],
+			mgl_data_min(plot->phi), mgl_data_max(plot->phi));
+	mgl_title(gr, "Electric potential \\phi", "", 5.0);
+	mgl_contf(gr, (HCDT) plot->phi, "", "");
+//	mgl_boxs(gr, (HCDT) plot->phi, "wk", "");
+//	mgl_colorbar(gr, ">");
+	mgl_axis_grid(gr, "xy", "", "");
+	mgl_axis(gr, "xy", "", "");
+
+//	mgl_subplot(gr, 2, 2, 3, "");
+//	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
+//			mgl_data_min(plot->E0), mgl_data_max(plot->E0));
+//	mgl_title(gr, "Electric field E_x", "", 5.0);
+//	mgl_contf(gr, (HCDT) plot->E0, "", "");
+//	mgl_axis_grid(gr, "xy", "", "");
+//	mgl_axis(gr, "xy", "", "");
+//	mgl_colorbar(gr, ">");
+
+	mgl_subplot(gr, 2, 2, 3, "");
+	mgl_title(gr, "Electric field E", "", 5.0);
+	mgl_axis_grid(gr, "xy", "", "");
+	mgl_axis(gr, "xy", "", "");
+	mgl_set_meshnum(gr, 30);
+//	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
+//			mgl_data_min(plot->E[X])*0.3,
+//			mgl_data_max(plot->E[Y])*0.3);
+	mgl_vect_2d(gr, plot->E[X], plot->E[Y], "b2", "");
+//	mgl_dew_2d(gr, plot->E[X], plot->E[Y], "b2", "");
+
+	mgl_finish(gr);
+	//glFlush();
+	return 0;
+}
+
+#if 0
+int
+plot_energy(plot_t *plot)
+{
+	HMGL gr;
+	int i;
+	specie_t *s;
+	particle_t *p;
+
+	gr = plot->gr;
+
+	mgl_clf(gr);
+
+
+	mgl_data_roll(plot->EE, 'x', -1);
+	mgl_data_roll(plot->KE, 'x', -1);
+	mgl_data_roll(plot->TE, 'x', -1);
+
+	mgl_data_put_val(plot->EE, sim->energy_electrostatic, -1, -1, -1);
+	mgl_data_put_val(plot->KE, sim->energy_kinetic, -1, -1, -1);
+	mgl_data_put_val(plot->TE, 0.0, -1, -1, -1);
+
 
 	s = &plot->sim->species[0];
 	for(i = 0; i<s->nparticles; i++)
@@ -1018,13 +1148,14 @@ plot_redraw(plot_t *plot)
 	//glFlush();
 	return 0;
 }
+#endif
 
 plot_t *
 plot_init(sim_t *sim)
 {
 	plot_t *plot;
 
-	plot = malloc(sizeof(plot_t));
+	plot = calloc(sizeof(plot_t), 1);
 
 	plot->sim = sim;
 
@@ -1037,8 +1168,15 @@ plot_init(sim_t *sim)
 static void
 key(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
+	plot_t *plot;
+
+	plot = glfwGetWindowUserPointer(window);
+
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, GLFW_TRUE);
+
+	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+		plot->paused = !plot->paused;
 }
 
 /* Executed in plotter thread, should never return */
@@ -1048,6 +1186,7 @@ plot_loop(void *p)
 	int width = 1000, height = 1000;
 	plot_t *plot;
 	sim_t *sim;
+	GLFWwindow* window, *window_energy;
 
 	sim = (sim_t *) p;
 
@@ -1056,10 +1195,17 @@ plot_loop(void *p)
 	if(!glfwInit())
 		return NULL;
 
-	GLFWwindow* window = glfwCreateWindow(width, height,
+	window = glfwCreateWindow(width, height,
 			"plot particles", NULL, NULL);
 
+//	window_energy = glfwCreateWindow(width, height,
+//			"plot energy", NULL, NULL);
+
 	glfwSetWindowTitle(window, "plot particles");
+//	glfwSetWindowTitle(window_energy, "plot energy");
+
+
+	glfwSetWindowUserPointer(window, plot);
 
 	if(!window)
 		return NULL;
@@ -1086,6 +1232,16 @@ plot_loop(void *p)
 	plot->y = mgl_create_data_size(np, 1, 1);
 	plot->v = mgl_create_data_size(np, 1, 1);
 
+	plot->EE = mgl_create_data_size(MAX_HIST, 1, 1);
+	plot->KE = mgl_create_data_size(MAX_HIST, 1, 1);
+	plot->TE = mgl_create_data_size(MAX_HIST, 1, 1);
+	plot->pE = mgl_create_data_size(MAX_HIST, 1, 1);
+
+	mgl_data_put_val(plot->EE, 0.0, -1, -1, -1);
+	mgl_data_put_val(plot->KE, 0.0, -1, -1, -1);
+	mgl_data_put_val(plot->TE, 0.0, -1, -1, -1);
+	mgl_data_put_val(plot->pE, 0.0, -1, -1, -1);
+
 	pthread_mutex_lock(&sim->lock);
 	mgl_data_link(plot->phi, sim->field->phi->data, mx, my, mz);
 	mgl_data_link(plot->rho, sim->field->rho->data, mx, my, mz);
@@ -1098,6 +1254,7 @@ plot_loop(void *p)
 
 	while (!glfwWindowShouldClose(window))
 	{
+		glfwMakeContextCurrent(window);
 		glfwGetFramebufferSize(window, &width, &height);
 
 		glViewport(0, 0, width, height);
@@ -1110,6 +1267,15 @@ plot_loop(void *p)
 			pthread_cond_wait(&sim->signal, &sim->lock);
 
 		plot_redraw(plot);
+
+//		glfwMakeContextCurrent(window);
+
+		//plot_energy(plot);
+
+		while(plot->paused)
+		{
+			glfwPollEvents();
+		}
 
 		sim->run = 1;
 		pthread_cond_signal(&sim->signal);
