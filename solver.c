@@ -197,10 +197,11 @@ solve_xy(solver_t *s, mat_t *phi, mat_t *rho)
 	/* The size reported from the vector must match the size computed by the
 	 * solver */
 	assert(phi->size == s->N);
+	assert(rho->size == s->N);
 
 	sum = 0.0;
 
-	for(iy=0; iy<rho->shape[X]; iy++)
+	for(iy=0; iy<rho->shape[Y]; iy++)
 		for(ix=0; ix<rho->shape[X]; ix++)
 			sum += MAT_XY(rho, ix, iy);
 
@@ -223,13 +224,16 @@ solve_xy(solver_t *s, mat_t *phi, mat_t *rho)
 	return 0;
 }
 
+#define INDEX_DELTA_XY(x, y, nx, ny, dx, dy)
+
 solver_t *
 solver_init(sim_t *sim)
 {
-	size_t N, Nx, Ny;
+	int N, Nx, Ny;
 	solver_t *solver;
 	gsl_matrix *A;
 	int i, right, left, up, down, signum;
+	int ix, iy;
 
 	if(sim->dim != 2)
 	{
@@ -251,18 +255,29 @@ solver_init(sim_t *sim)
 
 	/* Build 2D coefficients of A */
 
-	for(i=0; i<N; i++)
+	for(ix = 0; ix < Nx; ix++)
 	{
-		left = (i + N - 1) % N;
-		right = (i + 1) % N;
-		up = (i + N - Nx) % N;
-		down = (i + Nx) % N;
+		for(iy = 0; iy < Ny; iy++)
+		{
+			i = MAT_INDEX_XY(ix, iy, Nx, Ny);
+			/* FIXME: This is wrong, as we cross multiple boundaries */
 
-		gsl_matrix_set(A, i, i, -4);
-		gsl_matrix_set(A, i, left, 1);
-		gsl_matrix_set(A, i, right, 1);
-		gsl_matrix_set(A, i, up, 1);
-		gsl_matrix_set(A, i, down, 1);
+			/* Here, if we compute the left of (x=0,y=0) we arrive at
+			 * (x=N-1, y=N-1), which is incorrect */
+			//left = (i + N - 1) % N;
+
+			left  = MAT_INDEX_XY((ix+Nx-1) % Nx, iy, Nx, Ny);
+			right = MAT_INDEX_XY((ix   +1) % Nx, iy, Nx, Ny);
+
+			up    = MAT_INDEX_XY(ix, (iy   +1) % Ny, Nx, Ny);
+			down  = MAT_INDEX_XY(ix, (iy+Ny-1) % Ny, Nx, Ny);
+
+			gsl_matrix_set(A, i, i, -4);
+			gsl_matrix_set(A, i, left, 1);
+			gsl_matrix_set(A, i, right, 1);
+			gsl_matrix_set(A, i, up, 1);
+			gsl_matrix_set(A, i, down, 1);
+		}
 	}
 
 	/* Fix the value of phi at (0,0) to be 0, thus the equation phi(0,0) = 0
@@ -273,6 +288,10 @@ solver_init(sim_t *sim)
 	 **/
 	gsl_matrix_set(A, 0, 0, -3);
 
+	//err("Matrix of coefficients A:\n");
+	//gsl_matrix_fprintf(stderr, A, "%.1f");
+	//mat_print_raw(A->data, N, N, "coefficients");
+
 	solver->P = gsl_permutation_calloc(N);
 
 	err("Please wait, solver is precomputing LU\n");
@@ -280,6 +299,13 @@ solver_init(sim_t *sim)
 	gsl_linalg_LU_decomp(A, solver->P, &signum);
 
 	err("Done\n");
+
+	//err("Matrix LU:\n");
+	//gsl_matrix_fprintf(stderr, A, "%f");
+	//mat_print_raw(A->data, N, N, "LU");
+
+	//err("Matrix P:\n");
+	//gsl_permutation_fprintf(stderr, solver->P, "%f\n");
 
 	/* Now we have the L and U matrix in A */
 	solver->LU = A;

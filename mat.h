@@ -39,6 +39,8 @@ do {							\
 	(*type m)[p] = v;				\
 } while(0)
 
+#define MAT_INDEX_XY(x, y, nx, ny)			\
+		((y)*(nx) + (x))
 #define MAT_X(m, x)					\
 		((m)->data[(x)])
 
@@ -74,3 +76,6 @@ vec_print(mat_t *m, char *title);
 
 int
 mat_print(mat_t *m, char *title);
+
+int
+mat_print_raw(double *A, int rows, int cols, char *title);

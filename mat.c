@@ -121,3 +121,21 @@ mat_print(mat_t *m, char *title)
 
 	return 0;
 }
+
+int
+mat_print_raw(double *A, int rows, int cols, char *title)
+{
+	int i, j;
+
+	if(title) printf("Matrix %s:\n", title);
+	for(i=0; i<rows; i++)
+	{
+		for(j=0; j<cols; j++)
+		{
+			printf("%10.2e ", A[rows * i + j]);
+		}
+		printf("\n");
+	}
+
+	return 0;
+}

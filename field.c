@@ -340,7 +340,7 @@ field_E_solve(sim_t *sim)
 		}
 	}
 
-	mat_print(sim->field->rho, "rho after set sum to 0");
+	//mat_print(sim->field->rho, "rho after set sum to 0");
 
 	solve_xy(sim->solver, f->phi, f->rho);
 
@@ -421,12 +421,12 @@ field_E(sim_t *sim)
 
 	/* In order to solve the field we need the charge density */
 	field_rho_collect(sim, &sim->species[0]);
-	mat_print(sim->field->rho, "rho after collect");
+	//mat_print(sim->field->rho, "rho after collect");
 
 	field_E_solve(sim);
 
 	/* Exit after 1 iterations to test the solver */
-	mat_print(sim->field->phi, "phi");
+	//mat_print(sim->field->phi, "phi");
 	//exit(1);
 
 	/* After solving the electric field, we can now distribute it in each

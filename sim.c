@@ -280,8 +280,8 @@ sim_run(sim_t *sim)
 		field_J(sim, s);
 
 		/* Print the status */
-		if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
-			specie_print(sim, s);
+		//if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
+		//	specie_print(sim, s);
 
 		if(sim->mode == SIM_MODE_DEBUG)
 			sim_plot(sim);

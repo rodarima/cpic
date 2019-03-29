@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <mgl2/mgl_cf.h>
 
-#define MAX_HIST 1000
+#define MAX_HIST 200
 
 struct plot {
 	sim_t *sim;
