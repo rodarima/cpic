@@ -355,8 +355,8 @@ block_comm(sim_t *sim, specie_t *s, block_t *b)
 	int idx, idy, ix, iy, nbx, nby;
 	int jx, jy;
 
-	dbg("Moving particles for block (%d,%d)\n",
-		b->i[X], b->i[Y]);
+	dbg("Moving particles for block (%d,%d) x0=(%e,%e) x1=(%e,%e)\n",
+		b->i[X], b->i[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
 
 	ix = b->i[X];
 	iy = b->i[Y];
@@ -392,7 +392,7 @@ block_comm(sim_t *sim, specie_t *s, block_t *b)
 
 		/* Now we look for the proper block to move the particle if
 		 * needed */
-		if(idx != 0 && idy != 0)
+		if(idx != 0 || idy != 0)
 		{
 			jx = (ix + idx + nbx) % nbx;
 			jy = (iy + idy + nby) % nby;
