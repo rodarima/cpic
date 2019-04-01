@@ -15,28 +15,23 @@ field_t *
 field_init(sim_t *sim)
 {
 	field_t *f;
-	int i, d, *bs;
-
-	/* FIXME: The actual size of the global field is not 'blocksize' but
-	 * rather 'nnodes'. Two versions are needed, as the field is also
-	 * included in each block of size 'blocksize', and in the global field,
-	 * of size 'nnodes' */
+	int i, d, *shape;
 
 	d = sim->dim;
-	bs = sim->blocksize;
+	shape = sim->nnodes;
 
 	f = malloc(sizeof(field_t));
 
 	for(i=0; i<sim->dim; i++)
 	{
-		f->E[i] = mat_alloc(d, bs);
+		f->E[i] = mat_alloc(d, shape);
 
 		/* J is not needed */
-		f->J[i] = mat_alloc(d, bs);
+		f->J[i] = mat_alloc(d, shape);
 	}
 
-	f->phi = mat_alloc(d, bs);
-	f->rho = mat_alloc(d, bs);
+	f->phi = mat_alloc(d, shape);
+	f->rho = mat_alloc(d, shape);
 
 	MAT_FILL(f->E[X], 0.0);
 	MAT_FILL(f->E[Y], 0.0);
