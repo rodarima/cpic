@@ -976,6 +976,8 @@ plot_redraw(plot_t *plot)
 	mgl_data_roll(plot->KE, 'x', 1);
 	mgl_data_roll(plot->TE, 'x', 1);
 	mgl_data_roll(plot->pE, 'x', 1);
+	mgl_data_roll(plot->P[X], 'x', 1);
+	mgl_data_roll(plot->P[Y], 'x', 1);
 
 	mgl_data_put_val(plot->EE, sim->energy_electrostatic, MAX_HIST-1, 0, 0);
 	mgl_data_put_val(plot->KE, sim->energy_kinetic, MAX_HIST-1, 0, 0);
@@ -983,6 +985,8 @@ plot_redraw(plot_t *plot)
 			sim->energy_kinetic+sim->energy_electrostatic,
 			MAX_HIST-1, 0, 0);
 	mgl_data_put_val(plot->pE, 1000 + 100*sim->species[0].particles[0].E[X], MAX_HIST-1, 0, 0);
+	mgl_data_put_val(plot->P[X], sim->total_momentum[X], MAX_HIST-1, 0, 0);
+	mgl_data_put_val(plot->P[Y], sim->total_momentum[Y], MAX_HIST-1, 0, 0);
 
 
 	mgl_subplot(gr, 2, 2, 0, "");
@@ -992,6 +996,8 @@ plot_redraw(plot_t *plot)
 	mgl_plot(gr, plot->EE, "r", "");
 	mgl_plot(gr, plot->KE, "b", "");
 	mgl_plot(gr, plot->TE, "k", "");
+	mgl_plot(gr, plot->P[X], "g", "");
+	mgl_plot(gr, plot->P[Y], "G", "");
 //	mgl_plot(gr, plot->pE, "g", "");
 	mgl_add_legend(gr, "Total", "k");
 	mgl_add_legend(gr, "Kinetic", "b");
@@ -1236,11 +1242,15 @@ plot_loop(void *p)
 	plot->KE = mgl_create_data_size(MAX_HIST, 1, 1);
 	plot->TE = mgl_create_data_size(MAX_HIST, 1, 1);
 	plot->pE = mgl_create_data_size(MAX_HIST, 1, 1);
+	plot->P[X] = mgl_create_data_size(MAX_HIST, 1, 1);
+	plot->P[Y] = mgl_create_data_size(MAX_HIST, 1, 1);
 
 	mgl_data_put_val(plot->EE, 0.0, -1, -1, -1);
 	mgl_data_put_val(plot->KE, 0.0, -1, -1, -1);
 	mgl_data_put_val(plot->TE, 0.0, -1, -1, -1);
 	mgl_data_put_val(plot->pE, 0.0, -1, -1, -1);
+	mgl_data_put_val(plot->P[X], 0.0, -1, -1, -1);
+	mgl_data_put_val(plot->P[Y], 0.0, -1, -1, -1);
 
 	pthread_mutex_lock(&sim->lock);
 	mgl_data_link(plot->phi, sim->field->phi->data, mx, my, mz);

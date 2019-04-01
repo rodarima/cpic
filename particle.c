@@ -100,11 +100,14 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 //			p->x[0] = 5./8. * L;
 //		}
 		//p->x[0] = s->E->size * s->dx / 2.0;
-		p->u[X] = (2.0 * ((i % 2) - 0.5)) * v[X]; /* m/s */
-		p->u[Y] = (2.0 * ((i % 2) - 0.5)) * v[Y]; /* m/s */
+//		p->u[X] = (2.0 * ((i % 2) - 0.5)) * v[X]; /* m/s */
+//		p->u[Y] = (2.0 * ((i % 2) - 0.5)) * v[Y]; /* m/s */
 		//p->u[0] = v; /* m/s */
 		//p->u[0] = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
 		//p->u[0] = 0.5 * s->C; /* m/s */
+		p->u[X] = (((float) rand() / RAND_MAX) - 0.5) * v[X]; /* m/s */
+		p->u[Y] = (((float) rand() / RAND_MAX) - 0.5) * v[Y]; /* m/s */
+
 		p->E[X] = 5.0;
 		p->E[Y] = 5.0;
 		p->J[X] = 0.0;
@@ -238,8 +241,6 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 	/* TODO: Set the initial velocity at v(-dt/2), so it is properly
 	 * advanced half a timestep */
 
-	sim->energy_kinetic = 0.0;
-
 	for (p = b->particles; p; p = p->next)
 	{
 		du[X] = dt * s->q * p->E[X] / s->m;
@@ -257,7 +258,10 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 
 		uu = sqrt(u[X]*u[X] + u[Y]*u[Y]);
 		vv = sqrt(p->u[X]*p->u[X] + p->u[Y]*p->u[Y]);
+
 		sim->energy_kinetic += ((uu + vv)*(uu + vv)) / 2.0;
+		sim->total_momentum[X] += u[X];
+		sim->total_momentum[Y] += u[Y];
 
 		p->u[X] = u[X];
 		p->u[Y] = u[Y];
@@ -284,8 +288,6 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 		 * block */
 
 	}
-
-	sim->energy_kinetic *= s->m / 2.0;
 
 	return 0;
 }
@@ -442,6 +444,13 @@ particle_x(sim_t *sim, specie_t *s)
 	int i, li, ri;
 	block_t *b, *lb, *rb;
 
+	/* As we add the kinetic energy of the particles in each block, we erase
+	 * here the previous energy */
+	sim->energy_kinetic = 0.0;
+
+	sim->total_momentum[X] = 0.0;
+	sim->total_momentum[Y] = 0.0;
+
 	/* Computation */
 	for (i = 0; i < s->ntblocks; i++)
 	{
@@ -449,6 +458,11 @@ particle_x(sim_t *sim, specie_t *s)
 
 		block_x_update(sim, s, b);
 	}
+
+	/* Factor correction */
+	sim->energy_kinetic *= s->m / 2.0;
+	sim->total_momentum[X] *= s->m * 5.0;
+	sim->total_momentum[Y] *= s->m * 5.0;
 
 
 	/* Communication */

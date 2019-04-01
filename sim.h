@@ -50,6 +50,7 @@ struct sim
 
 	double energy_electrostatic;
 	double energy_kinetic;
+	double total_momentum[MAX_DIM];
 
 	/** Species of particles */
 	int nspecies;

@@ -33,6 +33,7 @@ struct plot {
 
 	HMDT EE, KE, TE;
 	HMDT pE;
+	HMDT P[MAX_DIM];
 };
 
 typedef struct plot plot_t;
