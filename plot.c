@@ -992,12 +992,12 @@ plot_redraw(plot_t *plot)
 	mgl_plot(gr, plot->EE, "r", "");
 	mgl_plot(gr, plot->KE, "b", "");
 	mgl_plot(gr, plot->TE, "k", "");
-	mgl_plot(gr, plot->pE, "g", "");
+//	mgl_plot(gr, plot->pE, "g", "");
 	mgl_add_legend(gr, "Total", "k");
 	mgl_add_legend(gr, "Kinetic", "b");
 	mgl_add_legend(gr, "Electrostatic", "r");
 	mgl_legend(gr, 0, "#", "");
-	mgl_axis(gr, "y", "", "");
+//	mgl_axis(gr, "y", "", "");
 
 
 //	mgl_subplot(gr, 2, 2, 0, "");
@@ -1046,7 +1046,7 @@ plot_redraw(plot_t *plot)
 
 	mgl_subplot(gr, 2, 2, 3, "");
 	mgl_title(gr, "Electric field E", "", 5.0);
-	mgl_axis_grid(gr, "xy", "", "");
+//	mgl_axis_grid(gr, "xy", "", "");
 	mgl_axis(gr, "xy", "", "");
 	mgl_set_meshnum(gr, 30);
 //	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
