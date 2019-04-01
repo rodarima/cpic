@@ -45,11 +45,11 @@ do {							\
 		((m)->data[(x)])
 
 #define MAT_XY(m, x, y)					\
-		((m)->data[(y)*(m)->shape[Y] + (x)])
+		((m)->data[(y)*(m)->shape[X] + (x)])
 
 #define MAT_XYZ(m, x, y, z)					\
-		((m)->data[(z)*(m)->shape[Z]*(m)->shape[Y] + 	\
-		(y)*(m)->shape[Y] + (x)])
+		((m)->data[(z)*(m)->shape[Y]*(m)->shape[X] + 	\
+		(y)*(m)->shape[X] + (x)])
 
 #define MAT_FILL(m, v)					\
 do {							\
