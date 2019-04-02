@@ -168,9 +168,14 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 	double r[MAX_DIM];
 	double dr[MAX_DIM];
 	double *L;
-	config_setting_t *cs_r, *cs_dr;
+	double v[MAX_DIM];
+	config_setting_t *cs_v, *cs_r, *cs_dr;
 
 	L = sim->L;
+
+	cs_v = config_setting_get_member(cs, "drift_velocity");
+	if(config_array_float(cs_v, v, sim->dim))
+		return 1;
 
 	cs_dr = config_setting_get_member(cs, "position_delta");
 	if(config_array_float(cs_dr, dr, sim->dim))
@@ -184,9 +189,17 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 	{
 		p = &s->particles[i];
 
+		p->u[X] = v[X];
+		p->u[Y] = v[Y];
+		p->u[Z] = v[Z];
+
 		WRAP(p->x[X], r[X], L[X]);
 		WRAP(p->x[Y], r[Y], L[Y]);
 		WRAP(p->x[Z], r[Z], L[Z]);
+
+		r[X] += dr[X];
+		r[Y] += dr[Y];
+		r[Z] += dr[Z];
 	}
 
 	return 0;
@@ -251,6 +264,10 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 
 		u[X] = p->u[X] + du[X];
 		u[Y] = p->u[Y] + du[Y];
+
+		/* Compute magnetic influence */
+		u[X] += dt * s->q * sim->B[Z] * u[Y] / s->m;
+		u[Y] -= dt * s->q * sim->B[Z] * u[X] / s->m;
 
 		/* We advance the kinetic energy here, as we know the old
 		 * velocity at t - dt/2 and the new one at t + dt/2. So we take

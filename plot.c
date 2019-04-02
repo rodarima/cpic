@@ -1050,16 +1050,25 @@ plot_redraw(plot_t *plot)
 //	mgl_axis(gr, "xy", "", "");
 //	mgl_colorbar(gr, ">");
 
+//	mgl_subplot(gr, 2, 2, 3, "");
+//	mgl_title(gr, "Electric field E", "", 5.0);
+//	mgl_axis(gr, "xy", "", "");
+//	mgl_set_meshnum(gr, 30);
+//	mgl_set_ranges(gr, 0.0, sim->nnodes[X], 0.0, sim->nnodes[Y],
+//			mgl_data_min(plot->E[X]),
+//			mgl_data_max(plot->E[Y]));
+//	mgl_vect_2d(gr, plot->E[X], plot->E[Y], "b2", "");
+
 	mgl_subplot(gr, 2, 2, 3, "");
-	mgl_title(gr, "Electric field E", "", 5.0);
-//	mgl_axis_grid(gr, "xy", "", "");
+	mgl_title(gr, "Particle x-y space", "", 5.0);
+	//mgl_axis_grid(gr, "xy", "", "");
+	mgl_set_ranges(gr, 0.0, sim->L[X], 0.0, sim->L[Y], -1, 1);
 	mgl_axis(gr, "xy", "", "");
-	mgl_set_meshnum(gr, 30);
-//	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
-//			mgl_data_min(plot->E[X])*0.3,
-//			mgl_data_max(plot->E[Y])*0.3);
-	mgl_vect_2d(gr, plot->E[X], plot->E[Y], "b2", "");
-//	mgl_dew_2d(gr, plot->E[X], plot->E[Y], "b2", "");
+	mgl_plot_xy(gr, plot->x, plot->y, "#s ", "");
+	mgl_label(gr, 'x', "Position x", 0.0, "");
+	mgl_label(gr, 'y', "Position y", 0.0, "");
+
+
 
 	mgl_finish(gr);
 	//glFlush();

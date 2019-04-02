@@ -52,6 +52,13 @@ struct sim
 	double energy_kinetic;
 	double total_momentum[MAX_DIM];
 
+
+	/* For now we assume a background fixed magnetic field */
+	double B[MAX_DIM];
+
+	/* TODO: The global list of species should dissapear, as we can only
+	 * hold the species inside each block */
+
 	/** Species of particles */
 	int nspecies;
 	specie_t *species;

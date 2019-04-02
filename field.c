@@ -410,7 +410,7 @@ int
 field_E(sim_t *sim)
 {
 	int i, ri;
-	block_t *b, *rb;
+	block_t *b;
 
 	/* TODO: Support multiple species */
 

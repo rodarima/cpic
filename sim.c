@@ -43,6 +43,9 @@ sim_init(config_t *conf)
 
 	/* Load all dimension related vectors */
 	config_lookup_array_float(conf, "simulation.space_length", s->L, s->dim);
+	/* Note that we always need the 3 dimensions for the magnetic field, as
+	 * for example in 2D, the Z is the one used */
+	config_lookup_array_float(conf, "field.magnetic", s->B, MAX_DIM);
 	config_lookup_array_int(conf, "grid.blocks", s->nblocks, s->dim);
 	config_lookup_array_int(conf, "grid.blocksize", s->blocksize, s->dim);
 
