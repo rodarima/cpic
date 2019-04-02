@@ -188,6 +188,33 @@ conservation_energy(sim_t *sim, specie_t *s)
 	return 0;
 }
 
+void
+test_radius(sim_t *sim)
+{
+	/* FIXME: This is bad */
+	static double minx=0.0, maxx=0.0;
+
+	double r, rexp, qabs, m, v;
+	particle_t *p;
+
+	if(minx == 0.0) minx = sim->L[X];
+
+	p = &sim->species[0].particles[0];
+
+	if (p->x[X] < minx) minx = p->x[X];
+	if (p->x[X] > maxx) maxx = p->x[X];
+
+	qabs = fabs(sim->species[0].q);
+	m = fabs(sim->species[0].m);
+	v = sqrt(p->u[X]*p->u[X] + p->u[Y]*p->u[Y]);
+
+	r = (maxx - minx) / 2.0;
+	rexp = m * v / (qabs * fabs(sim->B[Z]));
+
+	printf("Velocity %10.3e\n", v);
+	printf("Larmor radius %10.3e, expected %10.3e\n", r, rexp);
+}
+
 int
 sim_header(sim_t *sim)
 {
@@ -294,6 +321,7 @@ sim_run(sim_t *sim)
 		if(sim->period_energy && ((sim->iter % sim->period_energy) == 0))
 			conservation_energy(sim, s);
 #endif
+		test_radius(sim);
 
 		//#pragma oss taskwait
 		specie_step(sim);

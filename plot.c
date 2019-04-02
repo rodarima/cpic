@@ -949,6 +949,7 @@ plot_redraw(plot_t *plot)
 	specie_t *s;
 	particle_t *p;
 	sim_t *sim;
+	double tot_p;
 
 	sim = plot->sim;
 
@@ -984,8 +985,13 @@ plot_redraw(plot_t *plot)
 	mgl_data_put_val(plot->TE,
 			sim->energy_kinetic+sim->energy_electrostatic,
 			MAX_HIST-1, 0, 0);
+
+	tot_p = sqrt(sim->total_momentum[X]*sim->total_momentum[X]+
+			sim->total_momentum[Y]*sim->total_momentum[Y]);
+
 	mgl_data_put_val(plot->pE, 1000 + 100*sim->species[0].particles[0].E[X], MAX_HIST-1, 0, 0);
-	mgl_data_put_val(plot->P[X], sim->total_momentum[X], MAX_HIST-1, 0, 0);
+	//mgl_data_put_val(plot->P[X], sim->total_momentum[X], MAX_HIST-1, 0, 0);
+	mgl_data_put_val(plot->P[X], tot_p, MAX_HIST-1, 0, 0);
 	mgl_data_put_val(plot->P[Y], sim->total_momentum[Y], MAX_HIST-1, 0, 0);
 
 
