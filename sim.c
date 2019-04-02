@@ -179,7 +179,8 @@ conservation_energy(sim_t *sim, specie_t *s)
 	EE = sim->energy_electrostatic;
 	KE = sim->energy_kinetic;
 
-	printf("e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE);
+	printf("e %10.3e %10.3e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE,
+			sim->total_momentum[X], sim->total_momentum[Y]);
 
 	return 0;
 }
