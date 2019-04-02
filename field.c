@@ -244,7 +244,7 @@ field_rho_collect(sim_t *sim, specie_t *s)
 				{
 					gx = ix * sim->blocksize[X] + jx;
 					gy = iy * sim->blocksize[Y] + jy;
-					MAT_XY(global_rho, gx, gy) = MAT_XY(rho, jx, jy);
+					MAT_XY(global_rho, gx, gy) += MAT_XY(rho, jx, jy);
 				}
 			}
 
@@ -309,6 +309,7 @@ field_E_solve(sim_t *sim)
 	int ix, iy, x0, x1, y0, y1, nx, ny;
 	mat_t *E;
 	double H, q, dx2, dy2;
+	double qsum;
 
 	f = sim->field;
 	n = sim->nnodes[X] * sim->nnodes[Y];
@@ -320,17 +321,28 @@ field_E_solve(sim_t *sim)
 	nx = sim->nnodes[X];
 	ny = sim->nnodes[Y];
 
+	n = nx * ny;
+
 	dx2 = 2 * sim->dx[X];
 	dy2 = 2 * sim->dx[Y];
 
-	assert(f->rho->size == sim->nnodes[X] * sim->nnodes[Y]);
+	assert(f->rho->size == n);
+
+	/* Get total charge (it should sum 0) */
+	for(iy=0; iy<ny; iy++)
+	{
+		for(ix=0; ix<nx; ix++)
+		{
+			qsum += MAT_XY(f->rho, ix, iy);
+		}
+	}
 
 	/* Fix charge neutrality and invert */
-	for(iy=0; iy<sim->nnodes[Y]; iy++)
+	for(iy=0; iy<ny; iy++)
 	{
-		for(ix=0; ix<sim->nnodes[X]; ix++)
+		for(ix=0; ix<nx; ix++)
 		{
-			MAT_XY(f->rho, ix, iy) += -q * np / n;
+			MAT_XY(f->rho, ix, iy) += -qsum / n;
 			MAT_XY(f->rho, ix, iy) *= -1.0;
 		}
 	}
@@ -412,21 +424,24 @@ field_E(sim_t *sim)
 	int i, ri;
 	block_t *b;
 
-	/* TODO: Support multiple species */
+	/* Erase previous charge */
+	MAT_FILL(sim->field->rho, 0.0);
 
 	/* In order to solve the field we need the charge density */
-	field_rho_collect(sim, &sim->species[0]);
+	for(i=0; i<sim->nspecies; i++)
+		field_rho_collect(sim, &sim->species[i]);
+
 	//mat_print(sim->field->rho, "rho after collect");
 
 	field_E_solve(sim);
 
 	/* Exit after 1 iterations to test the solver */
 	//mat_print(sim->field->phi, "phi");
-	//exit(1);
 
 	/* After solving the electric field, we can now distribute it in each
 	 * block, as the force can be computed easily from the grid points */
-	field_E_spread(sim, &sim->species[0]);
+	for(i=0; i<sim->nspecies; i++)
+		field_E_spread(sim, &sim->species[i]);
 
 	return 0;
 }
