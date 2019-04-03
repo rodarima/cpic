@@ -1179,6 +1179,7 @@ plot_init(sim_t *sim)
 	plot = calloc(sizeof(plot_t), 1);
 
 	plot->sim = sim;
+	plot->wait = 1;
 
 	if(parse_config(plot, sim->conf))
 		return NULL;
@@ -1198,6 +1199,9 @@ key(GLFWwindow* window, int key, int scancode, int action, int mods)
 
 	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
 		plot->paused = !plot->paused;
+
+	if (key == GLFW_KEY_W && action == GLFW_PRESS)
+		plot->wait = !plot->wait;
 }
 
 /* Executed in plotter thread, should never return */
@@ -1282,20 +1286,28 @@ plot_loop(void *p)
 		glfwMakeContextCurrent(window);
 		glfwGetFramebufferSize(window, &width, &height);
 
-		glViewport(0, 0, width, height);
-		//glClear(GL_COLOR_BUFFER_BIT);
+		if(plot->wait)
+		{
+			glViewport(0, 0, width, height);
+			//glClear(GL_COLOR_BUFFER_BIT);
 
-		mgl_set_size(plot->gr, width, height);
+			mgl_set_size(plot->gr, width, height);
+		}
 
 		pthread_mutex_lock(&sim->lock);
 		while(sim->run == 1)
 			pthread_cond_wait(&sim->signal, &sim->lock);
 
-		plot_redraw(plot);
+		if(plot->wait)
+		{
 
-//		glfwMakeContextCurrent(window);
+			plot_redraw(plot);
 
-		//plot_energy(plot);
+	//		glfwMakeContextCurrent(window);
+
+			//plot_energy(plot);
+
+		}
 
 		while(plot->paused)
 		{
@@ -1306,7 +1318,10 @@ plot_loop(void *p)
 		pthread_cond_signal(&sim->signal);
 		pthread_mutex_unlock(&sim->lock);
 
-		glfwSwapBuffers(window);
+		if(plot->wait)
+		{
+			glfwSwapBuffers(window);
+		}
 		glfwPollEvents();
 	}
 

@@ -16,6 +16,7 @@ struct plot {
 	double maxv; /* FIXME: This should dissapear */
 
 	int paused;
+	int wait;
 
 	/* Graphics */
 

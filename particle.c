@@ -240,54 +240,113 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 	return 0;
 }
 
+static inline void
+cross_product(double *r, double *a, double *b)
+{
+	assert(r != a && r != b);
+	r[X] = a[Y]*b[Z] - a[Z]*b[Y];
+	r[Y] = a[Z]*b[X] - a[X]*b[Z];
+	r[Z] = a[X]*b[Y] - a[Y]*b[X];
+}
+
+static inline void
+boris_rotation(double q, double m, double *u, double *v, double *E, double *B, double dt)
+{
+	/* Straight forward from Birdsall section 4-3 and 4-4 */
+	int d;
+	double v_prime[MAX_DIM];
+	double v_minus[MAX_DIM];
+	double v_plus[MAX_DIM];
+	double t[MAX_DIM];
+	double s[MAX_DIM], s_denom;
+	double dtqm2;
+
+	dtqm2 = 0.5 * dt * q / m;
+	s_denom = 1.0;
+
+	for(d=X; d<MAX_DIM; d++)
+	{
+		t[d] = B[d] * dtqm2;
+		s_denom += t[d] * t[d];
+		v_minus[d] = u[d] + dtqm2 * E[d];
+	}
+
+	for(d=X; d<MAX_DIM; d++)
+		s[d] = 2.0 * t[d] / s_denom;
+
+	cross_product(v_prime, v_minus, t);
+
+	for(d=X; d<MAX_DIM; d++)
+		v_prime[d] += v_minus[d];
+
+	cross_product(v_plus, v_prime, s);
+
+	for(d=X; d<MAX_DIM; d++)
+	{
+		v_plus[d] += v_minus[d];
+	}
+
+	for(d=X; d<MAX_DIM; d++)
+	{
+		v[d] = v_plus[d] + dtqm2 * E[d];
+	}
+
+}
+
 /* The speed u and position x of the particles are computed in a single phase */
-#pragma oss task inout(*b) label(particle_block_x_update)
 static int
 block_x_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	particle_t *p;
 	double coef = - sim->dt / sim->e0;
-	double u[MAX_DIM], du[MAX_DIM], dx[MAX_DIM], uu, vv;
+	double *E, *B, *u, dx[MAX_DIM], uu, vv;
+	double v[MAX_DIM], dv[MAX_DIM];
+	double t[MAX_DIM]; /* Vector t as defined by Birsall, p62 */
 	double dt = sim->dt;
+	double q, m;
 	int inv = 1.0;
+
+	q = s->q;
+	m = s->m;
+	B = sim->B;
 
 	/* TODO: Set the initial velocity at v(-dt/2), so it is properly
 	 * advanced half a timestep */
 
 	for (p = b->particles; p; p = p->next)
 	{
-		du[X] = dt * s->q * p->E[X] / s->m;
-		du[Y] = dt * s->q * p->E[Y] / s->m;
+		u[X] = p->u[X];
+		u[Y] = p->u[Y];
+		u[Z] = p->u[Z];
+		E = p->E;
+
+		boris_rotation(q, m, u, v, E, B, dt);
+
+		dv[X] = v[X] - u[X];
+		dv[Y] = v[Y] - u[Y];
 
 		dbg("Particle %d at x=(%.3e,%.3e) increases speed by (%.3e,%.3e)\n",
-				p->i, p->x[X], p->x[Y], du[X], du[Y]);
-
-		u[X] = p->u[X] + du[X];
-		u[Y] = p->u[Y] + du[Y];
-
-		/* Compute magnetic influence */
-		u[X] += dt * s->q * sim->B[Z] * u[Y] / s->m;
-		u[Y] -= dt * s->q * sim->B[Z] * u[X] / s->m;
+				p->i, p->x[X], p->x[Y], dv[X], dv[Y]);
 
 		/* We advance the kinetic energy here, as we know the old
 		 * velocity at t - dt/2 and the new one at t + dt/2. So we take
-		 * the average, to estimate u(t) */
+		 * the average, to estimate v(t) */
 
-		uu = sqrt(u[X]*u[X] + u[Y]*u[Y]);
-		vv = sqrt(p->u[X]*p->u[X] + p->u[Y]*p->u[Y]);
+		uu = sqrt(v[X]*v[X] + v[Y]*v[Y]);
+		vv = sqrt(u[X]*u[X] + u[Y]*u[Y]);
 
-		sim->energy_kinetic += ((uu + vv)*(uu + vv)) / 2.0;
-		sim->total_momentum[X] += u[X];
-		sim->total_momentum[Y] += u[Y];
+		sim->energy_kinetic += 0.5 * (uu+vv) * (uu+vv);
+		sim->total_momentum[X] += v[X];
+		sim->total_momentum[Y] += v[Y];
 
-		p->u[X] = u[X];
-		p->u[Y] = u[Y];
+		p->u[X] = v[X];
+		p->u[Y] = v[Y];
 
 		/* Notice we advance the position x by the new velocity just
 		 * computed, following the leapfrog integrator */
 
-		dx[X] = dt * p->u[X];
-		dx[Y] = dt * p->u[Y];
+		dx[X] = dt * v[X];
+		dx[Y] = dt * v[Y];
 
 		if(fabs(dx[X]) > sim->L[X] || fabs(dx[Y]) > sim->L[Y])
 		{
