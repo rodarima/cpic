@@ -189,17 +189,28 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 	{
 		p = &s->particles[i];
 
+//		memset(p, 0, sizeof(particle_t));
+
 		p->u[X] = v[X];
 		p->u[Y] = v[Y];
-		p->u[Z] = v[Z];
+		p->u[Z] = 0.0;
+//		p->u[Z] = v[Z];
 
 		WRAP(p->x[X], r[X], L[X]);
 		WRAP(p->x[Y], r[Y], L[Y]);
-		WRAP(p->x[Z], r[Z], L[Z]);
+		p->x[Z] = 0.0;
+//		WRAP(p->x[Z], r[Z], L[Z]);
 
 		r[X] += dr[X];
 		r[Y] += dr[Y];
-		r[Z] += dr[Z];
+//		r[Z] += dr[Z];
+//
+		p->E[X] = 0.0;
+		p->E[Y] = 0.0;
+		p->E[Z] = 0.0;
+		p->J[X] = 0.0;
+		p->J[Y] = 0.0;
+		p->J[Z] = 0.0;
 	}
 
 	return 0;
@@ -299,8 +310,8 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	particle_t *p;
 	double coef = - sim->dt / sim->e0;
-	double *E, *B, *u, dx[MAX_DIM], uu, vv;
-	double v[MAX_DIM], dv[MAX_DIM];
+	double *E, *B, u[MAX_DIM], dx[MAX_DIM], uu, vv;
+	double v[MAX_DIM] = {0}, dv[MAX_DIM];
 	double t[MAX_DIM]; /* Vector t as defined by Birsall, p62 */
 	double dt = sim->dt;
 	double q, m;
