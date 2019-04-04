@@ -30,11 +30,20 @@ CPIC_OBJ=$(CPIC_SRC:.c=.o)
 
 SRC=$(CPIC_SRC)
 OBJ=$(SRC:.c=.o)
+DEP=$(SRC:.c=.d)
 
 BIN=cpic interpolate.test
 
+
+
 all: $(BIN)
 
+include $(DEP)
+
+# rule to generate a dep file by using the C preprocessor
+# (see man cpp for details on the -MM and -MT options)
+%.d: %.c
+	@$(CPP) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
 test: test.mcc.c
 	$(CC) $(CFLAGS) $(LDLIBS) $^ -o $@
@@ -51,7 +60,7 @@ cpic: $(CPIC_OBJ)
 	$(OCC) $(CFLAGS) $(OCFLAGS) -y -o $@ $<
 
 clean:
-	rm -rf *.o *.mcc.c $(BIN)
+	rm -f $(OBJ) $(BIN) $(DEP)
 
 load:
 	module load gcc/7.2.0 extrae ompss-2

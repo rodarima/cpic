@@ -32,7 +32,6 @@ struct block
 
 	/* Lists for particles leaving the block boundary */
 	particle_t *left, *right;
-
 };
 
 int
