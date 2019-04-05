@@ -76,7 +76,6 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 	int i;
 	particle_t *p;
 	double v[MAX_DIM];
-	double L;
 	config_setting_t *cs_v;
 
 	cs_v = config_setting_get_member(cs, "drift_velocity");
@@ -163,7 +162,7 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 int
 init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
-	int i, odd;
+	int i;
 	particle_t *p;
 	double r[MAX_DIM];
 	double dr[MAX_DIM];
@@ -218,7 +217,7 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 
 /* At each particle p, the current J_p is computed based on the charge and speed
  * of the particle */
-#pragma oss task inout(*b) label(particle_block_J_update)
+//#pragma oss task inout(*b) label(particle_block_J_update)
 static int
 block_J_update(sim_t *sim, specie_t *s, block_t *b)
 {
@@ -309,13 +308,10 @@ static int
 block_x_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	particle_t *p;
-	double coef = - sim->dt / sim->e0;
 	double *E, *B, u[MAX_DIM], dx[MAX_DIM], uu, vv;
 	double v[MAX_DIM] = {0}, dv[MAX_DIM];
-	double t[MAX_DIM]; /* Vector t as defined by Birsall, p62 */
 	double dt = sim->dt;
 	double q, m;
-	int inv = 1.0;
 
 	q = s->q;
 	m = s->m;
@@ -440,7 +436,6 @@ block_comm(sim_t *sim, specie_t *s, block_t *b)
 	particle_t *p, *tmp;
 	double px, py;
 	double x0, x1, y0, y1;
-	double max_x = sim->L[0];
 	int idx, idy, ix, iy, nbx, nby;
 	int jx, jy;
 
@@ -507,15 +502,15 @@ block_comm(sim_t *sim, specie_t *s, block_t *b)
 int
 particle_E(sim_t *sim, specie_t *s)
 {
-	int i, ri;
-	block_t *b, *rb;
+	int i;
+	block_t *b;
 
 	/* Computation */
 	for (i = 0; i < s->ntblocks; i++)
 	{
 		b = &(s->blocks[i]);
 
-		#pragma oss task inout(*b) label(particle_block_E_update)
+		//#pragma oss task inout(*b) label(particle_block_E_update)
 		block_E_update(sim, s, b);
 	}
 
@@ -528,15 +523,8 @@ int
 particle_x(sim_t *sim, specie_t *s)
 {
 
-	int i, li, ri;
-	block_t *b, *lb, *rb;
-
-	/* As we add the kinetic energy of the particles in each block, we erase
-	 * here the previous energy */
-	sim->energy_kinetic = 0.0;
-
-	sim->total_momentum[X] = 0.0;
-	sim->total_momentum[Y] = 0.0;
+	int i;
+	block_t *b;
 
 	/* Computation */
 	for (i = 0; i < s->ntblocks; i++)
@@ -545,11 +533,6 @@ particle_x(sim_t *sim, specie_t *s)
 
 		block_x_update(sim, s, b);
 	}
-
-	/* Factor correction */
-	sim->energy_kinetic *= s->m / 2.0;
-	sim->total_momentum[X] *= s->m * 5.0;
-	sim->total_momentum[Y] *= s->m * 5.0;
 
 
 	/* Communication */

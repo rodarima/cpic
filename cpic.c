@@ -31,16 +31,29 @@ usage(int argc, char *argv[])
 int
 start(int argc, char *argv[])
 {
-	int ret;
 	sim_t *sim;
 	config_t conf;
 	const char *fn;
 	FILE *f;
+	int opt;
+	int quiet = 0;
 
-	if(argc != 2)
+	while((opt = getopt(argc, argv, "q")) != -1)
+	{
+		switch(opt)
+		{
+			case 'q':
+				quiet = 1;
+				break;
+			default:
+				return usage(argc, argv);
+		}
+	}
+
+	if(optind != argc-1)
 		return usage(argc, argv);
 
-	fn = argv[1];
+	fn = argv[optind];
 	f = fopen(fn, "r");
 
 	if(!f)
@@ -61,7 +74,7 @@ start(int argc, char *argv[])
 	fclose(f);
 
 
-	if(!(sim = sim_init(&conf)))
+	if(!(sim = sim_init(&conf, quiet)))
 	{
 		err("sim_init failed\n");
 		return -1;

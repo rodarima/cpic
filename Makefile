@@ -1,7 +1,7 @@
 CC=clang
 OCC=mcc
 LDLIBS=-lm -lconfig -lfftw3 -lgsl -lgslcblas -lGL -lGLU -lglut -lmgl2
-CFLAGS=-g -pthread
+CFLAGS=-g -pthread -Wall
 LDFLAGS=-pthread
 
 CFLAGS_GLFW3=`pkg-config --cflags glfw3`

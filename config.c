@@ -6,7 +6,7 @@
 int
 config_array_float(config_setting_t *cs, double *vector, int size)
 {
-	int i, type, len, ret = 0;
+	int i, type, len;
 
 	if(!cs)
 		return -1;

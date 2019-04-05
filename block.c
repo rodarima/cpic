@@ -19,7 +19,7 @@ block_add_particle(block_t *b, particle_t *p)
 int
 blocks_init(sim_t *sim, specie_t *s)
 {
-	size_t i, j, d, count;
+	size_t i, j, d;
 	int ix, iy;
 	block_t *b;
 	particle_t *p;

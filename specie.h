@@ -20,6 +20,8 @@ typedef struct specie specie_t;
 
 struct specie
 {
+	const char *name;
+
 	/* All particles of the same specie have the same mass and charge. */
 	double q; /* Electric charge */
 	double m; /* Mass of the particle */

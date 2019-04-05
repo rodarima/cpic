@@ -3,7 +3,7 @@
 #include "block.h"
 #include "particle.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 #include <stdlib.h>
@@ -26,6 +26,7 @@ specie_alloc(int dim, int *shape, int nparticles)
 int
 specie_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
+	config_setting_lookup_string(cs, "name", &s->name);
 	config_setting_lookup_float(cs, "charge", &s->q);
 	config_setting_lookup_float(cs, "mass", &s->m);
 	config_setting_lookup_int(cs, "particles", &s->nparticles);
@@ -83,6 +84,9 @@ species_init(sim_t *sim, config_t *conf)
 void
 specie_step(sim_t *sim)
 {
+	//int c;
+	//c = getc(stdin);
+
 	sim->t += sim->dt;
 }
 
@@ -91,7 +95,6 @@ specie_print(sim_t *sim, specie_t *s)
 {
 	int i,j;
 	particle_t *p;
-	double x, u, max_x;
 	int np;
 
 	config_lookup_int(sim->conf, "plot.track_particles", &np);

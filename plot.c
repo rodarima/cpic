@@ -945,7 +945,7 @@ int
 plot_redraw(plot_t *plot)
 {
 	HMGL gr;
-	int i;
+	int i, j;
 	specie_t *s;
 	particle_t *p;
 	sim_t *sim;
@@ -956,18 +956,6 @@ plot_redraw(plot_t *plot)
 	gr = plot->gr;
 
 	mgl_clf(gr);
-
-	s = &plot->sim->species[0];
-	for(i = 0; i<s->nparticles; i++)
-	{
-		p = &s->particles[i];
-
-		mgl_data_set_value(plot->x, p->x[0], i, 0, 0);
-		mgl_data_set_value(plot->v, p->u[0], i, 0, 0);
-		mgl_data_set_value(plot->y, p->x[1], i, 0, 0);
-
-		//mgl_mark(gr, p->x[0], p->u[0], 0.0, "o");
-	}
 
 	mgl_set_font_size(gr, 3.0);
 	mgl_set_mark_size(gr, 0.35);
@@ -1070,7 +1058,22 @@ plot_redraw(plot_t *plot)
 	//mgl_axis_grid(gr, "xy", "", "");
 	mgl_set_ranges(gr, 0.0, sim->L[X], 0.0, sim->L[Y], -1, 1);
 	mgl_axis(gr, "xy", "", "");
-	mgl_plot_xy(gr, plot->x, plot->y, "#s ", "");
+
+	for(j=0; j<sim->nspecies; j++)
+	{
+		s = &plot->sim->species[j];
+		for(i = 0; i<s->nparticles; i++)
+		{
+			p = &s->particles[i];
+
+			mgl_data_set_value(plot->x, p->x[0], i, 0, 0);
+			mgl_data_set_value(plot->v, p->u[0], i, 0, 0);
+			mgl_data_set_value(plot->y, p->x[1], i, 0, 0);
+
+			//mgl_mark(gr, p->x[0], p->u[0], 0.0, "o");
+		}
+		mgl_plot_xy(gr, plot->x, plot->y, "#s ", "");
+	}
 	mgl_label(gr, 'x', "Position x", 0.0, "");
 	mgl_label(gr, 'y', "Position y", 0.0, "");
 
@@ -1211,7 +1214,7 @@ plot_loop(void *p)
 	int width = 1000, height = 1000;
 	plot_t *plot;
 	sim_t *sim;
-	GLFWwindow* window, *window_energy;
+	GLFWwindow* window;
 
 	sim = (sim_t *) p;
 
@@ -1219,6 +1222,8 @@ plot_loop(void *p)
 
 	if(!glfwInit())
 		return NULL;
+
+	glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
 
 	window = glfwCreateWindow(width, height,
 			"plot particles", NULL, NULL);

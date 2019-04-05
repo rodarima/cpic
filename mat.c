@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define DEBUG 1
+#include "log.h"
+
 mat_t *
 mat_alloc(int dim, int *shape)
 {
@@ -84,17 +87,17 @@ vec_init(int size, double v)
 int
 vec_print(mat_t *m, char *title)
 {
-	int i, j;
+	int i;
 
 	if(m->dim != 1)
 		return -1;
 
-	if(title) printf("Vector %s:\n", title);
+	if(title) dbg("Vector %s:\n", title);
 	for(i=0; i<m->shape[0]; i++)
 	{
-		printf("%10.3e ", m->data[i]);
+		dbg("%10.3e ", m->data[i]);
 	}
-	printf("\n");
+	dbg("\n");
 	return 0;
 }
 
@@ -109,14 +112,14 @@ mat_print(mat_t *m, char *title)
 	if(m->dim > 2)
 		return -1;
 
-	if(title) printf("Matrix %s:\n", title);
+	if(title) dbg("Matrix %s:\n", title);
 	for(i=0; i<m->shape[0]; i++)
 	{
 		for(j=0; j<m->shape[1]; j++)
 		{
-			printf("%10.2e ", m->data[m->shape[0] * i + j]);
+			dbg("%10.2e ", m->data[m->shape[0] * i + j]);
 		}
-		printf("\n");
+		dbg("\n");
 	}
 
 	return 0;
@@ -127,14 +130,14 @@ mat_print_raw(double *A, int rows, int cols, char *title)
 {
 	int i, j;
 
-	if(title) printf("Matrix %s:\n", title);
+	if(title) dbg("Matrix %s:\n", title);
 	for(i=0; i<rows; i++)
 	{
 		for(j=0; j<cols; j++)
 		{
-			printf("%10.2e ", A[rows * i + j]);
+			dbg("%10.2e ", A[rows * i + j]);
 		}
-		printf("\n");
+		dbg("\n");
 	}
 
 	return 0;

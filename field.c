@@ -193,8 +193,8 @@ block_J_comm(sim_t *sim, specie_t *s, block_t *b)
 int
 field_J(sim_t *sim, specie_t *s)
 {
-	int i, li;
-	block_t *b, *lb;
+	int i;
+	block_t *b;
 
 	/* Computation */
 	for (i = 0; i < s->ntblocks; i++)
@@ -218,11 +218,9 @@ field_J(sim_t *sim, specie_t *s)
 int
 field_rho_collect(sim_t *sim, specie_t *s)
 {
-	int i, j, k = 0;
 	int ix, iy;
 	int jx, jy;
 	int gx, gy;
-	int size;
 	mat_t *rho;
 	mat_t *global_rho;
 	block_t *b;
@@ -237,6 +235,8 @@ field_rho_collect(sim_t *sim, specie_t *s)
 			b = BLOCK_XY(sim, s->blocks, ix, iy);
 
 			rho = b->field.rho;
+
+			//mat_print(rho, "block rho");
 
 			for(jy=0; jy<sim->blocksize[Y]; jy++)
 			{
@@ -305,7 +305,7 @@ int
 field_E_solve(sim_t *sim)
 {
 	field_t *f;
-	int i, n, np;
+	int n, np;
 	int ix, iy, x0, x1, y0, y1, nx, ny;
 	mat_t *E;
 	double H, q, dx2, dy2;
@@ -328,6 +328,7 @@ field_E_solve(sim_t *sim)
 
 	assert(f->rho->size == n);
 
+	qsum = 0.0;
 	/* Get total charge (it should sum 0) */
 	for(iy=0; iy<ny; iy++)
 	{
@@ -421,8 +422,7 @@ field_E_solve(sim_t *sim)
 int
 field_E(sim_t *sim)
 {
-	int i, ri;
-	block_t *b;
+	int i;
 
 	/* Erase previous charge */
 	MAT_FILL(sim->field->rho, 0.0);

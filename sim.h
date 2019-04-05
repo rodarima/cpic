@@ -104,7 +104,7 @@ struct sim
 
 
 sim_t *
-sim_init(config_t *conf);
+sim_init(config_t *conf, int quiet);
 
 int
 sim_run(sim_t *sim);

@@ -1,7 +1,7 @@
 #include <libconfig.h>
 #include "sim.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "specie.h"
 #include "particle.h"
@@ -16,14 +16,13 @@
 #define ENERGY_CHECK 1
 
 sim_t *
-sim_init(config_t *conf)
+sim_init(config_t *conf, int quiet)
 {
 	sim_t *s;
 	int i, mode;
 	int seed;
 	double wp, fp, n, q, e0, m, Tp;
 	specie_t *sp;
-	config_setting_t *cs;
 
 	s = calloc(1, sizeof(sim_t));
 
@@ -50,7 +49,7 @@ sim_init(config_t *conf)
 	config_lookup_array_int(conf, "grid.blocksize", s->blocksize, s->dim);
 
 	/* Then compute the rest */
-	if(mode == 0)
+	if(mode == 0 || quiet)
 		s->mode = SIM_MODE_NORMAL;
 	else
 		s->mode = SIM_MODE_DEBUG;
@@ -121,13 +120,14 @@ sim_init(config_t *conf)
 static int
 conservation_energy(sim_t *sim, specie_t *s)
 {
-	int i, j, k, nn, np;
+	double EE = 0.0; /* Electrostatic energy */
+	double KE = 0.0; /* Kinetic energy */
+#if 0
+	int i, nn, np;
 	particle_t *p;
 	block_t *b;
 
 	double E,L;
-	double EE = 0.0; /* Electrostatic energy */
-	double KE = 0.0; /* Kinetic energy */
 	//double L = sim->L;
 	double H = sim->dx[0];
 
@@ -179,11 +179,28 @@ conservation_energy(sim_t *sim, specie_t *s)
 	//EE /= 1.6021766208e-19;
 	//KE /= 1.6021766208e-19; /* ??? */
 
+#endif
+
+
+	/* Factor correction */
+	sim->energy_kinetic *= s->m / 2.0;
+	sim->total_momentum[X] *= s->m * 5.0;
+	sim->total_momentum[Y] *= s->m * 5.0;
+
+
+
 	EE = sim->energy_electrostatic;
 	KE = sim->energy_kinetic;
 
 	printf("e %10.3e %10.3e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE,
 			sim->total_momentum[X], sim->total_momentum[Y]);
+
+	/* As we add the kinetic energy of the particles in each block, we erase
+	 * here the previous energy */
+	sim->energy_kinetic = 0.0;
+
+	sim->total_momentum[X] = 0.0;
+	sim->total_momentum[Y] = 0.0;
 
 	return 0;
 }
@@ -318,11 +335,12 @@ sim_run(sim_t *sim)
 
 			/* Line 10: Update the current field on grid, algorithm 3 */
 			particle_J(sim, s);
+
+			/* Interpolate the current and density of charge of each
+			 * specie to the field */
+			field_J(sim, s);
 		}
 
-		s = &sim->species[0];
-
-		field_J(sim, s);
 
 		/* Print the status */
 		//if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
@@ -344,7 +362,7 @@ sim_run(sim_t *sim)
 	//printf("Loop finished\n");
 
 	/* sync before leaving the program */
-	#pragma oss taskwait
+	//#pragma oss taskwait
 
 	return 0;
 }
