@@ -10,11 +10,13 @@ LDLIBS_GLFW3=`pkg-config --libs glfw3`
 CFLAGS+=$(CFLAGS_GLFW3)
 LDLIBS+=$(LDLIBS_GLFW3)
 
+CFLAGS+=-I./
+
 
 USE_OMPSS=yes
 
 CPIC_SRC=specie.c particle.c block.c mat.c block.c sim.c \
-	 field.c cpic.c solver.c config.c plot.c interpolate.c
+	 field.c solver.c config.c plot.c interpolate.c
 
 
 ifeq ($(USE_OMPSS), no)
@@ -28,11 +30,14 @@ endif
 
 CPIC_OBJ=$(CPIC_SRC:.c=.o)
 
-SRC=$(CPIC_SRC)
+
+TEST_SRC=test/cyclotron.c
+
+SRC=$(CPIC_SRC) cpic.c $(TEST_SRC)
 OBJ=$(SRC:.c=.o)
 DEP=$(SRC:.c=.d)
 
-BIN=cpic interpolate.test
+BIN=cpic interpolate.test test/cyclotron
 
 
 
@@ -44,6 +49,9 @@ include $(DEP)
 # (see man cpp for details on the -MM and -MT options)
 %.d: %.c
 	@$(CPP) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
+
+test/cyclotron: $(CPIC_OBJ)
+
 
 test: test.mcc.c
 	$(CC) $(CFLAGS) $(LDLIBS) $^ -o $@

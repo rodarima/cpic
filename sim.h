@@ -100,6 +100,10 @@ struct sim
 
 	/* The solver needs some information during the simulation */
 	solver_t *solver;
+
+	/* A pointer to let the user save a reference to an external structure
+	 * or any other data */
+	//void *user; // Not used, yet.
 };
 
 
@@ -108,3 +112,6 @@ sim_init(config_t *conf, int quiet);
 
 int
 sim_run(sim_t *sim);
+
+int
+sim_step(sim_t *sim);
