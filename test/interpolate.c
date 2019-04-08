@@ -14,8 +14,8 @@ test_rel()
 
 	interpolate_weights_xy(x, dx, x0, w, i0);
 
-	printf("w = [%f %f %f %f]\n", w[0][0], w[0][1], w[1][0], w[1][1]);
-	printf("i0 = [%d %d]\n", i0[X], i0[Y]);
+	//printf("w = [%f %f %f %f]\n", w[0][0], w[0][1], w[1][0], w[1][1]);
+	//printf("i0 = [%d %d]\n", i0[X], i0[Y]);
 
 	assert(w[0][0] == 3./16.);
 	assert(w[1][0] == 1./16.);
@@ -39,7 +39,7 @@ main()
 
 	linear_interpolation_xy(rel, w);
 
-	printf("w = [%f %f %f %f]\n", w[0][0], w[0][1], w[1][0], w[1][1]);
+	//printf("w = [%f %f %f %f]\n", w[0][0], w[0][1], w[1][0], w[1][1]);
 
 	assert(w[0][0] == 3./16.);
 	assert(w[1][0] == 1./16.);
