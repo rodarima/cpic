@@ -317,9 +317,6 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 	m = s->m;
 	B = sim->B;
 
-	/* TODO: Set the initial velocity at v(-dt/2), so it is properly
-	 * advanced half a timestep */
-
 	for (p = b->particles; p; p = p->next)
 	{
 		u[X] = p->u[X];
@@ -329,6 +326,10 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 
 		if(sim->iter == 0)
 		{
+
+			/* TODO: Improve the rotation to avoid the if. Also set
+			 * the time sim->t properly. */
+
 			boris_rotation(q, m, u, v, E, B, -dt/2.0);
 			dbg("Backward move: At t=%e u=(%.3e,%.3e) to t=%e u=(%.3e,%.3e)\n",
 					sim->t, u[X], u[Y],
