@@ -294,11 +294,11 @@ solver_init(sim_t *sim)
 
 	solver->P = gsl_permutation_calloc(N);
 
-	err("Please wait, solver is precomputing LU\n");
+	dbg("Please wait, solver is precomputing LU\n");
 
 	gsl_linalg_LU_decomp(A, solver->P, &signum);
 
-	err("Done\n");
+	dbg("Done\n");
 
 	//err("Matrix LU:\n");
 	//gsl_matrix_fprintf(stderr, A, "%f");

@@ -4,8 +4,10 @@
 !Makefile
 *.d
 *.o
+*.a
 *.so
 data/
+vg/
 mcc_*.c
 trace/
 *.mcc.c

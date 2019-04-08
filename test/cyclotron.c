@@ -4,6 +4,7 @@
 #include "log.h"
 
 #include <assert.h>
+#include <string.h>
 
 #define CYCLOTRON_CONF "conf/cyclotron.conf"
 
@@ -12,6 +13,8 @@ struct cyclotron
 	double radius;
 	double center[MAX_DIM];
 	double freq;
+	double max_err;
+	double limit;
 };
 
 /* TODO: Centralize useful functions */
@@ -34,13 +37,14 @@ int
 cyclotron_postinit(sim_t *sim, struct cyclotron *c)
 {
 	double tmp[MAX_DIM], *center;
-	double len, v;
+	double len, v, dt;
 	specie_t *s;
 	particle_t *p;
 
 	s = &sim->species[0];
 	p = &s->particles[0];
 	center = c->center;
+	dt = sim->dt;
 
 	//printf("p->t = %f\n", sim->t);
 	//printf("p->u = (%f,%f,%f)\n", p->u[X], p->u[Y], p->u[Z]);
@@ -65,6 +69,9 @@ cyclotron_postinit(sim_t *sim, struct cyclotron *c)
 
 	//printf("Computed center at (%f,%f)\n", center[X], center[Y]);
 
+	c->max_err = 0.0;
+	c->limit = v*dt*dt;
+
 	return 0;
 }
 
@@ -73,8 +80,8 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 {
 	specie_t *s, *sv;
 	particle_t *p, *pv;
-	double r[MAX_DIM], R[MAX_DIM], dr[MAX_DIM];
-	double *center, dist, err, t;
+	double r[MAX_DIM];
+	double *center, dist, err;
 
 	s = &sim->species[0];
 	p = &s->particles[0];
@@ -89,6 +96,9 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 
 	dist = vector_len(r);
 	err = -(dist + c->radius) / c->radius;
+
+	if(err > c->max_err)
+		c->max_err = err;
 
 #if 0
 
@@ -111,7 +121,7 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 	pv->x[Y] = center[Y] + R[Y];
 
 #endif
-	printf("%e\n", err);
+	//printf("%e\n", err);
 
 	pv->x[X] = center[X];
 	pv->x[Y] = center[Y];
@@ -126,7 +136,7 @@ int main()
 	config_t conf;
 	struct cyclotron c;
 
-
+	memset(&c, 0, sizeof(c));
 
 	f = fopen(CYCLOTRON_CONF, "r");
 
@@ -167,6 +177,16 @@ int main()
 
 		cyclotron_update(sim, &c);
 	}
+
+	if(c.max_err > c.limit)
+	{
+		err("Cyclotron test failed: The error %e exceeds the limit %e\n",
+				c.max_err, c.limit);
+		return 1;
+	}
+
+	//err("Cyclotron test ok: The error %e is lower than the limit %e\n",
+	//		c.max_err, c.limit);
 
 	return 0;
 }

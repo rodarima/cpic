@@ -3,7 +3,7 @@
 #include "block.h"
 #include "particle.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 #include <stdlib.h>
@@ -70,8 +70,6 @@ species_init(sim_t *sim, config_t *conf)
 	for(i=0; i < ns; i++)
 	{
 		specie = config_setting_get_elem(cs, i);
-		dbg("specie_init for sim %p, specie conf %p, specie %p\n",
-				sim, specie, &sim->species[i]);
 		if(specie_init(sim, specie, &sim->species[i]))
 		{
 			err("specie_init failed\n");

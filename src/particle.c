@@ -327,6 +327,17 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 		u[Z] = p->u[Z];
 		E = p->E;
 
+		if(sim->iter == 0)
+		{
+			boris_rotation(q, m, u, v, E, B, -dt/2.0);
+			dbg("Backward move: At t=%e u=(%.3e,%.3e) to t=%e u=(%.3e,%.3e)\n",
+					sim->t, u[X], u[Y],
+					sim->t-dt/2.0, v[X], v[Y]);
+			p->u[X] = v[X];
+			p->u[Y] = v[Y];
+			continue;
+		}
+
 		boris_rotation(q, m, u, v, E, B, dt);
 
 		dv[X] = v[X] - u[X];

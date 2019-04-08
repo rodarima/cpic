@@ -108,10 +108,10 @@ sim_init(config_t *conf, int quiet)
 	fp = wp / (2*M_PI);
 	Tp = 1/fp;
 
-	fprintf(stderr, "omega_p = %e rad/s, f_p = %e, tau_p = %e (%e iterations)\n",
-			wp, fp, Tp, Tp / s->dt);
+	//fprintf(stderr, "omega_p = %e rad/s, f_p = %e, tau_p = %e (%e iterations)\n",
+	//		wp, fp, Tp, Tp / s->dt);
 
-	fprintf(stderr, "wp * dt = %e (should be between 0.1 and 0.2)\n", wp * s->dt);
+	//fprintf(stderr, "wp * dt = %e (should be between 0.1 and 0.2)\n", wp * s->dt);
 	//assert(wp * s->dt <= 0.2);
 	//assert(wp * s->dt >= 0.1);
 

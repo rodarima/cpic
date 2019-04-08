@@ -12,7 +12,7 @@
 #define ENERGY_CHECK 1
 
 #include "log.h"
-#include "loader.h"
+//#include "loader.h"
 #include "sim.h"
 
 #include <unistd.h>
