@@ -1,0 +1,8 @@
+- Numerical heating shows increasing total energy.
+- Particles exceed speed of light happily.
+- Ensure plasma frequency matches the analytical value.
+- Restrict L <= Debye length
+- Fix electrostatic energy units
+- Test other field solvers for E
+- Merge J into E update
+- Fix frontier bug with few blocks

@@ -2,6 +2,7 @@
 !*.*
 !*/
 !Makefile
+!TODO
 *.d
 *.o
 *.a
