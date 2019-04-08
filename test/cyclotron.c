@@ -95,7 +95,10 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 	//r[Z] = p->x[Z] - center[Z];
 
 	dist = vector_len(r);
-	err = -(dist + c->radius) / c->radius;
+	//err = -(dist + c->radius) / c->radius;
+
+	// We want the absolute error
+	err = -(dist + c->radius);
 
 	if(err > c->max_err)
 		c->max_err = err;
@@ -185,8 +188,8 @@ int main()
 		return 1;
 	}
 
-	//err("Cyclotron test ok: The error %e is lower than the limit %e\n",
-	//		c.max_err, c.limit);
+	dbg("OK cyclotron.test: Absolute error %.3e is lower than the limit %.3e\n",
+			c.max_err, c.limit);
 
 	return 0;
 }
