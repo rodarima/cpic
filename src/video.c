@@ -20,7 +20,7 @@ video_init(int w, int h, const char *fname)
 	// -i - tells it to read frames from stdin
 	asprintf(&cmd, "/usr/bin/ffmpeg -r 60 -f rawvideo "
 			"-pix_fmt rgba -s %dx%d -i - "
-			"-y -crf 20 -vf vflip %s",
+			"-y -crf 20 -vf vflip,format=pix_fmts=yuv420p %s",
 			w, h, fname);
 
 
