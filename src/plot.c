@@ -79,7 +79,7 @@ parse_config(plot_t *plot, config_t *conf)
 	const char *video_fname = NULL;
 
 	/* First set all direct configuration variables */
-	config_lookup_array_int(conf, "plot.size", &size, 2);
+	config_lookup_array_int(conf, "plot.size", size, 2);
 	plot->w = size[0];
 	plot->h = size[1];
 

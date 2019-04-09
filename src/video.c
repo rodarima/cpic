@@ -23,8 +23,6 @@ video_init(int w, int h, const char *fname)
 			"-y -crf 20 -vf vflip,format=pix_fmts=yuv420p %s",
 			w, h, fname);
 
-
-	fprintf(stderr, "Trying to run: %s\n", cmd);
 	v->pipe = popen(cmd, "w");
 
 	if(!v->pipe)
