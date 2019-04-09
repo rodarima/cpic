@@ -202,15 +202,10 @@ conservation_energy(sim_t *sim, specie_t *s)
 	EE = sim->energy_electrostatic;
 	KE = sim->energy_kinetic;
 
-	printf("e %10.3e %10.3e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE,
-			sim->total_momentum[X], sim->total_momentum[Y]);
+	if(sim->period_energy && ((sim->iter % sim->period_energy) == 0))
+		printf("e %10.3e %10.3e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE,
+				sim->total_momentum[X], sim->total_momentum[Y]);
 
-	/* As we add the kinetic energy of the particles in each block, we erase
-	 * here the previous energy */
-	sim->energy_kinetic = 0.0;
-
-	sim->total_momentum[X] = 0.0;
-	sim->total_momentum[Y] = 0.0;
 
 	return 0;
 }
@@ -343,14 +338,18 @@ sim_step(sim_t *sim)
 	//if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
 	//	specie_print(sim, s);
 
+	conservation_energy(sim, s);
+	//test_radius(sim);
+
 	if(sim->mode == SIM_MODE_DEBUG)
 		sim_plot(sim);
 
-#if ENERGY_CHECK
-	if(sim->period_energy && ((sim->iter % sim->period_energy) == 0))
-		conservation_energy(sim, s);
-#endif
-	//test_radius(sim);
+	/* As we add the kinetic energy of the particles in each block, we erase
+	 * here the previous energy */
+	sim->energy_kinetic = 0.0;
+
+	sim->total_momentum[X] = 0.0;
+	sim->total_momentum[Y] = 0.0;
 
 	sim->iter += 1;
 	sim->t = sim->iter * sim->dt;
