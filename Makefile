@@ -1,4 +1,4 @@
-MODULES:=src test
+MODULES:=src test user
 
 CC=clang
 #OCC=mcc
