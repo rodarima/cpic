@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sim.h"
+#include "video.h"
 
 #include <stdbool.h>
 #include <mgl2/mgl_cf.h>
@@ -9,6 +10,7 @@
 
 struct plot {
 	sim_t *sim;
+	int w,h;
 	double maxfps;
 	int maxloops;
 	double trigger_factor;
@@ -35,6 +37,10 @@ struct plot {
 	HMDT EE, KE, TE;
 	HMDT pE;
 	HMDT P[MAX_DIM];
+
+	int video_enabled;
+	int video_h, video_w;
+	video_t *video;
 };
 
 typedef struct plot plot_t;

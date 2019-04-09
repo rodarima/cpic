@@ -279,10 +279,8 @@ boris_rotation(double q, double m, double *u, double *v, double *E, double *B, d
 		t[d] = B[d] * dtqm2;
 		s_denom += t[d] * t[d];
 		v_minus[d] = u[d] + dtqm2 * E[d];
-	}
-
-	for(d=X; d<MAX_DIM; d++)
 		s[d] = 2.0 * t[d] / s_denom;
+	}
 
 	cross_product(v_prime, v_minus, t);
 
@@ -294,10 +292,6 @@ boris_rotation(double q, double m, double *u, double *v, double *E, double *B, d
 	for(d=X; d<MAX_DIM; d++)
 	{
 		v_plus[d] += v_minus[d];
-	}
-
-	for(d=X; d<MAX_DIM; d++)
-	{
 		v[d] = v_plus[d] + dtqm2 * E[d];
 	}
 

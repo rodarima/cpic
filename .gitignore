@@ -8,6 +8,7 @@
 *.a
 *.so
 data/
+video/
 vg/
 mcc_*.c
 trace/
