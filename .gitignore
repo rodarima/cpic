@@ -19,3 +19,9 @@ callgrind.out.*
 vgcore.*
 *.test
 *.bin
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.toc
+doc/*.pdf
