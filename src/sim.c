@@ -69,6 +69,8 @@ sim_init(config_t *conf, int quiet)
 	}
 	for(i=s->dim; i<MAX_DIM; i++)
 	{
+		s->nblocks[i] = 1;
+		s->blocksize[i] = 1;
 		s->nnodes[i] = 1;
 		s->dx[i] = 0.0;
 		s->ghostsize[i] = 1;

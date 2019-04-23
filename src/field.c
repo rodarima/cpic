@@ -32,13 +32,14 @@ field_init(sim_t *sim)
 
 	f->phi = mat_alloc(d, shape);
 	f->rho = mat_alloc(d, shape);
-
-	MAT_FILL(f->E[X], 0.0);
-	MAT_FILL(f->E[Y], 0.0);
-	MAT_FILL(f->J[X], 0.0);
-	MAT_FILL(f->J[Y], 0.0);
 	MAT_FILL(f->phi, 0.0);
 	MAT_FILL(f->rho, 0.0);
+
+	for(i=0; i<sim->dim; i++)
+	{
+		MAT_FILL(f->E[i], 0.0);
+		MAT_FILL(f->J[i], 0.0);
+	}
 
 	return f;
 }
@@ -53,18 +54,36 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 	mat_t *rho = b->field.rho;
 
 	/* Erase previous current */
-	MAT_FILL(J[X], 0.0);
-	MAT_FILL(J[Y], 0.0);
+	VMAT_FILL(J, sim->dim, 0.0);
 	MAT_FILL(rho, 0.0);
 
-	for(p = b->particles; p; p = p->next)
+	if(sim->dim == 1)
 	{
-		/* Interpolate the electric current of the particle to the grid
-		 * of the block */
-		interpolate_J_add_to_grid_xy(sim, p, b);
+		for(p = b->particles; p; p = p->next)
+		{
+			/* Interpolate the electric current of the particle to the grid
+			 * of the block */
+			interpolate_J_add_to_grid_x(sim, p, b);
 
-		/* Then the charge density */
-		interpolate_add_to_grid_xy(sim, p, b, s->q, rho);
+			/* Then the charge density */
+			interpolate_add_to_grid_x(sim, p, b, s->q, rho);
+		}
+	}
+	else if(sim->dim == 2)
+	{
+		for(p = b->particles; p; p = p->next)
+		{
+			/* Interpolate the electric current of the particle to the grid
+			 * of the block */
+			interpolate_J_add_to_grid_xy(sim, p, b);
+
+			/* Then the charge density */
+			interpolate_add_to_grid_xy(sim, p, b, s->q, rho);
+		}
+	}
+	else
+	{
+		abort();
 	}
 
 	//mat_print(rho, "rho after update");
@@ -115,9 +134,9 @@ comm_neigh(sim_t *sim, mat_t *from, mat_t *to, int dir[MAX_DIM])
 		for(j[X] = start[X]; j[X] < end[X]; j[X]++)
 		{
 			k[X] = j[X] - start[X];
+			dbg("Comm from %p (%d,%d) to %p (%d,%d)\n", from, j[X], j[Y], to, k[X], k[Y]);
 			MAT_XY(to, k[X], k[Y]) += MAT_XY(from, j[X], j[Y]);
 
-			dbg("Comm from %p (%d,%d) to %p (%d,%d)\n", from, j[X], j[Y], to, k[X], k[Y]);
 		}
 	}
 }
@@ -173,8 +192,17 @@ block_J_comm(sim_t *sim, specie_t *s, block_t *b)
 
 				//assert(neigh != b);
 
-				comm_neigh(sim, b->field.J[X], neigh->field.J[Y], j);
-				comm_neigh(sim, b->field.J[X], neigh->field.J[Y], j);
+				switch(sim->dim)
+				{
+					case 2:
+						comm_neigh(sim, b->field.J[Y], neigh->field.J[Y], j);
+						/* Fallthrough */
+					case 1:
+						comm_neigh(sim, b->field.J[X], neigh->field.J[X], j);
+						break;
+					default:
+						abort();
+				}
 				comm_neigh(sim, b->field.rho, neigh->field.rho, j);
 			}
 		}
@@ -233,6 +261,7 @@ field_rho_collect(sim_t *sim, specie_t *s)
 		for(ix=0; ix<sim->nblocks[X]; ix++)
 		{
 			b = BLOCK_XY(sim, s->blocks, ix, iy);
+			dbg("Collecting rho from block %p at (%d,%d)\n", b, ix, iy);
 
 			rho = b->field.rho;
 
@@ -286,8 +315,16 @@ field_E_spread(sim_t *sim, specie_t *s)
 					gy = (iy * sim->blocksize[Y] + jy) % gny;
 
 
-					MAT_XY(E[X], jx, jy) = MAT_XY(global_E[X], gx, gy);
-					MAT_XY(E[Y], jx, jy) = MAT_XY(global_E[Y], gx, gy);
+					switch(sim->dim)
+					{
+						case 2:
+							MAT_XY(E[Y], jx, jy) = MAT_XY(global_E[Y], gx, gy);
+						case 1:
+							MAT_XY(E[X], jx, jy) = MAT_XY(global_E[X], gx, gy);
+							break;
+						default:
+							abort();
+					}
 
 //					dbg("Set E[X]=%e and E[Y]=%e at (%d, %d) from (%d, %d)\n",
 //						MAT_XY(E[X], jx, jy),
@@ -365,13 +402,21 @@ field_E_solve(sim_t *sim)
 			y0 = (iy + ny - 1) % ny;
 			y1 = (iy + 1) % ny;
 
-			MAT_XY(f->E[X], ix, iy) =
-				(MAT_XY(f->phi, x0, iy) - MAT_XY(f->phi, x1, iy))
-				/ dx2;
-
-			MAT_XY(f->E[Y], ix, iy) =
-				(MAT_XY(f->phi, ix, y0) - MAT_XY(f->phi, ix, y1))
-				/ dy2;
+			switch(sim->dim)
+			{
+				case 2:
+					MAT_XY(f->E[Y], ix, iy) =
+						(MAT_XY(f->phi, ix, y0) - MAT_XY(f->phi, ix, y1))
+						/ dy2;
+					/* Falltrough */
+				case 1:
+					MAT_XY(f->E[X], ix, iy) =
+						(MAT_XY(f->phi, x0, iy) - MAT_XY(f->phi, x1, iy))
+						/ dx2;
+					break;
+				default:
+					abort();
+			}
 
 			/* The electrostatic energy is computed from the charge
 			 * density and electric potential just updated */

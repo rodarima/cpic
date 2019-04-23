@@ -53,11 +53,20 @@ do {							\
 
 #define MAT_FILL(m, v)					\
 do {							\
-	int i;						\
-	double *d = m->data;				\
-	for(i=0; i<m->size; i++)			\
-		d[i] = v;				\
+	int __i;					\
+	double *__d = m->data;				\
+	for(__i=0; __i<m->size; __i++)			\
+		__d[__i] = v;				\
 } while(0)
+
+#define VMAT_FILL(m, dim, v)				\
+do {							\
+	int __dim;					\
+	for(__dim=0; __dim<dim; __dim++)		\
+		MAT_FILL(m[__dim], v);			\
+} while(0)
+
+
 
 mat_t *
 mat_alloc(int dim, int *shape);

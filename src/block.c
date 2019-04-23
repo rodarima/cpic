@@ -15,9 +15,8 @@ block_add_particle(block_t *b, particle_t *p)
 	DL_APPEND(b->particles, p);
 }
 
-/* Allocs an array of nblocks contiguous blocks of size blocksize */
 int
-blocks_init(sim_t *sim, specie_t *s)
+blocks_init_2d(sim_t *sim, specie_t *s)
 {
 	size_t i, j, d;
 	int ix, iy;
@@ -29,7 +28,6 @@ blocks_init(sim_t *sim, specie_t *s)
 
 	dbg("Number of blocks in X %d, blocksize %d\n",
 			sim->nblocks[X], sim->blocksize[X]);
-
 	dbg("Number of blocks in Y %d, blocksize %d\n",
 			sim->nblocks[Y], sim->blocksize[Y]);
 
@@ -62,7 +60,6 @@ blocks_init(sim_t *sim, specie_t *s)
 			b->x1[X] = (ix + 1) * block_w;
 			b->x1[Y] = (iy + 1) * block_h;
 		}
-
 	}
 
 	for(i = 0; i < s->nparticles; i++)
@@ -77,6 +74,77 @@ blocks_init(sim_t *sim, specie_t *s)
 		block_add_particle(&s->blocks[j], p);
 	}
 
+	return 0;
+}
+
+int
+blocks_init_1d(sim_t *sim, specie_t *s)
+{
+	size_t i, j, d;
+	int ix;
+	block_t *b;
+	particle_t *p;
+	double block_w;
+
+	dbg("Init blocks at specie %p for sim %p\n", s, sim);
+
+	dbg("Number of blocks in X %d, blocksize %d\n",
+			sim->nblocks[X], sim->blocksize[X]);
+
+	s->ntblocks = sim->nblocks[X];
+
+	s->blocks = calloc(s->ntblocks, sizeof(block_t));
+
+	block_w = sim->dx[X] * sim->blocksize[X];
+
+	for(ix=0; ix < sim->nblocks[X]; ix++)
+	{
+		b = &s->blocks[ix];
+
+		b->i[X] = ix;
+
+		for(d=0; d<sim->dim; d++)
+		{
+			b->field.E[d] = mat_alloc(sim->dim, sim->ghostsize);
+			b->field.J[d] = mat_alloc(sim->dim, sim->ghostsize);
+		}
+
+		b->field.rho = mat_alloc(sim->dim, sim->ghostsize);
+
+		b->x0[X] = ix * block_w;
+		b->x1[X] = (ix + 1) * block_w;
+	}
+
+	for(i = 0; i < s->nparticles; i++)
+	{
+		p = &s->particles[i];
+
+		ix = (int) floor(p->x[X] / block_w);
+
+		j = ix;
+
+		block_add_particle(&s->blocks[j], p);
+	}
+
+	return 0;
+}
+
+/* Allocs an array of nblocks contiguous blocks of size blocksize */
+int
+blocks_init(sim_t *sim, specie_t *s)
+{
+	switch(sim->dim)
+	{
+		case 1:
+			return blocks_init_1d(sim, s);
+		case 2:
+			return blocks_init_2d(sim, s);
+		default:
+			err("Unsuported number of dimensions %d\n", sim->dim);
+			return 1;
+	}
+
+	/* Not reached */
 	return 0;
 }
 

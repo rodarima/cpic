@@ -162,7 +162,7 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 int
 init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
-	int i;
+	int i, d;
 	particle_t *p;
 	double r[MAX_DIM];
 	double dr[MAX_DIM];
@@ -188,28 +188,15 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 	{
 		p = &s->particles[i];
 
-//		memset(p, 0, sizeof(particle_t));
+		for(d=0; d<sim->dim; d++)
+		{
+			p->u[d] = v[d];
 
-		p->u[X] = v[X];
-		p->u[Y] = v[Y];
-		p->u[Z] = 0.0;
-//		p->u[Z] = v[Z];
-
-		WRAP(p->x[X], r[X], L[X]);
-		WRAP(p->x[Y], r[Y], L[Y]);
-		p->x[Z] = 0.0;
-//		WRAP(p->x[Z], r[Z], L[Z]);
-
-		r[X] += dr[X];
-		r[Y] += dr[Y];
-//		r[Z] += dr[Z];
-//
-		p->E[X] = 0.0;
-		p->E[Y] = 0.0;
-		p->E[Z] = 0.0;
-		p->J[X] = 0.0;
-		p->J[Y] = 0.0;
-		p->J[Z] = 0.0;
+			WRAP(p->x[d], r[d], L[d]);
+			r[d] += dr[d];
+			p->E[d] = 0.0;
+			p->J[d] = 0.0;
+		}
 	}
 
 	return 0;
@@ -240,11 +227,27 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	particle_t *p;
 
-	for (p = b->particles; p; p = p->next)
+	if(sim->dim == 1)
 	{
-		dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
-		interpolate_E_set_to_particle_xy(sim, p, b);
-		dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+		for (p = b->particles; p; p = p->next)
+		{
+			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+			interpolate_E_set_to_particle_x(sim, p, b);
+			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+		}
+	}
+	else if(sim->dim == 2)
+	{
+		for (p = b->particles; p; p = p->next)
+		{
+			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+			interpolate_E_set_to_particle_xy(sim, p, b);
+			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+		}
+	}
+	else
+	{
+		abort();
 	}
 
 	return 0;
@@ -406,17 +409,23 @@ wrap_particle_position(sim_t *sim, particle_t *p)
 	dbg("Particle %d is at (%.10e, %.10e) before wrap\n",
 			p->i, p->x[X], p->x[Y]);
 
-	while(p->x[X] >= sim->L[X])
-		p->x[X] -= sim->L[X];
+	if(sim->dim >= 1)
+	{
+		while(p->x[X] >= sim->L[X])
+			p->x[X] -= sim->L[X];
 
-	while(p->x[X] < 0.0)
-		p->x[X] += sim->L[X];
+		while(p->x[X] < 0.0)
+			p->x[X] += sim->L[X];
+	}
 
-	while(p->x[Y] >= sim->L[Y])
-		p->x[Y] -= sim->L[Y];
+	if(sim->dim >= 2)
+	{
+		while(p->x[Y] >= sim->L[Y])
+			p->x[Y] -= sim->L[Y];
 
-	while(p->x[Y] < 0.0)
-		p->x[Y] += sim->L[Y];
+		while(p->x[Y] < 0.0)
+			p->x[Y] += sim->L[Y];
+	}
 
 	dbg("Particle %d is now at (%.10e, %.10e)\n",
 			p->i, p->x[X], p->x[Y]);
@@ -425,18 +434,21 @@ wrap_particle_position(sim_t *sim, particle_t *p)
 	 * wrapped from x<0 but -1e-17 < x, the wrap sets x equal to L, as with
 	 * bigger numbers the error increases, and the round off may set x to
 	 * exactly L */
-	assert(p->x[X] <= sim->L[X]);
-	assert(p->x[X] >= 0.0);
-	assert(p->x[Y] <= sim->L[Y]);
-	assert(p->x[Y] >= 0.0);
+	if(sim->dim >= 1)
+	{
+		assert(p->x[X] <= sim->L[X]);
+		assert(p->x[X] >= 0.0);
+	}
+	if(sim->dim >= 2)
+	{
+		assert(p->x[Y] <= sim->L[Y]);
+		assert(p->x[Y] >= 0.0);
+	}
 }
 
-/* After updating the position of the particles, they may have changed to
- * another block. Remove from the old block, and add in the new one. We assume
- * only one block at each time is allowed */
-//#pragma oss task inout(*b, *left, *right) label(particle_block_comm)
+
 static int
-block_comm(sim_t *sim, specie_t *s, block_t *b)
+block_comm_2d(sim_t *sim, specie_t *s, block_t *b)
 {
 	block_t *to_block;
 	particle_t *p, *tmp;
@@ -502,8 +514,76 @@ block_comm(sim_t *sim, specie_t *s, block_t *b)
 	return 0;
 }
 
+static int
+block_comm_1d(sim_t *sim, specie_t *s, block_t *b)
+{
+	block_t *to_block;
+	particle_t *p, *tmp;
+	double px;
+	double x0, x1;
+	int idx, ix, nbx;
+	int jx;
 
+	dbg("Moving particles for block (%d,%d) x0=(%e,%e) x1=(%e,%e)\n",
+		b->i[X], b->i[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
 
+	ix = b->i[X];
+
+	x0 = b->x0[X];
+	x1 = b->x1[X];
+
+	nbx = sim->nblocks[X];
+
+	DL_FOREACH_SAFE(b->particles, p, tmp)
+	{
+		px = p->x[X];
+
+		idx = 0;
+
+		wrap_particle_position(sim, p);
+
+		/* FIXME: Allow bigger jumps than 1 block */
+
+		/* First we check the X axis */
+		if(px < x0) idx = -1;
+		else if(px >= x1) idx = +1;
+
+		/* Now we look for the proper block to move the particle if
+		 * needed */
+		if(idx != 0)
+		{
+			jx = (ix + idx + nbx) % nbx;
+
+			assert(jx >= 0);
+			assert(jx < nbx);
+
+			to_block = BLOCK_X(sim, s->blocks, jx);
+
+			move_particle_to_block(b, to_block, p);
+		}
+
+	}
+
+	return 0;
+}
+
+/* After updating the position of the particles, they may have changed to
+ * another block. Remove from the old block, and add in the new one. We assume
+ * only one block at each time is allowed */
+//#pragma oss task inout(*b, *left, *right) label(particle_block_comm)
+static int
+block_comm(sim_t *sim, specie_t *s, block_t *b)
+{
+	if(sim->dim == 1)
+		return block_comm_1d(sim, s, b);
+	else if(sim->dim == 2)
+		return block_comm_2d(sim, s, b);
+	else
+		abort();
+
+	/* Not reached */
+	return 1;
+}
 
 int
 particle_E(sim_t *sim, specie_t *s)

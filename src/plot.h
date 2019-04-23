@@ -34,6 +34,9 @@ struct plot {
 	HMDT y;
 	HMDT v;
 
+	/* Distribution */
+	HMDT fv;
+
 	HMDT EE, KE, TE;
 	HMDT pE;
 	HMDT P[MAX_DIM];

@@ -8,3 +8,4 @@
 - Fix frontier bug with few blocks
 - Add plot of histogram of velocity moments
 - Search for 2D cases for study
+- Distribution of initial temperature

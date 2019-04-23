@@ -24,6 +24,9 @@ int win1, win2, win3, win4;
 #define MAX_POS 819
 #define MAX_LOOP 5
 
+#define MAX_VEL 100.0
+#define NFV 200
+
 particle_t *particles[MAX_HIST];
 int hist = 0;
 
@@ -146,6 +149,63 @@ read_config(config_t *conf)
 	return 0;
 }
 
+#if 0
+static inline double
+vector_len(double *v)
+{
+	return sqrt(v[X]*v[X] + v[Y]*v[Y] + v[Z]*v[Z]);
+}
+#endif
+
+void
+plot_velocity_distribution(plot_t *plot, sim_t *sim)
+{
+	HMGL gr;
+	int i, j, iv;
+	long np;
+	specie_t *s;
+	particle_t *p;
+	double v, rv;
+	HMDT fv;
+
+	np = 0;
+	gr = plot->gr;
+	fv = plot->fv;
+
+	mgl_data_put_val(fv, 0.0, -1, -1, -1);
+
+	for(j=0; j<sim->nspecies; j++)
+	{
+		s = &plot->sim->species[j];
+		for(i = 0; i<s->nparticles; i++)
+		{
+			p = &s->particles[i];
+
+			//v = vector_len(p->u);
+			v = p->u[X];
+			rv = v / MAX_VEL;
+
+			iv = (int) floor(NFV/2.0 + rv * (NFV+1)/2.0);
+			mgl_data_set_value(fv,
+					mgl_data_get_value(fv, iv, 0, 0) + 1,
+					iv, 0, 0);
+			np++;
+		}
+	}
+
+	for(i=0; i<NFV; i++)
+	{
+		mgl_data_set_value(fv,
+			mgl_data_get_value(fv, i, 0, 0)/np*10.0,
+			i, 0, 0);
+	}
+
+	mgl_set_ranges(gr, -MAX_VEL, MAX_VEL, 0, 1, 0, 1);
+	//mgl_plot(gr, fv, "k", "");
+	mgl_area(gr, fv, "k", "");
+	mgl_title(gr, "Velocity distribution", "", 5.0);
+}
+
 int
 plot_redraw(plot_t *plot)
 {
@@ -155,6 +215,7 @@ plot_redraw(plot_t *plot)
 	particle_t *p;
 	sim_t *sim;
 	double tot_p;
+	static double min_v=0, max_v=0;
 
 	sim = plot->sim;
 
@@ -163,7 +224,6 @@ plot_redraw(plot_t *plot)
 	mgl_clf(gr);
 
 	mgl_set_font_size(gr, 3.0);
-	mgl_set_mark_size(gr, 0.35);
 
 	/* Update energies */
 	mgl_data_roll(plot->EE, 'x', 1);
@@ -216,21 +276,37 @@ plot_redraw(plot_t *plot)
 
 
 	mgl_subplot(gr, 2, 2, 1, "");
-	mgl_set_ranges(gr, 0.0, sim->nnodes[X], 0.0, sim->nnodes[Y],
-			mgl_data_min(plot->rho), mgl_data_max(plot->rho));
 //	mgl_set_ranges(gr, 0.0, sim->nnodes[X]-1, 0.0, sim->nnodes[Y]-1,
 //			-100, 100);
-	mgl_set_ticks(gr, 'x', 1, 1, 0);
-	mgl_set_ticks(gr, 'y', 1, 1, 0);
+	//mgl_set_ticks(gr, 'x', 1, 1, 0);
+	//mgl_set_ticks(gr, 'y', 1, 1, 0);
 	mgl_title(gr, "Charge density \\rho", "", 5.0);
 //	mgl_colorbar(gr, "<");
-	mgl_contf(gr, (HCDT) plot->rho, "", "");
-//	mgl_surf(gr, (HCDT) plot->rho, "b", "");
-	mgl_axis_grid(gr, "xy", "", "");
+	if(sim->dim == 1)
+		mgl_set_ranges(gr, 0.0, sim->nnodes[X],
+				-100, 100,
+				0, 1);
+	if(sim->dim == 2)
+		mgl_set_ranges(gr, 0.0, sim->nnodes[X], 0.0, sim->nnodes[Y],
+				mgl_data_min(plot->rho), mgl_data_max(plot->rho));
 	mgl_axis(gr, "xy", "", "");
+	if(sim->dim == 1)
+	{
+		mgl_plot(gr, (HCDT) plot->rho, "", "");
+		mgl_plot(gr, (HCDT) plot->E[X], "r", "");
+	}
+	if(sim->dim == 2)
+	{
+		mgl_contf(gr, (HCDT) plot->rho, "", "");
+	}
+//	mgl_surf(gr, (HCDT) plot->rho, "b", "");
+//	mgl_axis_grid(gr, "xy", "", "");
 //	mgl_boxs(gr, (HCDT) plot->rho, "wk", "");
 
 	mgl_subplot(gr, 2, 2, 2, "");
+	plot_velocity_distribution(plot, sim);
+
+#if 0
 	mgl_set_ranges(gr, 0.0, sim->nnodes[X], 0.0, sim->nnodes[Y],
 			mgl_data_min(plot->phi), mgl_data_max(plot->phi));
 	mgl_title(gr, "Electric potential \\phi", "", 5.0);
@@ -239,6 +315,7 @@ plot_redraw(plot_t *plot)
 //	mgl_colorbar(gr, ">");
 	mgl_axis_grid(gr, "xy", "", "");
 	mgl_axis(gr, "xy", "", "");
+#endif
 
 //	mgl_subplot(gr, 2, 2, 3, "");
 //	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
@@ -258,11 +335,26 @@ plot_redraw(plot_t *plot)
 //			mgl_data_max(plot->E[Y]));
 //	mgl_vect_2d(gr, plot->E[X], plot->E[Y], "b2", "");
 
+#if 1
 	mgl_subplot(gr, 2, 2, 3, "");
 	mgl_title(gr, "Particle x-y space", "", 5.0);
 	//mgl_axis_grid(gr, "xy", "", "");
-	mgl_set_ranges(gr, 0.0, sim->L[X], 0.0, sim->L[Y], -1, 1);
+
+	for(j=0; j<sim->nspecies; j++)
+	{
+		s = &plot->sim->species[j];
+		for(i = 0; i<s->nparticles; i++)
+		{
+			p = &s->particles[i];
+
+			if(p->u[0] > max_v) max_v = 1.2 * p->u[0];
+			if(p->u[0] < min_v) min_v = 1.2 * p->u[0];
+
+		}
+	}
+	mgl_set_ranges(gr, 0.0, sim->L[X], min_v, max_v, 0, 1);
 	mgl_axis(gr, "xy", "", "");
+	mgl_set_mark_size(gr, 0.3);
 
 	for(j=0; j<sim->nspecies; j++)
 	{
@@ -277,11 +369,11 @@ plot_redraw(plot_t *plot)
 
 			//mgl_mark(gr, p->x[0], p->u[0], 0.0, "o");
 		}
-		mgl_plot_xy(gr, plot->x, plot->y, "#s ", "");
+		mgl_plot_xy(gr, plot->x, plot->v, "#sk ", "");
 	}
 	mgl_label(gr, 'x', "Position x", 0.0, "");
 	mgl_label(gr, 'y', "Position y", 0.0, "");
-
+#endif
 
 
 	mgl_finish(gr);
@@ -378,6 +470,7 @@ plot_loop(void *p)
 	plot->pE = mgl_create_data_size(MAX_HIST, 1, 1);
 	plot->P[X] = mgl_create_data_size(MAX_HIST, 1, 1);
 	plot->P[Y] = mgl_create_data_size(MAX_HIST, 1, 1);
+	plot->fv = mgl_create_data_size(NFV, 1, 1);
 
 	mgl_data_put_val(plot->EE, 0.0, -1, -1, -1);
 	mgl_data_put_val(plot->KE, 0.0, -1, -1, -1);
@@ -389,8 +482,10 @@ plot_loop(void *p)
 	pthread_mutex_lock(&sim->lock);
 	mgl_data_link(plot->phi, sim->field->phi->data, mx, my, mz);
 	mgl_data_link(plot->rho, sim->field->rho->data, mx, my, mz);
-	mgl_data_link(plot->E[X], sim->field->E[X]->data, mx, my, mz);
-	mgl_data_link(plot->E[Y], sim->field->E[Y]->data, mx, my, mz);
+	if(sim->dim >= 1)
+		mgl_data_link(plot->E[X], sim->field->E[X]->data, mx, my, mz);
+	if(sim->dim >= 2)
+		mgl_data_link(plot->E[Y], sim->field->E[Y]->data, mx, my, mz);
 	pthread_mutex_unlock(&sim->lock);
 
 	mgl_set_font_size(plot->gr, 2.0);

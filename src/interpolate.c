@@ -65,6 +65,20 @@ linear_interpolation_xy(double rel_pos[2], double w[2][2])
 	w[1][1] *= rel_pos[Y];
 }
 
+void
+linear_interpolation_x(double rel_pos, double w[2])
+{
+	double dif_x;
+
+	assert(rel_pos <= 1.0);
+	assert(rel_pos >= 0.0);
+
+	dif_x = 1.0 - rel_pos;
+
+	w[0] = dif_x;
+	w[1] = rel_pos;
+}
+
 /* From the grid, which starts at x0[2], search for the smallest grid point
  * close to x, in the 2 dimensions, and store the index in i0[2]. Also the
  * relative distance from the gridpoint to x is returned, always in [0..1]. */
@@ -120,6 +134,21 @@ interpolate_weights_xy(double x[2], double dx[2], double x0[2],
 }
 
 void
+interpolate_weights_x(double x[1], double dx[1], double x0[1],
+		double w[2], int i0[1])
+{
+	double delta_grid;
+
+	delta_grid = relative_position_grid(
+			x0[X], x[X], dx[X], i0);
+
+	dbg("delta_grid = %f\n", delta_grid);
+
+	linear_interpolation_x(delta_grid, w);
+	assert(fabs(w[0] + w[1] - 1.0) < MAX_ERR);
+}
+
+void
 interpolate_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b,
 		double val, mat_t *field)
 {
@@ -153,6 +182,33 @@ interpolate_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b,
 }
 
 void
+interpolate_add_to_grid_x(sim_t *sim, particle_t *p, block_t *b,
+		double val, mat_t *field)
+{
+	double w[2];
+	int i0, i1;
+
+	interpolate_weights_x(p->x, sim->dx, b->x0, w, &i0);
+
+	dbg("w = [%f %f]\n", w[0], w[1]);
+
+	/* No handling occurs here, as each block has one extra element of
+	 * the neighbour in each dimension, to avoid communication. */
+
+	i1 = i0 + 1;
+
+	/* Same here as in wrap_particle_position() */
+	assert(i0 >= 0 && i0 <= sim->blocksize[X]);
+	assert(i1 >= 1 && i1 <= sim->ghostsize[X]);
+	assert(field->shape[X] == sim->ghostsize[X]);
+
+	/* Notice that we only ADD to the existing values of the grid */
+
+	MAT_X(field,i0) += w[0] * val;
+	MAT_X(field,i1) += w[1] * val;
+}
+
+void
 interpolate_add_to_particle_xy(sim_t *sim, particle_t *p, block_t *b,
 		double *val, mat_t *field)
 {
@@ -182,10 +238,40 @@ interpolate_add_to_particle_xy(sim_t *sim, particle_t *p, block_t *b,
 }
 
 void
+interpolate_add_to_particle_x(sim_t *sim, particle_t *p, block_t *b,
+		double *val, mat_t *field)
+{
+	double w[2];
+	int i0[1], i1[1];
+
+	interpolate_weights_x(p->x, sim->dx, b->x0, w, i0);
+
+	/* No handling occurs here, as each block has one extra element of
+	 * the neighbour in each dimension, to avoid communication. */
+
+	i1[X] = i0[X] + 1;
+
+	assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
+	assert(i1[X] >= 1 && i1[X] <= sim->ghostsize[X]);
+
+	/* Notice that we only ADD to the existing values of the grid */
+
+	*val += w[0] * MAT_X(field,i0[X]);
+	*val += w[1] * MAT_X(field,i1[X]);
+
+}
+
+void
 interpolate_J_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b)
 {
 	interpolate_add_to_grid_xy(sim, p, b, p->J[X], b->field.J[X]);
 	interpolate_add_to_grid_xy(sim, p, b, p->J[Y], b->field.J[Y]);
+}
+
+void
+interpolate_J_add_to_grid_x(sim_t *sim, particle_t *p, block_t *b)
+{
+	interpolate_add_to_grid_x(sim, p, b, p->J[X], b->field.J[X]);
 }
 
 void
@@ -198,4 +284,14 @@ interpolate_E_set_to_particle_xy(sim_t *sim, particle_t *p, block_t *b)
 
 	interpolate_add_to_particle_xy(sim, p, b, &p->E[X], b->field.E[X]);
 	interpolate_add_to_particle_xy(sim, p, b, &p->E[Y], b->field.E[Y]);
+}
+
+void
+interpolate_E_set_to_particle_x(sim_t *sim, particle_t *p, block_t *b)
+{
+	p->E[X] = 0.0;
+
+	//mat_print(b->field.E[X], "block field E[X]");
+
+	interpolate_add_to_particle_x(sim, p, b, &p->E[X], b->field.E[X]);
 }
