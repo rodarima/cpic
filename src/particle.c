@@ -164,10 +164,10 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
 	int i, d;
 	particle_t *p;
-	double r[MAX_DIM];
-	double dr[MAX_DIM];
+	double r[MAX_DIM] = {0};
+	double dr[MAX_DIM] = {0};
 	double *L;
-	double v[MAX_DIM];
+	double v[MAX_DIM] = {0};
 	config_setting_t *cs_v, *cs_r, *cs_dr;
 
 	L = sim->L;
@@ -188,7 +188,7 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 	{
 		p = &s->particles[i];
 
-		for(d=0; d<sim->dim; d++)
+		for(d=0; d<MAX_DIM; d++)
 		{
 			p->u[d] = v[d];
 

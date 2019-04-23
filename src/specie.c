@@ -37,7 +37,7 @@ specie_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 		return 1;
 	}
 
-	s->particles = malloc(s->nparticles * sizeof(particle_t));
+	s->particles = calloc(s->nparticles * sizeof(particle_t), 1);
 
 	if(particles_init(sim, cs, s))
 		return 1;
