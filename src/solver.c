@@ -204,6 +204,96 @@ solver_init_2d(sim_t *sim)
 	return solver;
 }
 
+int
+MFT_solve(solver_t *s, mat_t *x, mat_t *b)
+{
+	int iy, ix;
+	mat_t *g, *G;
+
+	/* Solve Ax = b using MFT spectral method */
+
+	g = s->g;
+	G = s->G;
+
+	//fft(g, b);
+
+	for(iy=0; iy<s->Ny; iy++)
+	{
+		for(ix=0; ix<s->Nx; ix++)
+		{
+			MAT_XY(g, ix, iy) *= MAT_XY(G, ix, iy);
+		}
+	}
+
+	//inv_fft(x, g);
+
+	return 0;
+}
+
+int
+MFT_init(sim_t *sim, solver_t *s)
+{
+	int iy, ix, nx, ny;
+	double cx, cy;
+	mat_t *G, *g;
+
+	/* Compute Ĝ[k,l] coefficients, as described by Hockney, section 6-5-2 */
+
+	if(sim->dim != 2)
+	{
+		err("MFT solver only supports 2D\n");
+		abort();
+	}
+
+	/* Notice the order of the dimensions, the fastest one is the last */
+
+	/*
+
+	fftw_plan fftw_plan_r2r_2d(ny, nx,
+			NULL, NULL,
+			fftw_r2r_kind kind0, fftw_r2r_kind kind1,
+			unsigned flags);
+
+	fftw_complex signal[NUM_POINTS];
+	fftw_complex result[NUM_POINTS];
+
+
+
+	s->fft_plan = fftw_plan_dft_2d(NUM_POINTS, signal, result,
+			FFTW_FORWARD, FFTW_ESTIMATE);
+
+	acquire_from_somewhere(signal);
+	fftw_execute(plan);
+	do_something_with(result);
+
+	fftw_destroy_plan(plan);
+
+	*/
+
+	G = mat_alloc(sim->dim, sim->nnodes);
+	g = mat_alloc(sim->dim, sim->nnodes);
+
+	nx = sim->nnodes[X];
+	ny = sim->nnodes[Y];
+
+	cx = 2 * M_PI / nx;
+	cy = 2 * M_PI / ny;
+
+	for(iy=0; iy<ny; iy++)
+	{
+		for(ix=0; ix<nx; ix++)
+		{
+			MAT_XY(G, ix, iy) = 1.0 /
+				(2.0 * ( cos(cx * ix) + cos(cy * iy) - 2 ));
+		}
+	}
+
+	s->G = G;
+	s->g = g;
+
+	return 0;
+}
+
 #define INDEX_DELTA_XY(x, y, nx, ny, dx, dy)
 
 solver_t *

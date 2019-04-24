@@ -12,6 +12,10 @@ struct solver
 	int Nx, Ny, N;
 	gsl_permutation *P;
 	gsl_matrix *LU;
+
+	/* For MFT */
+	mat_t *G, *g;
+	//fftw_complex *g;
 };
 
 typedef struct solver solver_t;

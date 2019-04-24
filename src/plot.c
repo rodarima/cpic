@@ -361,7 +361,7 @@ plot_redraw(plot_t *plot)
 	else if(sim->dim == 2)
 		mgl_set_ranges(gr, 0.0, sim->L[X], 0, sim->L[Y], 0, 1);
 	mgl_axis(gr, "xy", "", "");
-	mgl_set_mark_size(gr, 0.2);
+	mgl_set_mark_size(gr, 0.35);
 
 	for(j=0; j<sim->nspecies; j++)
 	{
