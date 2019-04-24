@@ -46,6 +46,22 @@ of the atom is separated, so it remains positively charged (ionized)
 \chapter{Plasma simulation}
 
 
+\subsection{The particle in cell method (PIC)}
+
+%TODO: Show the main equation
+Solving the Vaslov equation requires a large amount of numerical resources. The 
+particle in cell method, approximates the solution by discretization of the 
+fields.
+
+The method is divided in four main phases: 
+
+\begin{itemize}
+\item Particle motion.
+\item Charge accumulation.
+\item Solve field equation.
+\item Interpolation of fields in particle position.
+\end{itemize}
+
 
 \section{1D electrostatic simulation}
 The magnetic field is ignored.
