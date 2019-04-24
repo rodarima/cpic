@@ -9,3 +9,4 @@
 - Add plot of histogram of velocity moments
 - Search for 2D cases for study
 - Distribution of initial temperature
+- Fix error in computation of phi
