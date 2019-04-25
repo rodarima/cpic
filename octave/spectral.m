@@ -1,4 +1,4 @@
-N = 32;
+N = 8;
 Nt = N * N;
 Np = 1;
 q = -1;
@@ -6,7 +6,7 @@ e0 = 1;
 L = N;
 xmin = -L/2;
 xmax = L/2;
-H = 1/N;
+H = L/N;
 H2 = H*H;
 tol = 1e-10;
 maxit = 100;
@@ -22,14 +22,18 @@ range = linspace(xmin, xmax, N);
 % Add one charge exactly in the middle of the grid
 rho = zeros(Nt, 1);
 %rho = rho - q/(Nt-1);
-rho(Nt*1/4 + N*12/16) = -q/(e0*H2);
-rho(Nt*2/4 + N*4/16) = +q/(e0*H2);
+rho(2) = -q/(e0*H2);
+%rho(11) = -q/(e0*H2);
+%rho(Nt*1/4 + N*12/16) = -q/(e0*H2);
+%rho(Nt*2/4 + N*4/16) = +q/(e0*H2);
 %rho(Nt*3/4:Nt*3/4+N/2) = + q/(e0*H2*3);
-rho(Nt*3/4 + N*8/16) = -q/(e0*H2);
+%rho(Nt*3/4 + N*8/16) = -q/(e0*H2);
 
 sum_rho = sum(rho)
 
-rho(rho == 0) = -sum_rho / (Nt - 3);
+%rho(rho == 0) = -sum_rho / (Nt - 3);
+
+rho = rho - sum_rho / Nt;
 
 sum(rho)
 
@@ -72,10 +76,18 @@ endfor
 % Correct division by 0
 G(1,1)=0;
 
+g
+rho_2d
+
 g = g .* G;
 
 phi_fft = real(ifft2(g, N, N));
 
+phi_fft
+
+
+
+return
 % -------------------------------------------------------------------------- %
 
 

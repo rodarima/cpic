@@ -307,16 +307,6 @@ plot_redraw(plot_t *plot)
 //	mgl_boxs(gr, (HCDT) plot->rho, "wk", "");
 
 
-#if 0
-	mgl_set_ranges(gr, 0.0, sim->nnodes[X], 0.0, sim->nnodes[Y],
-			mgl_data_min(plot->phi), mgl_data_max(plot->phi));
-	mgl_title(gr, "Electric potential \\phi", "", 5.0);
-	mgl_contf(gr, (HCDT) plot->phi, "", "");
-//	mgl_boxs(gr, (HCDT) plot->phi, "wk", "");
-//	mgl_colorbar(gr, ">");
-	mgl_axis_grid(gr, "xy", "", "");
-	mgl_axis(gr, "xy", "", "");
-#endif
 
 //	mgl_subplot(gr, 2, 2, 3, "");
 //	mgl_set_ranges(gr, 0.0, 64.0, -10, 10,
@@ -386,8 +376,19 @@ plot_redraw(plot_t *plot)
 #endif
 
 	mgl_subplot(gr, 2, 2, 3, "");
-	plot_velocity_distribution(plot, sim, max_v);
-
+	if(sim->dim == 1)
+	{
+		plot_velocity_distribution(plot, sim, max_v);
+	}
+	else
+	{
+		mgl_set_ranges(gr, 0.0, sim->nnodes[X], 0.0, sim->nnodes[Y],
+				mgl_data_min(plot->phi), mgl_data_max(plot->phi));
+		mgl_title(gr, "Electric potential \\phi", "", 5.0);
+		mgl_contf(gr, (HCDT) plot->phi, "", "");
+		mgl_axis_grid(gr, "xy", "", "");
+		mgl_axis(gr, "xy", "", "");
+	}
 
 	mgl_finish(gr);
 	//glFlush();
