@@ -281,10 +281,14 @@ boris_rotation(double q, double m, double *u, double *v, double *E, double *B, d
 	{
 		t[d] = B[d] * dtqm2;
 		s_denom += t[d] * t[d];
+
+		/* Advance the velocity half an electric impulse */
 		v_minus[d] = u[d] + dtqm2 * E[d];
+
 		s[d] = 2.0 * t[d] / s_denom;
 	}
 
+	/* Compute half the rotation in v' */
 	cross_product(v_prime, v_minus, t);
 
 	for(d=X; d<MAX_DIM; d++)
@@ -294,7 +298,10 @@ boris_rotation(double q, double m, double *u, double *v, double *E, double *B, d
 
 	for(d=X; d<MAX_DIM; d++)
 	{
+		/* Then finish the rotation by symmetry */
 		v_plus[d] += v_minus[d];
+
+		/* Advance the velocity the other half electric impulse */
 		v[d] = v_plus[d] + dtqm2 * E[d];
 	}
 
