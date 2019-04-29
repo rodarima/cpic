@@ -341,7 +341,7 @@ field_E_spread(sim_t *sim, specie_t *s)
 int
 field_E_compute(sim_t *sim)
 {
-	int ix, iy, x0, x1, y0, y1, nx, ny;
+	int ix, iy, x0, x1, y0, y1, nx, ny, ii;
 	double dx2, dy2;
 	field_t *f;
 
@@ -360,22 +360,25 @@ field_E_compute(sim_t *sim)
 
 	for(iy=0; iy<ny; iy++)
 	{
+		y0 = (iy + ny - 1) % ny;
+		y1 = (iy + 1) % ny;
+
 		for(ix=0; ix<nx; ix++)
 		{
 			x0 = (ix + nx - 1) % nx;
 			x1 = (ix + 1) % nx;
-			y0 = (iy + ny - 1) % ny;
-			y1 = (iy + 1) % ny;
+
+			ii = MAT_INDEX_XY(ix, iy, nx, ny);
 
 			switch(sim->dim)
 			{
 				case 2:
-					MAT_XY(f->E[Y], ix, iy) =
+					MAT_X(f->E[Y], ii) =
 						(MAT_XY(f->phi, ix, y0) - MAT_XY(f->phi, ix, y1))
 						/ dy2;
 					/* Falltrough */
 				case 1:
-					MAT_XY(f->E[X], ix, iy) =
+					MAT_X(f->E[X], ii) =
 						(MAT_XY(f->phi, x0, iy) - MAT_XY(f->phi, x1, iy))
 						/ dx2;
 					break;
@@ -386,8 +389,8 @@ field_E_compute(sim_t *sim)
 			/* The electrostatic energy is computed from the charge
 			 * density and electric potential just updated */
 
-			sim->energy_electrostatic += MAT_XY(f->rho, ix, iy)
-				* MAT_XY(f->phi, ix, iy);
+			sim->energy_electrostatic += MAT_X(f->rho, ii) *
+				MAT_X(f->phi, ii);
 
 		}
 	}
