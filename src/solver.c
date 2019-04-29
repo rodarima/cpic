@@ -6,6 +6,7 @@
 #include "log.h"
 #include <gsl/gsl_linalg.h>
 #include <assert.h>
+#include <string.h>
 
 #define MAX_ERR 1e-10
 
@@ -15,7 +16,7 @@ LU_init(solver_t *s)
 {
 	int N, Nx, Ny;
 	gsl_matrix *A;
-	int i, right, left, signum;
+	int i, up, down, right, left, signum;
 	int ix, iy;
 
 	N = s->N;
@@ -28,16 +29,41 @@ LU_init(solver_t *s)
 
 	iy = 0;
 
-	for(ix = 0; ix < Nx; ix++)
+	if(s->dim == 1)
 	{
-		i = MAT_INDEX_XY(ix, iy, Nx, Ny);
+		for(ix = 0; ix < Nx; ix++)
+		{
+			i = MAT_INDEX_XY(ix, iy, Nx, Ny);
 
-		left  = MAT_INDEX_XY((ix+Nx-1) % Nx, iy, Nx, Ny);
-		right = MAT_INDEX_XY((ix   +1) % Nx, iy, Nx, Ny);
+			left  = MAT_INDEX_XY((ix+Nx-1) % Nx, iy, Nx, Ny);
+			right = MAT_INDEX_XY((ix   +1) % Nx, iy, Nx, Ny);
 
-		gsl_matrix_set(A, i, i, -2);
-		gsl_matrix_set(A, i, left, 1);
-		gsl_matrix_set(A, i, right, 1);
+			gsl_matrix_set(A, i, i, -2);
+			gsl_matrix_set(A, i, left, 1);
+			gsl_matrix_set(A, i, right, 1);
+		}
+	}
+	else if(s->dim == 2)
+	{
+		for(ix = 0; ix < Nx; ix++)
+		{
+			for(iy = 0; iy < Ny; iy++)
+			{
+				i = MAT_INDEX_XY(ix, iy, Nx, Ny);
+
+				left  = MAT_INDEX_XY((ix+Nx-1) % Nx, iy, Nx, Ny);
+				right = MAT_INDEX_XY((ix   +1) % Nx, iy, Nx, Ny);
+
+				up    = MAT_INDEX_XY(ix, (iy   +1) % Ny, Nx, Ny);
+				down  = MAT_INDEX_XY(ix, (iy+Ny-1) % Ny, Nx, Ny);
+
+				gsl_matrix_set(A, i, i, -4);
+				gsl_matrix_set(A, i, left, 1);
+				gsl_matrix_set(A, i, right, 1);
+				gsl_matrix_set(A, i, up, 1);
+				gsl_matrix_set(A, i, down, 1);
+			}
+		}
 	}
 
 	/* Fix the value of phi at (0) to be 0, thus the equation phi(0) = 0
@@ -46,7 +72,8 @@ LU_init(solver_t *s)
 	 * 	0*phi_i = sum_i(rho_i) = 0
 	 * which can be eliminated.
 	 **/
-	gsl_matrix_set(A, 0, 0, -1);
+	gsl_matrix_set(A, 0, 0,
+			gsl_matrix_get(A, 0, 0) - 1);
 
 	//err("Matrix of coefficients A:\n");
 	//gsl_matrix_fprintf(stderr, A, "%.1f");
@@ -244,26 +271,19 @@ MFT_solve(solver_t *s, mat_t *x, mat_t *b)
 }
 
 solver_t *
-solver_init_1d(sim_t *sim)
+solver_init_1d(solver_t *solver, sim_t *sim)
 {
-	int N, Nx, Ny;
-	solver_t *solver;
+	int N, Nx;
 	gsl_matrix *A;
 	int i, right, left, signum;
 	int ix, iy;
 
-	solver = malloc(sizeof(solver_t));
-
 	Nx = sim->nnodes[X];
-	Ny = 1;
 	N = Nx;
 
 	solver->N = N;
 	solver->Nx = Nx;
 	solver->dim = 1;
-
-	/* FIXME: By now we preselect LU for 1D */
-	solver->method = METHOD_LU;
 
 	A = gsl_matrix_calloc(N, N);
 
@@ -322,12 +342,9 @@ solver_init_1d(sim_t *sim)
 }
 
 solver_t *
-solver_init_2d(sim_t *sim)
+solver_init_2d(solver_t *solver, sim_t *sim)
 {
 	int N, Nx, Ny, ret;
-	solver_t *solver;
-
-	solver = malloc(sizeof(solver_t));
 
 	Nx = sim->nnodes[X];
 	Ny = sim->nnodes[Y];
@@ -354,6 +371,9 @@ solver_init_2d(sim_t *sim)
 			break;
 	}
 
+	if(ret)
+		return NULL;
+
 	return solver;
 }
 
@@ -363,12 +383,32 @@ solver_init_2d(sim_t *sim)
 solver_t *
 solver_init(sim_t *sim)
 {
+	solver_t *solver;
+
+	if(!sim->solver_method)
+	{
+		err("Solver method not specified\n");
+		return NULL;
+	}
+
+	solver = malloc(sizeof(solver_t));
+
+	if(strcmp(sim->solver_method, "LU") == 0)
+		solver->method = METHOD_LU;
+	else if(strcmp(sim->solver_method, "MFT") == 0)
+		solver->method = METHOD_MFT;
+	else
+	{
+		err("Unknown solver method \"%s\"\n", sim->solver_method);
+		return NULL;
+	}
+
 	switch(sim->dim)
 	{
 		case 1:
-			return solver_init_1d(sim);
+			return solver_init_1d(solver, sim);
 		case 2:
-			return solver_init_2d(sim);
+			return solver_init_2d(solver, sim);
 		default:
 			err("Solver cannot handle %d dimensions.\n", sim->dim);
 			return NULL;

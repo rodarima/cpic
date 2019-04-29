@@ -1,9 +1,10 @@
 MODULES:=src test user
 
-CC=clang
+CC=gcc
 #OCC=mcc
 LDLIBS:=
-CFLAGS:=-g -pthread -Wall
+CFLAGS:=-O2 -g -pthread -Wall
+LDFLAGS:=-L. -Wl,-rpath,.
 
 #Include all modules for headers
 CFLAGS+=$(patsubst %,-I%,$(MODULES))

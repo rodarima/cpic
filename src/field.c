@@ -339,63 +339,28 @@ field_E_spread(sim_t *sim, specie_t *s)
 }
 
 int
-field_E_solve(sim_t *sim)
+field_E_compute(sim_t *sim)
 {
-	field_t *f;
-	int n, np;
 	int ix, iy, x0, x1, y0, y1, nx, ny;
-	mat_t *E;
-	double H, q, dx2, dy2;
-	double qsum;
+	double dx2, dy2;
+	field_t *f;
 
 	f = sim->field;
-	n = sim->nnodes[X] * sim->nnodes[Y];
-	E = f->E[0];
-	H = sim->dx[0];
-	q = sim->species[0].q;
-	np = sim->species[0].nparticles;
+
+	/* Now we compute the minus centered gradient of phi to get E */
+
+	f = sim->field;
+	dx2 = 2 * sim->dx[X];
+	dy2 = 2 * sim->dx[Y];
 
 	nx = sim->nnodes[X];
 	ny = sim->nnodes[Y];
 
-	n = nx * ny;
-
-	dx2 = 2 * sim->dx[X];
-	dy2 = 2 * sim->dx[Y];
-
-	assert(f->rho->size == n);
-
-	qsum = 0.0;
-	/* Get total charge (it should sum 0) */
-	for(iy=0; iy<ny; iy++)
-	{
-		for(ix=0; ix<nx; ix++)
-		{
-			qsum += MAT_XY(f->rho, ix, iy);
-		}
-	}
-
-	/* Fix charge neutrality and invert */
-	for(iy=0; iy<ny; iy++)
-	{
-		for(ix=0; ix<nx; ix++)
-		{
-			MAT_XY(f->rho, ix, iy) += -qsum / n;
-			MAT_XY(f->rho, ix, iy) *= -1.0;
-		}
-	}
-
-	//mat_print(sim->field->rho, "rho after set sum to 0");
-
-	solve_xy(sim->solver, f->phi, f->rho);
-
-	/* Now we compute the minus centered gradient of phi to get E */
-
 	sim->energy_electrostatic = 0.0;
 
-	for(iy=0; iy<sim->nnodes[Y]; iy++)
+	for(iy=0; iy<ny; iy++)
 	{
-		for(ix=0; ix<sim->nnodes[X]; ix++)
+		for(ix=0; ix<nx; ix++)
 		{
 			x0 = (ix + nx - 1) % nx;
 			x1 = (ix + 1) % nx;
@@ -430,6 +395,51 @@ field_E_solve(sim_t *sim)
 	//sim->energy_electrostatic /= (sim->nnodes[X] * sim->nnodes[Y]);
 	//sim->energy_electrostatic *= 16 * 64;
 	sim->energy_electrostatic *= -1.0;
+
+	return 0;
+}
+
+int
+field_phi_solve(sim_t *sim)
+{
+	field_t *f;
+	int ix, iy, nx, ny, n;
+	double qsum;
+
+	f = sim->field;
+	n = sim->nnodes[X] * sim->nnodes[Y];
+
+	nx = sim->nnodes[X];
+	ny = sim->nnodes[Y];
+
+	n = nx * ny;
+
+	assert(f->rho->size == n);
+
+	qsum = 0.0;
+
+	/* Get total charge (it should sum 0) */
+	for(iy=0; iy<ny; iy++)
+	{
+		for(ix=0; ix<nx; ix++)
+		{
+			qsum += MAT_XY(f->rho, ix, iy);
+		}
+	}
+
+	/* Fix charge neutrality and invert */
+	for(iy=0; iy<ny; iy++)
+	{
+		for(ix=0; ix<nx; ix++)
+		{
+			MAT_XY(f->rho, ix, iy) += -qsum / n;
+			MAT_XY(f->rho, ix, iy) *= -1.0;
+		}
+	}
+
+	//mat_print(sim->field->rho, "rho after set sum to 0");
+
+	solve_xy(sim->solver, f->phi, f->rho);
 
 
 //	for(i=1; i<n-1; i++)
@@ -478,7 +488,9 @@ field_E(sim_t *sim)
 
 	//mat_print(sim->field->rho, "rho after collect");
 
-	field_E_solve(sim);
+	field_phi_solve(sim);
+
+	field_E_compute(sim);
 
 	/* Exit after 1 iterations to test the solver */
 	//mat_print(sim->field->phi, "phi");

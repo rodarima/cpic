@@ -15,7 +15,7 @@ src_cflags+=`pkg-config --cflags glfw3`
 src_ldlibs+=`pkg-config --libs glfw3`
 
 cpic: $(obj)
-	$(CC) $(CFLAGS) $(src_cflags) $(LDLIBS) $(src_ldlibs) $^ -o $@
+	$(CC) $(CFLAGS) $(src_cflags) $(LDFLAGS) $(LDLIBS) $(src_ldlibs) $^ -o $@
 
 cpic.a: $(obj_lib)
 	ar rcs $@ $^

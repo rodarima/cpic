@@ -101,6 +101,8 @@ struct sim
 	/* The solver needs some information during the simulation */
 	solver_t *solver;
 
+	const char *solver_method;
+
 	/* A pointer to let the user save a reference to an external structure
 	 * or any other data */
 	//void *user; // Not used, yet.

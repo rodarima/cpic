@@ -40,6 +40,7 @@ sim_init(config_t *conf, int quiet)
 	config_lookup_int(conf, "simulation.sampling_period.field", &s->period_field);
 	config_lookup_int(conf, "simulation.sampling_period.particle", &s->period_particle);
 	config_lookup_int(conf, "simulation.realtime_plot", &mode);
+	config_lookup_string(conf, "simulation.method", &s->solver_method);
 
 	/* Load all dimension related vectors */
 	config_lookup_array_float(conf, "simulation.space_length", s->L, s->dim);
