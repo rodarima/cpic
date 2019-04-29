@@ -34,7 +34,6 @@ start(int argc, char *argv[])
 	sim_t *sim;
 	config_t conf;
 	const char *fn;
-	FILE *f;
 	int opt;
 	int quiet = 0;
 
@@ -54,24 +53,16 @@ start(int argc, char *argv[])
 		return usage(argc, argv);
 
 	fn = argv[optind];
-	f = fopen(fn, "r");
-
-	if(!f)
-	{
-		perror("fopen");
-		return 1;
-	}
-
 	config_init(&conf);
 
 	/* Read the configuration from stdin */
-	if(config_read(&conf, f) == CONFIG_FALSE)
+	if(config_read_file(&conf, fn) == CONFIG_FALSE)
 	{
-		err("Configuration read failed\n");
+		err("Configuration read failed:\n");
+		err("%s:%d - %s\n", config_error_file(&conf),
+			config_error_line(&conf), config_error_text(&conf));
 		return -1;
 	}
-
-	fclose(f);
 
 
 	if(!(sim = sim_init(&conf, quiet)))
