@@ -108,7 +108,7 @@ sim_init(config_t *conf, int quiet)
 }
 
 static int
-conservation_energy(sim_t *sim, specie_t *s)
+conservation_energy(sim_t *sim)
 {
 	double EE = 0.0; /* Electrostatic energy */
 	double KE = 0.0; /* Kinetic energy */
@@ -173,9 +173,9 @@ conservation_energy(sim_t *sim, specie_t *s)
 
 
 	/* Factor correction */
-	sim->energy_kinetic *= s->m / 2.0;
-	sim->total_momentum[X] *= s->m * 5.0;
-	sim->total_momentum[Y] *= s->m * 5.0;
+	//sim->energy_kinetic *= s->m / 2.0;
+	//sim->total_momentum[X] *= s->m * 5.0;
+	//sim->total_momentum[Y] *= s->m * 5.0;
 
 
 
@@ -314,8 +314,7 @@ sim_step(sim_t *sim)
 	//if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
 	//	specie_print(sim, s);
 
-	/* FIXME: s cannot be used */
-	conservation_energy(sim, s);
+	conservation_energy(sim);
 	//test_radius(sim);
 
 	if(sim->mode == SIM_MODE_DEBUG)

@@ -143,7 +143,7 @@ LU_solve(solver_t *s, mat_t *phi, mat_t *rho)
 int
 MFT_init(solver_t *s)
 {
-	int iy, ix, nx, ny;
+	int iy, ix, nx, ny, halfx;
 	int shape[MAX_DIM] = {1,1,1};
 	double cx, cy;
 	mat_t *G;
@@ -159,19 +159,20 @@ MFT_init(solver_t *s)
 
 	nx = s->Nx;
 	ny = s->Ny;
+	halfx = nx/2 + 1;
 
-	shape[X] = nx;
+	shape[X] = halfx;
 	shape[Y] = ny;
 
 	G = mat_alloc(s->dim, shape);
-	g = malloc(sizeof(fftw_complex) * nx * ny);
+	g = fftw_malloc(sizeof(fftw_complex) * nx * ny);
 
 	cx = 2.0 * M_PI / nx;
 	cy = 2.0 * M_PI / ny;
 
 	for(iy=0; iy<ny; iy++)
 	{
-		for(ix=0; ix<nx; ix++)
+		for(ix=0; ix<halfx; ix++)
 		{
 			/* Avoid division by zero */
 			if(ix == 0 && iy == 0)
@@ -190,79 +191,73 @@ MFT_init(solver_t *s)
 	return 0;
 }
 
+void
+MFT_kernel(solver_t *s)
+{
+	int ix, iy, ii, halfx;
+	mat_t *G;
+	fftw_complex *g;
+	double *Gd;
+
+	g = s->g;
+	G = s->G;
+	Gd = G->data;
+	halfx = s->Nx / 2 + 1;
+
+	ii = 0;
+	for(iy=0; iy<s->Ny; iy++)
+	{
+		for(ix=0; ix<halfx; ix++)
+		{
+			/* Half of the coefficients are not needed */
+			g[ii][0] *= Gd[ii];
+			g[ii][1] *= Gd[ii];
+
+			ii++;
+		}
+	}
+}
+
+void
+MFT_normalize(mat_t *x, int Nx, int Ny, int N)
+{
+	int ix, iy;
+
+	for(iy=0; iy<Ny; iy++)
+	{
+		for(ix=0; ix<Nx; ix++)
+		{
+			MAT_XY(x, ix, iy) /= N;
+		}
+	}
+}
+
 int
 MFT_solve(solver_t *s, mat_t *x, mat_t *b)
 {
-	int iy, ix, halfx;
-	mat_t *G;
 	fftw_complex *g;
 	fftw_plan direct, inverse;
 
 	/* Solve Ax = b using MFT spectral method */
 
 	g = s->g;
-	G = s->G;
-	halfx = s->Nx / 2 + 1;
-
-//	mat_print(b, "b");
-
-//	printf("nx=%d, ny=%d\n", s->Nx, s->Ny);
 
 	/* Beware: The output of the FFT has a very special symmetry, with an
 	 * output size of Ny x Nx/2+1. */
 
 	direct = fftw_plan_dft_r2c_2d(s->Ny, s->Nx,
-			b->data, g, FFTW_ESTIMATE | FFTW_UNALIGNED);
+			b->data, g, FFTW_ESTIMATE);
 
 	fftw_execute(direct);
 
-//	printf("g\n");
-//	for(iy=0; iy<s->Ny; iy++)
-//	{
-//		for(ix=0; ix<halfx; ix++)
-//		{
-//			printf("%5.2lf%+5.2lfi  ", g[iy * halfx + ix][0],
-//					g[iy * halfx + ix][1]);
-//		}
-//		printf("\n");
-//	}
-
-	for(iy=0; iy<s->Ny; iy++)
-	{
-		for(ix=0; ix<halfx; ix++)
-		{
-			/* Half of the coefficients are not needed */
-			g[iy * halfx + ix][0] *= MAT_XY(G, ix, iy);
-			g[iy * halfx + ix][1] *= MAT_XY(G, ix, iy);
-		}
-	}
-
-//	printf("g.*G\n");
-//	for(iy=0; iy<s->Ny; iy++)
-//	{
-//		for(ix=0; ix<halfx; ix++)
-//		{
-//			printf("%5.2lf%+5.2lfi  ", g[iy * halfx + ix][0],
-//					g[iy * halfx + ix][1]);
-//		}
-//		printf("\n");
-//	}
-
+	MFT_kernel(s);
 
 	inverse = fftw_plan_dft_c2r_2d(s->Ny, s->Nx,
-			g, x->data, FFTW_ESTIMATE | FFTW_UNALIGNED | FFTW_BACKWARD);
+			g, x->data, FFTW_ESTIMATE | FFTW_BACKWARD);
 
 	fftw_execute(inverse);
 
-	for(iy=0; iy<s->Ny; iy++)
-	{
-		for(ix=0; ix<s->Nx; ix++)
-		{
-			MAT_XY(x, ix, iy) /= s->N;
-		}
-	}
-
-//	mat_print(x, "x");
+	MFT_normalize(x, s->Nx, s->Ny, s->N);
 
 	fftw_destroy_plan(direct);
 	fftw_destroy_plan(inverse);

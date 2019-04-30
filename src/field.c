@@ -284,10 +284,10 @@ field_E_spread(sim_t *sim, specie_t *s)
 			/* Set also the ghost points */
 			for(jy=0; jy<sim->ghostsize[Y]; jy++)
 			{
+				gy = (iy * sim->blocksize[Y] + jy) % gny;
 				for(jx=0; jx<sim->ghostsize[X]; jx++)
 				{
 					gx = (ix * sim->blocksize[X] + jx) % gnx;
-					gy = (iy * sim->blocksize[Y] + jy) % gny;
 
 
 					switch(sim->dim)
