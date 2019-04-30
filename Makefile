@@ -3,7 +3,7 @@ MODULES:=src test user
 CC=gcc
 #OCC=mcc
 LDLIBS:=
-CFLAGS:=-O2 -g -pthread -Wall
+CFLAGS:=-O2 -g -pthread -Wall -pg
 LDFLAGS:=-L. -Wl,-rpath,.
 
 #Include all modules for headers
