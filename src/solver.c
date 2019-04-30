@@ -350,9 +350,6 @@ solver_init_2d(solver_t *solver, sim_t *sim)
 	solver->Nx = Nx;
 	solver->Ny = Ny;
 
-	/* FIXME: By now we preselect MFT */
-	solver->method = METHOD_MFT;
-
 	switch(solver->method)
 	{
 		case METHOD_LU:
