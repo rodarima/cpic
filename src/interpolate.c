@@ -261,18 +261,18 @@ interpolate_add_to_particle_x(sim_t *sim, particle_t *p, block_t *b,
 
 }
 
-void
-interpolate_J_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b)
-{
-	interpolate_add_to_grid_xy(sim, p, b, p->J[X], b->field.J[X]);
-	interpolate_add_to_grid_xy(sim, p, b, p->J[Y], b->field.J[Y]);
-}
-
-void
-interpolate_J_add_to_grid_x(sim_t *sim, particle_t *p, block_t *b)
-{
-	interpolate_add_to_grid_x(sim, p, b, p->J[X], b->field.J[X]);
-}
+//void
+//interpolate_J_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b)
+//{
+//	interpolate_add_to_grid_xy(sim, p, b, p->J[X], b->field.J[X]);
+//	interpolate_add_to_grid_xy(sim, p, b, p->J[Y], b->field.J[Y]);
+//}
+//
+//void
+//interpolate_J_add_to_grid_x(sim_t *sim, particle_t *p, block_t *b)
+//{
+//	interpolate_add_to_grid_x(sim, p, b, p->J[X], b->field.J[X]);
+//}
 
 void
 interpolate_E_set_to_particle_xy(sim_t *sim, particle_t *p, block_t *b)

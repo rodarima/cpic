@@ -23,7 +23,6 @@ struct particle {
 	/* Interpolation fields at particle position */
 	double E[MAX_DIM];
 	double B[MAX_DIM];
-	double J[MAX_DIM];
 
 	/* Node element in a list */
 	struct particle *next, *prev;

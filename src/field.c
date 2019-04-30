@@ -25,9 +25,6 @@ field_init(sim_t *sim)
 	for(i=0; i<sim->dim; i++)
 	{
 		f->E[i] = mat_alloc(d, shape);
-
-		/* J is not needed */
-		f->J[i] = mat_alloc(d, shape);
 	}
 
 	f->phi = mat_alloc(d, shape);
@@ -38,34 +35,28 @@ field_init(sim_t *sim)
 	for(i=0; i<sim->dim; i++)
 	{
 		MAT_FILL(f->E[i], 0.0);
-		MAT_FILL(f->J[i], 0.0);
 	}
 
 	return f;
 }
 
-/* The field J is updated based on the electric current computed on each
+/* The field rho is updated based on the charge density computed on each
  * particle p, by using an interpolation function */
 static int
-block_J_update(sim_t *sim, specie_t *s, block_t *b)
+block_rho_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	particle_t *p;
-	mat_t **J = b->field.J;
 	mat_t *rho = b->field.rho;
 
 	/* Erase previous current */
-	VMAT_FILL(J, sim->dim, 0.0);
 	MAT_FILL(rho, 0.0);
 
 	if(sim->dim == 1)
 	{
 		for(p = b->particles; p; p = p->next)
 		{
-			/* Interpolate the electric current of the particle to the grid
+			/* Interpolate the charge density of the particle to the grid
 			 * of the block */
-			interpolate_J_add_to_grid_x(sim, p, b);
-
-			/* Then the charge density */
 			interpolate_add_to_grid_x(sim, p, b, s->q, rho);
 		}
 	}
@@ -73,11 +64,8 @@ block_J_update(sim_t *sim, specie_t *s, block_t *b)
 	{
 		for(p = b->particles; p; p = p->next)
 		{
-			/* Interpolate the electric current of the particle to the grid
+			/* Interpolate the charge density of the particle to the grid
 			 * of the block */
-			interpolate_J_add_to_grid_xy(sim, p, b);
-
-			/* Then the charge density */
 			interpolate_add_to_grid_xy(sim, p, b, s->q, rho);
 		}
 	}
@@ -141,9 +129,8 @@ comm_neigh(sim_t *sim, mat_t *from, mat_t *to, int dir[MAX_DIM])
 	}
 }
 
-/* The ghost node of J (from->rB) is added in to->J[0] */
 static int
-block_J_comm(sim_t *sim, specie_t *s, block_t *b)
+block_rho_comm(sim_t *sim, specie_t *s, block_t *b)
 {
 	block_t *neigh;
 
@@ -192,17 +179,6 @@ block_J_comm(sim_t *sim, specie_t *s, block_t *b)
 
 				//assert(neigh != b);
 
-				switch(sim->dim)
-				{
-					case 2:
-						comm_neigh(sim, b->field.J[Y], neigh->field.J[Y], j);
-						/* Fallthrough */
-					case 1:
-						comm_neigh(sim, b->field.J[X], neigh->field.J[X], j);
-						break;
-					default:
-						abort();
-				}
 				comm_neigh(sim, b->field.rho, neigh->field.rho, j);
 			}
 		}
@@ -211,15 +187,14 @@ block_J_comm(sim_t *sim, specie_t *s, block_t *b)
 	/* FIXME: This may be useful in 2D also */
 	/* The ghost cannot be used now */
 	//MAT_XY(lf->rho, bsize, 0) = 1e100;
-	//MAT_XY(lf->J[0], bsize, 0) = 1e100;
 
 	return 0;
 }
 
-/* The field J is updated based on the electric current computed on each
+/* The field rho is updated based on the charge density computed on each
  * particle p, by using an interpolation function */
 int
-field_J(sim_t *sim, specie_t *s)
+field_rho(sim_t *sim, specie_t *s)
 {
 	int i;
 	block_t *b;
@@ -229,7 +204,7 @@ field_J(sim_t *sim, specie_t *s)
 	{
 		b = &(s->blocks[i]);
 
-		block_J_update(sim, s, b);
+		block_rho_update(sim, s, b);
 	}
 
 	/* Communication */
@@ -237,7 +212,7 @@ field_J(sim_t *sim, specie_t *s)
 	{
 		b = &(s->blocks[i]);
 
-		block_J_comm(sim, s, b);
+		block_rho_comm(sim, s, b);
 	}
 	return 0;
 }

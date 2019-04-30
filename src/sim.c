@@ -22,7 +22,6 @@ sim_init(config_t *conf, int quiet)
 	sim_t *s;
 	int i, mode;
 	int seed;
-	double wp, fp, n, q, e0, m, Tp;
 	specie_t *sp;
 
 	s = calloc(1, sizeof(sim_t));
@@ -98,33 +97,11 @@ sim_init(config_t *conf, int quiet)
 		plot_thread_init(s);
 	}
 
-
-	/* Testing */
-	sp = &s->species[0];
-
-	//n = sp->nparticles / s->L;
-	n = 1.0;
-	q = sp->q;
-	e0 = s->e0;
-	m = sp->m;
-	wp = sqrt(n * q * q / (e0 * m));
-	fp = wp / (2*M_PI);
-	Tp = 1/fp;
-
-	//fprintf(stderr, "omega_p = %e rad/s, f_p = %e, tau_p = %e (%e iterations)\n",
-	//		wp, fp, Tp, Tp / s->dt);
-
-	//fprintf(stderr, "wp * dt = %e (should be between 0.1 and 0.2)\n", wp * s->dt);
-	//assert(wp * s->dt <= 0.2);
-	//assert(wp * s->dt >= 0.1);
-
-
-	/* Initial computation of J */
+	/* Initial computation of rho */
 	for(i = 0; i < s->nspecies; i++)
 	{
 		sp = &s->species[i];
-		particle_J(s, sp);
-		field_J(s, sp);
+		field_rho(s, sp);
 	}
 
 	return s;
@@ -328,12 +305,8 @@ sim_step(sim_t *sim)
 		 * current from the values of the particle positions and
 		 * velocities. */
 
-		/* Line 10: Update the current field on grid, algorithm 3 */
-		particle_J(sim, s);
-
-		/* Interpolate the current and density of charge of each
-		 * specie to the field */
-		field_J(sim, s);
+		/* Interpolate density of charge of each specie to the field */
+		field_rho(sim, s);
 	}
 
 
@@ -341,6 +314,7 @@ sim_step(sim_t *sim)
 	//if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
 	//	specie_print(sim, s);
 
+	/* FIXME: s cannot be used */
 	conservation_energy(sim, s);
 	//test_radius(sim);
 

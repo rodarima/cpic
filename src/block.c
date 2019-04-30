@@ -50,7 +50,6 @@ blocks_init_2d(sim_t *sim, specie_t *s)
 			for(d=0; d<sim->dim; d++)
 			{
 				b->field.E[d] = mat_alloc(sim->dim, sim->ghostsize);
-				b->field.J[d] = mat_alloc(sim->dim, sim->ghostsize);
 			}
 
 			b->field.rho = mat_alloc(sim->dim, sim->ghostsize);
@@ -106,7 +105,6 @@ blocks_init_1d(sim_t *sim, specie_t *s)
 		for(d=0; d<sim->dim; d++)
 		{
 			b->field.E[d] = mat_alloc(sim->dim, sim->ghostsize);
-			b->field.J[d] = mat_alloc(sim->dim, sim->ghostsize);
 		}
 
 		b->field.rho = mat_alloc(sim->dim, sim->ghostsize);

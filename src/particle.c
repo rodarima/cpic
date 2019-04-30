@@ -109,8 +109,8 @@ init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
 
 		p->E[X] = 5.0;
 		p->E[Y] = 5.0;
-		p->J[X] = 0.0;
-		p->J[Y] = 0.0;
+//		p->J[X] = 0.0;
+//		p->J[Y] = 0.0;
 		dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
 	}
 
@@ -152,8 +152,8 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 		p->E[X] = 0.0;
 		p->E[Y] = 0.0;
 
-		p->J[X] = 0.0;
-		p->J[Y] = 0.0;
+//		p->J[X] = 0.0;
+//		p->J[Y] = 0.0;
 	}
 
 	return 0;
@@ -195,28 +195,8 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 			WRAP(p->x[d], r[d], L[d]);
 			r[d] += dr[d];
 			p->E[d] = 0.0;
-			p->J[d] = 0.0;
+//			p->J[d] = 0.0;
 		}
-	}
-
-	return 0;
-}
-
-/* At each particle p, the current J_p is computed based on the charge and speed
- * of the particle */
-//#pragma oss task inout(*b) label(particle_block_J_update)
-static int
-block_J_update(sim_t *sim, specie_t *s, block_t *b)
-{
-	particle_t *p;
-
-	for (p = b->particles; p; p = p->next)
-	{
-		/* FIXME Optimize for lower dimensions */
-		p->J[Z] = s->q * p->u[Z] / sim->dt;
-		p->J[Y] = s->q * p->u[Y] / sim->dt;
-		p->J[X] = s->q * p->u[X] / sim->dt;
-
 	}
 
 	return 0;
@@ -640,22 +620,5 @@ particle_x(sim_t *sim, specie_t *s)
 	}
 
 
-	return 0;
-}
-
-/* At each particle p, the current J_p is computed based on the charge and speed
- */
-int
-particle_J(sim_t *sim, specie_t *s)
-{
-	int i;
-	block_t *b;
-
-	for (i = 0; i < s->ntblocks; i++)
-	{
-		b = &(s->blocks[i]);
-
-		block_J_update(sim, s, b);
-	}
 	return 0;
 }
