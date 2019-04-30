@@ -7,6 +7,7 @@ typedef struct sim sim_t;
 #include "specie.h"
 #include "field.h"
 #include "solver.h"
+#include "perf.h"
 #include <libconfig.h>
 #include <pthread.h>
 
@@ -106,6 +107,8 @@ struct sim
 	/* A pointer to let the user save a reference to an external structure
 	 * or any other data */
 	//void *user; // Not used, yet.
+
+	perf_t *perf;
 };
 
 

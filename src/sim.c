@@ -9,6 +9,7 @@
 #include "config.h"
 #include "plot.h"
 #include "solver.h"
+#include "perf.h"
 
 #include <math.h>
 #include <assert.h>
@@ -49,6 +50,8 @@ sim_init(config_t *conf, int quiet)
 	config_lookup_array_int(conf, "grid.blocks", s->nblocks, s->dim);
 	config_lookup_array_int(conf, "grid.blocksize", s->blocksize, s->dim);
 
+	s->perf = perf_init();
+
 	/* Then compute the rest */
 	if(mode == 0 || quiet)
 		s->mode = SIM_MODE_NORMAL;
@@ -83,11 +86,13 @@ sim_init(config_t *conf, int quiet)
 	if(species_init(s, conf))
 		return NULL;
 
+	perf_start(s->perf, TIMER_SOLVER);
 	if((s->solver = solver_init(s)) == NULL)
 	{
 		err("solver_init failed\n");
 		return NULL;
 	}
+	perf_stop(s->perf, TIMER_SOLVER);
 
 	/* We are set now, start the plotter if needed */
 	if(s->mode == SIM_MODE_DEBUG)
@@ -338,6 +343,9 @@ sim_run(sim_t *sim)
 {
 	while(sim->iter < sim->cycles)
 		sim_step(sim);
+
+	fprintf(stderr, "Solver took: %e s\n",
+			perf_measure(sim->perf, TIMER_SOLVER));
 
 	return 0;
 }

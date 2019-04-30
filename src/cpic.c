@@ -29,7 +29,7 @@ usage(int argc, char *argv[])
 }
 
 int
-start(int argc, char *argv[])
+main(int argc, char *argv[])
 {
 	sim_t *sim;
 	config_t conf;
@@ -61,20 +61,20 @@ start(int argc, char *argv[])
 		err("Configuration read failed:\n");
 		err("%s:%d - %s\n", config_error_file(&conf),
 			config_error_line(&conf), config_error_text(&conf));
-		return -1;
+		return 1;
 	}
 
 
 	if(!(sim = sim_init(&conf, quiet)))
 	{
 		err("sim_init failed\n");
-		return -1;
+		return 1;
 	}
 
 	printf("%s\n", fn);
 
 	if(sim_run(sim))
-		return -1;
+		return 1;
 
 
 	//sim_free(sim);
@@ -82,14 +82,15 @@ start(int argc, char *argv[])
 	return 0;
 }
 
-int main(int argc, char *argv[])
-{
-	return start(argc, argv);
 
-//#ifdef _OMPSS_2
-//#error "OmpSs-2 not yet available"
-	//start_nanos6(start_task, argc, argv);
-//#else
-//	start();
-//#endif
-}
+//int main(int argc, char *argv[])
+//{
+//	return start(argc, argv);
+//
+////#ifdef _OMPSS_2
+////#error "OmpSs-2 not yet available"
+//	//start_nanos6(start_task, argc, argv);
+////#else
+////	start();
+////#endif
+//}
