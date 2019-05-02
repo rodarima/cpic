@@ -40,7 +40,7 @@ sim_init(config_t *conf, int quiet)
 	config_lookup_int(conf, "simulation.sampling_period.field", &s->period_field);
 	config_lookup_int(conf, "simulation.sampling_period.particle", &s->period_particle);
 	config_lookup_int(conf, "simulation.realtime_plot", &mode);
-	config_lookup_string(conf, "simulation.method", &s->solver_method);
+	config_lookup_string(conf, "simulation.solver", &s->solver_method);
 
 	/* Load all dimension related vectors */
 	config_lookup_array_float(conf, "simulation.space_length", s->L, s->dim);
@@ -341,11 +341,46 @@ sim_step(sim_t *sim)
 int
 sim_run(sim_t *sim)
 {
+	double t, tot;
+
+	perf_start(sim->perf, TIMER_TOTAL);
+
 	while(sim->iter < sim->cycles)
 		sim_step(sim);
 
-	fprintf(stderr, "Solver took: %e s\n",
-			perf_measure(sim->perf, TIMER_SOLVER));
+	perf_stop(sim->perf, TIMER_TOTAL);
+
+	tot = perf_measure(sim->perf, TIMER_TOTAL);
+	fprintf(stderr, "Total time: %e s\n", tot);
+
+	tot /= 100.0;
+
+	t = perf_measure(sim->perf, TIMER_FIELD_E);
+	fprintf(stderr, "Total field E update took: %e s (%.1f%%)\n", t, t/tot);
+
+	t = perf_measure(sim->perf, TIMER_SOLVER);
+	fprintf(stderr, "  Solver took: %e s (%.1f%%)\n", t, t/tot);
+
+	t = perf_measure(sim->perf, TIMER_FIELD_SPREAD);
+	fprintf(stderr, "  Field E spread took: %e s (%.1f%%)\n", t, t/tot);
+	fprintf(stderr, "    Per cycle: %e s\n", t/sim->cycles);
+	fprintf(stderr, "    Per cycle and node: %e s\n",
+			t/(sim->cycles * sim->nnodes[X] * sim->nnodes[Y]));
+
+	t = perf_measure(sim->perf, TIMER_FIELD_COLLECT);
+	fprintf(stderr, "  Field phi collect took: %e s (%.1f%%)\n", t, t/tot);
+	fprintf(stderr, "    Per cycle: %e s\n", t/sim->cycles);
+	fprintf(stderr, "    Per cycle and node: %e s\n",
+			t/(sim->cycles * sim->nnodes[X] * sim->nnodes[Y]));
+
+	t = perf_measure(sim->perf, TIMER_PARTICLE_X);
+	fprintf(stderr, "Particle mover took: %e s (%.1f%%)\n", t, t/tot);
+
+	t = perf_measure(sim->perf, TIMER_FIELD_RHO);
+	fprintf(stderr, "Rho interpolation took: %e s (%.1f%%)\n", t, t/tot);
+
+	t = perf_measure(sim->perf, TIMER_PARTICLE_E);
+	fprintf(stderr, "Particle E interpolation took: %e s (%.1f%%)\n", t, t/tot);
 
 	return 0;
 }

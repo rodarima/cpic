@@ -70,6 +70,8 @@ main(int argc, char *argv[])
 		return 1;
 	}
 
+	config_write(&conf, stderr);
+
 
 	if(!(sim = sim_init(&conf, quiet)))
 	{

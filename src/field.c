@@ -199,6 +199,8 @@ field_rho(sim_t *sim, specie_t *s)
 	int i;
 	block_t *b;
 
+	perf_start(sim->perf, TIMER_FIELD_RHO);
+
 	/* Computation */
 	for (i = 0; i < s->ntblocks; i++)
 	{
@@ -214,6 +216,9 @@ field_rho(sim_t *sim, specie_t *s)
 
 		block_rho_comm(sim, s, b);
 	}
+
+	perf_stop(sim->perf, TIMER_FIELD_RHO);
+
 	return 0;
 }
 
@@ -459,12 +464,16 @@ field_E(sim_t *sim)
 {
 	int i;
 
+	perf_start(sim->perf, TIMER_FIELD_E);
+
 	/* Erase previous charge */
 	MAT_FILL(sim->field->rho, 0.0);
 
+	perf_start(sim->perf, TIMER_FIELD_COLLECT);
 	/* In order to solve the field we need the charge density */
 	for(i=0; i<sim->nspecies; i++)
 		field_rho_collect(sim, &sim->species[i]);
+	perf_stop(sim->perf, TIMER_FIELD_COLLECT);
 
 	//mat_print(sim->field->rho, "rho after collect");
 
@@ -477,8 +486,13 @@ field_E(sim_t *sim)
 
 	/* After solving the electric field, we can now distribute it in each
 	 * block, as the force can be computed easily from the grid points */
+
+	perf_start(sim->perf, TIMER_FIELD_SPREAD);
 	for(i=0; i<sim->nspecies; i++)
 		field_E_spread(sim, &sim->species[i]);
+	perf_stop(sim->perf, TIMER_FIELD_SPREAD);
+
+	perf_stop(sim->perf, TIMER_FIELD_E);
 
 	return 0;
 }

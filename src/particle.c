@@ -293,7 +293,7 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	particle_t *p;
 	double *E, *B, u[MAX_DIM], dx[MAX_DIM], uu, vv;
-	double v[MAX_DIM] = {0}, dv[MAX_DIM];
+	double v[MAX_DIM] = {0};
 	double dt = sim->dt;
 	double q, m;
 
@@ -325,11 +325,8 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 
 		boris_rotation(q, m, u, v, E, B, dt);
 
-		dv[X] = v[X] - u[X];
-		dv[Y] = v[Y] - u[Y];
-
 		dbg("Particle %d at x=(%.3e,%.3e) increases speed by (%.3e,%.3e)\n",
-				p->i, p->x[X], p->x[Y], dv[X], dv[Y]);
+				p->i, p->x[X], p->x[Y], v[X] - u[X], v[X] - u[X]);
 
 		/* We advance the kinetic energy here, as we know the old
 		 * velocity at t - dt/2 and the new one at t + dt/2. So we take
@@ -578,6 +575,8 @@ particle_E(sim_t *sim, specie_t *s)
 	int i;
 	block_t *b;
 
+	perf_start(sim->perf, TIMER_PARTICLE_E);
+
 	/* Computation */
 	for (i = 0; i < s->ntblocks; i++)
 	{
@@ -589,6 +588,8 @@ particle_E(sim_t *sim, specie_t *s)
 
 	/* No communication required, as only p->E[0] is updated */
 
+	perf_stop(sim->perf, TIMER_PARTICLE_E);
+
 	return 0;
 }
 
@@ -598,6 +599,8 @@ particle_x(sim_t *sim, specie_t *s)
 
 	int i;
 	block_t *b;
+
+	perf_start(sim->perf, TIMER_PARTICLE_X);
 
 	/* Computation */
 	for (i = 0; i < s->ntblocks; i++)
@@ -619,6 +622,7 @@ particle_x(sim_t *sim, specie_t *s)
 		block_comm(sim, s, b);
 	}
 
+	perf_stop(sim->perf, TIMER_PARTICLE_X);
 
 	return 0;
 }
