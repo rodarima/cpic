@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <libgen.h>
 
 #define DEBUG 1
 #define BLOCK_SIZE 10240
@@ -34,6 +35,7 @@ main(int argc, char *argv[])
 	sim_t *sim;
 	config_t conf;
 	const char *fn;
+	char *include_dir;
 	int opt;
 	int quiet = 0;
 
@@ -54,6 +56,10 @@ main(int argc, char *argv[])
 
 	fn = argv[optind];
 	config_init(&conf);
+
+	include_dir = dirname(strdup(fn));
+
+	config_set_include_dir(&conf, include_dir);
 
 	/* Read the configuration from stdin */
 	if(config_read_file(&conf, fn) == CONFIG_FALSE)
@@ -77,6 +83,7 @@ main(int argc, char *argv[])
 		return 1;
 
 
+	free(include_dir);
 	//sim_free(sim);
 
 	return 0;
