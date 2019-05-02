@@ -1,0 +1,2 @@
+@include "2species.conf"
+grid = { blocksize = [10, 10] }

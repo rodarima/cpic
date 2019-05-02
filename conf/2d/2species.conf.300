@@ -1,0 +1,6 @@
+@include "2species.conf"
+species = (
+	{
+	      particles = 300
+	}
+)
