@@ -1,15 +1,24 @@
 CC=gcc
-CFLAGS_GLFW3=`pkg-config --cflags glfw3`
-LDLIBS_GLFW3=`pkg-config --libs glfw3`
 
-LDLIBS=-lm -lstdc++ -lGL -lmgl2
+CFLAGS:=-g
+LDLIBS:=-lm -lstdc++ -lGL -lmgl2
 
-CFLAGS+=$(CFLAGS_GLFW3)
-LDLIBS+=$(LDLIBS_GLFW3)
+CFLAGS+=`pkg-config --cflags glfw3`
+LDLIBS+=`pkg-config --libs glfw3`
 
-BIN=mgl glvid
+CFLAGS+=`pkg-config --cflags fftw3`
+LDLIBS+=`pkg-config --libs-only-L fftw3` -lfftw3_mpi -lfftw3
+
+CFLAGS+=`mpicc --showme:compile`
+LDLIBS+=`mpicc --showme:link`
+
+
+#BIN=mgl glvid fftmpi
+BIN=fftmpi
 
 all: $(BIN)
+
+fftmpi: fftmpi.c
 
 clean:
 	rm -rf *.o $(BIN)
