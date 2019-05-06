@@ -240,25 +240,6 @@ test_radius(sim_t *sim)
 }
 
 int
-sim_header(sim_t *sim)
-{
-	/* FIXME: By now we only use the first configuration (only one specie)*/
-	int trackp, nparticles;
-
-	config_lookup_int(sim->conf, "plot.track_particles", &trackp);
-
-	nparticles = sim->species[0].nparticles;
-
-	if(trackp == 0 || nparticles < trackp)
-		trackp = nparticles;
-
-	printf("p %d %d %e %e\n",
-		trackp, sim->nnodes[0], sim->dx[0], sim->dt);
-
-	return 0;
-}
-
-int
 sim_plot(sim_t *sim)
 {
 	pthread_mutex_lock(&sim->lock);
