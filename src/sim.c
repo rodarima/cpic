@@ -14,6 +14,8 @@
 #include <math.h>
 #include <assert.h>
 
+#include <mpi.h>
+
 #define ENERGY_CHECK 1
 
 
@@ -47,8 +49,19 @@ sim_init(config_t *conf, int quiet)
 	/* Note that we always need the 3 dimensions for the magnetic field, as
 	 * for example in 2D, the Z is the one used */
 	config_lookup_array_float(conf, "field.magnetic", s->B, MAX_DIM);
-	config_lookup_array_int(conf, "grid.blocks", s->nblocks, s->dim);
-	config_lookup_array_int(conf, "grid.blocksize", s->blocksize, s->dim);
+	config_lookup_array_int(conf, "grid.points", s->nnodes, s->dim);
+
+	MPI_Comm_size(MPI_COMM_WORLD, &s->nblocks[Y]);
+	s->nblocks[X] = 1;
+	s->nblocks[Z] = 1;
+
+	if((s->nnodes[Y] % s->nblocks[Y]) != 0)
+	{
+		err("The number of grid points in Y %d cannot be divided by the number of processes %d\n",
+				s->nnodes[Y], s->nblocks[Y]);
+		err("Closest grid points[Y] = %d\n", (s->nnodes[Y] / s->nblocks[Y]) * s->nblocks[Y]);
+		return NULL;
+	}
 
 	s->perf = perf_init();
 

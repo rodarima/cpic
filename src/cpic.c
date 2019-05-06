@@ -18,6 +18,7 @@
 
 #include <unistd.h>
 #include <libconfig.h>
+#include <mpi.h>
 
 
 int
@@ -38,6 +39,8 @@ main(int argc, char *argv[])
 	char *include_dir;
 	int opt;
 	int quiet = 0;
+
+	MPI_Init(&argc, &argv);
 
 	while((opt = getopt(argc, argv, "q")) != -1)
 	{
