@@ -27,7 +27,7 @@ field_t *
 field_init(sim_t *sim);
 
 int
-field_rho(sim_t *sim, specie_t *s);
+field_rho(sim_t *sim);
 
 int
 field_E(sim_t *sim);

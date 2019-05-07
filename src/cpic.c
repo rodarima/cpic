@@ -40,7 +40,9 @@ main(int argc, char *argv[])
 	int opt;
 	int quiet = 0;
 
-	MPI_Init(&argc, &argv);
+	/* FIXME: Determine if we want to allow MPI to know our argv. By now we
+	 * simply set a NULL argv */
+	MPI_Init(NULL, NULL);
 
 	while((opt = getopt(argc, argv, "q")) != -1)
 	{
@@ -73,7 +75,7 @@ main(int argc, char *argv[])
 		return 1;
 	}
 
-	config_write(&conf, stderr);
+	//config_write(&conf, stderr);
 
 
 	if(!(sim = sim_init(&conf, quiet)))

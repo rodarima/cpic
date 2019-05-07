@@ -265,6 +265,7 @@ MFT_solve(solver_t *s, mat_t *x, mat_t *b)
 	return 0;
 }
 
+#if 0
 solver_t *
 solver_init_1d(solver_t *solver, sim_t *sim)
 {
@@ -335,14 +336,15 @@ solver_init_1d(solver_t *solver, sim_t *sim)
 
 	return solver;
 }
+#endif
 
 solver_t *
 solver_init_2d(solver_t *solver, sim_t *sim)
 {
 	int N, Nx, Ny, ret;
 
-	Nx = sim->nnodes[X];
-	Ny = sim->nnodes[Y];
+	Nx = sim->ntpoints[X];
+	Ny = sim->ntpoints[Y];
 	N = Nx * Ny;
 
 	solver->dim = 2;
@@ -397,8 +399,10 @@ solver_init(sim_t *sim)
 
 	switch(sim->dim)
 	{
+#if 0
 		case 1:
 			return solver_init_1d(solver, sim);
+#endif
 		case 2:
 			return solver_init_2d(solver, sim);
 		default:

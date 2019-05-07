@@ -3,25 +3,13 @@
 #include "block.h"
 #include "particle.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
-
-specie_t *
-specie_alloc(int dim, int *shape, int nparticles)
-{
-	specie_t *s;
-
-	s = malloc(sizeof(specie_t));
-	s->nparticles = nparticles;
-
-	s->particles = malloc(nparticles * sizeof(particle_t));
-
-	return s;
-}
+#include <utlist.h>
 
 int
 specie_init(sim_t *sim, config_setting_t *cs, specie_t *s)
@@ -31,31 +19,26 @@ specie_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 	config_setting_lookup_float(cs, "mass", &s->m);
 	config_setting_lookup_int(cs, "particles", &s->nparticles);
 
+	s->conf = cs;
+
 	if(s->nparticles <= 0)
 	{
 		err("The number of particles must be greater than 0\n");
 		return 1;
 	}
 
-	s->particles = calloc(s->nparticles * sizeof(particle_t), 1);
-
-	if(particles_init(sim, cs, s))
-		return 1;
-
-	if(blocks_init(sim, s))
-		return 1;
+	dbg("New specie \"%s\" added\n", s->name);
 
 	return 0;
 }
 
 int
-species_init(sim_t *sim, config_t *conf)
+species_init(sim_t *sim)
 {
 	config_setting_t *cs, *specie;
 	int i, ns;
 
-	cs = config_lookup(conf, "species");
-
+	cs = config_lookup(sim->conf, "species");
 	ns = config_setting_length(cs);
 
 	if(ns <= 0)
@@ -65,7 +48,7 @@ species_init(sim_t *sim, config_t *conf)
 	}
 
 	sim->nspecies = ns;
-	sim->species = calloc(ns, sizeof(specie_t));
+	sim->species = malloc(ns * sizeof(specie_t));
 
 	for(i=0; i < ns; i++)
 	{
@@ -80,49 +63,54 @@ species_init(sim_t *sim, config_t *conf)
 }
 
 void
-specie_step(sim_t *sim)
+specie_block_add_particle(specie_block_t *sb, particle_t *p)
 {
-	//int c;
-	//c = getc(stdin);
-
-	sim->t += sim->dt;
+	dbg("Adding particle p_%d to specie block %p\n", p->i, sb);
+	DL_APPEND(sb->particles, p);
 }
 
 int
-specie_print(sim_t *sim, specie_t *s)
+specie_block_init(sim_t *sim, block_t *b, specie_block_t *sb, specie_t *s)
 {
-	int i,j;
+	int ib, i, j, n;
 	particle_t *p;
-	int np;
 
-	config_lookup_int(sim->conf, "plot.track_particles", &np);
+	sb->info = s;
+	sb->particles = NULL;
 
-	if((np == 0) || (np > s->nparticles))
-		np = s->nparticles;
+	n = sim->ntblocks[X] * sim->ntblocks[Y];
+	ib = b->i[X] * sim->nblocks[Y] + b->i[Y];
 
-	//printf("The specie %p has %d dimensions with %d particles\n",
-	//	s, s->dim, s->nparticles);
+	dbg("n=%d, ib=%d\n", n, ib);
 
-	//for(i = 0; i < s->nparticles; i++)
-	printf("p\n");
-	for(i = 0; i < np; i++)
+	for(i = ib; i < s->nparticles; i+=n)
 	{
-		p = &s->particles[i];
-		//printf("%10.3e %d %10.3e %10.3e %10.3e %10.3e\n",
-		//	s->t, i, p->x, p->u, p->E, p->J);
-		for(j=0; j<sim->dim; j++)
-			printf("%d %d %10.3e %10.3e\n", p->i, j, p->x[j], p->u[j]);
+		dbg("i=%d\n", i);
+		/* Ensure correct process rank */
+		if((i % sim->ntblocks[Y]) != b->i[Y])
+		{
+			dbg("(i %% sim->ntblocks[Y])=%d, expecting b->i[Y]=%d\n",
+				(i % sim->ntblocks[Y]), b->i[Y]);
+			abort();
+		}
+
+		j = i / sim->ntblocks[Y];
+
+		/* Ensure correct local block */
+		if((j % sim->ntblocks[X]) != b->i[X])
+		{
+			dbg("(j %% sim->ntblocks[X])=%d, expecting b->i[X]=%d\n",
+				(j % sim->ntblocks[X]), b->i[X]);
+			abort();
+		}
+
+		/* We assign the particle i to the block b, at the current
+		 * process */
+
+		p = particle_init();
+
+		p->i = i;
+		specie_block_add_particle(sb, p);
 	}
-
-//	max_x = 1 * sim->dx;
-//
-//	x = ((double) rand() / RAND_MAX) * max_x;
-//	//x = s->nnodes * sim->dx;
-//	//x = 2.0 * sim->dx;
-//	u = (((double) rand() - RAND_MAX/2.0) / RAND_MAX) * 0.99 * 8 * 3e8;
-//
-//	/* The last particle is a test one, just to ensure proper rendering */
-//	printf("%d %10.3e %10.3e\n", s->nparticles - 1, x, u);
-
 	return 0;
 }

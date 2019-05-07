@@ -1,22 +1,15 @@
 #pragma once
 
 struct specie;
+struct specie_block;
+
 typedef struct specie specie_t;
+typedef struct specie_block specie_block_t;
 
 #include "mat.h"
 #include "block.h"
 #include "particle.h"
 #include <libconfig.h>
-
-#define MAX_PART 500
-
-//typedef struct
-//{
-//	int dim;
-//	mat_t **fields;
-//} block_t;
-
-
 
 struct specie
 {
@@ -28,25 +21,28 @@ struct specie
 
 	/* Particles */
 	int nparticles;
-	struct particle *particles;
 
-	/* The number of total blocks in all dimensions */
-	int ntblocks;
+	/* Other config settings may be needed */
+	config_setting_t *conf;
+};
 
-	/* Array of blocks */
-	block_t *blocks;
+struct specie_block
+{
+	/* We can reuse the info in multiple blocks */
+	struct specie *info;
+
+	/* Local numer of particles */
+	int nbparticles; /* FIXME: Needed? */
+	particle_t *particles;
 };
 
 #include "sim.h"
 
 int
-species_init(sim_t *sim, config_t *conf);
+species_init(sim_t *sim);
 
 int
 specie_init(sim_t *sim, config_setting_t *cs, specie_t *s);
 
 int
-specie_print(sim_t *sim, struct specie *s);
-
-void
-specie_step(sim_t *sim);
+specie_block_init(sim_t *sim, block_t *b, specie_block_t *sb, specie_t *s);

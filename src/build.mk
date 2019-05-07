@@ -3,7 +3,10 @@ module:=src
 bin:=cpic cpic.a
 
 src:=$(wildcard $(module)/*.c)
+src:=$(filter-out $(module)/plot.c,$(src))
+
 obj:=$(subst .c,.o,$(src))
+
 
 src_lib:=$(filter-out $(module)/cpic.c,$(src))
 obj_lib:=$(subst .c,.o,$(src))

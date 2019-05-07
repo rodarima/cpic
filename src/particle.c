@@ -24,12 +24,27 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s);
 
 particle_config_t pc[] =
 {
+#if 0
 	{"default",			init_default},
 	{"harmonic two electrons",	init_h2e},
 	{"random position",		init_randpos},
 	{"position delta",		init_position_delta},
+#endif
 	{NULL, NULL}
 };
+
+particle_t *
+particle_init()
+{
+	particle_t *p;
+
+	p = malloc(sizeof(*p));
+
+	p->next = NULL;
+	p->prev = NULL;
+
+	return p;
+}
 
 int
 particles_init(sim_t *sim, config_setting_t *cs, specie_t *s)
@@ -63,6 +78,7 @@ particles_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 	return 0;
 }
 
+#if 0
 int
 init_default(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
@@ -201,6 +217,7 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 
 	return 0;
 }
+#endif
 
 static int
 block_E_update(sim_t *sim, specie_t *s, block_t *b)
@@ -209,7 +226,7 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 
 	if(sim->dim == 1)
 	{
-		for (p = b->particles; p; p = p->next)
+		for (p = b->species->particles; p; p = p->next)
 		{
 			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
 			interpolate_E_set_to_particle_x(sim, p, b);
@@ -218,7 +235,7 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 	}
 	else if(sim->dim == 2)
 	{
-		for (p = b->particles; p; p = p->next)
+		for (p = b->species->particles; p; p = p->next)
 		{
 			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
 			interpolate_E_set_to_particle_xy(sim, p, b);
@@ -292,7 +309,10 @@ static int
 block_x_update(sim_t *sim, specie_t *s, block_t *b)
 {
 	particle_t *p;
-	double *E, *B, u[MAX_DIM], dx[MAX_DIM], uu, vv;
+	double *E, *B, u[MAX_DIM], dx[MAX_DIM];
+#if 0
+	double uu, vv;
+#endif
 	double v[MAX_DIM] = {0};
 	double dt = sim->dt;
 	double q, m;
@@ -301,7 +321,7 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 	m = s->m;
 	B = sim->B;
 
-	for (p = b->particles; p; p = p->next)
+	for (p = b->species->particles; p; p = p->next)
 	{
 		u[X] = p->u[X];
 		u[Y] = p->u[Y];
@@ -332,12 +352,15 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 		 * velocity at t - dt/2 and the new one at t + dt/2. So we take
 		 * the average, to estimate v(t) */
 
+
+#if 0
 		uu = sqrt(v[X]*v[X] + v[Y]*v[Y]);
 		vv = sqrt(u[X]*u[X] + u[Y]*u[Y]);
 
 		sim->energy_kinetic += 0.5 * (uu+vv) * (uu+vv);
 		sim->total_momentum[X] += v[X];
 		sim->total_momentum[Y] += v[Y];
+#endif
 
 		p->u[X] = v[X];
 		p->u[Y] = v[Y];
@@ -378,11 +401,11 @@ move_particle_to_block(block_t *from, block_t *to, particle_t *p)
 
 	/* XXX: If the following order is swapped, the particle
 	 * is not removed, nor added. Is this a bug? */
-	DL_DELETE(from->particles, p);
+	DL_DELETE(from->species->particles, p);
 	/* XXX If the particle is added to the same block again,
 	 * we use prepend to avoid iterating on it */
 	//DL_APPEND(left->particles, p);
-	DL_PREPEND(to->particles, p);
+	DL_PREPEND(to->species->particles, p);
 
 	return 0;
 }
@@ -430,7 +453,7 @@ wrap_particle_position(sim_t *sim, particle_t *p)
 	}
 }
 
-
+#if 0
 static int
 block_comm_2d(sim_t *sim, specie_t *s, block_t *b)
 {
@@ -456,7 +479,7 @@ block_comm_2d(sim_t *sim, specie_t *s, block_t *b)
 	nbx = sim->nblocks[X];
 	nby = sim->nblocks[Y];
 
-	DL_FOREACH_SAFE(b->particles, p, tmp)
+	DL_FOREACH_SAFE(b->species->particles, p, tmp)
 	{
 		px = p->x[X];
 		py = p->x[Y];
@@ -488,7 +511,7 @@ block_comm_2d(sim_t *sim, specie_t *s, block_t *b)
 			assert(jx < nbx);
 			assert(jy < nby);
 
-			to_block = BLOCK_XY(sim, s->blocks, jx, jy);
+			to_block = BLOCK_XY(sim, sim->blocks, jx, jy);
 
 			move_particle_to_block(b, to_block, p);
 		}
@@ -497,7 +520,9 @@ block_comm_2d(sim_t *sim, specie_t *s, block_t *b)
 
 	return 0;
 }
+#endif
 
+#if 0
 static int
 block_comm_1d(sim_t *sim, specie_t *s, block_t *b)
 {
@@ -550,7 +575,9 @@ block_comm_1d(sim_t *sim, specie_t *s, block_t *b)
 
 	return 0;
 }
+#endif
 
+#if 0
 /* After updating the position of the particles, they may have changed to
  * another block. Remove from the old block, and add in the new one. We assume
  * only one block at each time is allowed */
@@ -558,9 +585,12 @@ block_comm_1d(sim_t *sim, specie_t *s, block_t *b)
 static int
 block_comm(sim_t *sim, specie_t *s, block_t *b)
 {
+#if 0
 	if(sim->dim == 1)
 		return block_comm_1d(sim, s, b);
-	else if(sim->dim == 2)
+	else
+#endif
+	if(sim->dim == 2)
 		return block_comm_2d(sim, s, b);
 	else
 		abort();
@@ -568,6 +598,7 @@ block_comm(sim_t *sim, specie_t *s, block_t *b)
 	/* Not reached */
 	return 1;
 }
+#endif
 
 int
 particle_E(sim_t *sim, specie_t *s)
@@ -578,9 +609,9 @@ particle_E(sim_t *sim, specie_t *s)
 	perf_start(sim->perf, TIMER_PARTICLE_E);
 
 	/* Computation */
-	for (i = 0; i < s->ntblocks; i++)
+	for (i = 0; i < sim->ntblocks[X]*sim->ntblocks[Y]; i++)
 	{
-		b = &(s->blocks[i]);
+		b = &(sim->blocks[i]);
 
 		//#pragma oss task inout(*b) label(particle_block_E_update)
 		block_E_update(sim, s, b);
@@ -603,14 +634,14 @@ particle_x(sim_t *sim, specie_t *s)
 	perf_start(sim->perf, TIMER_PARTICLE_X);
 
 	/* Computation */
-	for (i = 0; i < s->ntblocks; i++)
+	for (i = 0; i < sim->ntblocks[X]*sim->ntblocks[Y]; i++)
 	{
-		b = &(s->blocks[i]);
+		b = &(sim->blocks[i]);
 
 		block_x_update(sim, s, b);
 	}
 
-
+#if 0
 	/* Communication */
 	for (i = 0; i < s->ntblocks; i++)
 	{
@@ -621,6 +652,7 @@ particle_x(sim_t *sim, specie_t *s)
 		 * them (lb->particles->next->next... */
 		block_comm(sim, s, b);
 	}
+#endif
 
 	perf_stop(sim->perf, TIMER_PARTICLE_X);
 

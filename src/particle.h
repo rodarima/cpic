@@ -30,6 +30,9 @@ struct particle {
 
 typedef struct particle_config particle_config_t;
 
+particle_t *
+particle_init();
+
 int
 particles_init(sim_t *sim, config_setting_t *cs, specie_t *s);
 

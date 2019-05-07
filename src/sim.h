@@ -18,11 +18,22 @@ enum sim_mode {
 
 struct sim
 {
+
+	/* ------------------------------------------------------- */
+	/* Global information, equal for all processes */
+	/* ------------------------------------------------------- */
+
+	/* For now we assume a background fixed magnetic field */
+	double B[MAX_DIM];
+
+	/** Number of species */
+	int nspecies;
+
+	/* Specie parameters. No particles stored here */
+	specie_t *species;
+
 	/* Current iteration */
 	int iter;
-
-	/* Number of dimensions used */
-	int dim;
 
 	/** Time step in seconds*/
 	double dt;
@@ -45,42 +56,12 @@ struct sim
 	/** Number of simulation steps */
 	int cycles;
 
+	/* Number of dimensions used */
+	int dim;
+
 	int period_particle;
 	int period_field;
 	int period_energy;
-
-	double energy_electrostatic;
-	double energy_kinetic;
-	double total_momentum[MAX_DIM];
-
-
-	/* For now we assume a background fixed magnetic field */
-	double B[MAX_DIM];
-
-	/* TODO: The global list of species should dissapear, as we can only
-	 * hold the species inside each block */
-
-	/** Species of particles */
-	int nspecies;
-	specie_t *species;
-
-	/* Number of blocks */
-	int nblocks[MAX_DIM];
-
-	/* Shape of the block, without ghosts cells */
-	int blocksize[MAX_DIM];
-
-	/* Shape of the block, including the ghosts cells */
-	int ghostsize[MAX_DIM];
-
-	/* The number of nodes with all blocks of the specified dimension */
-	int nnodes[MAX_DIM];
-
-	/* The total number of nodes in all dimensions */
-	int total_nodes;
-
-	/** Global field: TODO: May be reused? Sync? */
-	field_t *field;
 
 	/** Simulation configuration */
 	config_t *conf;
@@ -89,7 +70,7 @@ struct sim
 	char *conf_path;
 
 	/* Simulation mode */
-	enum sim_mode mode;
+	int mode;
 
 	/* The plotter */
 	pthread_t plot_thread;
@@ -104,11 +85,51 @@ struct sim
 
 	const char *solver_method;
 
-	/* A pointer to let the user save a reference to an external structure
-	 * or any other data */
-	//void *user; // Not used, yet.
-
+	/* Timers */
 	perf_t *perf;
+
+	/* Global seed read from the config */
+	int seed;
+
+	/* Total number of blocks in all processes */
+	int ntblocks[MAX_DIM];
+
+	/* Local number of blocks of the MPI process */
+	int nblocks[MAX_DIM];
+
+	/* Shape of the block, without ghosts cells */
+	int blocksize[MAX_DIM];
+
+	/* Shape of the block, including the ghosts cells */
+	int ghostsize[MAX_DIM];
+
+	/* The total number of points with all blocks and in all processes of
+	 * the specified dimension. Equal to the points specified in the config */
+	int ntpoints[MAX_DIM];
+
+	/* The number of points with all blocks of the specified dimension in
+	 * the current MPI process */
+	int npoints[MAX_DIM];
+
+	/* ------------------------------------------------------- */
+	/* Local information relative to the MPI process */
+	/* ------------------------------------------------------- */
+
+	/* FIXME: Now we cannot get total energy */
+	//double energy_electrostatic;
+	//double energy_kinetic;
+	//double total_momentum[MAX_DIM];
+
+	/* The local blocks assigned to this process. Particles are included
+	 * here */
+	block_t *blocks;
+
+	/* Local random seed used in srand() */
+	int local_seed;
+
+	/* Process rank */
+	int rank;
+
 };
 
 

@@ -5,77 +5,104 @@
 #include <math.h>
 #include <string.h>
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
+
 void
-block_add_particle(block_t *b, particle_t *p)
+block_print(block_t *block)
 {
-	/* We use prepend as it's faster to insert at the head */
-	DL_APPEND(b->particles, p);
+	dbg("Block (%d,%d)\n", block->i[X], block->i[Y]);
 }
 
 int
-blocks_init_2d(sim_t *sim, specie_t *s)
+block_species_init(sim_t *sim, block_t *b)
 {
-	size_t i, j, d;
-	int ix, iy;
-	block_t *b;
-	particle_t *p;
-	double block_w, block_h;
+	int is;
+	specie_block_t *sb;
+	specie_t *s;
 
-	dbg("Init blocks at specie %p for sim %p\n", s, sim);
+	b->species = malloc(sizeof(specie_block_t) * sim->nspecies);
 
-	dbg("Number of blocks in X %d, blocksize %d\n",
-			sim->nblocks[X], sim->blocksize[X]);
-	dbg("Number of blocks in Y %d, blocksize %d\n",
-			sim->nblocks[Y], sim->blocksize[Y]);
-
-	s->ntblocks = sim->nblocks[X] * sim->nblocks[Y];
-
-	s->blocks = calloc(s->ntblocks, sizeof(block_t));
-
-	block_w = sim->dx[X] * sim->blocksize[X];
-	block_h = sim->dx[Y] * sim->blocksize[Y];
-
-	for(iy=0; iy < sim->nblocks[Y]; iy++)
+	for(is = 0; is < sim->nspecies; is++)
 	{
-		for(ix=0; ix < sim->nblocks[X]; ix++)
-		{
-			b = &s->blocks[iy * sim->nblocks[Y] + ix];
+		s = &sim->species[is];
+		sb = SPECIE_BLOCK(b, is);
 
-			b->i[X] = ix;
-			b->i[Y] = iy;
-
-			for(d=0; d<sim->dim; d++)
-			{
-				b->field.E[d] = mat_alloc(sim->dim, sim->ghostsize);
-			}
-
-			b->field.rho = mat_alloc(sim->dim, sim->ghostsize);
-
-			b->x0[X] = ix * block_w;
-			b->x0[Y] = iy * block_h;
-			b->x1[X] = (ix + 1) * block_w;
-			b->x1[Y] = (iy + 1) * block_h;
-		}
-	}
-
-	for(i = 0; i < s->nparticles; i++)
-	{
-		p = &s->particles[i];
-
-		ix = (int) floor(p->x[X] / block_w);
-		iy = (int) floor(p->x[Y] / block_h);
-
-		j = iy * sim->nblocks[Y] + ix;
-
-		block_add_particle(&s->blocks[j], p);
+		specie_block_init(sim, b, sb, s);
 	}
 
 	return 0;
 }
 
+int
+block_init(sim_t *sim, block_t *b)
+{
+	int d;
+	double block_w, block_h;
+
+	block_w = sim->dx[X] * sim->blocksize[X];
+	block_h = sim->dx[Y] * sim->blocksize[Y];
+
+	/* Init all local fields in the block */
+	b->rho = mat_alloc(sim->dim, sim->ghostsize);
+	b->phi = mat_alloc(sim->dim, sim->ghostsize);
+	for(d=0; d<sim->dim; d++)
+		b->E[d] = mat_alloc(sim->dim, sim->ghostsize);
+
+	/* And compute block boundaries */
+	b->x0[X] = b->i[X] * block_w;
+	b->x0[Y] = b->i[X] * block_w;
+	b->x1[X] = b->x0[X] + block_w;
+	b->x1[Y] = b->x0[Y] + block_h;
+
+	/* Finally, init the block species */
+	assert(sim->species);
+	block_species_init(sim, b);
+
+	return 0;
+}
+
+int
+blocks_init_2d(sim_t *sim)
+{
+	size_t nb;
+	int ix, iy;
+	block_t *b;
+
+	dbg("Total number of blocks in X %d, blocksize %d\n",
+			sim->ntblocks[X], sim->blocksize[X]);
+	dbg("Todal number of blocks in Y %d, blocksize %d\n",
+			sim->ntblocks[Y], sim->blocksize[Y]);
+	dbg("Local number of blocks in X %d, blocksize %d\n",
+			sim->nblocks[X], sim->blocksize[X]);
+	dbg("Local number of blocks in Y %d, blocksize %d\n",
+			sim->nblocks[Y], sim->blocksize[Y]);
+
+	nb = sim->nblocks[X] * sim->nblocks[Y];
+
+	sim->blocks = malloc(nb * sizeof(block_t));
+
+	for(iy=0; iy < sim->nblocks[Y]; iy++)
+	{
+		for(ix=0; ix < sim->nblocks[X]; ix++)
+		{
+			b = BLOCK_XY(sim, sim->blocks, ix, iy);
+
+			/* We assume we only have nprocs in nblocks[Y] */
+			b->i[X] = ix;
+			b->i[Y] = sim->rank;
+
+			block_init(sim, b);
+
+			block_print(b);
+		}
+	}
+
+	return 0;
+}
+
+#if 0
 int
 blocks_init_1d(sim_t *sim, specie_t *s)
 {
@@ -126,17 +153,20 @@ blocks_init_1d(sim_t *sim, specie_t *s)
 
 	return 0;
 }
+#endif
 
 /* Allocs an array of nblocks contiguous blocks of size blocksize */
 int
-blocks_init(sim_t *sim, specie_t *s)
+blocks_init(sim_t *sim)
 {
 	switch(sim->dim)
 	{
 		case 1:
-			return blocks_init_1d(sim, s);
+			err("1d not supported yet\n");
+			return 1;
+			//return blocks_init_1d(sim, s);
 		case 2:
-			return blocks_init_2d(sim, s);
+			return blocks_init_2d(sim);
 		default:
 			err("Unsuported number of dimensions %d\n", sim->dim);
 			return 1;
@@ -146,17 +176,7 @@ blocks_init(sim_t *sim, specie_t *s)
 	return 0;
 }
 
-void
-block_print(block_t *block)
-{
-	size_t i;
-	particle_t *p;
-
-	p = block->particles;
-
-	for(p = block->particles, i=0; p; p = p->next, i++)
-		printf("%zu %10.3e %10.3e\n", i, p->x[0], p->u[0]);
-}
+#if 0
 
 void
 blocks_print(block_t *blocks, size_t n)
@@ -183,3 +203,4 @@ block_print_particles(specie_t *s, block_t *b)
 
 	return 0;
 }
+#endif

@@ -282,8 +282,8 @@ interpolate_E_set_to_particle_xy(sim_t *sim, particle_t *p, block_t *b)
 
 	//mat_print(b->field.E[X], "block field E[X]");
 
-	interpolate_add_to_particle_xy(sim, p, b, &p->E[X], b->field.E[X]);
-	interpolate_add_to_particle_xy(sim, p, b, &p->E[Y], b->field.E[Y]);
+	interpolate_add_to_particle_xy(sim, p, b, &p->E[X], b->E[X]);
+	interpolate_add_to_particle_xy(sim, p, b, &p->E[Y], b->E[Y]);
 }
 
 void
@@ -293,5 +293,5 @@ interpolate_E_set_to_particle_x(sim_t *sim, particle_t *p, block_t *b)
 
 	//mat_print(b->field.E[X], "block field E[X]");
 
-	interpolate_add_to_particle_x(sim, p, b, &p->E[X], b->field.E[X]);
+	interpolate_add_to_particle_x(sim, p, b, &p->E[X], b->E[X]);
 }

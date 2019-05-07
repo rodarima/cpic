@@ -10,6 +10,9 @@ test_cflags:=-g -pthread -Wall
 test_cflags+=`pkg-config --cflags glfw3`
 test_ldlibs+=`pkg-config --libs glfw3`
 
+test_cflags+=`mpicc --showme:compile`
+test_ldlibs+=`mpicc --showme:link`
+
 %.test: %.o cpic.a
 	$(CC) $(CFLAGS) $(test_cflags) $(LDLIBS) $(test_ldlibs) $^ -o $@
 

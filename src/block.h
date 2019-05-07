@@ -17,7 +17,10 @@ typedef struct block block_t;
 #define BLOCK_X(sim, blocks, ix) \
 	(&((blocks)[(ix)]))
 
-/* A block is designed to run in a node, where the memory can be shared */
+#define SPECIE_BLOCK(block, is) \
+	(&((block->species)[(is)]))
+
+/* A block is only a physical slice of the space domain */
 struct block
 {
 	/* Block index */
@@ -27,18 +30,17 @@ struct block
 	double x0[MAX_DIM];
 	double x1[MAX_DIM];
 
-	/* The field over the space chunk */
-	field_t field;
+	/* Fields */
+	mat_t *E[MAX_DIM];	/* Electric field */
+	mat_t *phi;		/* Electric potential */
+	mat_t *rho;		/* Charge density */
 
-	/* Particles of the block */
-	particle_t *particles;
-
-	/* Lists for particles leaving the block boundary */
-	particle_t *left, *right;
+	/* Local species of the block */
+	specie_block_t *species;
 };
 
 int
-blocks_init(sim_t *sim, specie_t *s);
+blocks_init(sim_t *sim);
 
 void
 blocks_print(block_t *blocks, size_t n);

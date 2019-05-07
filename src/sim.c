@@ -1,13 +1,19 @@
 #include <libconfig.h>
 #include "sim.h"
 
+#define PLOT 0
+
 #define DEBUG 0
 #include "log.h"
 #include "specie.h"
 #include "particle.h"
 #include "field.h"
 #include "config.h"
+
+#if PLOT
 #include "plot.h"
+#endif
+
 #include "solver.h"
 #include "perf.h"
 
@@ -18,86 +24,130 @@
 
 #define ENERGY_CHECK 1
 
-
-sim_t *
-sim_init(config_t *conf, int quiet)
+int
+sim_read_config(sim_t *s)
 {
-	sim_t *s;
-	int i, mode;
-	int seed;
-	specie_t *sp;
+	config_t *conf;
 
-	s = calloc(1, sizeof(sim_t));
-
-	s->conf = conf;
+	conf = s->conf;
 
 	/* First set all direct configuration variables */
 	config_lookup_int(conf, "simulation.dimensions", &s->dim);
 	config_lookup_int(conf, "simulation.cycles", &s->cycles);
 	config_lookup_float(conf, "simulation.time_step", &s->dt);
-	config_lookup_int(conf, "simulation.random_seed", &seed);
+	config_lookup_int(conf, "simulation.random_seed", &s->seed);
 	config_lookup_float(conf, "constants.light_speed", &s->C);
 	config_lookup_float(conf, "constants.vacuum_permittivity", &s->e0);
 	config_lookup_int(conf, "simulation.sampling_period.energy", &s->period_energy);
 	config_lookup_int(conf, "simulation.sampling_period.field", &s->period_field);
 	config_lookup_int(conf, "simulation.sampling_period.particle", &s->period_particle);
-	config_lookup_int(conf, "simulation.realtime_plot", &mode);
+	config_lookup_int(conf, "simulation.realtime_plot", &s->mode);
 	config_lookup_string(conf, "simulation.solver", &s->solver_method);
 
 	/* Load all dimension related vectors */
 	config_lookup_array_float(conf, "simulation.space_length", s->L, s->dim);
+
 	/* Note that we always need the 3 dimensions for the magnetic field, as
 	 * for example in 2D, the Z is the one used */
 	config_lookup_array_float(conf, "field.magnetic", s->B, MAX_DIM);
-	config_lookup_array_int(conf, "grid.points", s->nnodes, s->dim);
 
-	MPI_Comm_size(MPI_COMM_WORLD, &s->nblocks[Y]);
+	config_lookup_array_int(conf, "grid.points", s->ntpoints, s->dim);
+
+	return 0;
+}
+
+int
+sim_prepare(sim_t *s, int quiet)
+{
+	int d;
+
+	/* The current process rank */
+	MPI_Comm_rank(MPI_COMM_WORLD, &s->rank);
+
+	/* Set the number of blocks to the current number of compute nodes */
+	s->ntblocks[X] = 1;
+	MPI_Comm_size(MPI_COMM_WORLD, &s->ntblocks[Y]);
+	s->ntblocks[Z] = 1;
+
+	/* Easy number of blocks per process */
 	s->nblocks[X] = 1;
+	s->nblocks[Y] = 1;
 	s->nblocks[Z] = 1;
 
-	if((s->nnodes[Y] % s->nblocks[Y]) != 0)
+	if((s->ntpoints[Y] % s->ntblocks[Y]) != 0)
 	{
 		err("The number of grid points in Y %d cannot be divided by the number of processes %d\n",
-				s->nnodes[Y], s->nblocks[Y]);
-		err("Closest grid points[Y] = %d\n", (s->nnodes[Y] / s->nblocks[Y]) * s->nblocks[Y]);
-		return NULL;
+				s->ntpoints[Y], s->ntblocks[Y]);
+		err("Closest grid points[Y] = %d\n", (s->ntpoints[Y] / s->ntblocks[Y]) * s->ntblocks[Y]);
+		return 1;
 	}
 
-	s->perf = perf_init();
-
-	/* Then compute the rest */
-	if(mode == 0 || quiet)
+	if(quiet)
 		s->mode = SIM_MODE_NORMAL;
-	else
-		s->mode = SIM_MODE_DEBUG;
 
 	/* Begin the simulation rather than the plotting */
 	s->run = 1;
 
-	srand(seed);
-	s->total_nodes = 0;
-	for(i=0; i<s->dim; i++)
+	/* We use the rank to vary deterministically the seed between process */
+	srand(s->seed + s->rank);
+
+	for(d=s->dim; d<MAX_DIM; d++)
 	{
-		s->nnodes[i] = s->nblocks[i] * s->blocksize[i];
-		s->dx[i] = s->L[i] / s->nnodes[i];
-		s->total_nodes += s->nnodes[i];
-		s->ghostsize[i] = s->blocksize[i] + 1;
+		s->blocksize[d] = 1;
+		s->ntpoints[d] = 1;
+		s->npoints[d] = s->ntpoints[d];
+		s->dx[d] = 0.0;
+		s->ghostsize[d] = 1;
 	}
-	for(i=s->dim; i<MAX_DIM; i++)
+
+	s->blocksize[X] = s->ntpoints[X];
+	s->blocksize[Y] = s->ntpoints[Y] / s->ntblocks[Y];
+	s->blocksize[Z] = s->ntpoints[Z];
+
+	for(d=0; d<s->dim; d++)
 	{
-		s->nblocks[i] = 1;
-		s->blocksize[i] = 1;
-		s->nnodes[i] = 1;
-		s->dx[i] = 0.0;
-		s->ghostsize[i] = 1;
+		/* Note that each point represents the space from x0 to x0+dx */
+		s->dx[d] = s->L[d] / s->npoints[d];
+		s->ghostsize[d] = s->blocksize[d] + 1;
 	}
+
+	/* Initially set the time t to zero */
 	s->t = 0.0;
 
-	/* And finally, call all other initialization methods */
-	s->field = field_init(s);
+	return 0;
+}
 
-	if(species_init(s, conf))
+sim_t *
+sim_init(config_t *conf, int quiet)
+{
+	sim_t *s;
+
+	s = calloc(1, sizeof(sim_t));
+
+	s->conf = conf;
+
+	/* Load config and parameters */
+	sim_read_config(s);
+	sim_prepare(s, quiet);
+
+	/* And finally, call all other initialization methods */
+	if((s->perf = perf_init()) == NULL)
+	{
+		err("perf_init failed\n");
 		return NULL;
+	}
+
+	if(species_init(s))
+	{
+		err("species_init failed\n");
+		return NULL;
+	}
+
+	if(blocks_init(s))
+	{
+		err("blocks_init failed\n");
+		return NULL;
+	}
 
 	perf_start(s->perf, TIMER_SOLVER);
 	if((s->solver = solver_init(s)) == NULL)
@@ -107,6 +157,7 @@ sim_init(config_t *conf, int quiet)
 	}
 	perf_stop(s->perf, TIMER_SOLVER);
 
+#if PLOT
 	/* We are set now, start the plotter if needed */
 	if(s->mode == SIM_MODE_DEBUG)
 	{
@@ -114,13 +165,10 @@ sim_init(config_t *conf, int quiet)
 		pthread_mutex_init(&s->lock, NULL);
 		plot_thread_init(s);
 	}
+#endif
 
 	/* Initial computation of rho */
-	for(i = 0; i < s->nspecies; i++)
-	{
-		sp = &s->species[i];
-		field_rho(s, sp);
-	}
+	field_rho(s);
 
 	return s;
 }
@@ -128,8 +176,6 @@ sim_init(config_t *conf, int quiet)
 static int
 conservation_energy(sim_t *sim)
 {
-	double EE = 0.0; /* Electrostatic energy */
-	double KE = 0.0; /* Kinetic energy */
 #if 0
 	int i, nn, np;
 	particle_t *p;
@@ -198,17 +244,21 @@ conservation_energy(sim_t *sim)
 	sim->energy_kinetic /= 2.0;
 
 
+#if 0
+	double EE = 0.0; /* Electrostatic energy */
+	double KE = 0.0; /* Kinetic energy */
 	EE = sim->energy_electrostatic;
 	KE = sim->energy_kinetic;
 
 	if(sim->period_energy && ((sim->iter % sim->period_energy) == 0))
 		printf("e %10.3e %10.3e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE,
 				sim->total_momentum[X], sim->total_momentum[Y]);
-
+#endif
 
 	return 0;
 }
 
+#if 0
 void
 test_radius(sim_t *sim)
 {
@@ -252,10 +302,12 @@ test_radius(sim_t *sim)
 	}
 
 }
+#endif
 
 int
 sim_plot(sim_t *sim)
 {
+#if PLOT
 	pthread_mutex_lock(&sim->lock);
 	sim->run = 0;
 
@@ -265,6 +317,7 @@ sim_plot(sim_t *sim)
 		pthread_cond_wait(&sim->signal, &sim->lock);
 
 	pthread_mutex_unlock(&sim->lock);
+#endif
 	return 0;
 }
 
@@ -305,9 +358,10 @@ sim_step(sim_t *sim)
 		 * current from the values of the particle positions and
 		 * velocities. */
 
-		/* Interpolate density of charge of each specie to the field */
-		field_rho(sim, s);
 	}
+
+	/* Interpolate density of charge of each specie to the field */
+	field_rho(sim);
 
 
 	/* Print the status */
@@ -320,12 +374,14 @@ sim_step(sim_t *sim)
 	if(sim->mode == SIM_MODE_DEBUG)
 		sim_plot(sim);
 
+#if 0
 	/* As we add the kinetic energy of the particles in each block, we erase
 	 * here the previous energy */
 	sim->energy_kinetic = 0.0;
 
 	sim->total_momentum[X] = 0.0;
 	sim->total_momentum[Y] = 0.0;
+#endif
 
 	sim->iter += 1;
 	sim->t = sim->iter * sim->dt;
@@ -360,13 +416,13 @@ sim_run(sim_t *sim)
 	fprintf(stderr, "  Field E spread took: %e s (%.1f%%)\n", t, t/tot);
 	fprintf(stderr, "    Per cycle: %e s\n", t/sim->cycles);
 	fprintf(stderr, "    Per cycle and node: %e s\n",
-			t/(sim->cycles * sim->nnodes[X] * sim->nnodes[Y]));
+			t/(sim->cycles * sim->ntpoints[X] * sim->ntpoints[Y]));
 
 	t = perf_measure(sim->perf, TIMER_FIELD_COLLECT);
 	fprintf(stderr, "  Field phi collect took: %e s (%.1f%%)\n", t, t/tot);
 	fprintf(stderr, "    Per cycle: %e s\n", t/sim->cycles);
 	fprintf(stderr, "    Per cycle and node: %e s\n",
-			t/(sim->cycles * sim->nnodes[X] * sim->nnodes[Y]));
+			t/(sim->cycles * sim->ntpoints[X] * sim->ntpoints[Y]));
 
 	t = perf_measure(sim->perf, TIMER_PARTICLE_X);
 	fprintf(stderr, "Particle mover took: %e s (%.1f%%)\n", t, t/tot);
