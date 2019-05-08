@@ -1,0 +1,19 @@
+Wed, 08 May 2019 13:31:20 +0200
+
+If we set the dimension of the simulation to one, the distribution of blocks
+doesn't work. We would need to add another division, like a mpi_block, to divide
+the 1D domain into mpi blocks, then each one into task blocks.
+
+What if we use lblock_t to talk about the lowest subdivision block, expected to
+run in a task. The mblock_t, to the mpi block.
+
+Wed, 08 May 2019 21:40:47 +0200
+
+In order to exchange particles from task blocks, I need to determine first:
+whether the exchange can be done by shared memory, or whether I need MPI. Also I
+need to design the exhange protocol to avoid any deadlock/race condition.
+
+Let's first begin with the simple case: There is only one task per MPI process.
+
+Then each specie block should have a list of particles to send, and another to
+receive.
