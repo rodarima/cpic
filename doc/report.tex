@@ -164,6 +164,48 @@ $$ \V s = \frac{2 \V t}{1 + \V t^2} $$
 as
 $$ \V{v^+} = \V{v^-} + \V{v}' \times \V{s} $$
 
+\section{Field solver}
+
+Talk about MFT and the data layout.
+
+\section{Data structures}
+
+The simulator is designed for space domains of one or two dimensions. In order 
+to parallelize the computation of each step, the space domain is distributed in 
+blocks. First the space domain is split in one specific dimension into MPI 
+blocks, which will be distributed among each compute node. Communications will 
+be needed to share information between MPI blocks.
+
+The second hierarchy splits MPI blocks into task blocks, which can run in 
+parallel inside a compute node. Communications are not needed, as we can use 
+shared memory in the same compute node.
+
+Inside each task block, we have a small portion of the space domain: the grid 
+points of the fields and the particles inside the physical space of the block.  
+Additionally, ghost points are placed at the boundaries of the positive 
+neighbours in each dimension of the problem.
+
+% TODO; Write about ghost points, and why they are needed
+
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=\linewidth]{domain-blocks.pdf}
+	\caption{Domain blocks}
+	\label{fig:domain-blocks}
+\end{figure}
+
+A summary of the data layout can be seen in the figure \ref{fig:domain-blocks}, 
+where the physical placement of each block corresponds to the physical position 
+of the grid points. The 1D domain has 2 MPI blocks with 3 task blocks each, and 
+3 grid points per block with 1 ghost point. In total, the space is discretized 
+	in 18 grid points, which require 24 with the ghost points.
+
+Similarly, for 2D the number of ghost points increase, as the frontier now has 2 
+dimensions, leading to blocks with 6 grid points and 6 ghost points. The whole 
+domain is discretized in 120 grid points, a total of 240 with ghost points.
+
+
+
 \chapter{Analysis}
 
 %\section{Analyze time distribution}
@@ -205,7 +247,6 @@ algorithm is compared with the spectral method MFT.
 
 
 
-%\section{Data structures}
 %
 %\chapter{Results}
 %
