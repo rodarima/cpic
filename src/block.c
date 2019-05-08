@@ -91,7 +91,7 @@ blocks_init_2d(sim_t *sim)
 		{
 			b = BLOCK_XY(sim, sim->blocks, ix, iy);
 
-			/* We assume we only have nprocs in nblocks[Y] */
+			/* We assume we only have nprocs in ntblocks[Y] */
 			b->i[X] = ix;
 			b->i[Y] = sim->rank;
 
@@ -157,7 +157,6 @@ blocks_init_1d(sim_t *sim, specie_t *s)
 }
 #endif
 
-/* Allocs an array of nblocks contiguous blocks of size blocksize */
 int
 blocks_init(sim_t *sim)
 {
@@ -173,6 +172,10 @@ blocks_init(sim_t *sim)
 			err("Unsuported number of dimensions %d\n", sim->dim);
 			return 1;
 	}
+
+	/* After the initialization of particles, a lot of them will be placed
+	 * in the incorrect block. Similarly as what would happen after the
+	 * particle mover phase. So we can just start from there */
 
 	/* Not reached */
 	return 0;

@@ -36,7 +36,7 @@ struct block
 	mat_t *rho;		/* Charge density */
 
 	/* Local species of the block */
-	specie_block_t *species;
+	specie_block_t *sblocks;
 };
 
 int

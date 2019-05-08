@@ -64,15 +64,27 @@ sim_prepare(sim_t *s, int quiet)
 	/* The current process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &s->rank);
 
-	/* Set the number of blocks to the current number of compute nodes */
 	s->ntblocks[X] = 1;
-	MPI_Comm_size(MPI_COMM_WORLD, &s->ntblocks[Y]);
+	s->ntblocks[Y] = 1;
 	s->ntblocks[Z] = 1;
 
-	/* Easy number of blocks per process */
+	/* Split the blocks in the last dimension */
+	if(s->dim == 1)
+		MPI_Comm_size(MPI_COMM_WORLD, &s->ntblocks[X]);
+	else if(s->dim == 2)
+		MPI_Comm_size(MPI_COMM_WORLD, &s->ntblocks[Y]);
+
+	/* Easy number of blocks per process...
+	 * TODO: Use multiple tasks */
 	s->nblocks[X] = 1;
 	s->nblocks[Y] = 1;
 	s->nblocks[Z] = 1;
+
+	if(s->dim != 2)
+	{
+		err("Only 2 dimensions supported by now...\n");
+		return 1;
+	}
 
 	if((s->ntpoints[Y] % s->ntblocks[Y]) != 0)
 	{
@@ -117,6 +129,16 @@ sim_prepare(sim_t *s, int quiet)
 	return 0;
 }
 
+int
+sim_pre_step(sim_t *sim)
+{
+
+	/* Initial computation of rho */
+	field_rho(s);
+
+	return 0;
+}
+
 sim_t *
 sim_init(config_t *conf, int quiet)
 {
@@ -127,8 +149,11 @@ sim_init(config_t *conf, int quiet)
 	s->conf = conf;
 
 	/* Load config and parameters */
-	sim_read_config(s);
-	sim_prepare(s, quiet);
+	if(sim_read_config(s))
+		return NULL;
+
+	if(sim_prepare(s, quiet))
+		return NULL;
 
 	/* And finally, call all other initialization methods */
 	if((s->perf = perf_init()) == NULL)
@@ -167,8 +192,9 @@ sim_init(config_t *conf, int quiet)
 	}
 #endif
 
-	/* Initial computation of rho */
-	field_rho(s);
+	/* Advance the simulation to place each particle in the correct block,
+	 * and compute rho */
+	sim_pre_step(s);
 
 	return s;
 }

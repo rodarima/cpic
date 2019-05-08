@@ -624,6 +624,109 @@ particle_E(sim_t *sim, specie_t *s)
 }
 
 int
+particle_wrap_specie_block(sim_t *sim, block_t *b, specie_block_t *sb)
+{
+	block_t *to_block;
+	particle_t *p, *tmp;
+	double px, py;
+	double x0, x1, y0, y1;
+	int idx, idy, ix, iy, nbx, nby;
+	int jx, jy;
+
+	dbg("Moving particles for block (%d,%d) x0=(%e,%e) x1=(%e,%e)\n",
+		b->i[X], b->i[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
+
+	ix = b->i[X];
+	iy = b->i[Y];
+
+	x0 = b->x0[X];
+	x1 = b->x1[X];
+
+	y0 = b->x0[Y];
+	y1 = b->x1[Y];
+
+	nbx = sim->nblocks[X];
+	nby = sim->nblocks[Y];
+
+	DL_FOREACH_SAFE(sb->particles, p, tmp)
+	{
+		px = p->x[X];
+		py = p->x[Y];
+
+		idx = 0;
+		idy = 0;
+
+		wrap_particle_position(sim, p);
+
+		/* FIXME: Allow bigger jumps than 1 block */
+
+		/* First we check the X axis */
+		if(px < x0) idx = -1;
+		else if(px >= x1) idx = +1;
+
+		/* Then the Y axis */
+		if(py < y0) idy = -1;
+		else if(py >= y1) idy = +1;
+
+		/* Now we look for the proper block to move the particle if
+		 * needed */
+		if(idx != 0 || idy != 0)
+		{
+			jx = (ix + idx + nbx) % nbx;
+			jy = (iy + idy + nby) % nby;
+
+			assert(jx >= 0);
+			assert(jy >= 0);
+			assert(jx < nbx);
+			assert(jy < nby);
+
+			to_block = BLOCK_XY(sim, sim->blocks, jx, jy);
+
+			move_particle_to_block(b, to_block, p);
+		}
+
+	}
+
+	return 0;
+}
+
+int
+particle_wrap_block(sim_t *sim, block_t *b)
+{
+	int is;
+	specie_block_t *sb;
+
+	for(is = 0; is < sim->nspecies; is++)
+	{
+		sb = &b->sblocks[s];
+		particle_wrap_specie_block(sim, b, sb);
+	}
+
+	return 0;
+}
+
+/* Communicate particles out of their block to the correct one */
+int
+particle_wrap(sim_t *sim)
+{
+	int i, local_nblocks;
+
+	local_nblocks = sim->nblocks[X] * sim->nblocks[Y];
+
+	/* Communication */
+	for (i = 0; i < local_nblocks; i++)
+	{
+		b = &(sim->blocks[i]);
+
+		/* FIXME: Update this comment: */
+		/* We left lb and rb with the inout directive, as we need to
+		 * wait for any modification to those blocks before we write to
+		 * them (lb->particles->next->next... */
+		particle_wrap_block(sim, b);
+	}
+}
+
+int
 particle_x(sim_t *sim, specie_t *s)
 {
 
@@ -641,16 +744,7 @@ particle_x(sim_t *sim, specie_t *s)
 	}
 
 #if 0
-	/* Communication */
-	for (i = 0; i < s->ntblocks; i++)
-	{
-		b = &(s->blocks[i]);
-
-		/* We left lb and rb with the inout directive, as we need to
-		 * wait for any modification to those blocks before we write to
-		 * them (lb->particles->next->next... */
-		block_comm(sim, s, b);
-	}
+	particle_wrap(sim);
 #endif
 
 	perf_stop(sim->perf, TIMER_PARTICLE_X);

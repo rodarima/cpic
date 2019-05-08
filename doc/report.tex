@@ -204,6 +204,50 @@ Similarly, for 2D the number of ghost points increase, as the frontier now has 2
 dimensions, leading to blocks with 6 grid points and 6 ghost points. The whole 
 domain is discretized in 120 grid points, a total of 240 with ghost points.
 
+\section{Simulation flow}
+
+The simulation follows a very precise set of steps to ensure the correct 
+behavior of the physical simulation. Three main stages can be easily identified: 
+Initialization, loop and finish.
+
+\subsection{Initialization}
+
+After $P$ processes were created (as in MPI processes), now we create the 
+different structures to hold the simulation data. First the fields are 
+distributed into task blocks, grouped in each process.
+
+For each specie, we distribute the particles based on the particle index $p_i$, 
+minimizing the difference of particles between blocks. The position, velocity 
+and other parameters are set on each particle, independently of the actual block 
+they reside.
+
+Once all particles are initialized, we begin to move them to the correct block, 
+based on the particle position.
+
+Finally, the charge density field $\rho$ is initially computed, as we want the 
+begin the simulation with the computation of the electric field E from $\rho$
+
+\subsection{Loop}
+
+The loop of the simulation perform four main phases:
+
+\begin{itemize}
+\item Solve field equation to get $E$ from $\rho$.
+\item Interpolate $E$ at particle positions $E_p$.
+\item Particle motion based on $E_p$ and $B_0$.
+\item Accumulate charge density $\rho$ at the new position of particles.
+\end{itemize}
+
+\subsubsection{Solver}
+
+We use the MFT method to solve the equation:
+\begin{equation}
+\nabla^2 E = - \frac{\rho}{\epsilon_0}
+\end{equation}
+
+\subsection{Finish}
+
+Here we hopefully save some information of the simulation to disk...
 
 
 \chapter{Analysis}

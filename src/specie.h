@@ -34,6 +34,9 @@ struct specie_block
 	/* Local numer of particles */
 	int nbparticles; /* FIXME: Needed? */
 	particle_t *particles;
+
+	/* Particle channels to send and receive from other blocks */
+	particle_t *out, *in;;
 };
 
 #include "sim.h"
