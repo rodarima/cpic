@@ -3,7 +3,7 @@
 #include "config.h"
 #include "interpolate.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include <math.h>
 #include <assert.h>
@@ -11,19 +11,20 @@
 #include <string.h>
 
 int
-init_default(sim_t *sim, config_setting_t *cs, specie_t *s);
+init_default(sim_t *sim, block_t *b, specie_block_t *sb);
 
 int
-init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s);
+init_randpos(sim_t *sim, block_t *b, specie_block_t *sb);
 
 int
-init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s);
+init_h2e(sim_t *sim, block_t *b, specie_block_t *sb);
 
 int
-init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s);
+init_position_delta(sim_t *sim, block_t *b, specie_block_t *sb);
 
 particle_config_t pc[] =
 {
+	{"random position",		init_randpos},
 #if 0
 	{"default",			init_default},
 	{"harmonic two electrons",	init_h2e},
@@ -47,14 +48,20 @@ particle_init()
 }
 
 int
-particles_init(sim_t *sim, config_setting_t *cs, specie_t *s)
+particles_init(sim_t *sim, block_t *b, specie_block_t *sb)
 {
 	int i;
 	const char *method;
+	config_setting_t *cs;
+	specie_t *s;
+
+	s = sb->info;
+	cs = s->conf;
 
 	if(config_setting_lookup_string(cs, "init_method", &method) != CONFIG_TRUE)
 	{
-		err("WARNING: Particle init method not specified. Using \"default\".\n");
+		err("WARNING: Particle init method for specie \"%s\" not specified. Using \"default\".\n",
+				s->name);
 		method = "default";
 	}
 
@@ -69,7 +76,7 @@ particles_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 			exit(1);
 		}
 
-		return pc[i].init(sim, cs, s);
+		return pc[i].init(sim, b, sb);
 	}
 
 	err("Unknown init method \"%s\", aborting.\n", method);
@@ -78,61 +85,53 @@ particles_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 	return 0;
 }
 
-#if 0
 int
-init_default(sim_t *sim, config_setting_t *cs, specie_t *s)
+init_default(sim_t *sim, block_t *b, specie_block_t *sb)
 {
-	return init_randpos(sim, cs, s);
+	return init_randpos(sim, b, sb);
 }
 
+double
+uniform(double a, double b)
+{
+	return rand() / (RAND_MAX + 1.0) * (b - a) + a;
+}
 
 int
-init_randpos(sim_t *sim, config_setting_t *cs, specie_t *s)
+init_randpos(sim_t *sim, block_t *b, specie_block_t *sb)
 {
-	int i;
 	particle_t *p;
 	double v[MAX_DIM];
 	config_setting_t *cs_v;
 
-	cs_v = config_setting_get_member(cs, "drift_velocity");
+	/* FIXME: Use specific random velocity inerval name */
+	cs_v = config_setting_get_member(sb->info->conf, "drift_velocity");
 	if(config_array_float(cs_v, v, sim->dim))
 		return 1;
 
-	for(i = 0; i < s->nparticles; i++)
+	for(p = sb->particles; p; p = p->next)
 	{
-		p = &s->particles[i];
+		p->x[X] = uniform(0.0, sim->L[X]);
+		p->x[Y] = uniform(0.0, sim->L[X]);
+		p->x[Z] = 0.0;
 
-		p->i = i;
-		//p->x[0] = ((float) i / (float) s->nparticles) * s->E->size * s->dx;
-		p->x[X] = ((float) rand() / RAND_MAX) * sim->L[X];
-		p->x[Y] = ((float) rand() / RAND_MAX) * sim->L[Y];
-//		if((i%2) == 0)
-//		{
-//			p->x[0] = 3./8. * L;
-//		}
-//		else
-//		{
-//			p->x[0] = 5./8. * L;
-//		}
-		//p->x[0] = s->E->size * s->dx / 2.0;
-//		p->u[X] = (2.0 * ((i % 2) - 0.5)) * v[X]; /* m/s */
-//		p->u[Y] = (2.0 * ((i % 2) - 0.5)) * v[Y]; /* m/s */
-		//p->u[0] = v; /* m/s */
-		//p->u[0] = (((float) rand() / RAND_MAX) - 0.5) * v; /* m/s */
-		//p->u[0] = 0.5 * s->C; /* m/s */
-		p->u[X] = (((float) rand() / RAND_MAX) - 0.5) * v[X]; /* m/s */
-		p->u[Y] = (((float) rand() / RAND_MAX) - 0.5) * v[Y]; /* m/s */
+		/* FIXME: Separate position and velocity init metods */
+		p->u[X] = uniform(-v[X], v[X]);
+		p->u[Y] = uniform(-v[Y], v[Y]);
+		p->u[Z] = 0.0;
 
-		p->E[X] = 5.0;
-		p->E[Y] = 5.0;
-//		p->J[X] = 0.0;
-//		p->J[Y] = 0.0;
-		dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+		p->E[X] = 0.0;
+		p->E[Y] = 0.0;
+		p->E[Z] = 0.0;
+
+		dbg("Particle %d randpos init at (%e, %e) in block (%d, %d)\n",
+			p->i, p->x[X], p->x[Y], b->i[X], b->i[Y]);
 	}
 
 	return 0;
 }
 
+#if 0
 int
 init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 {

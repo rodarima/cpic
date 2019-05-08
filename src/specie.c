@@ -83,6 +83,7 @@ specie_block_init(sim_t *sim, block_t *b, specie_block_t *sb, specie_t *s)
 
 	dbg("n=%d, ib=%d\n", n, ib);
 
+	/* Iterate over the appropiate particles only for this block */
 	for(i = ib; i < s->nparticles; i+=n)
 	{
 		dbg("i=%d\n", i);
@@ -108,9 +109,13 @@ specie_block_init(sim_t *sim, block_t *b, specie_block_t *sb, specie_t *s)
 		 * process */
 
 		p = particle_init();
-
 		p->i = i;
 		specie_block_add_particle(sb, p);
 	}
+
+	/* Once the index of each particle is correctly computed, we initalize
+	 * all other parameters, like position and speed */
+	particles_init(sim, b, sb);
+
 	return 0;
 }

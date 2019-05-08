@@ -10,7 +10,7 @@ typedef struct particle particle_t;
 struct particle_config
 {
 	char *name;
-	int (*init)(sim_t *, config_setting_t *, specie_t *);
+	int (*init)(sim_t *, block_t *, specie_block_t *);
 };
 
 
@@ -34,7 +34,7 @@ particle_t *
 particle_init();
 
 int
-particles_init(sim_t *sim, config_setting_t *cs, specie_t *s);
+particles_init(sim_t *sim, block_t *b, specie_block_t *sb);
 
 int
 particle_E(sim_t *sim, specie_t *s);

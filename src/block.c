@@ -35,6 +35,8 @@ block_species_init(sim_t *sim, block_t *b)
 	return 0;
 }
 
+/* Allocate all fields in a new block, and create the specie block, with the
+ * appropiate particles */
 int
 block_init(sim_t *sim, block_t *b)
 {
