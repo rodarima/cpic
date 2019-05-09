@@ -60,6 +60,7 @@ int
 sim_prepare(sim_t *s, int quiet)
 {
 	int d;
+	int nneigh_table[] = {3, 9, 27};
 
 	/* The current process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &s->rank);
@@ -123,6 +124,9 @@ sim_prepare(sim_t *s, int quiet)
 		s->ghostsize[d] = s->blocksize[d] + 1;
 	}
 
+	/* Compute also the number of neighbours including the actual block */
+	s->nneigh_blocks = nneigh_table[s->dim];
+
 	/* Initially set the time t to zero */
 	s->t = 0.0;
 
@@ -132,6 +136,8 @@ sim_prepare(sim_t *s, int quiet)
 int
 sim_pre_step(sim_t *sim)
 {
+
+	/* Move particles to the correct block */
 
 	/* Initial computation of rho */
 	field_rho(s);

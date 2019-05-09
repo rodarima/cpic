@@ -623,14 +623,50 @@ particle_E(sim_t *sim, specie_t *s)
 	return 0;
 }
 
+inline int
+block_delta_to_index(int delta[], int dim)
+{
+	int i, j, d, n;
+
+	/* Number of total blocks in each dimension considered in the
+	 * neighbourhood */
+	n = BLOCK_NEIGH * 2 + 1;
+	j = 0;
+
+	for(d = dim-1; d >= X; d--)
+	{
+		j *= n;
+		j += BLOCK_NEIGH + delta[d];
+	}
+
+	if(dim == 2)
+	{
+		dbg("Delta (%d,%d) translated to %d\n", delta[X], delta[Y], j);
+	}
+
+	return j;
+}
+
 int
-particle_wrap_specie_block(sim_t *sim, block_t *b, specie_block_t *sb)
+queue_comm_particle(sim_t *sim, specie_block_t *sb, int delta[], particle_t *p)
+{
+	int j;
+
+	j = block_delta_to_index(delta, sim->dim);
+	DL_DELETE(sb->particles, p);
+	DL_APPEND(sb->out[j], p);
+
+	return 0;
+}
+
+int
+particle_comm_specie_block(sim_t *sim, block_t *b, specie_block_t *sb)
 {
 	block_t *to_block;
 	particle_t *p, *tmp;
 	double px, py;
 	double x0, x1, y0, y1;
-	int idx, idy, ix, iy, nbx, nby;
+	int idx, idy, ix, iy, nbx, nby, delta[MAX_DIM];
 	int jx, jy;
 
 	dbg("Moving particles for block (%d,%d) x0=(%e,%e) x1=(%e,%e)\n",
@@ -653,36 +689,45 @@ particle_wrap_specie_block(sim_t *sim, block_t *b, specie_block_t *sb)
 		px = p->x[X];
 		py = p->x[Y];
 
-		idx = 0;
-		idy = 0;
+		delta[X] = 0;
+		delta[Y] = 0;
 
 		wrap_particle_position(sim, p);
 
 		/* FIXME: Allow bigger jumps than 1 block */
+		/* DON'T FIXME: NO, the simulation expects small steps, less than one
+		 * block */
 
 		/* First we check the X axis */
-		if(px < x0) idx = -1;
-		else if(px >= x1) idx = +1;
+		if(px < x0) delta[X] = -1;
+		else if(px >= x1) delta[X] = +1;
 
 		/* Then the Y axis */
-		if(py < y0) idy = -1;
-		else if(py >= y1) idy = +1;
+		if(py < y0) delta[Y] = -1;
+		else if(py >= y1) delta[Y] = +1;
 
 		/* Now we look for the proper block to move the particle if
 		 * needed */
-		if(idx != 0 || idy != 0)
+		if(delta[X] != 0 || delta[Y] != 0)
 		{
-			jx = (ix + idx + nbx) % nbx;
-			jy = (iy + idy + nby) % nby;
+			jx = (ix + delta[X] + nbx) % nbx;
+			jy = (iy + delta[Y] + nby) % nby;
+
+			/* FIXME: the destination block may be equal to the
+			 * source, in the case of wrapping */
+
+			if(ix == jx && iy == jy)
+			{
+				dbg("Ignoring wrapping with delta (%d, %d)\n", delta[X], delta[Y]);
+				continue;
+			}
 
 			assert(jx >= 0);
 			assert(jy >= 0);
 			assert(jx < nbx);
 			assert(jy < nby);
 
-			to_block = BLOCK_XY(sim, sim->blocks, jx, jy);
-
-			move_particle_to_block(b, to_block, p);
+			queue_comm_particle(sim, sb, delta, p);
 		}
 
 	}
@@ -691,15 +736,21 @@ particle_wrap_specie_block(sim_t *sim, block_t *b, specie_block_t *sb)
 }
 
 int
-particle_wrap_block(sim_t *sim, block_t *b)
+particle_comm_block(sim_t *sim, block_t *b)
 {
 	int is;
 	specie_block_t *sb;
 
+
 	for(is = 0; is < sim->nspecies; is++)
 	{
 		sb = &b->sblocks[s];
-		particle_wrap_specie_block(sim, b, sb);
+
+		/* Collect particles in a queue that need to change the block */
+		particle_comm_specie_block(sim, b, sb);
+
+		/* Then fill the queue and send the particles */
+		queue_prepare(sim, b, sb);
 	}
 
 	return 0;
@@ -707,7 +758,7 @@ particle_wrap_block(sim_t *sim, block_t *b)
 
 /* Communicate particles out of their block to the correct one */
 int
-particle_wrap(sim_t *sim)
+particle_comm(sim_t *sim)
 {
 	int i, local_nblocks;
 
@@ -722,7 +773,7 @@ particle_wrap(sim_t *sim)
 		/* We left lb and rb with the inout directive, as we need to
 		 * wait for any modification to those blocks before we write to
 		 * them (lb->particles->next->next... */
-		particle_wrap_block(sim, b);
+		particle_comm_block(sim, b);
 	}
 }
 
@@ -743,9 +794,7 @@ particle_x(sim_t *sim, specie_t *s)
 		block_x_update(sim, s, b);
 	}
 
-#if 0
-	particle_wrap(sim);
-#endif
+	particle_comm(sim);
 
 	perf_stop(sim->perf, TIMER_PARTICLE_X);
 

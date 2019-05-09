@@ -2,14 +2,19 @@
 
 struct specie;
 struct specie_block;
+struct particle_queue;
 
 typedef struct specie specie_t;
 typedef struct specie_block specie_block_t;
+typedef struct particle_queue particle_queue_t;
 
 #include "mat.h"
 #include "block.h"
 #include "particle.h"
 #include <libconfig.h>
+
+/* Number of neighbour blocks per dimension in only one direction */
+#define BLOCK_NEIGH 1
 
 struct specie
 {
@@ -35,8 +40,16 @@ struct specie_block
 	int nbparticles; /* FIXME: Needed? */
 	particle_t *particles;
 
-	/* Particle channels to send and receive from other blocks */
-	particle_t *out, *in;;
+	/* Temporal particle lists to send and receive from other blocks */
+	particle_t *out[], *in[];
+};
+
+struct particle_queue
+{
+	int specie_index;
+	int nallocated;
+	int nparticles;
+	particle_t buf[];
 };
 
 #include "sim.h"

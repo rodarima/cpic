@@ -37,6 +37,9 @@ struct block
 
 	/* Local species of the block */
 	specie_block_t *sblocks;
+
+	/* Queues of outgoing messages. One per neighbour */
+	block_queue_t *q;
 };
 
 int

@@ -111,6 +111,9 @@ struct sim
 	 * the current MPI process */
 	int npoints[MAX_DIM];
 
+	/* Number of neighbour blocks, including the current block */
+	int nneigh_blocks;
+
 	/* ------------------------------------------------------- */
 	/* Local information relative to the MPI process */
 	/* ------------------------------------------------------- */
