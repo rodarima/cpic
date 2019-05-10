@@ -22,7 +22,7 @@ block_species_init(sim_t *sim, block_t *b)
 	specie_block_t *sb;
 	specie_t *s;
 
-	b->species = malloc(sizeof(specie_block_t) * sim->nspecies);
+	b->sblocks = malloc(sizeof(specie_block_t) * sim->nspecies);
 
 	for(is = 0; is < sim->nspecies; is++)
 	{
@@ -40,7 +40,7 @@ block_species_init(sim_t *sim, block_t *b)
 int
 block_init(sim_t *sim, block_t *b)
 {
-	int d;
+	int d, i;
 	double block_w, block_h;
 
 	block_w = sim->dx[X] * sim->blocksize[X];
@@ -57,6 +57,22 @@ block_init(sim_t *sim, block_t *b)
 	b->x0[Y] = b->i[X] * block_w;
 	b->x1[X] = b->x0[X] + block_w;
 	b->x1[Y] = b->x0[Y] + block_h;
+
+	dbg("Block (%d,%d) has x0=(%e,%e) x1=(%e,%e)\n",
+		b->i[X], b->i[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
+
+	/* We need to initialize the queues and addtional lists before the
+	 * species can be initialized */
+	b->q = malloc(sim->nneigh_blocks * sizeof(comm_packet_t *));
+	b->req = malloc(sim->nneigh_blocks * sizeof(MPI_Request *));
+	b->neigh_rank = malloc(sim->nneigh_blocks * sizeof(int));
+
+	for(i=0; i<sim->nneigh_blocks; i++)
+	{
+		b->q[i] = NULL;
+		b->req[i] = NULL;
+		b->neigh_rank[i] = 666;
+	}
 
 	/* Finally, init the block species */
 	assert(sim->species);

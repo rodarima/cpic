@@ -1,17 +1,9 @@
 #pragma once
 
+#include "def.h"
+
 struct particle;
 typedef struct particle particle_t;
-
-#include "sim.h"
-#include "specie.h"
-#include <libconfig.h>
-
-struct particle_config
-{
-	char *name;
-	int (*init)(sim_t *, block_t *, specie_block_t *);
-};
 
 
 struct particle {
@@ -28,7 +20,18 @@ struct particle {
 	struct particle *next, *prev;
 };
 
+#include "sim.h"
+
+struct particle_config
+{
+	char *name;
+	int (*init)(sim_t *, block_t *, specie_block_t *);
+};
+
 typedef struct particle_config particle_config_t;
+
+#include "specie.h"
+#include <libconfig.h>
 
 particle_t *
 particle_init();
@@ -44,3 +47,10 @@ particle_x(sim_t *sim, specie_t *s);
 
 int
 particle_J(sim_t *sim, specie_t *s);
+
+/* Communicate particles out of their block to the correct one */
+int
+particle_comm(sim_t *sim);
+
+void
+wrap_particle_position(sim_t *sim, particle_t *p);

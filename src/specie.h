@@ -41,15 +41,8 @@ struct specie_block
 	particle_t *particles;
 
 	/* Temporal particle lists to send and receive from other blocks */
-	particle_t *out[], *in[];
-};
-
-struct particle_queue
-{
-	int specie_index;
-	int nallocated;
-	int nparticles;
-	particle_t buf[];
+	int *outsize;
+	particle_t **out;
 };
 
 #include "sim.h"

@@ -2,6 +2,7 @@
 #include "sim.h"
 #include "config.h"
 #include "interpolate.h"
+#include "comm.h"
 
 #define DEBUG 1
 #include "log.h"
@@ -221,6 +222,7 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 static int
 block_E_update(sim_t *sim, specie_t *s, block_t *b)
 {
+#if 0
 	particle_t *p;
 
 	if(sim->dim == 1)
@@ -245,7 +247,7 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 	{
 		abort();
 	}
-
+#endif
 	return 0;
 }
 
@@ -307,6 +309,7 @@ boris_rotation(double q, double m, double *u, double *v, double *E, double *B, d
 static int
 block_x_update(sim_t *sim, specie_t *s, block_t *b)
 {
+#if 0
 	particle_t *p;
 	double *E, *B, u[MAX_DIM], dx[MAX_DIM];
 #if 0
@@ -387,12 +390,14 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 
 	}
 
+#endif
 	return 0;
 }
 
 int
 move_particle_to_block(block_t *from, block_t *to, particle_t *p)
 {
+#if 0
 	dbg("Moving particle %d at x=(%.3e,%.3e) from block (%d,%d) to block (%d, %d)\n",
 			p->i, p->x[X], p->x[Y],
 			from->i[X], from->i[X],
@@ -406,6 +411,7 @@ move_particle_to_block(block_t *from, block_t *to, particle_t *p)
 	//DL_APPEND(left->particles, p);
 	DL_PREPEND(to->species->particles, p);
 
+#endif
 	return 0;
 }
 
@@ -623,144 +629,13 @@ particle_E(sim_t *sim, specie_t *s)
 	return 0;
 }
 
-inline int
-block_delta_to_index(int delta[], int dim)
-{
-	int i, j, d, n;
-
-	/* Number of total blocks in each dimension considered in the
-	 * neighbourhood */
-	n = BLOCK_NEIGH * 2 + 1;
-	j = 0;
-
-	for(d = dim-1; d >= X; d--)
-	{
-		j *= n;
-		j += BLOCK_NEIGH + delta[d];
-	}
-
-	if(dim == 2)
-	{
-		dbg("Delta (%d,%d) translated to %d\n", delta[X], delta[Y], j);
-	}
-
-	return j;
-}
-
-int
-queue_comm_particle(sim_t *sim, specie_block_t *sb, int delta[], particle_t *p)
-{
-	int j;
-
-	j = block_delta_to_index(delta, sim->dim);
-	DL_DELETE(sb->particles, p);
-	DL_APPEND(sb->out[j], p);
-
-	return 0;
-}
-
-int
-particle_comm_specie_block(sim_t *sim, block_t *b, specie_block_t *sb)
-{
-	block_t *to_block;
-	particle_t *p, *tmp;
-	double px, py;
-	double x0, x1, y0, y1;
-	int idx, idy, ix, iy, nbx, nby, delta[MAX_DIM];
-	int jx, jy;
-
-	dbg("Moving particles for block (%d,%d) x0=(%e,%e) x1=(%e,%e)\n",
-		b->i[X], b->i[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
-
-	ix = b->i[X];
-	iy = b->i[Y];
-
-	x0 = b->x0[X];
-	x1 = b->x1[X];
-
-	y0 = b->x0[Y];
-	y1 = b->x1[Y];
-
-	nbx = sim->nblocks[X];
-	nby = sim->nblocks[Y];
-
-	DL_FOREACH_SAFE(sb->particles, p, tmp)
-	{
-		px = p->x[X];
-		py = p->x[Y];
-
-		delta[X] = 0;
-		delta[Y] = 0;
-
-		wrap_particle_position(sim, p);
-
-		/* FIXME: Allow bigger jumps than 1 block */
-		/* DON'T FIXME: NO, the simulation expects small steps, less than one
-		 * block */
-
-		/* First we check the X axis */
-		if(px < x0) delta[X] = -1;
-		else if(px >= x1) delta[X] = +1;
-
-		/* Then the Y axis */
-		if(py < y0) delta[Y] = -1;
-		else if(py >= y1) delta[Y] = +1;
-
-		/* Now we look for the proper block to move the particle if
-		 * needed */
-		if(delta[X] != 0 || delta[Y] != 0)
-		{
-			jx = (ix + delta[X] + nbx) % nbx;
-			jy = (iy + delta[Y] + nby) % nby;
-
-			/* FIXME: the destination block may be equal to the
-			 * source, in the case of wrapping */
-
-			if(ix == jx && iy == jy)
-			{
-				dbg("Ignoring wrapping with delta (%d, %d)\n", delta[X], delta[Y]);
-				continue;
-			}
-
-			assert(jx >= 0);
-			assert(jy >= 0);
-			assert(jx < nbx);
-			assert(jy < nby);
-
-			queue_comm_particle(sim, sb, delta, p);
-		}
-
-	}
-
-	return 0;
-}
-
-int
-particle_comm_block(sim_t *sim, block_t *b)
-{
-	int is;
-	specie_block_t *sb;
-
-
-	for(is = 0; is < sim->nspecies; is++)
-	{
-		sb = &b->sblocks[s];
-
-		/* Collect particles in a queue that need to change the block */
-		particle_comm_specie_block(sim, b, sb);
-
-		/* Then fill the queue and send the particles */
-		queue_prepare(sim, b, sb);
-	}
-
-	return 0;
-}
 
 /* Communicate particles out of their block to the correct one */
 int
 particle_comm(sim_t *sim)
 {
 	int i, local_nblocks;
+	block_t *b;
 
 	local_nblocks = sim->nblocks[X] * sim->nblocks[Y];
 
@@ -773,8 +648,10 @@ particle_comm(sim_t *sim)
 		/* We left lb and rb with the inout directive, as we need to
 		 * wait for any modification to those blocks before we write to
 		 * them (lb->particles->next->next... */
-		particle_comm_block(sim, b);
+		comm_block(sim, b);
 	}
+
+	return 0;
 }
 
 int

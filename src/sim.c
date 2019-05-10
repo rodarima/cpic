@@ -16,6 +16,7 @@
 
 #include "solver.h"
 #include "perf.h"
+#include "comm.h"
 
 #include <math.h>
 #include <assert.h>
@@ -120,8 +121,9 @@ sim_prepare(sim_t *s, int quiet)
 	for(d=0; d<s->dim; d++)
 	{
 		/* Note that each point represents the space from x0 to x0+dx */
-		s->dx[d] = s->L[d] / s->npoints[d];
 		s->ghostsize[d] = s->blocksize[d] + 1;
+		s->npoints[d] = s->ntpoints[d] / s->ntblocks[d];
+		s->dx[d] = s->L[d] / s->npoints[d];
 	}
 
 	/* Compute also the number of neighbours including the actual block */
@@ -138,9 +140,10 @@ sim_pre_step(sim_t *sim)
 {
 
 	/* Move particles to the correct block */
+	particle_comm(sim);
 
 	/* Initial computation of rho */
-	field_rho(s);
+	field_rho(sim);
 
 	return 0;
 }
@@ -150,7 +153,7 @@ sim_init(config_t *conf, int quiet)
 {
 	sim_t *s;
 
-	s = calloc(1, sizeof(sim_t));
+	s = malloc(sizeof(sim_t));
 
 	s->conf = conf;
 

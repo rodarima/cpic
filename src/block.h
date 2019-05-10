@@ -2,6 +2,10 @@
 
 struct block;
 typedef struct block block_t;
+struct comm_packet;
+typedef struct comm_packet comm_packet_t;
+struct specie_packet;
+typedef struct specie_packet specie_packet_t;
 
 #include "mat.h"
 #include "specie.h"
@@ -10,6 +14,7 @@ typedef struct block block_t;
 
 #include <stdlib.h>
 #include <libconfig.h>
+#include <mpi.h>
 
 #define BLOCK_XY(sim, blocks, ix, iy) \
 	(&((blocks)[(iy) * (sim)->nblocks[Y] + (ix)]))
@@ -18,7 +23,7 @@ typedef struct block block_t;
 	(&((blocks)[(ix)]))
 
 #define SPECIE_BLOCK(block, is) \
-	(&((block->species)[(is)]))
+	(&((block->sblocks)[(is)]))
 
 /* A block is only a physical slice of the space domain */
 struct block
@@ -39,7 +44,26 @@ struct block
 	specie_block_t *sblocks;
 
 	/* Queues of outgoing messages. One per neighbour */
-	block_queue_t *q;
+	comm_packet_t **q;
+
+	/* MPI_Request of each packet sent */
+	MPI_Request **req;
+
+	/* The rank of each neighbour */
+	int *neigh_rank;
+};
+
+struct specie_packet
+{
+	int specie_index;
+	int nparticles;
+	particle_t buf[];
+};
+
+struct comm_packet
+{
+	int count;
+	specie_packet_t s[];
 };
 
 int

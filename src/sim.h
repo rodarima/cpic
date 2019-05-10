@@ -107,8 +107,8 @@ struct sim
 	 * the specified dimension. Equal to the points specified in the config */
 	int ntpoints[MAX_DIM];
 
-	/* The number of points with all blocks of the specified dimension in
-	 * the current MPI process */
+	/* The number of points in the specified dimension of the current MPI
+	 * process. Equal to ntpoints[d] / ntblocks[d] per each dimension d */
 	int npoints[MAX_DIM];
 
 	/* Number of neighbour blocks, including the current block */
@@ -118,7 +118,7 @@ struct sim
 	/* Local information relative to the MPI process */
 	/* ------------------------------------------------------- */
 
-	/* FIXME: Now we cannot get total energy */
+	/* FIXME: Now we cannot get total energy without communication */
 	//double energy_electrostatic;
 	//double energy_kinetic;
 	//double total_momentum[MAX_DIM];
