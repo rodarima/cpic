@@ -43,6 +43,7 @@ main(int argc, char *argv[])
 	/* FIXME: Determine if we want to allow MPI to know our argv. By now we
 	 * simply set a NULL argv */
 	MPI_Init(NULL, NULL);
+	err("MPI INITILIZED!\n");
 
 	while((opt = getopt(argc, argv, "q")) != -1)
 	{

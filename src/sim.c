@@ -66,6 +66,8 @@ sim_prepare(sim_t *s, int quiet)
 	/* The current process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &s->rank);
 
+	s->iter = 0;
+
 	s->ntblocks[X] = 1;
 	s->ntblocks[Y] = 1;
 	s->ntblocks[Z] = 1;
@@ -127,7 +129,7 @@ sim_prepare(sim_t *s, int quiet)
 	}
 
 	/* Compute also the number of neighbours including the actual block */
-	s->nneigh_blocks = nneigh_table[s->dim];
+	s->nneigh_blocks = nneigh_table[s->dim - 1];
 
 	/* Initially set the time t to zero */
 	s->t = 0.0;

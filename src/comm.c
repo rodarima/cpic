@@ -9,32 +9,8 @@
 #include "log.h"
 
 
-inline int
+int
 block_delta_to_index(int delta[], int dim)
-{
-	int j, d, n;
-
-	/* Number of total blocks in each dimension considered in the
-	 * neighbourhood */
-	n = BLOCK_NEIGH * 2 + 1;
-	j = 0;
-
-	for(d = dim-1; d >= X; d--)
-	{
-		j *= n;
-		j += BLOCK_NEIGH + delta[d];
-	}
-
-	if(dim == 2)
-	{
-		dbg("Delta (%d,%d) translated to %d\n", delta[X], delta[Y], j);
-	}
-
-	return j;
-}
-
-inline int
-block_index_to_delta(int parent, int neigh, int delta[], int dim)
 {
 	int j, d, n;
 
@@ -64,8 +40,15 @@ queue_particle(sim_t *sim, specie_block_t *sb, int delta[], particle_t *p)
 
 	j = block_delta_to_index(delta, sim->dim);
 	DL_DELETE(sb->particles, p);
+	// Needed?
+	//p->next = NULL;
+	//p->prev = NULL;
 	DL_APPEND(sb->out[j], p);
-	sb->outsize++;
+	sb->nbparticles--;
+	sb->outsize[j]++;
+
+	dbg("particle %d needs moving to neigh %d at delta (%d %d)\n",
+			p->i, j, delta[X], delta[Y]);
 
 	return 0;
 }
@@ -156,6 +139,8 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 	particle_t *p;
 	void *ptr;
 
+	dbg("Sending out packet for neighbour %d\n", neigh);
+
 	count = 0;
 	pkt = b->q[neigh];
 	size = sizeof(comm_packet_t);
@@ -166,7 +151,11 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 		sb = &b->sblocks[is];
 
 		/* Skip empty queues */
-		if(sb->outsize[neigh] == 0) continue;
+		if(sb->outsize[neigh] == 0)
+		{
+			dbg("No particles need communication for specie %d\n", is);
+			continue;
+		}
 
 		count++;
 
@@ -184,7 +173,7 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 
 	if(pkt)
 	{
-		MPI_Wait(b->req[neigh], MPI_STATUS_IGNORE);
+		MPI_Wait(&b->req[neigh], MPI_STATUS_IGNORE);
 		free(pkt);
 	}
 
@@ -223,22 +212,84 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 		assert((((void *) pkt) - ((void *) sp)) < size);
 	}
 
+	dbg("Sending packet of size %lu to rank %d\n",
+			size, b->neigh_rank[neigh]);
+
 	/* Now the packet is ready to be sent */
-	MPI_Isend(pkt, size, MPI_BYTE, b->neigh_rank[neigh], 55,
-			MPI_COMM_WORLD, b->req[neigh]);
+	//MPI_Isend(pkt, size, MPI_BYTE, b->neigh_rank[neigh], 55,
+	//		MPI_COMM_WORLD, &b->req[neigh]);
+	MPI_Send(pkt, size, MPI_BYTE, b->neigh_rank[neigh], neigh,
+			MPI_COMM_WORLD);
+
+	dbg("Sending to rank %d done\n", b->neigh_rank[neigh]);
+
+	return 0;
+}
+
+int
+share_particles(sim_t *sim, block_t *b, int neigh)
+{
+	int is;
+	specie_block_t *sb;
+
+	for(is=0; is<sim->nspecies; is++)
+	{
+		sb = &b->sblocks[is];
+
+		/* TODO: Implement for multiple threads */
+
+		if(sb->outsize[neigh])
+			DL_APPEND(sb->particles, sb->out[neigh]);
+
+		sb->out[neigh] = NULL;
+		sb->outsize[neigh] = 0;
+	}
 
 	return 0;
 }
 
 /* Set the packets of particles to send to each neighbour */
 int
-send_packet(sim_t *sim, block_t *b)
+send_particles(sim_t *sim, block_t *b)
 {
 	int i;
 
 	for(i=0; i<sim->nneigh_blocks; i++)
 	{
-		send_packet_neigh(sim, b, i);
+
+		if(b->neigh_rank[i] != sim->rank)
+		{
+			dbg("Sending packets for neigh %d(%d)\n", i, b->neigh_rank[i]);
+			send_packet_neigh(sim, b, i);
+			continue;
+		}
+
+		dbg("Communication not needed for neigh %d(%d)\n", i, b->neigh_rank[i]);
+		share_particles(sim, b, i);
+
+	}
+	return 0;
+}
+
+int
+recv_particles(sim_t *sim, block_t *b)
+{
+	int i;
+	char buf[1024];
+
+	for(i=0; i<sim->nneigh_blocks; i++)
+	{
+
+		if(b->neigh_rank[i] != sim->rank)
+		{
+			dbg("Receiving packets from neigh %d(%d)\n", b->neigh_rank[i], i);
+			MPI_Recv(buf, 1024, MPI_BYTE, b->neigh_rank[i], i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			dbg("Received!! from neigh %d\n", i);
+			continue;
+		}
+
+		dbg("Reception not needed from neigh %d\n", i);
+
 	}
 	return 0;
 }
@@ -247,7 +298,7 @@ send_packet(sim_t *sim, block_t *b)
 int
 comm_block(sim_t *sim, block_t *b)
 {
-	int is;
+	int is, j;
 	specie_block_t *sb;
 
 
@@ -257,14 +308,20 @@ comm_block(sim_t *sim, block_t *b)
 		sb = &b->sblocks[is];
 		/* TODO: Ensure the destination received the packet before
 		 * erasing the queue */
-		sb->out = NULL;
-		sb->outsize = 0;
+		for(j = 0; j < sim->nneigh_blocks; j++)
+		{
+			sb->out[j] = NULL;
+			sb->outsize[j] = 0;
+		}
 
 		collect_specie(sim, b, sb);
 	}
 
 	/* Then fill the packets and send each to the corresponding neighbour */
-	send_packet(sim, b);
+	send_particles(sim, b);
+
+	/* Finally receive particles from the neighbours */
+	recv_particles(sim, b);
 
 	return 0;
 }

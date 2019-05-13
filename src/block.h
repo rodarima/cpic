@@ -17,7 +17,7 @@ typedef struct specie_packet specie_packet_t;
 #include <mpi.h>
 
 #define BLOCK_XY(sim, blocks, ix, iy) \
-	(&((blocks)[(iy) * (sim)->nblocks[Y] + (ix)]))
+	(&((blocks)[(iy) * (sim)->ntblocks[X] + (ix)]))
 
 #define BLOCK_X(sim, blocks, ix) \
 	(&((blocks)[(ix)]))
@@ -47,11 +47,17 @@ struct block
 	comm_packet_t **q;
 
 	/* MPI_Request of each packet sent */
-	MPI_Request **req;
+	MPI_Request *req;
 
 	/* The rank of each neighbour */
 	int *neigh_rank;
 };
+
+
+#pragma pack(push,1)
+
+/* We need the network structures to be packed, as otherwise, ununused regions
+ * are left uninitialized */
 
 struct specie_packet
 {
@@ -65,6 +71,8 @@ struct comm_packet
 	int count;
 	specie_packet_t s[];
 };
+
+#pragma pack(pop)
 
 int
 blocks_init(sim_t *sim);

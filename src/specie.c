@@ -67,6 +67,7 @@ specie_block_add_particle(specie_block_t *sb, particle_t *p)
 {
 	dbg("Adding particle p_%d to specie block %p\n", p->i, sb);
 	DL_APPEND(sb->particles, p);
+	sb->nbparticles++;
 }
 
 int
@@ -77,8 +78,13 @@ specie_block_init(sim_t *sim, block_t *b, specie_block_t *sb, specie_t *s)
 
 	sb->info = s;
 	sb->particles = NULL;
+	sb->outsize = calloc(sim->nneigh_blocks, sizeof(int));
+	sb->out = calloc(sim->nneigh_blocks, sizeof(particle_t *));
+	sb->nbparticles = 0;
 
 	n = sim->ntblocks[X] * sim->ntblocks[Y];
+
+	/* TODO: Ensure nblocks is correct, rather than ntblocks */
 	ib = b->i[X] * sim->nblocks[Y] + b->i[Y];
 
 	dbg("n=%d, ib=%d\n", n, ib);

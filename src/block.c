@@ -35,6 +35,87 @@ block_species_init(sim_t *sim, block_t *b)
 	return 0;
 }
 
+void
+neigh_deltas(int delta[], int dim, int neigh)
+{
+	int d, n, nn, tmp;
+
+	/* Number of total blocks in each dimension considered in the
+	 * neighbourhood */
+	n = BLOCK_NEIGH * 2 + 1;
+
+	nn = 1;
+
+	for(d = 0; d < dim; d++)
+		nn *= n;
+
+	tmp = neigh;
+	for(d=X; d<dim; d++)
+	{
+		delta[d] = tmp % n - BLOCK_NEIGH;
+		tmp /= n;
+	}
+
+	if(dim == 2)
+	{
+		dbg("Neighbour %d translated to delta (%d,%d)\n",
+				neigh, delta[X], delta[Y]);
+	}
+}
+
+
+int
+neigh_rank(sim_t *sim, block_t *b)
+{
+	int i, d, ib;
+	int delta[MAX_DIM];
+	int pos[MAX_DIM];
+
+	for(i=0; i<sim->nneigh_blocks; i++)
+	{
+		/* Each index corresponds to a displacement delta in the block
+		 * space */
+
+		neigh_deltas(delta, sim->dim, i);
+
+		/* Now we need to determine whether the neighbour block
+		 * corresponds with another MPI process or not, so we need to
+		 * call MPI_send or use shared memory. */
+
+		/* If we only advance in the X direction, then we are in the
+		 * same process */
+
+		if(delta[Y] == 0)
+		{
+			dbg("delta Y is 0, so rank for neigh %d is %d\n", i, sim->rank);
+			b->neigh_rank[i] = sim->rank;
+			continue;
+		}
+
+		/* Otherwise, we can compute the new position */
+
+		for(d=X; d<sim->dim; d++)
+		{
+			pos[d] = (b->i[d] + sim->ntblocks[d] + delta[d]) % sim->ntblocks[d];
+		}
+
+		if(sim->dim != 2)
+		{
+			err("Only 2 dimensions supported now\n");
+			abort();
+		}
+
+		dbg("Neigh %d, is at global index (%d %d)\n", i, pos[X], pos[Y]);
+
+		ib = pos[Y];
+
+		dbg("Rank for neigh %d is %d\n", i, ib);
+		b->neigh_rank[i] = ib;
+	}
+
+	return 0;
+}
+
 /* Allocate all fields in a new block, and create the specie block, with the
  * appropiate particles */
 int
@@ -64,15 +145,15 @@ block_init(sim_t *sim, block_t *b)
 	/* We need to initialize the queues and addtional lists before the
 	 * species can be initialized */
 	b->q = malloc(sim->nneigh_blocks * sizeof(comm_packet_t *));
-	b->req = malloc(sim->nneigh_blocks * sizeof(MPI_Request *));
+	b->req = malloc(sim->nneigh_blocks * sizeof(MPI_Request));
 	b->neigh_rank = malloc(sim->nneigh_blocks * sizeof(int));
 
 	for(i=0; i<sim->nneigh_blocks; i++)
 	{
 		b->q[i] = NULL;
-		b->req[i] = NULL;
-		b->neigh_rank[i] = 666;
 	}
+
+	neigh_rank(sim, b);
 
 	/* Finally, init the block species */
 	assert(sim->species);

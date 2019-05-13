@@ -4,8 +4,11 @@ MODULES:=src
 CC=gcc
 #OCC=mcc
 LDLIBS:=
-CFLAGS:=-O2 -g -pthread -Wall -pg
+CFLAGS:=-g -pthread -Wall -pg
 LDFLAGS:=-L. -Wl,-rpath,.
+
+# Optimization?
+#CFLAGS+=-O2
 
 #Include all modules for headers
 CFLAGS+=$(patsubst %,-I%,$(MODULES))

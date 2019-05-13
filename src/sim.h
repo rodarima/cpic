@@ -16,6 +16,9 @@ enum sim_mode {
 	SIM_MODE_DEBUG,
 };
 
+/* Maximum number of neighbours in all dimensions: 3^3 */
+#define MAX_NEIGH 27
+
 struct sim
 {
 
