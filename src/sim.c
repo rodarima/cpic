@@ -22,6 +22,7 @@
 #include <assert.h>
 
 #include <mpi.h>
+#include <unistd.h>
 
 #define ENERGY_CHECK 1
 
@@ -373,6 +374,7 @@ sim_step(sim_t *sim)
 	/* Line 6: Update E on the grid, eq 5 */
 	field_E(sim);
 
+	usleep(50);
 
 	for(j = 0; j < sim->nspecies; j++)
 	{

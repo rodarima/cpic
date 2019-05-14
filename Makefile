@@ -53,9 +53,9 @@ clean:
 #load:
 #	module load gcc/7.2.0 extrae ompss-2
 #
-#run:
-#	./cpic
-#	mpi2prv -f TRACE.mpits -o trace/output.prv
+run:
+	mpirun --oversubscribe -n 4 ./trace.sh ./cpic conf/mpi.conf
+
 #runmn:
 #	LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/apps/PM/ompss-2/2018.11/lib taskset -c 0-20 ./cpic
 #	#NANOS6=extrae taskset -c 0-25 ./cpic

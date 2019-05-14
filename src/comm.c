@@ -5,7 +5,7 @@
 #include "specie.h"
 #include "particle.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 
@@ -173,7 +173,7 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 
 	if(pkt)
 	{
-		MPI_Wait(&b->req[neigh], MPI_STATUS_IGNORE);
+		//MPI_Wait(&b->req[neigh], MPI_STATUS_IGNORE);
 		free(pkt);
 	}
 
@@ -216,10 +216,10 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 			size, b->neigh_rank[neigh]);
 
 	/* Now the packet is ready to be sent */
-	MPI_Isend(pkt, size, MPI_BYTE, b->neigh_rank[neigh], neigh,
-			MPI_COMM_WORLD, &b->req[neigh]);
-	//MPI_Send(pkt, size, MPI_BYTE, b->neigh_rank[neigh], neigh,
-	//		MPI_COMM_WORLD);
+	//MPI_Isend(pkt, size, MPI_BYTE, b->neigh_rank[neigh], neigh,
+	//		MPI_COMM_WORLD, &b->req[neigh]);
+	MPI_Send(pkt, size, MPI_BYTE, b->neigh_rank[neigh], neigh,
+			MPI_COMM_WORLD);
 
 	dbg("Sending to rank %d done\n", b->neigh_rank[neigh]);
 
@@ -282,9 +282,10 @@ recv_particles(sim_t *sim, block_t *b)
 
 		if(b->neigh_rank[i] != sim->rank)
 		{
-			dbg("Receiving packets from neigh %d(%d)\n", b->neigh_rank[i], i);
-			MPI_Recv(buf, 1024, MPI_BYTE, b->neigh_rank[i], MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-			dbg("Received!! from neigh %d?\n", i);
+			dbg("Receiving packets from neigh rank=%d tag=%d iter=%d\n", b->neigh_rank[i], i, sim->iter);
+			//MPI_Recv(buf, 1024, MPI_BYTE, b->neigh_rank[i], MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			MPI_Recv(buf, 1024, MPI_BYTE, b->neigh_rank[i], sim->nneigh_blocks-i-1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			dbg("Received!! from neigh rank=%d tag=%d\n", b->neigh_rank[i], sim->nneigh_blocks-i-1);
 			continue;
 		}
 
