@@ -216,10 +216,10 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 			size, b->neigh_rank[neigh]);
 
 	/* Now the packet is ready to be sent */
-	//MPI_Isend(pkt, size, MPI_BYTE, b->neigh_rank[neigh], 55,
-	//		MPI_COMM_WORLD, &b->req[neigh]);
-	MPI_Send(pkt, size, MPI_BYTE, b->neigh_rank[neigh], neigh,
-			MPI_COMM_WORLD);
+	MPI_Isend(pkt, size, MPI_BYTE, b->neigh_rank[neigh], neigh,
+			MPI_COMM_WORLD, &b->req[neigh]);
+	//MPI_Send(pkt, size, MPI_BYTE, b->neigh_rank[neigh], neigh,
+	//		MPI_COMM_WORLD);
 
 	dbg("Sending to rank %d done\n", b->neigh_rank[neigh]);
 
@@ -283,8 +283,8 @@ recv_particles(sim_t *sim, block_t *b)
 		if(b->neigh_rank[i] != sim->rank)
 		{
 			dbg("Receiving packets from neigh %d(%d)\n", b->neigh_rank[i], i);
-			MPI_Recv(buf, 1024, MPI_BYTE, b->neigh_rank[i], i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-			dbg("Received!! from neigh %d\n", i);
+			MPI_Recv(buf, 1024, MPI_BYTE, b->neigh_rank[i], MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			dbg("Received!! from neigh %d?\n", i);
 			continue;
 		}
 
