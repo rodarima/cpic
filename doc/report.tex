@@ -212,20 +212,30 @@ Initialization, loop and finish.
 
 \subsection{Initialization}
 
+The iteration counter is initially set to $-2$, as we are going to do two 
+previous phases before the simulation begins:
+
+\paragraph{Allocation phase}
 After $P$ processes were created (as in MPI processes), now we create the 
 different structures to hold the simulation data. First the fields are 
-distributed into task blocks, grouped in each process.
-
-For each specie, we distribute the particles based on the particle index $p_i$, 
-minimizing the difference of particles between blocks. The position, velocity 
-and other parameters are set on each particle, independently of the actual block 
+distributed into task blocks, grouped in each process. For each specie, we 
+distribute the particles based on the particle index $p_i$, minimizing the 
+difference of the number of particles between blocks. The position, velocity and 
+other parameters are set on each particle, independently of the actual block 
 they reside.
 
 Once all particles are initialized, we begin to move them to the correct block, 
-based on the particle position.
+based on the particle position, and increment the iteration counter. Finally, 
+the charge density field $\rho$ is initially computed, as we want the begin the 
+simulation with the computation of the electric field E from $\rho$
 
-Finally, the charge density field $\rho$ is initially computed, as we want the 
-begin the simulation with the computation of the electric field E from $\rho$
+\paragraph{Rewind phase} The simulation time is not advanced equally for the 
+speed and position of the particles. At time $t$ the velocity computed at time 
+$t + \dt/2$ whereas the position is computed at time $t$. In order to begin the 
+simulation, the velocity of the particles is advanced half time-step backwards 
+in time. This extra step is computed at the iteration $i=-1$, as we need the 
+iteration counter to be always increasing (as is used in the message exchange as 
+unique identifier).
 
 \subsection{Loop}
 

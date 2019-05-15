@@ -1,0 +1,13 @@
+Optimization of scientific applications with OmpSs-2
+
+Analyze and improve the performance of iPic3D, used to simulate the interaction
+of the solar wind with the magnetosphere of planets, by using different
+parallelization techniques provided by the OmpSs-2 programming model.
+
+---
+
+Particle-in-cell plasma simulation using OmpSs-2
+
+Develop a high performance plasma simulator based on iPic3D, used to simulate
+the interaction of the solar wind with the magnetosphere of planets, by using
+different parallelization techniques provided by the OmpSs-2 programming model.
