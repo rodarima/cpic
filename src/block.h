@@ -19,6 +19,9 @@ typedef struct specie_packet specie_packet_t;
 #define BLOCK_XY(sim, blocks, ix, iy) \
 	(&((blocks)[(iy) * (sim)->ntblocks[X] + (ix)]))
 
+#define GBLOCK_XY(sim, ix, iy) \
+	(&((sim)->blocks[(iy) * (sim)->ntblocks[X] + (ix)]))
+
 #define LBLOCK_XY(sim, ix, iy) \
 	(&((sim)->blocks[(iy) * (sim)->nblocks[X] + (ix)]))
 

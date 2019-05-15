@@ -3,7 +3,7 @@
 #include "interpolate.h"
 #include "mat.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 #include <string.h>
@@ -50,9 +50,8 @@ specie_rho_update(sim_t *sim, block_t *b, specie_block_t *sb)
 	return 0;
 }
 
-#if 0
-static void
-comm_neigh(sim_t *sim, mat_t *from, mat_t *to, int dir[MAX_DIM])
+int
+neigh_comm_rho(sim_t *sim, block_t *b, int neigh_rank, int dir[MAX_DIM])
 {
 	int start[MAX_DIM];
 	int end[MAX_DIM];
@@ -102,15 +101,13 @@ comm_neigh(sim_t *sim, mat_t *from, mat_t *to, int dir[MAX_DIM])
 }
 #endif
 
-#if 0
 static int
-block_rho_comm(sim_t *sim, specie_t *s, block_t *b)
+block_rho_comm(sim_t *sim, block_t *b)
 {
-	block_t *neigh;
-
 	int m[MAX_DIM] = {0,0,0};
 	int j[MAX_DIM] = {0};
 	int i[MAX_DIM] = {0};
+	int neigh_index, neigh_rank;
 
 	/* Compute the number of neighbours in each dimension we want to
 	 * consider to communicate ghost nodes */
@@ -124,7 +121,8 @@ block_rho_comm(sim_t *sim, specie_t *s, block_t *b)
 			abort();
 	}
 
-	dbg("Comm m=(%d,%d,%d)\n", m[X], m[Y], m[Z]);
+	dbg("Comm of block i=(%d, %d) m=(%d,%d)\n",
+			b->i[X], b->i[Y], m[X], m[Y]);
 
 	/* Now iterate for each one of them. Note that we use <= to iterate over
 	 * the current node and each neighbour */
@@ -134,26 +132,40 @@ block_rho_comm(sim_t *sim, specie_t *s, block_t *b)
 //		i[Z] = (b->i[Z] + j[Z]) % sim->nblocks[Z];
 		for(j[Y]=0; j[Y] <= m[Y]; j[Y]++)
 		{
-			i[Y] = (b->i[Y] + j[Y]) % sim->nblocks[Y];
+			i[Y] = (b->i[Y] + j[Y]) % sim->ntblocks[Y];
 			for(j[X]=0; j[X] <= m[X]; j[X]++)
 			{
-				i[X] = (b->i[X] + j[X]) % sim->nblocks[X];
+				i[X] = (b->i[X] + j[X]) % sim->ntblocks[X];
 
-				dbg("Comm neigh at (%d,%d,%d)\n", i[X], i[Y], i[Z]);
+				dbg("Comm neigh at (%d,%d) with j=(%d,%d)\n",
+					i[X], i[Y], j[X], j[Y]);
 
 				/* Avoid zero displacement, but allow wraping to
 				 * go to the same block. */
 				if((j[X] == 0) && (j[Y] == 0) && (j[Z] == 0))
 					continue;
 
+				/* TODO: Check the following case: We have
+				 * ntblocks[X] = 1, and the effect of the
+				 * charges in the right boundary, should affect
+				 * the charges at the left part, no
+				 * communication is required, but the values must
+				 * change. Let's ignore this by now... */
+
 				assert(j[Z] == 0);
 
 				/* TODO: Allow 3D also */
-				neigh = BLOCK_XY(sim, sim->blocks, i[X], i[Y]);
+				//neigh = GBLOCK_XY(sim, i[X], i[Y]);
 
-				//assert(neigh != b);
+				/* assert(neigh != b); */
 
-				comm_neigh(sim, b->rho, neigh->rho, j);
+
+				neigh_index = block_delta_to_index(j, sim->dim);
+				neigh_rank = b->neigh_rank[neigh_index];
+
+				if(neigh_rank == sim->rank) continue;
+
+				neigh_comm_rho(sim, b, rank, j);
 			}
 		}
 //	}
@@ -164,7 +176,6 @@ block_rho_comm(sim_t *sim, specie_t *s, block_t *b)
 
 	return 0;
 }
-#endif
 
 int
 block_rho_update(sim_t *sim, block_t *b)
@@ -202,16 +213,17 @@ field_rho(sim_t *sim)
 		}
 	}
 
-#if 0
 	/* Communication */
-	for (i = 0; i < s->nblocks[X]*sim->nblocks[Y]; i++)
+	for (iy=0; iy<sim->nblocks[Y]; iy++)
 	{
-		b = &(sim->blocks[i]);
+		for (ix=0; ix<sim->nblocks[X]; ix++)
+		{
+			b = LBLOCK_XY(sim, ix, iy);
 
-		block_rho_comm(sim, s, b);
+			block_rho_comm(sim, b);
+		}
 	}
 
-#endif
 	perf_stop(sim->perf, TIMER_FIELD_RHO);
 
 	return 0;

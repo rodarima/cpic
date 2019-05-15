@@ -10,3 +10,6 @@
 
 int
 comm_block(sim_t *sim, block_t *b);
+
+int
+block_delta_to_index(int delta[], int dim);

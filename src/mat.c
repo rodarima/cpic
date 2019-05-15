@@ -95,9 +95,9 @@ vec_print(mat_t *m, char *title)
 	if(title) dbg("Vector %s:\n", title);
 	for(i=0; i<m->shape[0]; i++)
 	{
-		dbg("%10.3e ", m->data[i]);
+		fprintf(stderr, "%10.3e ", m->data[i]);
 	}
-	dbg("\n");
+	fprintf(stderr, "\n");
 	return 0;
 }
 
@@ -117,9 +117,9 @@ mat_print(mat_t *m, char *title)
 	{
 		for(j=0; j<m->shape[1]; j++)
 		{
-			dbg("%10.2e ", m->data[m->shape[0] * i + j]);
+			fprintf(stderr, "%10.2e ", m->data[m->shape[0] * i + j]);
 		}
-		dbg("\n");
+		fprintf(stderr, "\n");
 	}
 
 	return 0;
