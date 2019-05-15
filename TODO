@@ -10,3 +10,4 @@
 - Search for 2D cases for study
 - Distribution of initial temperature
 - Fix error in computation of phi
+- Ensure no memleaks in particle comm

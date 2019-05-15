@@ -274,6 +274,40 @@ send_particles(sim_t *sim, block_t *b)
 }
 
 int
+recv_comm_packet(sim_t *sim, block_t *b, comm_packet_t *pkt)
+{
+	specie_block_t *sb;
+	specie_packet_t *sp;
+	particle_t *p, *p2;
+	char *ptr;
+	int i, is, ip;
+
+	ptr = (char *) pkt->s;
+
+	for(i=0; i<pkt->count; i++)
+	{
+		sp = (specie_packet_t *) ptr;
+		is = sp->specie_index;
+		sb = &b->sblocks[is];
+
+		for(ip=0; ip<sp->nparticles; ip++)
+		{
+			p = &sp->buf[ip];
+
+			p2 = malloc(sizeof(*p2));
+			memcpy(p2, p, sizeof(*p));
+
+			specie_block_add_particle(sb, p2);
+		}
+
+		ptr += sizeof(specie_packet_t);
+		ptr += sizeof(particle_t) * sp->nparticles;
+	}
+
+	return 0;
+}
+
+int
 recv_particles(sim_t *sim, block_t *b)
 {
 	int i;
@@ -328,6 +362,7 @@ recv_particles(sim_t *sim, block_t *b)
 		recv_from[neigh]++;
 
 		/* Do some stuff with pkt */
+		recv_comm_packet(sim, b, pkt);
 
 		free(pkt);
 

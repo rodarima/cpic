@@ -11,35 +11,32 @@
 #include <math.h>
 #include <libconfig.h>
 
-#if 0
-
 /* The field rho is updated based on the charge density computed on each
  * particle p, by using an interpolation function */
-static int
-block_rho_update(sim_t *sim, specie_block_t *s, block_t *b)
+int
+specie_rho_update(sim_t *sim, block_t *b, specie_block_t *sb)
 {
 	particle_t *p;
-	mat_t *rho = b->rho;
 
-	/* Erase previous current */
-	MAT_FILL(rho, 0.0);
+	/* Erase previous charge density */
+	MAT_FILL(b->rho, 0.0);
 
 	if(sim->dim == 1)
 	{
-		for(p = s->particles; p; p = p->next)
+		for(p = sb->particles; p; p = p->next)
 		{
 			/* Interpolate the charge density of the particle to the grid
 			 * of the block */
-			interpolate_add_to_grid_x(sim, p, b, s->info->q, rho);
+			interpolate_add_to_grid_x(sim, p, b, sb->info->q, b->rho);
 		}
 	}
 	else if(sim->dim == 2)
 	{
-		for(p = s->particles; p; p = p->next)
+		for(p = sb->particles; p; p = p->next)
 		{
 			/* Interpolate the charge density of the particle to the grid
 			 * of the block */
-			interpolate_add_to_grid_xy(sim, p, b, s->info->q, rho);
+			interpolate_add_to_grid_xy(sim, p, b, sb->info->q, b->rho);
 		}
 	}
 	else
@@ -47,11 +44,11 @@ block_rho_update(sim_t *sim, specie_block_t *s, block_t *b)
 		abort();
 	}
 
-	//mat_print(rho, "rho after update");
+	mat_print(b->rho, "rho after update");
+
 
 	return 0;
 }
-#endif
 
 #if 0
 static void
@@ -169,26 +166,43 @@ block_rho_comm(sim_t *sim, specie_t *s, block_t *b)
 }
 #endif
 
+int
+block_rho_update(sim_t *sim, block_t *b)
+{
+	int is;
+	specie_block_t *sb;
+
+	for(is=0; is<sim->nspecies; is++)
+	{
+		sb = &b->sblocks[is];
+		specie_rho_update(sim, b, sb);
+	}
+
+	return 0;
+}
+
 /* The field rho is updated based on the charge density computed on each
  * particle p, by using an interpolation function */
 int
 field_rho(sim_t *sim)
 {
+	int ix, iy;
+	block_t *b;
 
 	perf_start(sim->perf, TIMER_FIELD_RHO);
 
-	/* FIXME: use 2d loop */
+	/* Computation */
+	for (iy=0; iy<sim->nblocks[Y]; iy++)
+	{
+		for (ix=0; ix<sim->nblocks[X]; ix++)
+		{
+			b = LBLOCK_XY(sim, ix, iy);
+
+			block_rho_update(sim, b);
+		}
+	}
 
 #if 0
-	int i;
-	block_t *b;
-	/* Computation */
-	for (i = 0; i < sim->nblocks[X] * sim->nblocks[Y]; i++)
-	{
-		b = &(sim->blocks[i]);
-
-		block_rho_update(sim, s, b);
-	}
 	/* Communication */
 	for (i = 0; i < s->nblocks[X]*sim->nblocks[Y]; i++)
 	{
@@ -196,6 +210,7 @@ field_rho(sim_t *sim)
 
 		block_rho_comm(sim, s, b);
 	}
+
 #endif
 	perf_stop(sim->perf, TIMER_FIELD_RHO);
 
@@ -389,15 +404,10 @@ field_phi_solve(sim_t *sim)
 }
 #endif
 
-int
-field_E(sim_t *sim)
-{
-
-	perf_start(sim->perf, TIMER_FIELD_E);
-
 #if 0
-	int i;
-
+int
+block_field_E(sim_t *sim, block_t *b)
+{
 	/* Erase previous charge */
 	MAT_FILL(b->rho, 0.0);
 
@@ -412,15 +422,38 @@ field_E(sim_t *sim)
 	field_phi_solve(sim);
 
 	field_E_compute(sim);
-#endif
 
 	/* Exit after 1 iterations to test the solver */
 	//mat_print(sim->field->phi, "phi");
 
 	/* After solving the electric field, we can now distribute it in each
 	 * block, as the force can be computed easily from the grid points */
+	return 0;
+}
+#endif
+
+int
+field_E(sim_t *sim)
+{
+#if 0
+	int i, ix, iy;
+	block_t *b;
+
+	perf_start(sim->perf, TIMER_FIELD_E);
+	for(iy=0; iy<sim->nblocks[Y]; iy++)
+	{
+		for(ix=0; ix<sim->nblocks[X]; ix++)
+		{
+			/* Local access to the blocks */
+			b = LBLOCK_XY(sim, ix, iy);
+
+			block_field_E(sim, b);
+		}
+	}
+
 
 	perf_stop(sim->perf, TIMER_FIELD_E);
+#endif
 
 	return 0;
 }

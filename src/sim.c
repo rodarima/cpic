@@ -476,6 +476,7 @@ sim_stats(sim_t *sim)
 int
 sim_run(sim_t *sim)
 {
+	assert(sim->iter == 0);
 	perf_start(sim->perf, TIMER_TOTAL);
 
 	while(sim->iter < sim->cycles)
