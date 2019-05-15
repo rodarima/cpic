@@ -135,7 +135,7 @@ block_init(sim_t *sim, block_t *b)
 
 	/* And compute block boundaries */
 	b->x0[X] = b->i[X] * block_w;
-	b->x0[Y] = b->i[X] * block_w;
+	b->x0[Y] = b->i[Y] * block_h;
 	b->x1[X] = b->x0[X] + block_w;
 	b->x1[Y] = b->x0[Y] + block_h;
 

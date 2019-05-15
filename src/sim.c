@@ -3,7 +3,7 @@
 
 #define PLOT 0
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include "specie.h"
 #include "particle.h"
@@ -67,7 +67,9 @@ sim_prepare(sim_t *s, int quiet)
 	/* The current process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &s->rank);
 
-	s->iter = 0;
+	/* We need to always advance the iteration number after exchanging any
+	 * information between blocks, as is used in the tag */
+	s->iter = -2;
 
 	s->ntblocks[X] = 1;
 	s->ntblocks[Y] = 1;
@@ -107,6 +109,7 @@ sim_prepare(sim_t *s, int quiet)
 
 	/* We use the rank to vary deterministically the seed between process */
 	srand(s->seed + s->rank);
+	dbg("Set seed %d\n", s->seed + s->rank);
 
 	for(d=s->dim; d<MAX_DIM; d++)
 	{
@@ -126,7 +129,7 @@ sim_prepare(sim_t *s, int quiet)
 		/* Note that each point represents the space from x0 to x0+dx */
 		s->ghostsize[d] = s->blocksize[d] + 1;
 		s->npoints[d] = s->ntpoints[d] / s->ntblocks[d];
-		s->dx[d] = s->L[d] / s->npoints[d];
+		s->dx[d] = s->L[d] / s->ntpoints[d];
 	}
 
 	/* Compute also the number of neighbours including the actual block */
@@ -204,9 +207,13 @@ sim_init(config_t *conf, int quiet)
 	}
 #endif
 
+	s->iter++;
+
 	/* Advance the simulation to place each particle in the correct block,
 	 * and compute rho */
 	sim_pre_step(s);
+
+	s->iter++;
 
 	return s;
 }
@@ -428,17 +435,10 @@ sim_step(sim_t *sim)
 	return 0;
 }
 
-int
-sim_run(sim_t *sim)
+void
+sim_stats(sim_t *sim)
 {
 	double t, tot;
-
-	perf_start(sim->perf, TIMER_TOTAL);
-
-	while(sim->iter < sim->cycles)
-		sim_step(sim);
-
-	perf_stop(sim->perf, TIMER_TOTAL);
 
 	tot = perf_measure(sim->perf, TIMER_TOTAL);
 	fprintf(stderr, "Total time: %e s\n", tot);
@@ -471,6 +471,19 @@ sim_run(sim_t *sim)
 
 	t = perf_measure(sim->perf, TIMER_PARTICLE_E);
 	fprintf(stderr, "Particle E interpolation took: %e s (%.1f%%)\n", t, t/tot);
+}
+
+int
+sim_run(sim_t *sim)
+{
+	perf_start(sim->perf, TIMER_TOTAL);
+
+	while(sim->iter < sim->cycles)
+		sim_step(sim);
+
+	perf_stop(sim->perf, TIMER_TOTAL);
+
+	//sim_stats(sim);
 
 	return 0;
 }

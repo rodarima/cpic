@@ -19,9 +19,12 @@
 #define dbg(...) do {						\
 	int __rank; 						\
 	MPI_Comm_rank(MPI_COMM_WORLD, &__rank);			\
-	fprintf(stderr, "\x1b[3%dmP%d: ", __rank+2, __rank);	\
+	flockfile(stderr);					\
+	fprintf(stderr, "\x1b[3%dmP%d %s:%-4d: ",		\
+		__rank+2, __rank, __FILE__, __LINE__);		\
 	fprintf(stderr, __VA_ARGS__);				\
 	fprintf(stderr, "\x1b[0m");				\
+	funlockfile(stderr);					\
 } while(0)
 #else
 #define dbg(...)

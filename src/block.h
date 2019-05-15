@@ -69,6 +69,7 @@ struct specie_packet
 struct comm_packet
 {
 	int count;
+	int neigh;
 	specie_packet_t s[];
 };
 

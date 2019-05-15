@@ -42,6 +42,12 @@ particle_init()
 
 	p = malloc(sizeof(*p));
 
+	/* As we send the particle via MPI_Send directly, some wholes don't get
+	 * initialized, thus we use memset meanwhile */
+
+	/* TODO: Use a packed version of particle_t for MPI */
+	memset(p, 0, sizeof(*p));
+
 	p->next = NULL;
 	p->prev = NULL;
 
@@ -113,7 +119,7 @@ init_randpos(sim_t *sim, block_t *b, specie_block_t *sb)
 	for(p = sb->particles; p; p = p->next)
 	{
 		p->x[X] = uniform(0.0, sim->L[X]);
-		p->x[Y] = uniform(0.0, sim->L[X]);
+		p->x[Y] = uniform(0.0, sim->L[Y]);
 		p->x[Z] = 0.0;
 
 		/* FIXME: Separate position and velocity init metods */
@@ -127,6 +133,9 @@ init_randpos(sim_t *sim, block_t *b, specie_block_t *sb)
 
 		dbg("Particle %d randpos init at (%e, %e) in block (%d, %d)\n",
 			p->i, p->x[X], p->x[Y], b->i[X], b->i[Y]);
+
+		//if(p->x[Y] > b->x1[Y] || p->x[Y] < b->x0[Y])
+		//	err("WARN: Particle %d exceeds block boundary in Y\n", p->i);
 	}
 
 	return 0;

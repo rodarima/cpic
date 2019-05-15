@@ -4,8 +4,9 @@
 #include "block.h"
 #include "specie.h"
 #include "particle.h"
+#include "comm.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 
@@ -25,16 +26,16 @@ block_delta_to_index(int delta[], int dim)
 		j += BLOCK_NEIGH + delta[d];
 	}
 
-	if(dim == 2)
-	{
-		dbg("Delta (%d,%d) translated to %d\n", delta[X], delta[Y], j);
-	}
+//	if(dim == 2)
+//	{
+//		dbg("Delta (%d,%d) translated to %d\n", delta[X], delta[Y], j);
+//	}
 
 	return j;
 }
 
 int
-queue_particle(sim_t *sim, specie_block_t *sb, int delta[], particle_t *p)
+queue_particle(sim_t *sim, block_t *b, specie_block_t *sb, int delta[], particle_t *p)
 {
 	int j;
 
@@ -47,8 +48,12 @@ queue_particle(sim_t *sim, specie_block_t *sb, int delta[], particle_t *p)
 	sb->nbparticles--;
 	sb->outsize[j]++;
 
-	dbg("particle %d needs moving to neigh %d at delta (%d %d)\n",
-			p->i, j, delta[X], delta[Y]);
+	dbg("p%d at (%f,%f) exceeds block space (%f,%f) to (%f,%f), moving to %d at delta (%d %d)\n",
+			p->i,
+			p->x[X], p->x[Y],
+			b->x0[X], b->x0[Y],
+			b->x1[X], b->x1[Y],
+			j, delta[X], delta[Y]);
 
 	return 0;
 }
@@ -74,8 +79,8 @@ collect_specie(sim_t *sim, block_t *b, specie_block_t *sb)
 	y0 = b->x0[Y];
 	y1 = b->x1[Y];
 
-	nbx = sim->nblocks[X];
-	nby = sim->nblocks[Y];
+	nbx = sim->ntblocks[X];
+	nby = sim->ntblocks[Y];
 
 	DL_FOREACH_SAFE(sb->particles, p, tmp)
 	{
@@ -85,11 +90,9 @@ collect_specie(sim_t *sim, block_t *b, specie_block_t *sb)
 		delta[X] = 0;
 		delta[Y] = 0;
 
+		/* Wrap particle position arount the whole simulation space, to
+		 * determine the target block */
 		wrap_particle_position(sim, p);
-
-		/* FIXME: Allow bigger jumps than 1 block */
-		/* DON'T FIXME: NO, the simulation expects small steps, less than one
-		 * block */
 
 		/* First we check the X axis */
 		if(px < x0) delta[X] = -1;
@@ -106,21 +109,15 @@ collect_specie(sim_t *sim, block_t *b, specie_block_t *sb)
 			jx = (ix + delta[X] + nbx) % nbx;
 			jy = (iy + delta[Y] + nby) % nby;
 
-			/* FIXME: the destination block may be equal to the
-			 * source, in the case of wrapping */
-
-			if(ix == jx && iy == jy)
-			{
-				dbg("Ignoring wrapping with delta (%d, %d)\n", delta[X], delta[Y]);
-				continue;
-			}
-
 			assert(jx >= 0);
 			assert(jy >= 0);
 			assert(jx < nbx);
 			assert(jy < nby);
 
-			queue_particle(sim, sb, delta, p);
+			queue_particle(sim, b, sb, delta, p);
+
+			/* Ensure we have a different destintation */
+			assert(ix != jx || iy != jy);
 		}
 
 	}
@@ -131,7 +128,7 @@ collect_specie(sim_t *sim, block_t *b, specie_block_t *sb)
 int
 send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 {
-	int is, ip, count;
+	int is, ip, count, np, tag, drank;
 	size_t size;
 	specie_block_t *sb;
 	comm_packet_t *pkt;
@@ -139,11 +136,14 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 	particle_t *p;
 	void *ptr;
 
-	dbg("Sending out packet for neighbour %d\n", neigh);
+	//dbg("Sending out packet for neighbour %d\n", neigh);
 
+	np = 0;
 	count = 0;
 	pkt = b->q[neigh];
 	size = sizeof(comm_packet_t);
+	tag = sim->iter & COMM_TAG_ITER_MASK;
+	drank = b->neigh_rank[neigh];
 
 	/* Compute queue size */
 	for(is=0; is<sim->nspecies; is++)
@@ -153,7 +153,7 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 		/* Skip empty queues */
 		if(sb->outsize[neigh] == 0)
 		{
-			dbg("No particles need communication for specie %d\n", is);
+			//dbg("No particles need communication for specie %d\n", is);
 			continue;
 		}
 
@@ -180,6 +180,7 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 	pkt = malloc(size);
 	b->q[neigh] = pkt;
 	pkt->count = count;
+	pkt->neigh = neigh;
 	sp = pkt->s;
 
 	/* Copy the particles into the queue */
@@ -207,21 +208,22 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 		ptr += sizeof(specie_packet_t);
 		/* Particles */
 		ptr += sb->outsize[neigh] * sizeof(particle_t);
+		np += sb->outsize[neigh];
 		sp = ptr;
 
-		assert((((void *) pkt) - ((void *) sp)) < size);
+		assert((((void *) sp) - ((void *) pkt)) == size);
 	}
 
-	dbg("Sending packet of size %lu to rank %d\n",
-			size, b->neigh_rank[neigh]);
+	//dbg("Sending packet of size %lu (%d particles) rank=%d tag=%d\n",
+	//		size, np, drank, tag);
 
 	/* Now the packet is ready to be sent */
-	//MPI_Isend(pkt, size, MPI_BYTE, b->neigh_rank[neigh], neigh,
-	//		MPI_COMM_WORLD, &b->req[neigh]);
-	MPI_Send(pkt, size, MPI_BYTE, b->neigh_rank[neigh], neigh,
-			MPI_COMM_WORLD);
+	//MPI_Isend(pkt, size, MPI_BYTE, drank, tag, MPI_COMM_WORLD, &b->req[neigh]);
+	MPI_Send(pkt, size, MPI_BYTE, drank, tag, MPI_COMM_WORLD);
 
-	dbg("Sending to rank %d done\n", b->neigh_rank[neigh]);
+	dbg("SENT size=%lu rank=%d neigh=%d tag=%d\n",
+			size, drank, neigh, tag);
+	//dbg("Sending to rank %d done\n", drank);
 
 	return 0;
 }
@@ -259,12 +261,12 @@ send_particles(sim_t *sim, block_t *b)
 
 		if(b->neigh_rank[i] != sim->rank)
 		{
-			dbg("Sending packets for neigh %d(%d)\n", i, b->neigh_rank[i]);
+			//dbg("Sending packets for neigh %d(%d)\n", i, b->neigh_rank[i]);
 			send_packet_neigh(sim, b, i);
 			continue;
 		}
 
-		dbg("Communication not needed for neigh %d(%d)\n", i, b->neigh_rank[i]);
+		//dbg("Communication not needed for neigh %d(%d)\n", i, b->neigh_rank[i]);
 		share_particles(sim, b, i);
 
 	}
@@ -275,21 +277,59 @@ int
 recv_particles(sim_t *sim, block_t *b)
 {
 	int i;
-	char buf[1024];
+	int source, tag, size, neigh;
+	MPI_Status status;
+	comm_packet_t *pkt;
+	int recv_from[MAX_NEIGH];
+
+	dbg(" --- RECV PHASE REACHED ---\n");
+
+	tag = sim->iter & COMM_TAG_ITER_MASK;
+
+	for(i=0; i<sim->nneigh_blocks; i++) recv_from[i] = 0;
 
 	for(i=0; i<sim->nneigh_blocks; i++)
 	{
+		/* FIXME: We trust that only one message with the iteration tag
+		 * is sent from each neighbour */
 
-		if(b->neigh_rank[i] != sim->rank)
-		{
-			dbg("Receiving packets from neigh rank=%d tag=%d iter=%d\n", b->neigh_rank[i], i, sim->iter);
-			//MPI_Recv(buf, 1024, MPI_BYTE, b->neigh_rank[i], MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-			MPI_Recv(buf, 1024, MPI_BYTE, b->neigh_rank[i], sim->nneigh_blocks-i-1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-			dbg("Received!! from neigh rank=%d tag=%d\n", b->neigh_rank[i], sim->nneigh_blocks-i-1);
-			continue;
-		}
+		if(b->neigh_rank[i] == sim->rank) continue;
 
-		dbg("Reception not needed from neigh %d\n", i);
+		source = MPI_ANY_SOURCE;
+
+		//dbg("Receiving packets from rank=any tag=%d iter=%d\n",
+		//		tag, sim->iter);
+
+		//MPI_Recv(buf, 1024, MPI_BYTE, b->neigh_rank[i],
+		//	MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+		MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
+
+		source = status.MPI_SOURCE;
+
+		dbg("PROB rank=%d tag=%d\n", source, tag);
+
+		assert(status.MPI_TAG == tag);
+
+		MPI_Get_count(&status, MPI_BYTE, &size);
+
+		pkt = malloc(size);
+
+		/* Can this receive another packet? */
+		MPI_Recv(pkt, size, MPI_BYTE, source, tag,
+				MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+		neigh = pkt->neigh;
+
+		dbg("RECV size=%d rank=%d neigh=%d tag=%d rf[%d]=%d\n",
+				size, source, neigh, tag, neigh, recv_from[neigh]);
+
+		assert(recv_from[neigh] == 0);
+		recv_from[neigh]++;
+
+		/* Do some stuff with pkt */
+
+		free(pkt);
 
 	}
 	return 0;

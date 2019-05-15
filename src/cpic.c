@@ -43,7 +43,6 @@ main(int argc, char *argv[])
 	/* FIXME: Determine if we want to allow MPI to know our argv. By now we
 	 * simply set a NULL argv */
 	MPI_Init(NULL, NULL);
-	err("MPI INITILIZED!\n");
 
 	while((opt = getopt(argc, argv, "q")) != -1)
 	{
@@ -85,14 +84,14 @@ main(int argc, char *argv[])
 		return 1;
 	}
 
-	printf("%s\n", fn);
-
 	if(sim_run(sim))
 		return 1;
 
 
 	free(include_dir);
 	//sim_free(sim);
+
+	MPI_Finalize();
 
 	return 0;
 }
