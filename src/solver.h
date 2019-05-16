@@ -18,7 +18,7 @@ struct solver
 	int method;
 
 	int dim;
-	int Nx, Ny, N;
+	int nx, ny;
 	gsl_permutation *P;
 	gsl_matrix *LU;
 
@@ -37,4 +37,4 @@ solver_init(sim_t *sim);
 //solve(mat_t *phi, mat_t *rho);
 
 int
-solve_xy(solver_t *s, mat_t *phi, mat_t *rho);
+solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho);

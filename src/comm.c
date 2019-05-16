@@ -68,10 +68,10 @@ collect_specie(sim_t *sim, block_t *b, specie_block_t *sb)
 	int jx, jy;
 
 	dbg("Moving particles for block (%d,%d) x0=(%e,%e) x1=(%e,%e)\n",
-		b->i[X], b->i[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
+		b->ig[X], b->ig[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
 
-	ix = b->i[X];
-	iy = b->i[Y];
+	ix = b->ig[X];
+	iy = b->ig[Y];
 
 	x0 = b->x0[X];
 	x1 = b->x1[X];
@@ -417,7 +417,7 @@ comm_send_ghost_rho(sim_t *sim, block_t *b)
 
 	rho = b->rho;
 
-	neigh = (b->i[Y] + 1) % sim->ntblocks[Y];
+	neigh = (b->ig[Y] + 1) % sim->ntblocks[Y];
 
 	tag = COMM_TAG_OP_RHO << COMM_TAG_ITER_SIZE;
 	tag |= sim->iter & COMM_TAG_ITER_MASK;
@@ -449,7 +449,7 @@ comm_recv_ghost_rho(sim_t *sim, block_t *b)
 
 	rho = b->rho;
 
-	neigh = (b->i[Y] + sim->ntblocks[Y] - 1) % sim->ntblocks[Y];
+	neigh = (b->ig[Y] + sim->ntblocks[Y] - 1) % sim->ntblocks[Y];
 
 	tag = COMM_TAG_OP_RHO << COMM_TAG_ITER_SIZE;
 	tag |= sim->iter & COMM_TAG_ITER_MASK;

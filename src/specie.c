@@ -3,7 +3,7 @@
 #include "block.h"
 #include "particle.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 #include <stdlib.h>
@@ -84,8 +84,8 @@ specie_block_init(sim_t *sim, block_t *b, specie_block_t *sb, specie_t *s)
 
 	n = sim->ntblocks[X] * sim->ntblocks[Y];
 
-	/* TODO: Ensure nblocks is correct, rather than ntblocks */
-	ib = b->i[X] * sim->nblocks[Y] + b->i[Y];
+	/* TODO: Ensure ntblocks is correct, rather than nblocks */
+	ib = b->ig[X] * sim->ntblocks[Y] + b->ig[Y];
 
 	dbg("n=%d, ib=%d\n", n, ib);
 
@@ -94,20 +94,20 @@ specie_block_init(sim_t *sim, block_t *b, specie_block_t *sb, specie_t *s)
 	{
 		dbg("i=%d\n", i);
 		/* Ensure correct process rank */
-		if((i % sim->ntblocks[Y]) != b->i[Y])
+		if((i % sim->ntblocks[Y]) != b->ig[Y])
 		{
 			dbg("(i %% sim->ntblocks[Y])=%d, expecting b->i[Y]=%d\n",
-				(i % sim->ntblocks[Y]), b->i[Y]);
+				(i % sim->ntblocks[Y]), b->ig[Y]);
 			abort();
 		}
 
 		j = i / sim->ntblocks[Y];
 
 		/* Ensure correct local block */
-		if((j % sim->ntblocks[X]) != b->i[X])
+		if((j % sim->nblocks[X]) != b->il[X])
 		{
 			dbg("(j %% sim->ntblocks[X])=%d, expecting b->i[X]=%d\n",
-				(j % sim->ntblocks[X]), b->i[X]);
+				(j % sim->nblocks[X]), b->il[X]);
 			abort();
 		}
 

@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <complex.h>
 
 #define DEBUG 1
 #include "log.h"
@@ -104,7 +105,7 @@ vec_print(mat_t *m, char *title)
 int
 mat_print(mat_t *m, char *title)
 {
-	int i, j;
+	int ix, iy;
 
 	if(m->dim == 1)
 		return vec_print(m, title);
@@ -113,11 +114,11 @@ mat_print(mat_t *m, char *title)
 		return -1;
 
 	if(title) dbg("Matrix %s:\n", title);
-	for(i=0; i<m->shape[0]; i++)
+	for(iy=0; iy<m->shape[Y]; iy++)
 	{
-		for(j=0; j<m->shape[1]; j++)
+		for(ix=0; ix<m->shape[X]; ix++)
 		{
-			fprintf(stderr, "%10.2e ", m->data[m->shape[0] * i + j]);
+			fprintf(stderr, "%10.2e ", m->data[m->shape[X] * iy + ix]);
 		}
 		fprintf(stderr, "\n");
 	}
@@ -138,6 +139,24 @@ mat_print_raw(double *A, int rows, int cols, char *title)
 			dbg("%10.2e ", A[rows * i + j]);
 		}
 		dbg("\n");
+	}
+
+	return 0;
+}
+
+int
+cmat_print_raw(complex *A, int nx, int ny, char *title)
+{
+	int ix, iy;
+
+	if(title) dbg("Matrix %s:\n", title);
+	for(iy=0; iy<ny; iy++)
+	{
+		for(ix=0; ix<nx; ix++)
+		{
+			fprintf(stderr, "%10.2e ", creal(A[iy*nx + ix]));
+		}
+		fprintf(stderr, "\n");
 	}
 
 	return 0;

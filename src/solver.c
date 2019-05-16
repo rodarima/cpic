@@ -8,20 +8,24 @@
 #include <assert.h>
 #include <string.h>
 
+#include <complex.h>
+#include <fftw3.h>
+#include <fftw3-mpi.h>
+
 #define MAX_ERR 1e-10
 
 
 int
 LU_init(solver_t *s)
 {
-	int N, Nx, Ny;
+	int N, nx, ny;
 	gsl_matrix *A;
 	int i, up, down, right, left, signum;
 	int ix, iy;
 
-	N = s->N;
-	Nx = s->Nx;
-	Ny = s->Ny;
+	nx = s->nx;
+	ny = s->ny;
+	N = nx * ny;
 
 	A = gsl_matrix_calloc(N, N);
 
@@ -31,12 +35,12 @@ LU_init(solver_t *s)
 
 	if(s->dim == 1)
 	{
-		for(ix = 0; ix < Nx; ix++)
+		for(ix = 0; ix < nx; ix++)
 		{
-			i = INDEX_XY(ix, iy, Nx, Ny);
+			i = INDEX_XY(ix, iy, nx, ny);
 
-			left  = INDEX_XY((ix+Nx-1) % Nx, iy, Nx, Ny);
-			right = INDEX_XY((ix   +1) % Nx, iy, Nx, Ny);
+			left  = INDEX_XY((ix+nx-1) % nx, iy, nx, ny);
+			right = INDEX_XY((ix   +1) % nx, iy, nx, ny);
 
 			gsl_matrix_set(A, i, i, -2);
 			gsl_matrix_set(A, i, left, 1);
@@ -45,17 +49,17 @@ LU_init(solver_t *s)
 	}
 	else if(s->dim == 2)
 	{
-		for(ix = 0; ix < Nx; ix++)
+		for(ix = 0; ix < nx; ix++)
 		{
-			for(iy = 0; iy < Ny; iy++)
+			for(iy = 0; iy < ny; iy++)
 			{
-				i = INDEX_XY(ix, iy, Nx, Ny);
+				i = INDEX_XY(ix, iy, nx, ny);
 
-				left  = INDEX_XY((ix+Nx-1) % Nx, iy, Nx, Ny);
-				right = INDEX_XY((ix   +1) % Nx, iy, Nx, Ny);
+				left  = INDEX_XY((ix+nx-1) % nx, iy, nx, ny);
+				right = INDEX_XY((ix   +1) % nx, iy, nx, ny);
 
-				up    = INDEX_XY(ix, (iy   +1) % Ny, Nx, Ny);
-				down  = INDEX_XY(ix, (iy+Ny-1) % Ny, Nx, Ny);
+				up    = INDEX_XY(ix, (iy   +1) % ny, nx, ny);
+				down  = INDEX_XY(ix, (iy+ny-1) % ny, nx, ny);
 
 				gsl_matrix_set(A, i, i, -4);
 				gsl_matrix_set(A, i, left, 1);
@@ -111,8 +115,8 @@ LU_solve(solver_t *s, mat_t *phi, mat_t *rho)
 
 	/* The size reported from the vector must match the size computed by the
 	 * solver */
-	assert(phi->size == s->N);
-	assert(rho->size == s->N);
+	assert(phi->size == s->nx*s->ny);
+	assert(rho->size == s->nx*s->ny);
 
 	sum = 0.0;
 
@@ -126,8 +130,8 @@ LU_solve(solver_t *s, mat_t *phi, mat_t *rho)
 
 
 
-	x = gsl_vector_view_array(phi->data, s->N);
-	b = gsl_vector_view_array(rho->data, s->N);
+	x = gsl_vector_view_array(phi->data, s->nx*s->ny);
+	b = gsl_vector_view_array(rho->data, s->nx*s->ny);
 
 	if(gsl_linalg_LU_solve(s->LU, s->P, &b.vector, &x.vector))
 	{
@@ -141,10 +145,12 @@ LU_solve(solver_t *s, mat_t *phi, mat_t *rho)
 }
 
 int
-MFT_init(solver_t *s)
+MFT_init(sim_t *sim, solver_t *s)
 {
-	int iy, ix, nx, ny, halfx;
+	int dx, dy, ix, iy, nx, ny;
 	int shape[MAX_DIM] = {1,1,1};
+	int start[MAX_DIM] = {0};
+	int end[MAX_DIM] = {0};
 	double cx, cy;
 	mat_t *G;
 	fftw_complex *g;
@@ -157,36 +163,57 @@ MFT_init(solver_t *s)
 		abort();
 	}
 
-	nx = s->Nx;
-	ny = s->Ny;
-	halfx = nx/2 + 1;
+	nx = sim->ntpoints[X];
+	ny = sim->ntpoints[Y];
 
-	shape[X] = halfx;
-	shape[Y] = ny;
+	dbg("MFT nx=%d, ny=%d\n", nx, ny);
+
+	shape[X] = nx/2+1;
+	/* Number of points per process in Y */
+	shape[Y] = sim->npoints[Y];
+
+	dbg("MFT coefficients shape (%d %d)\n",
+			shape[X], shape[Y]);
 
 	G = mat_alloc(s->dim, shape);
-	g = fftw_malloc(sizeof(fftw_complex) * nx * ny);
+
+	g = fftw_malloc(sizeof(fftw_complex) * shape[X] * shape[Y]);
 
 	cx = 2.0 * M_PI / nx;
 	cy = 2.0 * M_PI / ny;
 
-	for(iy=0; iy<ny; iy++)
+	/* We assume on process per block in Y */
+	assert(sim->nblocks[Y] == 1);
+
+	start[X] = 0;
+	start[Y] = sim->rank * shape[Y];
+
+	end[X] = start[X] + shape[X];
+	end[Y] = start[Y] + shape[Y];
+
+	dbg("Computing MFT coefficients for X [%d,%d) and Y [%d,%d)\n",
+			start[X], end[X], start[Y], end[Y]);
+
+	for(dy=0, iy=start[Y]; iy<end[Y]; iy++, dy++)
 	{
-		for(ix=0; ix<halfx; ix++)
+		for(dx=0, ix=start[X]; ix<end[X]; ix++, dx++)
 		{
 			/* Avoid division by zero */
 			if(ix == 0 && iy == 0)
-				MAT_XY(G, ix, iy) = 0.0;
+				MAT_XY(G, dx, dy) = 0.0;
 			else
-				MAT_XY(G, ix, iy) = 1.0 /
+				MAT_XY(G, dx, dy) = 1.0 /
 					(2.0 * ( cos(cx * ix) + cos(cy * iy)) - 4.0 );
 		}
 	}
 
-	//mat_print(G, "G");
+	mat_print(G, "G");
 
 	s->G = G;
 	s->g = g;
+
+	/* Initialize the fftw MPI subsystem */
+	fftw_mpi_init();
 
 	return 0;
 }
@@ -194,7 +221,7 @@ MFT_init(solver_t *s)
 void
 MFT_kernel(solver_t *s)
 {
-	int ix, iy, ii, halfx;
+	int ix, iy, ii;
 	mat_t *G;
 	fftw_complex *g;
 	double *Gd;
@@ -202,16 +229,14 @@ MFT_kernel(solver_t *s)
 	g = s->g;
 	G = s->G;
 	Gd = G->data;
-	halfx = s->Nx / 2 + 1;
 
 	ii = 0;
-	for(iy=0; iy<s->Ny; iy++)
+	for(iy=0; iy<G->shape[Y]; iy++)
 	{
-		for(ix=0; ix<halfx; ix++)
+		for(ix=0; ix<G->shape[X]; ix++)
 		{
 			/* Half of the coefficients are not needed */
-			g[ii][0] *= Gd[ii];
-			g[ii][1] *= Gd[ii];
+			g[ii] *= Gd[ii];
 
 			ii++;
 		}
@@ -219,13 +244,13 @@ MFT_kernel(solver_t *s)
 }
 
 void
-MFT_normalize(mat_t *x, int Nx, int Ny, int N)
+MFT_normalize(mat_t *x, int N)
 {
 	int ix, iy;
 
-	for(iy=0; iy<Ny; iy++)
+	for(iy=0; iy<x->shape[Y]; iy++)
 	{
-		for(ix=0; ix<Nx; ix++)
+		for(ix=0; ix<x->shape[X]; ix++)
 		{
 			MAT_XY(x, ix, iy) /= N;
 		}
@@ -233,31 +258,62 @@ MFT_normalize(mat_t *x, int Nx, int Ny, int N)
 }
 
 int
-MFT_solve(solver_t *s, mat_t *x, mat_t *b)
+MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 {
+	mat_t *G;
 	fftw_complex *g;
 	fftw_plan direct, inverse;
 
 	/* Solve Ax = b using MFT spectral method */
 
+	G = s->G;
 	g = s->g;
 
-	/* Beware: The output of the FFT has a very special symmetry, with an
-	 * output size of Ny x Nx/2+1. */
+	ptrdiff_t local_size;
+	ptrdiff_t local_n0, local_n0_start;
 
-	direct = fftw_plan_dft_r2c_2d(s->Ny, s->Nx,
-			b->data, g, FFTW_ESTIMATE);
+	local_size = fftw_mpi_local_size_2d(s->ny, s->nx, MPI_COMM_WORLD,
+			&local_n0, &local_n0_start);
+
+	dbg("Computed shape in Y is %ld\n", local_n0);
+
+	assert(local_n0 == sim->blocksize[Y]);
+
+	dbg("Computed size is %ld\n", local_size);
+
+	/* Beware: The output of the FFT has a very special symmetry, with an
+	 * output size of ny x nx/2+1. */
+
+	mat_print(b, "b");
+
+	/* TODO: We can do the fft inplace, and save storage here */
+	direct = fftw_mpi_plan_dft_r2c_2d(s->ny, s->nx,
+			b->data, g, MPI_COMM_WORLD,
+			FFTW_ESTIMATE);
+
+	if(!direct)
+		die("Creation of plan failed\n");
 
 	fftw_execute(direct);
 
+	cmat_print_raw(g, G->shape[X], G->shape[Y], "g before kernel");
+
 	MFT_kernel(s);
 
-	inverse = fftw_plan_dft_c2r_2d(s->Ny, s->Nx,
-			g, x->data, FFTW_ESTIMATE | FFTW_BACKWARD);
+	cmat_print_raw(g, G->shape[X], G->shape[Y], "g after kernel");
+
+	inverse = fftw_mpi_plan_dft_c2r_2d(s->ny, s->nx,
+			g, x->data, MPI_COMM_WORLD,
+			FFTW_ESTIMATE);
+
+	if(!inverse)
+		die("Creation of plan failed\n");
 
 	fftw_execute(inverse);
 
-	MFT_normalize(x, s->Nx, s->Ny, s->N);
+	MFT_normalize(x, s->nx * s->ny);
+
+	mat_print(x, "x after MFT");
 
 	fftw_destroy_plan(direct);
 	fftw_destroy_plan(inverse);
@@ -269,16 +325,16 @@ MFT_solve(solver_t *s, mat_t *x, mat_t *b)
 solver_t *
 solver_init_1d(solver_t *solver, sim_t *sim)
 {
-	int N, Nx;
+	int N, nx;
 	gsl_matrix *A;
 	int i, right, left, signum;
 	int ix, iy;
 
-	Nx = sim->nnodes[X];
-	N = Nx;
+	nx = sim->nnodes[X];
+	N = nx;
 
 	solver->N = N;
-	solver->Nx = Nx;
+	solver->nx = nx;
 	solver->dim = 1;
 
 	A = gsl_matrix_calloc(N, N);
@@ -287,17 +343,17 @@ solver_init_1d(solver_t *solver, sim_t *sim)
 
 	iy = 0;
 
-	for(ix = 0; ix < Nx; ix++)
+	for(ix = 0; ix < nx; ix++)
 	{
-		i = MAT_INDEX_XY(ix, iy, Nx, Ny);
+		i = MAT_INDEX_XY(ix, iy, nx, ny);
 		/* FIXME: This is wrong, as we cross multiple boundaries */
 
 		/* Here, if we compute the left of (x=0,y=0) we arrive at
 		 * (x=N-1, y=N-1), which is incorrect */
 		//left = (i + N - 1) % N;
 
-		left  = MAT_INDEX_XY((ix+Nx-1) % Nx, iy, Nx, Ny);
-		right = MAT_INDEX_XY((ix   +1) % Nx, iy, Nx, Ny);
+		left  = MAT_INDEX_XY((ix+nx-1) % nx, iy, nx, ny);
+		right = MAT_INDEX_XY((ix   +1) % nx, iy, nx, ny);
 
 		gsl_matrix_set(A, i, i, -2);
 		gsl_matrix_set(A, i, left, 1);
@@ -341,16 +397,11 @@ solver_init_1d(solver_t *solver, sim_t *sim)
 solver_t *
 solver_init_2d(solver_t *solver, sim_t *sim)
 {
-	int N, Nx, Ny, ret;
-
-	Nx = sim->ntpoints[X];
-	Ny = sim->ntpoints[Y];
-	N = Nx * Ny;
+	int ret;
 
 	solver->dim = 2;
-	solver->N = N;
-	solver->Nx = Nx;
-	solver->Ny = Ny;
+	solver->nx = sim->ntpoints[X];
+	solver->ny = sim->ntpoints[Y];
 
 	switch(solver->method)
 	{
@@ -358,7 +409,7 @@ solver_init_2d(solver_t *solver, sim_t *sim)
 			ret = LU_init(solver);
 			break;
 		case METHOD_MFT:
-			ret = MFT_init(solver);
+			ret = MFT_init(sim, solver);
 			break;
 		default:
 			abort();
@@ -415,14 +466,14 @@ solver_init(sim_t *sim)
 }
 
 int
-solve_xy(solver_t *s, mat_t *phi, mat_t *rho)
+solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 {
 	switch(s->method)
 	{
 		case METHOD_LU:
 			return LU_solve(s, phi, rho);
 		case METHOD_MFT:
-			return MFT_solve(s, phi, rho);
+			return MFT_solve(sim, s, phi, rho);
 		default:
 			return -1;
 	}

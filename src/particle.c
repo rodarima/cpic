@@ -4,7 +4,7 @@
 #include "interpolate.h"
 #include "comm.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include <math.h>
 #include <assert.h>
@@ -26,11 +26,11 @@ init_position_delta(sim_t *sim, block_t *b, specie_block_t *sb);
 particle_config_t pc[] =
 {
 	{"random position",		init_randpos},
+	{"position delta",		init_position_delta},
 #if 0
 	{"default",			init_default},
 	{"harmonic two electrons",	init_h2e},
 	{"random position",		init_randpos},
-	{"position delta",		init_position_delta},
 #endif
 	{NULL, NULL}
 };
@@ -132,7 +132,7 @@ init_randpos(sim_t *sim, block_t *b, specie_block_t *sb)
 		p->E[Z] = 0.0;
 
 		dbg("Particle %d randpos init at (%e, %e) in block (%d, %d)\n",
-			p->i, p->x[X], p->x[Y], b->i[X], b->i[Y]);
+			p->i, p->x[X], p->x[Y], b->ig[X], b->ig[Y]);
 
 		//if(p->x[Y] > b->x1[Y] || p->x[Y] < b->x0[Y])
 		//	err("WARN: Particle %d exceeds block boundary in Y\n", p->i);
@@ -184,8 +184,10 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 	return 0;
 }
 
+#endif
+
 int
-init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
+init_position_delta(sim_t *sim, block_t *b, specie_block_t *sb)
 {
 	int i, d;
 	particle_t *p;
@@ -193,8 +195,9 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 	double dr[MAX_DIM] = {0};
 	double *L;
 	double v[MAX_DIM] = {0};
-	config_setting_t *cs_v, *cs_r, *cs_dr;
+	config_setting_t *cs, *cs_v, *cs_r, *cs_dr;
 
+	cs = sb->info->conf;
 	L = sim->L;
 
 	cs_v = config_setting_get_member(cs, "drift_velocity");
@@ -209,24 +212,25 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 	if(config_array_float(cs_r, r, sim->dim))
 		return 1;
 
-	for(i = 0; i < s->nparticles; i++)
+	for(i = 0; i < sb->nbparticles; i++)
 	{
-		p = &s->particles[i];
+		p = &sb->particles[i];
 
-		for(d=0; d<MAX_DIM; d++)
+		for(d=0; d<sim->dim; d++)
 		{
 			p->u[d] = v[d];
 
 			WRAP(p->x[d], r[d], L[d]);
 			r[d] += dr[d];
 			p->E[d] = 0.0;
-//			p->J[d] = 0.0;
 		}
+
+		dbg("Particle %d offset init at (%e, %e) in block (%d, %d)\n",
+			p->i, p->x[X], p->x[Y], b->ig[X], b->ig[Y]);
 	}
 
 	return 0;
 }
-#endif
 
 #if 0
 static int

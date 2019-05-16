@@ -363,7 +363,7 @@ block_phi_solve(sim_t *sim, block_t *b)
 	//mat_print(b->rho, "rho after set sum to 0");
 
 	perf_start(sim->perf, TIMER_SOLVER);
-	solve_xy(sim->solver, b->phi, b->rho);
+	solve_xy(sim, sim->solver, b->phi, b->rho);
 	perf_stop(sim->perf, TIMER_SOLVER);
 
 #if 0

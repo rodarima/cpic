@@ -132,6 +132,11 @@ sim_prepare(sim_t *s, int quiet)
 		s->dx[d] = s->L[d] / s->ntpoints[d];
 	}
 
+	dbg("Global number of points (%d %d %d)\n",
+			s->ntpoints[X],
+			s->ntpoints[Y],
+			s->ntpoints[Z]);
+
 	/* Compute also the number of neighbours including the actual block */
 	s->nneigh_blocks = nneigh_table[s->dim - 1];
 

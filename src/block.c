@@ -12,7 +12,7 @@
 void
 block_print(block_t *block)
 {
-	dbg("Block (%d,%d)\n", block->i[X], block->i[Y]);
+	dbg("Block (%d,%d)\n", block->ig[X], block->ig[Y]);
 }
 
 int
@@ -96,7 +96,7 @@ neigh_rank(sim_t *sim, block_t *b)
 
 		for(d=X; d<sim->dim; d++)
 		{
-			pos[d] = (b->i[d] + sim->ntblocks[d] + delta[d]) % sim->ntblocks[d];
+			pos[d] = (b->ig[d] + sim->ntblocks[d] + delta[d]) % sim->ntblocks[d];
 		}
 
 		if(sim->dim != 2)
@@ -134,13 +134,13 @@ block_init(sim_t *sim, block_t *b)
 		b->E[d] = mat_alloc(sim->dim, sim->ghostsize);
 
 	/* And compute block boundaries */
-	b->x0[X] = b->i[X] * block_w;
-	b->x0[Y] = b->i[Y] * block_h;
+	b->x0[X] = b->ig[X] * block_w;
+	b->x0[Y] = b->ig[Y] * block_h;
 	b->x1[X] = b->x0[X] + block_w;
 	b->x1[Y] = b->x0[Y] + block_h;
 
 	dbg("Block (%d,%d) has x0=(%e,%e) x1=(%e,%e)\n",
-		b->i[X], b->i[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
+		b->ig[X], b->ig[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
 
 	/* We need to initialize the queues and addtional lists before the
 	 * species can be initialized */
@@ -178,6 +178,10 @@ blocks_init_2d(sim_t *sim)
 	dbg("Local number of blocks in Y %d, blocksize %d\n",
 			sim->nblocks[Y], sim->blocksize[Y]);
 
+	/* We need to enforce this by now ... */
+	assert(sim->ntblocks[X] == 1);
+	assert(sim->nblocks[Y] == 1);
+
 	nb = sim->nblocks[X] * sim->nblocks[Y];
 
 	sim->blocks = malloc(nb * sizeof(block_t));
@@ -188,9 +192,14 @@ blocks_init_2d(sim_t *sim)
 		{
 			b = BLOCK_XY(sim, sim->blocks, ix, iy);
 
-			/* We assume we only have nprocs in ntblocks[Y] */
-			b->i[X] = ix;
-			b->i[Y] = sim->rank;
+			b->ig[X] = ix;
+			b->ig[Y] = sim->rank * sim->nblocks[Y] + iy;
+
+			b->il[X] = ix;
+			b->il[Y] = iy;
+
+			b->igp[X] = b->ig[X] * sim->blocksize[X];
+			b->igp[Y] = b->ig[Y] * sim->blocksize[Y];
 
 			block_init(sim, b);
 

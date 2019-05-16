@@ -1,6 +1,7 @@
 #pragma once
 
 #include "def.h"
+#include <complex.h>
 
 enum dim {
 	X = 0,
@@ -91,3 +92,6 @@ mat_print(mat_t *m, char *title);
 
 int
 mat_print_raw(double *A, int rows, int cols, char *title);
+
+int
+cmat_print_raw(complex *A, int rows, int cols, char *title);

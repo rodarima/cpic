@@ -34,8 +34,14 @@ typedef struct specie_packet specie_packet_t;
 /* A block is only a physical slice of the space domain */
 struct block
 {
-	/* Block index */
-	int i[MAX_DIM];
+	/* Block global index */
+	int ig[MAX_DIM];
+
+	/* Block local index in the MPI process */
+	int il[MAX_DIM];
+
+	/* First point global index */
+	int igp[MAX_DIM];
 
 	/* Dimensions of the bounding box of the block */
 	double x0[MAX_DIM];
