@@ -31,3 +31,4 @@
 #endif
 
 #define err(...) fprintf(stderr, __VA_ARGS__);
+#define die(...) do { err(__VA_ARGS__); abort(); } while(0)

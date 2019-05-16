@@ -228,10 +228,10 @@ init_position_delta(sim_t *sim, config_setting_t *cs, specie_t *s)
 }
 #endif
 
+#if 0
 static int
 block_E_update(sim_t *sim, specie_t *s, block_t *b)
 {
-#if 0
 	particle_t *p;
 
 	if(sim->dim == 1)
@@ -256,9 +256,9 @@ block_E_update(sim_t *sim, specie_t *s, block_t *b)
 	{
 		abort();
 	}
-#endif
 	return 0;
 }
+#endif
 
 static inline void
 cross_product(double *r, double *a, double *b)
@@ -617,23 +617,29 @@ block_comm(sim_t *sim, specie_t *s, block_t *b)
 int
 particle_E(sim_t *sim, specie_t *s)
 {
-	int i;
+#if 0
+	int ix, iy;
 	block_t *b;
 
 	perf_start(sim->perf, TIMER_PARTICLE_E);
 
 	/* Computation */
-	for (i = 0; i < sim->ntblocks[X]*sim->ntblocks[Y]; i++)
+	for(iy=0; iy<sim->nblocks[Y]; iy++)
 	{
-		b = &(sim->blocks[i]);
+		for(ix=0; i<sim->nblocks[X]; ix++)
+		{
 
-		//#pragma oss task inout(*b) label(particle_block_E_update)
-		block_E_update(sim, s, b);
+			b = &(sim->blocks[i]);
+
+			//#pragma oss task inout(*b) label(particle_block_E_update)
+			block_E_update(sim, s, b);
+		}
 	}
 
 	/* No communication required, as only p->E[0] is updated */
 
 	perf_stop(sim->perf, TIMER_PARTICLE_E);
+#endif
 
 	return 0;
 }

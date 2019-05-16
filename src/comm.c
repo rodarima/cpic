@@ -6,7 +6,7 @@
 #include "particle.h"
 #include "comm.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 
@@ -401,3 +401,79 @@ comm_block(sim_t *sim, block_t *b)
 
 	return 0;
 }
+
+int
+comm_send_ghost_rho(sim_t *sim, block_t *b)
+{
+	int neigh, tag, size;
+	double *ptr;
+	mat_t *rho;
+
+	/* We only consider the 2D space by now and nblocks[Y] = 1 */
+	if(sim->dim != 2)
+		die("Communication of fields only implemented for 2D\n");
+
+	assert(sim->nblocks[Y] == 1);
+
+	rho = b->rho;
+
+	neigh = (b->i[Y] + 1) % sim->ntblocks[Y];
+
+	tag = COMM_TAG_OP_RHO << COMM_TAG_ITER_SIZE;
+	tag |= sim->iter & COMM_TAG_ITER_MASK;
+
+	/* We already have the ghost row of the lower part in contiguous memory
+	 * */
+
+	ptr = &MAT_XY(rho, 0, rho->shape[Y]-1);
+	size = rho->shape[X];
+
+	dbg("SEND rho size=%d rank=%d tag=%d\n", size, neigh, tag);
+	MPI_Send(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD);
+	
+	return 0;
+}
+
+int
+comm_recv_ghost_rho(sim_t *sim, block_t *b)
+{
+	int neigh, tag, size, ix;
+	double *ptr;
+	mat_t *rho;
+
+	/* We only consider the 2D space by now and nblocks[Y] = 1 */
+	if(sim->dim != 2)
+		die("Communication of fields only implemented for 2D\n");
+
+	assert(sim->nblocks[Y] == 1);
+
+	rho = b->rho;
+
+	neigh = (b->i[Y] + sim->ntblocks[Y] - 1) % sim->ntblocks[Y];
+
+	tag = COMM_TAG_OP_RHO << COMM_TAG_ITER_SIZE;
+	tag |= sim->iter & COMM_TAG_ITER_MASK;
+
+	/* We need to add the data to our rho matrix at the first row, can MPI
+	 * add the buffer as it cames, without a temporal buffer? TODO: Find out */
+
+	ptr = &MAT_XY(rho, 0, rho->shape[Y]-1);
+	size = rho->shape[X];
+	ptr = malloc(sizeof(double) * size);
+
+	dbg("RECV rho size=%d rank=%d tag=%d\n", size, neigh, tag);
+	MPI_Recv(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+	/* Finally add the received frontier */
+	for(ix=0; ix<size; ix++)
+	{
+		MAT_XY(rho, ix, 0) += ptr[ix];
+	}
+
+	free(ptr);
+
+	mat_print(rho, "rho after add the ghost");
+	
+	return 0;
+}
+

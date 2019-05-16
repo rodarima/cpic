@@ -33,10 +33,10 @@ LU_init(solver_t *s)
 	{
 		for(ix = 0; ix < Nx; ix++)
 		{
-			i = MAT_INDEX_XY(ix, iy, Nx, Ny);
+			i = INDEX_XY(ix, iy, Nx, Ny);
 
-			left  = MAT_INDEX_XY((ix+Nx-1) % Nx, iy, Nx, Ny);
-			right = MAT_INDEX_XY((ix   +1) % Nx, iy, Nx, Ny);
+			left  = INDEX_XY((ix+Nx-1) % Nx, iy, Nx, Ny);
+			right = INDEX_XY((ix   +1) % Nx, iy, Nx, Ny);
 
 			gsl_matrix_set(A, i, i, -2);
 			gsl_matrix_set(A, i, left, 1);
@@ -49,13 +49,13 @@ LU_init(solver_t *s)
 		{
 			for(iy = 0; iy < Ny; iy++)
 			{
-				i = MAT_INDEX_XY(ix, iy, Nx, Ny);
+				i = INDEX_XY(ix, iy, Nx, Ny);
 
-				left  = MAT_INDEX_XY((ix+Nx-1) % Nx, iy, Nx, Ny);
-				right = MAT_INDEX_XY((ix   +1) % Nx, iy, Nx, Ny);
+				left  = INDEX_XY((ix+Nx-1) % Nx, iy, Nx, Ny);
+				right = INDEX_XY((ix   +1) % Nx, iy, Nx, Ny);
 
-				up    = MAT_INDEX_XY(ix, (iy   +1) % Ny, Nx, Ny);
-				down  = MAT_INDEX_XY(ix, (iy+Ny-1) % Ny, Nx, Ny);
+				up    = INDEX_XY(ix, (iy   +1) % Ny, Nx, Ny);
+				down  = INDEX_XY(ix, (iy+Ny-1) % Ny, Nx, Ny);
 
 				gsl_matrix_set(A, i, i, -4);
 				gsl_matrix_set(A, i, left, 1);

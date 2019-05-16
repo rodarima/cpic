@@ -2,6 +2,7 @@
 #include "solver.h"
 #include "interpolate.h"
 #include "mat.h"
+#include "comm.h"
 
 #define DEBUG 1
 #include "log.h"
@@ -17,9 +18,6 @@ int
 specie_rho_update(sim_t *sim, block_t *b, specie_block_t *sb)
 {
 	particle_t *p;
-
-	/* Erase previous charge density */
-	MAT_FILL(b->rho, 0.0);
 
 	if(sim->dim == 1)
 	{
@@ -44,8 +42,6 @@ specie_rho_update(sim_t *sim, block_t *b, specie_block_t *sb)
 		abort();
 	}
 
-	mat_print(b->rho, "rho after update");
-
 
 	return 0;
 }
@@ -53,6 +49,7 @@ specie_rho_update(sim_t *sim, block_t *b, specie_block_t *sb)
 int
 neigh_comm_rho(sim_t *sim, block_t *b, int neigh_rank, int dir[MAX_DIM])
 {
+#if 0
 	int start[MAX_DIM];
 	int end[MAX_DIM];
 	int j[MAX_DIM];
@@ -98,9 +95,11 @@ neigh_comm_rho(sim_t *sim, block_t *b, int neigh_rank, int dir[MAX_DIM])
 
 		}
 	}
-}
 #endif
+	return 0;
+}
 
+#if 0
 static int
 block_rho_comm(sim_t *sim, block_t *b)
 {
@@ -165,7 +164,7 @@ block_rho_comm(sim_t *sim, block_t *b)
 
 				if(neigh_rank == sim->rank) continue;
 
-				neigh_comm_rho(sim, b, rank, j);
+				neigh_comm_rho(sim, b, neigh_rank, j);
 			}
 		}
 //	}
@@ -176,6 +175,7 @@ block_rho_comm(sim_t *sim, block_t *b)
 
 	return 0;
 }
+#endif
 
 int
 block_rho_update(sim_t *sim, block_t *b)
@@ -183,11 +183,16 @@ block_rho_update(sim_t *sim, block_t *b)
 	int is;
 	specie_block_t *sb;
 
+	/* Erase previous charge density */
+	MAT_FILL(b->rho, 0.0);
+
 	for(is=0; is<sim->nspecies; is++)
 	{
 		sb = &b->sblocks[is];
 		specie_rho_update(sim, b, sb);
 	}
+
+	mat_print(b->rho, "rho after update");
 
 	return 0;
 }
@@ -213,14 +218,25 @@ field_rho(sim_t *sim)
 		}
 	}
 
-	/* Communication */
+	/* Send the ghost part of the rho field */
 	for (iy=0; iy<sim->nblocks[Y]; iy++)
 	{
 		for (ix=0; ix<sim->nblocks[X]; ix++)
 		{
 			b = LBLOCK_XY(sim, ix, iy);
 
-			block_rho_comm(sim, b);
+			comm_send_ghost_rho(sim, b);
+		}
+	}
+
+	/* Recv the ghost part of the rho field */
+	for (iy=0; iy<sim->nblocks[Y]; iy++)
+	{
+		for (ix=0; ix<sim->nblocks[X]; ix++)
+		{
+			b = LBLOCK_XY(sim, ix, iy);
+
+			comm_recv_ghost_rho(sim, b);
 		}
 	}
 
@@ -337,62 +353,18 @@ field_E_compute(sim_t *sim)
 }
 #endif
 
-#if 0
 int
-field_phi_solve(sim_t *sim)
+block_phi_solve(sim_t *sim, block_t *b)
 {
-	field_t *f;
-	int ix, iy, nx, ny, n;
-	double qsum;
 
-	f = sim->field;
-	n = sim->nnodes[X] * sim->nnodes[Y];
+	/* We don't need the sum of the charge sum 0 if we use the MFT solver */
+	assert(sim->solver->method == METHOD_MFT);
 
-	nx = sim->nnodes[X];
-	ny = sim->nnodes[Y];
-
-	n = nx * ny;
-
-	assert(f->rho->size == n);
-
-	qsum = 0.0;
-
-	/* Get total charge (it should sum 0) */
-	for(iy=0; iy<ny; iy++)
-	{
-		for(ix=0; ix<nx; ix++)
-		{
-			qsum += MAT_XY(f->rho, ix, iy);
-		}
-	}
-
-	/* Fix charge neutrality and invert */
-	for(iy=0; iy<ny; iy++)
-	{
-		for(ix=0; ix<nx; ix++)
-		{
-			MAT_XY(f->rho, ix, iy) += -qsum / n;
-			MAT_XY(f->rho, ix, iy) *= -1.0;
-		}
-	}
-
-	//mat_print(sim->field->rho, "rho after set sum to 0");
+	//mat_print(b->rho, "rho after set sum to 0");
 
 	perf_start(sim->perf, TIMER_SOLVER);
-	solve_xy(sim->solver, f->phi, f->rho);
+	solve_xy(sim->solver, b->phi, b->rho);
 	perf_stop(sim->perf, TIMER_SOLVER);
-
-
-//	for(i=1; i<n-1; i++)
-//	{
-//		/* E = -d phi / dx, eq. 2-34 Hockney */
-//		MAT_XY(E, i, 0) = (phi[i-1] - phi[i+1]) / (2*H);
-//	}
-//
-//	/* We assume a periodic domain */
-//	MAT_XY(E, 0, 0) = (phi[n-1] - phi[1]) / (2*H);
-//	MAT_XY(E, n-1, 0) = (phi[n-2] - phi[0]) / (2*H);
-
 
 #if 0
 	if(sim->period_field && ((sim->iter % sim->period_field) == 0))
@@ -414,58 +386,44 @@ field_phi_solve(sim_t *sim)
 
 	return 0;
 }
-#endif
 
-#if 0
 int
 block_field_E(sim_t *sim, block_t *b)
 {
-	/* Erase previous charge */
-	MAT_FILL(b->rho, 0.0);
+	block_phi_solve(sim, b);
 
-	perf_start(sim->perf, TIMER_FIELD_COLLECT);
-	/* In order to solve the field we need the charge density */
-	for(i=0; i<sim->nspecies; i++)
-		field_rho_collect(sim, &sim->species[i]);
-	perf_stop(sim->perf, TIMER_FIELD_COLLECT);
-
-	//mat_print(sim->field->rho, "rho after collect");
-
-	field_phi_solve(sim);
-
-	field_E_compute(sim);
+	//field_E_compute(sim);
 
 	/* Exit after 1 iterations to test the solver */
 	//mat_print(sim->field->phi, "phi");
 
-	/* After solving the electric field, we can now distribute it in each
-	 * block, as the force can be computed easily from the grid points */
 	return 0;
 }
-#endif
 
 int
 field_E(sim_t *sim)
 {
-#if 0
-	int i, ix, iy;
 	block_t *b;
 
-	perf_start(sim->perf, TIMER_FIELD_E);
-	for(iy=0; iy<sim->nblocks[Y]; iy++)
-	{
-		for(ix=0; ix<sim->nblocks[X]; ix++)
-		{
-			/* Local access to the blocks */
-			b = LBLOCK_XY(sim, ix, iy);
+	/* In order to use the FFT, we need for rho to be contiguous in the X
+	 * direction, either by joining all blocks, or by having only one block.
+	 * By now lets assume we only have one block in the X dimension. */
 
-			block_field_E(sim, b);
-		}
-	}
+	assert(sim->nblocks[X] == 1);
+	assert(sim->nblocks[Y] == 1);
+
+	/* TODO: Generalize for multiple blocks, maybe just introduce multiple
+	 * tasks per block. */
+
+	perf_start(sim->perf, TIMER_FIELD_E);
+
+	/* Local access to the block */
+	b = LBLOCK_XY(sim, 0, 0);
+
+	block_field_E(sim, b);
 
 
 	perf_stop(sim->perf, TIMER_FIELD_E);
-#endif
 
 	return 0;
 }
