@@ -1,7 +1,7 @@
 N = 8;
 Nt = N * N;
 Np = 1;
-q = -1;
+q = 1;
 e0 = 1;
 L = N;
 xmin = -L/2;
@@ -22,7 +22,7 @@ range = linspace(xmin, xmax, N);
 % Add one charge exactly in the middle of the grid
 rho = zeros(Nt, 1);
 %rho = rho - q/(Nt-1);
-rho(2) = -q/(e0*H2);
+rho(1) = -q/(e0*H2);
 %rho(11) = -q/(e0*H2);
 %rho(Nt*1/4 + N*12/16) = -q/(e0*H2);
 %rho(Nt*2/4 + N*4/16) = +q/(e0*H2);
@@ -86,7 +86,7 @@ phi_fft = real(ifft2(g, N, N));
 phi_fft
 
 
-
+return
 % -------------------------------------------------------------------------- %
 
 
