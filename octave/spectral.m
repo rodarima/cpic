@@ -33,7 +33,7 @@ sum_rho = sum(rho)
 
 %rho(rho == 0) = -sum_rho / (Nt - 3);
 
-rho = rho - sum_rho / Nt;
+%rho = rho - sum_rho / Nt;
 
 sum(rho)
 
@@ -87,7 +87,6 @@ phi_fft
 
 
 
-return
 % -------------------------------------------------------------------------- %
 
 
