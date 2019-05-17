@@ -8,22 +8,32 @@ typedef struct field field_t;
 
 struct field
 {
-	/* The fields */
-	mat_t *E[MAX_DIM];
-	mat_t *phi; /* Electric potential */
-	mat_t *rho;
-	/*mat_t *B;*/
+	/* Shape of the slice, without ghosts */
+	int shape[MAX_DIM];
 
-	/* Matrix A of coefficients used in the solution of:
-	 *
-	 *       A * phi = -rho/epsilon0
-	 */
-	mat_t *A;
+	/* First point global index */
+	int igp[MAX_DIM];
+
+	/* Dimensions of the bounding box of the field slice */
+	double x0[MAX_DIM];
+	double x1[MAX_DIM];
+
+	/* Electric field */
+	mat_t *E[MAX_DIM];
+
+	/* Electric potential */
+	mat_t *phi;
+
+	/* Charge density */
+	mat_t *rho;
+
+	/* Exchange ghost frontier in the Y dimension only */
+	mat_t *frontier;
 };
 
 #include "specie.h"
 
-field_t *
+int
 field_init(sim_t *sim);
 
 int

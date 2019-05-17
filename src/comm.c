@@ -430,7 +430,7 @@ comm_send_ghost_rho(sim_t *sim, block_t *b)
 
 	dbg("SEND rho size=%d rank=%d tag=%d\n", size, neigh, tag);
 	MPI_Send(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD);
-	
+
 	return 0;
 }
 
@@ -473,7 +473,7 @@ comm_recv_ghost_rho(sim_t *sim, block_t *b)
 	free(ptr);
 
 	mat_print(rho, "rho after add the ghost");
-	
+
 	return 0;
 }
 

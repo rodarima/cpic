@@ -62,30 +62,14 @@ int
 sim_prepare(sim_t *s, int quiet)
 {
 	int d;
-	int nneigh_table[] = {3, 9, 27};
 
 	/* The current process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &s->rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &s->nprocs);
 
 	/* We need to always advance the iteration number after exchanging any
 	 * information between blocks, as is used in the tag */
 	s->iter = -2;
-
-	s->ntblocks[X] = 1;
-	s->ntblocks[Y] = 1;
-	s->ntblocks[Z] = 1;
-
-	/* Split the blocks in the last dimension */
-	if(s->dim == 1)
-		MPI_Comm_size(MPI_COMM_WORLD, &s->ntblocks[X]);
-	else if(s->dim == 2)
-		MPI_Comm_size(MPI_COMM_WORLD, &s->ntblocks[Y]);
-
-	/* Easy number of blocks per process...
-	 * TODO: Use multiple tasks */
-	s->nblocks[X] = 1;
-	s->nblocks[Y] = 1;
-	s->nblocks[Z] = 1;
 
 	if(s->dim != 2)
 	{
@@ -93,11 +77,11 @@ sim_prepare(sim_t *s, int quiet)
 		return 1;
 	}
 
-	if((s->ntpoints[Y] % s->ntblocks[Y]) != 0)
+	if((s->ntpoints[Y] % s->nprocs) != 0)
 	{
 		err("The number of grid points in Y %d cannot be divided by the number of processes %d\n",
-				s->ntpoints[Y], s->ntblocks[Y]);
-		err("Closest grid points[Y] = %d\n", (s->ntpoints[Y] / s->ntblocks[Y]) * s->ntblocks[Y]);
+				s->ntpoints[Y], s->nprocs);
+		err("Closest grid points[Y] = %d\n", (s->ntpoints[Y] / s->nprocs) * s->nprocs);
 		return 1;
 	}
 
@@ -113,22 +97,13 @@ sim_prepare(sim_t *s, int quiet)
 
 	for(d=s->dim; d<MAX_DIM; d++)
 	{
-		s->blocksize[d] = 1;
 		s->ntpoints[d] = 1;
-		s->npoints[d] = s->ntpoints[d];
 		s->dx[d] = 0.0;
-		s->ghostsize[d] = 1;
 	}
-
-	s->blocksize[X] = s->ntpoints[X];
-	s->blocksize[Y] = s->ntpoints[Y] / s->ntblocks[Y];
-	s->blocksize[Z] = s->ntpoints[Z];
 
 	for(d=0; d<s->dim; d++)
 	{
 		/* Note that each point represents the space from x0 to x0+dx */
-		s->ghostsize[d] = s->blocksize[d] + 1;
-		s->npoints[d] = s->ntpoints[d] / s->ntblocks[d];
 		s->dx[d] = s->L[d] / s->ntpoints[d];
 	}
 
@@ -136,9 +111,6 @@ sim_prepare(sim_t *s, int quiet)
 			s->ntpoints[X],
 			s->ntpoints[Y],
 			s->ntpoints[Z]);
-
-	/* Compute also the number of neighbours including the actual block */
-	s->nneigh_blocks = nneigh_table[s->dim - 1];
 
 	/* Initially set the time t to zero */
 	s->t = 0.0;

@@ -36,8 +36,8 @@ struct specie_block
 	/* We can reuse the info in multiple blocks */
 	struct specie *info;
 
-	/* Local numer of particles */
-	int nbparticles; /* FIXME: Needed? */
+	/* Local number of particles */
+	int nbparticles; /* Needed? */
 	particle_t *particles;
 
 	/* Temporal particle lists to send and receive from other blocks */

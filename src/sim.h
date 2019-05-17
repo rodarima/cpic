@@ -16,9 +16,6 @@ enum sim_mode {
 	SIM_MODE_DEBUG,
 };
 
-/* Maximum number of neighbours in all dimensions: 3^3 */
-#define MAX_NEIGH 27
-
 struct sim
 {
 
@@ -94,41 +91,27 @@ struct sim
 	/* Global seed read from the config */
 	int seed;
 
-	/* Total number of blocks in all processes */
-	int ntblocks[MAX_DIM];
-
-	/* Local number of blocks of the MPI process */
-	int nblocks[MAX_DIM];
-
-	/* Shape of the block, without ghosts cells */
-	int blocksize[MAX_DIM];
-
-	/* Shape of the block, including the ghosts cells */
-	int ghostsize[MAX_DIM];
+	/* Total number of MPI processes */
+	int nprocs;
 
 	/* The total number of points with all blocks and in all processes of
 	 * the specified dimension. Equal to the points specified in the config */
 	int ntpoints[MAX_DIM];
 
-	/* The number of points in the specified dimension of the current MPI
-	 * process. Equal to ntpoints[d] / ntblocks[d] per each dimension d */
-	int npoints[MAX_DIM];
-
-	/* Number of neighbour blocks, including the current block */
-	int nneigh_blocks;
+	/* Number of extra points needed to allocate for the interpolation
+	 * phase, corresponding to the neighbour slice */
+	int ghostpoints;
 
 	/* ------------------------------------------------------- */
 	/* Local information relative to the MPI process */
 	/* ------------------------------------------------------- */
 
-	/* FIXME: Now we cannot get total energy without communication */
-	//double energy_electrostatic;
-	//double energy_kinetic;
-	//double total_momentum[MAX_DIM];
+	/* The complete space domain slice for this process (which includes
+	 * exchange ghost vector) */
+	field_t field;
 
-	/* The local blocks assigned to this process. Particles are included
-	 * here */
-	block_t *blocks;
+	/* Specie blocks of this process */
+	specie_block_t *sblocks;
 
 	/* Local random seed used in srand() */
 	int local_seed;
