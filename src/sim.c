@@ -17,6 +17,7 @@
 #include "solver.h"
 #include "perf.h"
 #include "comm.h"
+#include "plasma.h"
 
 #include <math.h>
 #include <assert.h>
@@ -63,6 +64,7 @@ sim_read_config(sim_t *s)
 int
 sim_prepare(sim_t *s, int quiet)
 {
+	int neigh_table[] = {3, 9, 27};
 	int d;
 
 	/* The current process rank */
@@ -116,6 +118,10 @@ sim_prepare(sim_t *s, int quiet)
 	 * interpolation, but it may change */
 	s->ghostpoints = 1;
 
+	/* Number of neighbour chunks, used to determine the direction when
+	 * sending particles */
+	s->nneigh_chunks = neigh_table[s->dim - 1];
+
 	dbg("Global number of points (%d %d %d)\n",
 			s->ntpoints[X],
 			s->ntpoints[Y],
@@ -130,10 +136,10 @@ sim_prepare(sim_t *s, int quiet)
 int
 sim_pre_step(sim_t *sim)
 {
-#if 0
 	/* Move particles to the correct block */
 	particle_comm(sim);
 
+#if 0
 	/* Initial computation of rho */
 	field_rho(sim);
 #endif
@@ -172,6 +178,12 @@ sim_init(config_t *conf, int quiet)
 	if(field_init(s, &s->field))
 	{
 		err("field_init failed\n");
+		return NULL;
+	}
+
+	if(plasma_init(s, &s->plasma))
+	{
+		err("plasma_init failed\n");
 		return NULL;
 	}
 

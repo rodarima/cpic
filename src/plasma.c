@@ -13,7 +13,6 @@ particle_set_add(particle_set_t *set, particle_t *p)
 	set->nparticles++;
 }
 
-
 int
 particle_set_init(sim_t *sim, plasma_chunk_t *chunk, int is)
 {
@@ -30,6 +29,15 @@ particle_set_init(sim_t *sim, plasma_chunk_t *chunk, int is)
 	set->info = specie;
 	set->particles = NULL;
 	set->nparticles = 0;
+
+	set->out = malloc(sizeof(particle_t *) * sim->nneigh_chunks);
+	set->outsize = malloc(sizeof(int) * sim->nneigh_chunks);
+
+	for(j=0; j<sim->nneigh_chunks; j++)
+	{
+		set->out[j] = NULL;
+		set->outsize[j] = 0;
+	}
 
 	step = sim->nprocs * sim->plasma_chunks;
 	ic = chunk->ig[X] * sim->nprocs + chunk->ig[Y];
@@ -103,7 +111,6 @@ plasma_chunk_init(sim_t *sim, int i)
 
 	for(is = 0; is < sim->nspecies; is++)
 	{
-
 		if(particle_set_init(sim, chunk, is))
 		{
 			err("particle_set_init failed\n");
@@ -121,7 +128,10 @@ plasma_init(sim_t *sim, plasma_t *plasma)
 
 	nchunks = sim->plasma_chunks;
 
+	err("nchunks = %d\n", nchunks);
+
 	plasma->chunks = malloc(nchunks * sizeof(plasma_chunk_t));
+	plasma->nchunks = nchunks;
 
 	for(i=0; i < nchunks; i++)
 	{

@@ -15,19 +15,19 @@ int
 init_default(sim_t *sim, block_t *b, specie_block_t *sb);
 
 int
-init_randpos(sim_t *sim, block_t *b, specie_block_t *sb);
+init_randpos(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
 
 int
 init_h2e(sim_t *sim, block_t *b, specie_block_t *sb);
 
 int
-init_position_delta(sim_t *sim, block_t *b, specie_block_t *sb);
+init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
 
 particle_config_t pc[] =
 {
-#if 0
 	{"random position",		init_randpos},
 	{"position delta",		init_position_delta},
+#if 0
 	{"default",			init_default},
 	{"harmonic two electrons",	init_h2e},
 	{"random position",		init_randpos},
@@ -57,13 +57,12 @@ particle_init()
 int
 particles_init(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 {
-#if 0
 	int i;
 	const char *method;
 	config_setting_t *cs;
 	specie_t *s;
 
-	s = sb->info;
+	s = set->info;
 	cs = s->conf;
 
 	if(config_setting_lookup_string(cs, "init_method", &method) != CONFIG_TRUE)
@@ -84,12 +83,12 @@ particles_init(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 			exit(1);
 		}
 
-		return pc[i].init(sim, b, sb);
+		return pc[i].init(sim, chunk, set);
 	}
 
 	err("Unknown init method \"%s\", aborting.\n", method);
 	exit(1);
-#endif
+
 	return 0;
 }
 
@@ -100,6 +99,7 @@ init_default(sim_t *sim, block_t *b, specie_block_t *sb)
 {
 	return init_randpos(sim, b, sb);
 }
+#endif
 
 double
 uniform(double a, double b)
@@ -107,19 +107,20 @@ uniform(double a, double b)
 	return rand() / (RAND_MAX + 1.0) * (b - a) + a;
 }
 
+
 int
-init_randpos(sim_t *sim, block_t *b, specie_block_t *sb)
+init_randpos(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 {
 	particle_t *p;
 	double v[MAX_DIM];
 	config_setting_t *cs_v;
 
 	/* FIXME: Use specific random velocity inerval name */
-	cs_v = config_setting_get_member(sb->info->conf, "drift_velocity");
+	cs_v = config_setting_get_member(set->info->conf, "drift_velocity");
 	if(config_array_float(cs_v, v, sim->dim))
 		return 1;
 
-	for(p = sb->particles; p; p = p->next)
+	for(p = set->particles; p; p = p->next)
 	{
 		p->x[X] = uniform(0.0, sim->L[X]);
 		p->x[Y] = uniform(0.0, sim->L[Y]);
@@ -134,8 +135,8 @@ init_randpos(sim_t *sim, block_t *b, specie_block_t *sb)
 		p->E[Y] = 0.0;
 		p->E[Z] = 0.0;
 
-		dbg("Particle %d randpos init at (%e, %e) in block (%d, %d)\n",
-			p->i, p->x[X], p->x[Y], b->ig[X], b->ig[Y]);
+		dbg("Particle %d randpos init at (%e, %e) in chunk (%d, %d)\n",
+			p->i, p->x[X], p->x[Y], chunk->ig[X], chunk->ig[Y]);
 
 		//if(p->x[Y] > b->x1[Y] || p->x[Y] < b->x0[Y])
 		//	err("WARN: Particle %d exceeds block boundary in Y\n", p->i);
@@ -143,7 +144,6 @@ init_randpos(sim_t *sim, block_t *b, specie_block_t *sb)
 
 	return 0;
 }
-#endif
 
 #if 0
 int
@@ -189,10 +189,11 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 }
 
 
+#endif
 int
-init_position_delta(sim_t *sim, block_t *b, specie_block_t *sb)
+init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 {
-	int i, d;
+	int d;
 	particle_t *p;
 	double r[MAX_DIM] = {0};
 	double dr[MAX_DIM] = {0};
@@ -200,7 +201,7 @@ init_position_delta(sim_t *sim, block_t *b, specie_block_t *sb)
 	double v[MAX_DIM] = {0};
 	config_setting_t *cs, *cs_v, *cs_r, *cs_dr;
 
-	cs = sb->info->conf;
+	cs = set->info->conf;
 	L = sim->L;
 
 	cs_v = config_setting_get_member(cs, "drift_velocity");
@@ -215,26 +216,24 @@ init_position_delta(sim_t *sim, block_t *b, specie_block_t *sb)
 	if(config_array_float(cs_r, r, sim->dim))
 		return 1;
 
-	for(i = 0; i < sb->nbparticles; i++)
-	{
-		p = &sb->particles[i];
+	dbg("Init position and speed in %d particles\n", set->nparticles);
 
+	for(p = set->particles; p; p = p->next)
+	{
 		for(d=0; d<sim->dim; d++)
 		{
 			p->u[d] = v[d];
 
-			WRAP(p->x[d], r[d], L[d]);
-			r[d] += dr[d];
+			WRAP(p->x[d], r[d] + dr[d] * p->i, L[d]);
 			p->E[d] = 0.0;
 		}
 
-		dbg("Particle %d offset init at (%e, %e) in block (%d, %d)\n",
-			p->i, p->x[X], p->x[Y], b->ig[X], b->ig[Y]);
+		dbg("Particle %d offset init at (%e, %e) in chunk (%d, %d)\n",
+			p->i, p->x[X], p->x[Y], chunk->ig[X], chunk->ig[Y]);
 	}
 
 	return 0;
 }
-#endif
 
 #if 0
 static int
@@ -657,24 +656,17 @@ particle_E(sim_t *sim, specie_t *s)
 int
 particle_comm(sim_t *sim)
 {
-#if 0
-	int i, local_nblocks;
-	block_t *b;
+	int i;
+	plasma_t *plasma;
 
-	local_nblocks = sim->nblocks[X] * sim->nblocks[Y];
+	plasma = &sim->plasma;
 
 	/* Communication */
-	for (i = 0; i < local_nblocks; i++)
+	for (i = 0; i < plasma->nchunks; i++)
 	{
-		b = &(sim->blocks[i]);
-
-		/* FIXME: Update this comment: */
-		/* We left lb and rb with the inout directive, as we need to
-		 * wait for any modification to those blocks before we write to
-		 * them (lb->particles->next->next... */
-		comm_block(sim, b);
+		comm_plasma_chunk(sim, i);
 	}
-#endif
+
 	return 0;
 }
 

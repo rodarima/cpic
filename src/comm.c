@@ -9,22 +9,21 @@
 #define DEBUG 1
 #include "log.h"
 
-#if 0
 
 int
-block_delta_to_index(int delta[], int dim)
+chunk_delta_to_index(int delta[], int dim)
 {
 	int j, d, n;
 
 	/* Number of total blocks in each dimension considered in the
 	 * neighbourhood */
-	n = BLOCK_NEIGH * 2 + 1;
+	n = 3;
 	j = 0;
 
 	for(d = dim-1; d >= X; d--)
 	{
 		j *= n;
-		j += BLOCK_NEIGH + delta[d];
+		j += 1 + delta[d];
 	}
 
 //	if(dim == 2)
@@ -36,54 +35,56 @@ block_delta_to_index(int delta[], int dim)
 }
 
 int
-queue_particle(sim_t *sim, block_t *b, specie_block_t *sb, int delta[], particle_t *p)
+queue_particle(particle_set_t *set, particle_t *p, int j)
 {
-	int j;
+	DL_DELETE(set->particles, p);
+	set->nparticles--;
 
-	j = block_delta_to_index(delta, sim->dim);
-	DL_DELETE(sb->particles, p);
-	// Needed?
-	//p->next = NULL;
-	//p->prev = NULL;
-	DL_APPEND(sb->out[j], p);
-	sb->nbparticles--;
-	sb->outsize[j]++;
-
-	dbg("p%d at (%f,%f) exceeds block space (%f,%f) to (%f,%f), moving to %d at delta (%d %d)\n",
-			p->i,
-			p->x[X], p->x[Y],
-			b->x0[X], b->x0[Y],
-			b->x1[X], b->x1[Y],
-			j, delta[X], delta[Y]);
+	DL_APPEND(set->out[j], p);
+	set->outsize[j]++;
 
 	return 0;
 }
 
 int
-collect_specie(sim_t *sim, block_t *b, specie_block_t *sb)
+collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is)
 {
 	particle_t *p, *tmp;
+	particle_set_t *set;
 	double px, py;
 	double x0, x1, y0, y1;
-	int ix, iy, nbx, nby, delta[MAX_DIM];
-	int jx, jy;
+	int ix, iy, ncx, ncy, delta[MAX_DIM];
+	int jx, jy, j;
 
-	dbg("Moving particles for block (%d,%d) x0=(%e,%e) x1=(%e,%e)\n",
-		b->ig[X], b->ig[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
+	set = &chunk->species[is];
 
-	ix = b->ig[X];
-	iy = b->ig[Y];
+	/* TODO: Ensure the destination received the packet before
+	 * erasing the queue */
+	for(j=0; j<sim->nneigh_chunks; j++)
+	{
+		set->out[j] = NULL;
+		set->outsize[j] = 0;
+	}
 
-	x0 = b->x0[X];
-	x1 = b->x1[X];
+	dbg("Moving particles for chunk (%d,%d)\n",
+			chunk->ig[X], chunk->ig[Y]);
 
-	y0 = b->x0[Y];
-	y1 = b->x1[Y];
+	ix = chunk->ig[X];
+	iy = chunk->ig[Y];
 
-	nbx = sim->ntblocks[X];
-	nby = sim->ntblocks[Y];
+	x0 = chunk->x0[X];
+	y0 = chunk->x0[Y];
 
-	DL_FOREACH_SAFE(sb->particles, p, tmp)
+	x1 = chunk->x1[X];
+	y1 = chunk->x1[Y];
+
+	dbg("Chunk goes from (x=%e,y=%e) to (x=%e,y=%e)\n",
+			x0, y0, x1, y1);
+
+	ncx = sim->plasma_chunks;
+	ncy = sim->nprocs;
+
+	DL_FOREACH_SAFE(set->particles, p, tmp)
 	{
 		px = p->x[X];
 		py = p->x[Y];
@@ -92,7 +93,7 @@ collect_specie(sim_t *sim, block_t *b, specie_block_t *sb)
 		delta[Y] = 0;
 
 		/* Wrap particle position arount the whole simulation space, to
-		 * determine the target block */
+		 * determine the target chunk */
 		wrap_particle_position(sim, p);
 
 		/* First we check the X axis */
@@ -103,19 +104,28 @@ collect_specie(sim_t *sim, block_t *b, specie_block_t *sb)
 		if(py < y0) delta[Y] = -1;
 		else if(py >= y1) delta[Y] = +1;
 
-		/* Now we look for the proper block to move the particle if
+		/* Now we look for the proper chunk to move the particle if
 		 * needed */
 		if(delta[X] != 0 || delta[Y] != 0)
 		{
-			jx = (ix + delta[X] + nbx) % nbx;
-			jy = (iy + delta[Y] + nby) % nby;
+			jx = (ix + delta[X] + ncx) % ncx;
+			jy = (iy + delta[Y] + ncy) % ncy;
 
 			assert(jx >= 0);
 			assert(jy >= 0);
-			assert(jx < nbx);
-			assert(jy < nby);
+			assert(jx < ncx);
+			assert(jy < ncy);
 
-			queue_particle(sim, b, sb, delta, p);
+			j = chunk_delta_to_index(delta, sim->dim);
+
+			dbg("p%d at (%f,%f) exceeds chunk space "
+				"(%f,%f) to (%f,%f), queueing in out j=%d "
+				"delta (%d,%d)\n",
+				p->i,
+				p->x[X], p->x[Y],
+				x0, y0, x1, y1, j, delta[X], delta[Y]);
+
+			queue_particle(set, p, j);
 
 			/* Ensure we have a different destintation */
 			assert(ix != jx || iy != jy);
@@ -125,6 +135,7 @@ collect_specie(sim_t *sim, block_t *b, specie_block_t *sb)
 
 	return 0;
 }
+#if 0
 
 int
 send_packet_neigh(sim_t *sim, block_t *b, int neigh)
@@ -370,38 +381,38 @@ recv_particles(sim_t *sim, block_t *b)
 	}
 	return 0;
 }
+#endif
 
-/* Move particles to the correct block */
+/* Move particles to the correct chunk */
 int
-comm_block(sim_t *sim, block_t *b)
+comm_plasma_chunk(sim_t *sim, int i)
 {
-	int is, j;
-	specie_block_t *sb;
+	int is;
+	plasma_chunk_t *chunk;
+	plasma_t *plasma;
 
+	plasma = &sim->plasma;
+	chunk = &plasma->chunks[i];
 
-	/* Collect particles in a queue that need to change the block */
+	/* Collect particles in a queue that need to change chunk */
 	for(is = 0; is < sim->nspecies; is++)
 	{
-		sb = &b->sblocks[is];
-		/* TODO: Ensure the destination received the packet before
-		 * erasing the queue */
-		for(j = 0; j < sim->nneigh_blocks; j++)
-		{
-			sb->out[j] = NULL;
-			sb->outsize[j] = 0;
-		}
-
-		collect_specie(sim, b, sb);
+		collect_specie(sim, chunk, is);
 	}
+
+#if 0
+	exchange_local_particles();
 
 	/* Then fill the packets and send each to the corresponding neighbour */
 	send_particles(sim, b);
 
 	/* Finally receive particles from the neighbours */
 	recv_particles(sim, b);
+#endif
 
 	return 0;
 }
+#if 0
 
 int
 comm_send_ghost_rho(sim_t *sim, block_t *b)

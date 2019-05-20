@@ -54,22 +54,22 @@ struct particle {
 /* A particle set has a bunch of particles from only one type of specie */
 struct particle_set
 {
-	/* We can reuse the info in multiple blocks */
+	/* We can reuse the info in multiple particle sets */
 	struct specie *info;
 
 	/* Local number of particles */
 	int nparticles;
 	particle_t *particles;
 
-	/* Temporal particle lists to send and receive from other blocks */
-	//int *outsize;
-	//particle_t **out;
+	/* Temporal particle lists to send and receive from the neighbour */
+	int *outsize;
+	particle_t **out;
 };
 
 struct particle_config
 {
 	char *name;
-	int (*init)(sim_t *, void *, void *);
+	int (*init)(sim_t *, plasma_chunk_t *, particle_set_t *);
 };
 
 /* A specie only holds information about the particles, no real particles are
@@ -230,6 +230,10 @@ struct sim
 	//int blocksize[MAX_DIM];
 	//int ghostsize[MAX_DIM];
 	int plasma_chunks;
+
+	/* Number of neighbour chunks to be considered when exchanging particles
+	 * */
+	int nneigh_chunks;
 
 	/* ------------------------------------------------------- */
 	/* Local information relative to the MPI process */
