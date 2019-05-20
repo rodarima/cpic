@@ -25,9 +25,9 @@ init_position_delta(sim_t *sim, block_t *b, specie_block_t *sb);
 
 particle_config_t pc[] =
 {
+#if 0
 	{"random position",		init_randpos},
 	{"position delta",		init_position_delta},
-#if 0
 	{"default",			init_default},
 	{"harmonic two electrons",	init_h2e},
 	{"random position",		init_randpos},
@@ -55,8 +55,9 @@ particle_init()
 }
 
 int
-particles_init(sim_t *sim, block_t *b, specie_block_t *sb)
+particles_init(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 {
+#if 0
 	int i;
 	const char *method;
 	config_setting_t *cs;
@@ -88,9 +89,11 @@ particles_init(sim_t *sim, block_t *b, specie_block_t *sb)
 
 	err("Unknown init method \"%s\", aborting.\n", method);
 	exit(1);
-
+#endif
 	return 0;
 }
+
+#if 0
 
 int
 init_default(sim_t *sim, block_t *b, specie_block_t *sb)
@@ -140,6 +143,7 @@ init_randpos(sim_t *sim, block_t *b, specie_block_t *sb)
 
 	return 0;
 }
+#endif
 
 #if 0
 int
@@ -184,7 +188,6 @@ init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
 	return 0;
 }
 
-#endif
 
 int
 init_position_delta(sim_t *sim, block_t *b, specie_block_t *sb)
@@ -231,6 +234,7 @@ init_position_delta(sim_t *sim, block_t *b, specie_block_t *sb)
 
 	return 0;
 }
+#endif
 
 #if 0
 static int
@@ -318,11 +322,11 @@ boris_rotation(double q, double m, double *u, double *v, double *E, double *B, d
 
 }
 
+#if 0
 /* The speed u and position x of the particles are computed in a single phase */
 static int
 block_x_update(sim_t *sim, specie_t *s, block_t *b)
 {
-#if 0
 	particle_t *p;
 	double *E, *B, u[MAX_DIM], dx[MAX_DIM];
 #if 0
@@ -403,9 +407,9 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 
 	}
 
-#endif
 	return 0;
 }
+#endif
 
 int
 move_particle_to_block(block_t *from, block_t *to, particle_t *p)
@@ -653,6 +657,7 @@ particle_E(sim_t *sim, specie_t *s)
 int
 particle_comm(sim_t *sim)
 {
+#if 0
 	int i, local_nblocks;
 	block_t *b;
 
@@ -669,14 +674,14 @@ particle_comm(sim_t *sim)
 		 * them (lb->particles->next->next... */
 		comm_block(sim, b);
 	}
-
+#endif
 	return 0;
 }
 
 int
 particle_x(sim_t *sim, specie_t *s)
 {
-
+#if 0
 	int i;
 	block_t *b;
 
@@ -693,6 +698,6 @@ particle_x(sim_t *sim, specie_t *s)
 	particle_comm(sim);
 
 	perf_stop(sim->perf, TIMER_PARTICLE_X);
-
+#endif
 	return 0;
 }

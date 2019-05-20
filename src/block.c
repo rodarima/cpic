@@ -8,6 +8,98 @@
 #define DEBUG 1
 #include "log.h"
 
+#if 0
+/* Allocate all fields in a new block, and create the specie block, with the
+ * appropiate particles */
+int
+block_init(sim_t *sim, block_t *b)
+{
+	int d, i;
+	double block_w, block_h;
+
+	block_w = sim->dx[X] * sim->blocksize[X];
+	block_h = sim->dx[Y] * sim->blocksize[Y];
+
+	/* Init all local fields in the block */
+	b->rho = mat_alloc(sim->dim, sim->ghostsize);
+	b->phi = mat_alloc(sim->dim, sim->ghostsize);
+	for(d=0; d<sim->dim; d++)
+		b->E[d] = mat_alloc(sim->dim, sim->ghostsize);
+
+	/* And compute block boundaries */
+	b->x0[X] = b->ig[X] * block_w;
+	b->x0[Y] = b->ig[Y] * block_h;
+	b->x1[X] = b->x0[X] + block_w;
+	b->x1[Y] = b->x0[Y] + block_h;
+
+	dbg("Block (%d,%d) has x0=(%e,%e) x1=(%e,%e)\n",
+		b->ig[X], b->ig[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
+
+	/* We need to initialize the queues and addtional lists before the
+	 * species can be initialized */
+	b->q = malloc(sim->nneigh_blocks * sizeof(comm_packet_t *));
+	b->req = malloc(sim->nneigh_blocks * sizeof(MPI_Request));
+	b->neigh_rank = malloc(sim->nneigh_blocks * sizeof(int));
+
+	for(i=0; i<sim->nneigh_blocks; i++)
+	{
+		b->q[i] = NULL;
+	}
+
+	neigh_rank(sim, b);
+
+	/* Finally, init the block species */
+	assert(sim->species);
+	block_species_init(sim, b);
+
+	return 0;
+}
+
+int
+block_init(sim_t *sim, block_t *b)
+{
+	int d;
+	int fshape[MAX_DIM];
+
+	f->shape[X] = sim->ntpoints[X];
+	f->shape[Y] = sim->ntpoints[Y] / sim->nprocs;
+	f->shape[Z] = 1;
+
+	f->L[X] = sim->dx[X] * f->shape[X];
+	f->L[Y] = sim->dx[Y] * f->shape[Y];
+	f->L[Z] = sim->dx[Z] * f->shape[Z];
+
+	/* Init all local fields */
+	f->rho = mat_alloc(sim->dim, f->shape);
+	f->phi = mat_alloc(sim->dim, f->shape);
+
+	/* As well as the frontier buffer */
+	fshape[X] = f->shape[X];
+	fshape[Y] = sim->ghostpoints;
+	fshape[Z] = 1;
+
+	f->frontier = mat_alloc(sim->dim, fshape);
+
+	for(d=0; d<sim->dim; d++)
+		f->E[d] = mat_alloc(sim->dim, f->shape);
+
+	f->igp[X] = 0;
+	f->igp[Y] = sim->rank * f->shape[Y];
+	f->igp[Z] = 0;
+
+	/* And compute boundaries */
+	f->x0[X] = 0;
+	f->x1[X] = sim->L[X];
+	f->x0[Y] = sim->rank * f->L[Y];
+	f->x1[Y] = f->x0[Y] + f->L[Y];
+	f->x0[Z] = 0;
+	f->x1[Z] = 0;
+
+	dbg("Field slice has x0=(%e,%e) x1=(%e,%e)\n",
+		f->x0[X], f->x0[Y], f->x1[X], f->x1[Y]);
+
+	return 0;
+}
 
 void
 block_print(block_t *block)
@@ -116,52 +208,6 @@ neigh_rank(sim_t *sim, block_t *b)
 	return 0;
 }
 
-/* Allocate all fields in a new block, and create the specie block, with the
- * appropiate particles */
-int
-block_init(sim_t *sim, block_t *b)
-{
-	int d, i;
-	double block_w, block_h;
-
-	block_w = sim->dx[X] * sim->blocksize[X];
-	block_h = sim->dx[Y] * sim->blocksize[Y];
-
-	/* Init all local fields in the block */
-	b->rho = mat_alloc(sim->dim, sim->ghostsize);
-	b->phi = mat_alloc(sim->dim, sim->ghostsize);
-	for(d=0; d<sim->dim; d++)
-		b->E[d] = mat_alloc(sim->dim, sim->ghostsize);
-
-	/* And compute block boundaries */
-	b->x0[X] = b->ig[X] * block_w;
-	b->x0[Y] = b->ig[Y] * block_h;
-	b->x1[X] = b->x0[X] + block_w;
-	b->x1[Y] = b->x0[Y] + block_h;
-
-	dbg("Block (%d,%d) has x0=(%e,%e) x1=(%e,%e)\n",
-		b->ig[X], b->ig[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
-
-	/* We need to initialize the queues and addtional lists before the
-	 * species can be initialized */
-	b->q = malloc(sim->nneigh_blocks * sizeof(comm_packet_t *));
-	b->req = malloc(sim->nneigh_blocks * sizeof(MPI_Request));
-	b->neigh_rank = malloc(sim->nneigh_blocks * sizeof(int));
-
-	for(i=0; i<sim->nneigh_blocks; i++)
-	{
-		b->q[i] = NULL;
-	}
-
-	neigh_rank(sim, b);
-
-	/* Finally, init the block species */
-	assert(sim->species);
-	block_species_init(sim, b);
-
-	return 0;
-}
-
 int
 blocks_init_2d(sim_t *sim)
 {
@@ -210,7 +256,6 @@ blocks_init_2d(sim_t *sim)
 	return 0;
 }
 
-#if 0
 int
 blocks_init_1d(sim_t *sim, specie_t *s)
 {
@@ -261,7 +306,6 @@ blocks_init_1d(sim_t *sim, specie_t *s)
 
 	return 0;
 }
-#endif
 
 int
 blocks_init(sim_t *sim)
@@ -287,7 +331,6 @@ blocks_init(sim_t *sim)
 	return 0;
 }
 
-#if 0
 
 void
 blocks_print(block_t *blocks, size_t n)

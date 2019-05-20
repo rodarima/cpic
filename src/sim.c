@@ -55,6 +55,8 @@ sim_read_config(sim_t *s)
 
 	config_lookup_array_int(conf, "grid.points", s->ntpoints, s->dim);
 
+	s->nspecies = config_setting_length(config_lookup(conf, "species"));
+
 	return 0;
 }
 
@@ -107,6 +109,13 @@ sim_prepare(sim_t *s, int quiet)
 		s->dx[d] = s->L[d] / s->ntpoints[d];
 	}
 
+	/* Begin with only one plasma chunk */
+	s->plasma_chunks = 1;
+
+	/* By now we only need one extra neighbour, as we use linear
+	 * interpolation, but it may change */
+	s->ghostpoints = 1;
+
 	dbg("Global number of points (%d %d %d)\n",
 			s->ntpoints[X],
 			s->ntpoints[Y],
@@ -121,13 +130,13 @@ sim_prepare(sim_t *s, int quiet)
 int
 sim_pre_step(sim_t *sim)
 {
-
+#if 0
 	/* Move particles to the correct block */
 	particle_comm(sim);
 
 	/* Initial computation of rho */
 	field_rho(sim);
-
+#endif
 	return 0;
 }
 
@@ -160,9 +169,9 @@ sim_init(config_t *conf, int quiet)
 		return NULL;
 	}
 
-	if(blocks_init(s))
+	if(field_init(s, &s->field))
 	{
-		err("blocks_init failed\n");
+		err("field_init failed\n");
 		return NULL;
 	}
 
@@ -195,10 +204,10 @@ sim_init(config_t *conf, int quiet)
 	return s;
 }
 
+#if 0
 static int
 conservation_energy(sim_t *sim)
 {
-#if 0
 	int i, nn, np;
 	particle_t *p;
 	block_t *b;
@@ -275,10 +284,10 @@ conservation_energy(sim_t *sim)
 	if(sim->period_energy && ((sim->iter % sim->period_energy) == 0))
 		printf("e %10.3e %10.3e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE,
 				sim->total_momentum[X], sim->total_momentum[Y]);
-#endif
 
 	return 0;
 }
+#endif
 
 #if 0
 void
@@ -346,6 +355,7 @@ sim_plot(sim_t *sim)
 int
 sim_step(sim_t *sim)
 {
+#if 0
 	int j;
 	specie_t *s;
 
@@ -408,7 +418,7 @@ sim_step(sim_t *sim)
 
 	sim->iter += 1;
 	sim->t = sim->iter * sim->dt;
-
+#endif
 	return 0;
 }
 

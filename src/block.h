@@ -32,13 +32,13 @@ typedef struct specie_packet specie_packet_t;
 	(&((block->sblocks)[(is)]))
 
 /* A block is only a physical slice of the space domain */
-struct block
+struct block /* slice */
 {
-	/* Block global index */
-	int ig[MAX_DIM];
+	/* Number of points in the block slice */
+	int shape[MAX_DIM];
 
-	/* Block local index in the MPI process */
-	int il[MAX_DIM];
+	/* Physical length of the block slice */
+	double L[MAX_DIM];
 
 	/* First point global index */
 	int igp[MAX_DIM];
@@ -52,17 +52,8 @@ struct block
 	mat_t *phi;		/* Electric potential */
 	mat_t *rho;		/* Charge density */
 
-	/* Local species of the block */
-	specie_block_t *sblocks;
-
-	/* Queues of outgoing messages. One per neighbour */
-	comm_packet_t **q;
-
-	/* MPI_Request of each packet sent */
-	MPI_Request *req;
-
-	/* The rank of each neighbour */
-	int *neigh_rank;
+	/* Exchange ghost frontier in the Y dimension only */
+	mat_t *frontier;
 };
 
 

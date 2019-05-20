@@ -9,6 +9,7 @@
 #define DEBUG 1
 #include "log.h"
 
+#if 0
 
 int
 block_delta_to_index(int delta[], int dim)
@@ -476,4 +477,4 @@ comm_recv_ghost_rho(sim_t *sim, block_t *b)
 
 	return 0;
 }
-
+#endif

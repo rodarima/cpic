@@ -12,6 +12,54 @@
 #include <math.h>
 #include <libconfig.h>
 
+int
+field_init(sim_t *sim, field_t *f)
+{
+	int d;
+	int fshape[MAX_DIM];
+
+	f->shape[X] = sim->ntpoints[X];
+	f->shape[Y] = sim->ntpoints[Y] / sim->nprocs;
+	f->shape[Z] = 1;
+
+	f->L[X] = sim->dx[X] * f->shape[X];
+	f->L[Y] = sim->dx[Y] * f->shape[Y];
+	f->L[Z] = sim->dx[Z] * f->shape[Z];
+
+	/* Init all local fields */
+	f->rho = mat_alloc(sim->dim, f->shape);
+	f->phi = mat_alloc(sim->dim, f->shape);
+
+	/* As well as the frontier buffer */
+	fshape[X] = f->shape[X];
+	fshape[Y] = f->shape[Y] + sim->ghostpoints;
+	fshape[Z] = 1;
+
+	f->frontier = mat_alloc(sim->dim, fshape);
+
+	for(d=0; d<sim->dim; d++)
+		f->E[d] = mat_alloc(sim->dim, f->shape);
+
+	f->igp[X] = 0;
+	f->igp[Y] = sim->rank * f->shape[Y];
+	f->igp[Z] = 0;
+
+	/* And compute boundaries */
+	f->x0[X] = 0;
+	f->x1[X] = sim->L[X];
+	f->x0[Y] = sim->rank * f->L[Y];
+	f->x1[Y] = f->x0[Y] + f->L[Y];
+	f->x0[Z] = 0;
+	f->x1[Z] = 0;
+
+	dbg("Field slice has x0=(%e,%e) x1=(%e,%e)\n",
+		f->x0[X], f->x0[Y], f->x1[X], f->x1[Y]);
+
+	return 0;
+}
+
+#if 0
+
 /* The field rho is updated based on the charge density computed on each
  * particle p, by using an interpolation function */
 int
@@ -202,6 +250,7 @@ block_rho_update(sim_t *sim, block_t *b)
 int
 field_rho(sim_t *sim)
 {
+#if 0
 	int ix, iy;
 	block_t *b;
 
@@ -242,6 +291,7 @@ field_rho(sim_t *sim)
 
 	perf_stop(sim->perf, TIMER_FIELD_RHO);
 
+#endif
 	return 0;
 }
 
@@ -403,6 +453,7 @@ block_field_E(sim_t *sim, block_t *b)
 int
 field_E(sim_t *sim)
 {
+#if 0
 	block_t *b;
 
 	/* In order to use the FFT, we need for rho to be contiguous in the X
@@ -424,6 +475,9 @@ field_E(sim_t *sim)
 
 
 	perf_stop(sim->perf, TIMER_FIELD_E);
+#endif
 
 	return 0;
 }
+
+#endif

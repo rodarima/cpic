@@ -170,7 +170,7 @@ MFT_init(sim_t *sim, solver_t *s)
 
 	shape[X] = nx/2+1;
 	/* Number of points per process in Y */
-	shape[Y] = sim->npoints[Y];
+	shape[Y] = sim->field.shape[Y];
 
 	dbg("MFT coefficients shape (%d %d)\n",
 			shape[X], shape[Y]);
@@ -181,9 +181,6 @@ MFT_init(sim_t *sim, solver_t *s)
 
 	cx = 2.0 * M_PI / nx;
 	cy = 2.0 * M_PI / ny;
-
-	/* We assume on process per block in Y */
-	assert(sim->nblocks[Y] == 1);
 
 	start[X] = 0;
 	start[Y] = sim->rank * shape[Y];
@@ -277,7 +274,7 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 
 	dbg("Computed shape in Y is %ld\n", local_n0);
 
-	assert(local_n0 == sim->blocksize[Y]);
+	assert(local_n0 == sim->field.shape[Y]);
 
 	dbg("Computed size is %ld\n", local_size);
 

@@ -147,7 +147,7 @@ interpolate_weights_x(double x[1], double dx[1], double x0[1],
 	linear_interpolation_x(delta_grid, w);
 	assert(fabs(w[0] + w[1] - 1.0) < MAX_ERR);
 }
-
+#if 0
 void
 interpolate_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b,
 		double val, mat_t *field)
@@ -295,3 +295,4 @@ interpolate_E_set_to_particle_x(sim_t *sim, particle_t *p, block_t *b)
 
 	interpolate_add_to_particle_x(sim, p, b, &p->E[X], b->E[X]);
 }
+#endif
