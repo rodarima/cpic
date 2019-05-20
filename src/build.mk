@@ -21,8 +21,8 @@ src_ldlibs+=-lfftw3_mpi -lfftw3
 #src_cflags+=`pkg-config --cflags glfw3`
 #src_ldlibs+=`pkg-config --libs glfw3`
 
-src_cflags+=`mpicc --showme:compile`
-src_ldlibs+=`mpicc --showme:link`
+src_cflags+=$(shell mpicc --showme:compile)
+src_ldlibs+=$(shell mpicc --showme:link)
 
 cpic: $(obj)
 	$(CC) $(CFLAGS) $(src_cflags) $(LDFLAGS) $(LDLIBS) $(src_ldlibs) $^ -o $@
