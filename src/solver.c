@@ -259,12 +259,14 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 {
 	mat_t *G;
 	fftw_complex *g;
+	//double *tmp;
 	fftw_plan direct, inverse;
 
 	/* Solve Ax = b using MFT spectral method */
 
 	G = s->G;
 	g = s->g;
+	//tmp = calloc(100*100, sizeof(double));
 
 	ptrdiff_t local_size;
 	ptrdiff_t local_n0, local_n0_start;
@@ -282,8 +284,12 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	 * output size of ny x nx/2+1. */
 
 	mat_print(b, "b");
+	mat_print(x, "x");
 
 	/* TODO: We can do the fft inplace, and save storage here */
+	//direct = fftw_mpi_plan_dft_r2c_2d(s->ny, s->nx,
+	//		tmp, g, MPI_COMM_WORLD,
+	//		FFTW_ESTIMATE);
 	direct = fftw_mpi_plan_dft_r2c_2d(s->ny, s->nx,
 			b->data, g, MPI_COMM_WORLD,
 			FFTW_ESTIMATE);
@@ -314,6 +320,8 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 
 	fftw_destroy_plan(direct);
 	fftw_destroy_plan(inverse);
+
+	free(g);
 
 	return 0;
 }

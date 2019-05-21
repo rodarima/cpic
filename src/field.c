@@ -34,6 +34,8 @@ field_init(sim_t *sim, field_t *f)
 	f->rho = mat_alloc(sim->dim, f->ghostshape);
 	f->phi = mat_alloc(sim->dim, f->shape);
 
+	MAT_FILL(f->phi, 0.0);
+
 	for(d=0; d<sim->dim; d++)
 		f->E[d] = mat_alloc(sim->dim, f->shape);
 
@@ -327,6 +329,38 @@ rho_update(sim_t *sim, int i)
 	return 0;
 }
 
+int
+rho_destroy_ghost(sim_t *sim, int i)
+{
+	int start[MAX_DIM], end[MAX_DIM];
+	int ix, iy;
+	mat_t *rho;
+	field_t *field;
+	plasma_chunk_t *chunk;
+
+	field = &sim->field;
+	rho = field->rho;
+	chunk = &sim->plasma.chunks[i];
+
+	start[X] = chunk->ib0[X];
+	start[Y] = chunk->ib0[Y] + sim->chunksize[Y];
+	end[X] = chunk->ib0[X] + chunk->shape[X];
+	end[Y] = chunk->ib0[Y] + sim->ghostsize[Y];
+
+	/* Erase previous charge density */
+	for(iy=start[Y]; iy<end[Y]; iy++)
+	{
+		for(ix=start[X]; ix<end[X]; ix++)
+		{
+			MAT_XY(rho, ix, iy) = NAN;
+		}
+	}
+
+	mat_print(sim->field.rho, "rho after ghost destruction");
+
+	return 0;
+}
+
 
 /* The field rho is updated based on the charge density computed on each
  * particle p, by using an interpolation function */
@@ -353,6 +387,9 @@ field_rho(sim_t *sim)
 	/* Send the ghost part of the rho field */
 	comm_send_ghost_rho(sim);
 
+	for (i=0; i<plasma->nchunks; i++)
+		rho_destroy_ghost(sim, i);
+
 	/* Recv the ghost part of the rho field */
 	comm_recv_ghost_rho(sim);
 
@@ -360,7 +397,6 @@ field_rho(sim_t *sim)
 
 	return 0;
 }
-#if 0
 
 #if 0
 int
@@ -471,7 +507,7 @@ field_E_compute(sim_t *sim)
 #endif
 
 int
-block_phi_solve(sim_t *sim, block_t *b)
+field_phi_solve(sim_t *sim)
 {
 
 	/* We don't need the sum of the charge sum 0 if we use the MFT solver */
@@ -480,8 +516,12 @@ block_phi_solve(sim_t *sim, block_t *b)
 	//mat_print(b->rho, "rho after set sum to 0");
 
 	perf_start(sim->perf, TIMER_SOLVER);
-	solve_xy(sim, sim->solver, b->phi, b->rho);
+
+	solve_xy(sim, sim->solver, sim->field.phi, sim->field.rho);
+
 	perf_stop(sim->perf, TIMER_SOLVER);
+
+	mat_print(sim->field.phi, "phi after solver");
 
 #if 0
 	if(sim->period_field && ((sim->iter % sim->period_field) == 0))
@@ -504,10 +544,10 @@ block_phi_solve(sim_t *sim, block_t *b)
 	return 0;
 }
 
+#if 0
 int
 block_field_E(sim_t *sim, block_t *b)
 {
-	block_phi_solve(sim, b);
 
 	//field_E_compute(sim);
 
@@ -516,35 +556,22 @@ block_field_E(sim_t *sim, block_t *b)
 
 	return 0;
 }
+#endif
 
 int
 field_E(sim_t *sim)
 {
+	field_phi_solve(sim);
+
 #if 0
-	block_t *b;
-
-	/* In order to use the FFT, we need for rho to be contiguous in the X
-	 * direction, either by joining all blocks, or by having only one block.
-	 * By now lets assume we only have one block in the X dimension. */
-
-	assert(sim->nblocks[X] == 1);
-	assert(sim->nblocks[Y] == 1);
-
-	/* TODO: Generalize for multiple blocks, maybe just introduce multiple
-	 * tasks per block. */
-
 	perf_start(sim->perf, TIMER_FIELD_E);
 
-	/* Local access to the block */
-	b = LBLOCK_XY(sim, 0, 0);
-
 	block_field_E(sim, b);
-
 
 	perf_stop(sim->perf, TIMER_FIELD_E);
 #endif
 
+
 	return 0;
 }
 
-#endif

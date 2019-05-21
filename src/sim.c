@@ -396,9 +396,6 @@ sim_plot(sim_t *sim)
 int
 sim_step(sim_t *sim)
 {
-#if 0
-	int j;
-	specie_t *s;
 
 	if(sim->iter >= sim->cycles)
 		return -1;
@@ -410,6 +407,8 @@ sim_step(sim_t *sim)
 	field_E(sim);
 
 	usleep(50);
+#if 0
+	int j;
 
 	for(j = 0; j < sim->nspecies; j++)
 	{
