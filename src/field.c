@@ -18,27 +18,30 @@ field_init(sim_t *sim, field_t *f)
 	int d;
 	int fshape[MAX_DIM];
 
-	f->shape[X] = sim->ntpoints[X];
-	f->shape[Y] = sim->ntpoints[Y] / sim->nprocs;
-	f->shape[Z] = 1;
+	f->shape[X] = sim->blocksize[X];
+	f->shape[Y] = sim->blocksize[Y];
+	f->shape[Z] = sim->blocksize[Z];
+
+	f->ghostshape[X] = sim->blocksize[X];
+	f->ghostshape[Y] = sim->ghostsize[Y];
+	f->ghostshape[Z] = sim->ghostsize[Z];
 
 	f->L[X] = sim->dx[X] * f->shape[X];
 	f->L[Y] = sim->dx[Y] * f->shape[Y];
 	f->L[Z] = sim->dx[Z] * f->shape[Z];
 
 	/* Init all local fields */
-	f->rho = mat_alloc(sim->dim, f->shape);
+	f->rho = mat_alloc(sim->dim, f->ghostshape);
 	f->phi = mat_alloc(sim->dim, f->shape);
-
-	/* As well as the frontier buffer */
-	fshape[X] = f->shape[X];
-	fshape[Y] = f->shape[Y] + sim->ghostpoints;
-	fshape[Z] = 1;
-
-	f->frontier = mat_alloc(sim->dim, fshape);
 
 	for(d=0; d<sim->dim; d++)
 		f->E[d] = mat_alloc(sim->dim, f->shape);
+
+	/* Also the frontier buffer */
+	fshape[X] = f->shape[X];
+	fshape[Y] = sim->ghostpoints;
+	fshape[Z] = 1;
+	f->frontier = mat_alloc(sim->dim, fshape);
 
 	f->igp[X] = 0;
 	f->igp[Y] = sim->rank * f->shape[Y];
@@ -58,31 +61,62 @@ field_init(sim_t *sim, field_t *f)
 	return 0;
 }
 
-#if 0
 
 /* The field rho is updated based on the charge density computed on each
- * particle p, by using an interpolation function */
+ * particle p, by using an interpolation function. Only the area corresponding
+ * with the chunk is updated, which also includes the right neighbour points. */
 int
-specie_rho_update(sim_t *sim, block_t *b, specie_block_t *sb)
+rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 {
 	particle_t *p;
+	field_t *field;
+	mat_t *rho;
+	double q;
+	double w[2][2];
+	int i0[2], i1[2];
 
-	if(sim->dim == 1)
+	field = &sim->field;
+	rho = field->rho;
+	q = set->info->q;
+
+	if(sim->dim == 2)
 	{
-		for(p = sb->particles; p; p = p->next)
+		for(p = set->particles; p; p = p->next)
 		{
 			/* Interpolate the charge density of the particle to the grid
 			 * of the block */
-			interpolate_add_to_grid_x(sim, p, b, sb->info->q, b->rho);
-		}
-	}
-	else if(sim->dim == 2)
-	{
-		for(p = sb->particles; p; p = p->next)
-		{
-			/* Interpolate the charge density of the particle to the grid
-			 * of the block */
-			interpolate_add_to_grid_xy(sim, p, b, sb->info->q, b->rho);
+			interpolate_weights_xy(p->x, sim->dx, field->x0, w, i0);
+
+			dbg("Computed weights for particle %p are [%e %e %e %e]\n",
+					p, w[0][0], w[0][1], w[1][0], w[1][1]);
+
+			i1[X] = i0[X] + 1;
+			i1[Y] = i0[Y] + 1;
+
+			dbg("p-%d at (%e %e) write area i0=(%d %d) i1=(%d %d)\n",
+					p->i, p->x[X], p->x[Y],
+					i0[X], i0[Y],
+					i1[X], i1[Y]);
+
+			/* Wrap only in the X direction: we assume a periodic
+			 * domain */
+			if(i1[X] == rho->shape[X])
+				i1[X] -= rho->shape[X];
+
+			assert(i1[X] < rho->shape[X]);
+			assert(i1[Y] < rho->shape[Y]);
+
+			assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
+			assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);
+			assert(i1[X] >= 0 && i1[X] <= sim->ghostsize[X]);
+			assert(i1[Y] >= 1 && i1[Y] <= sim->ghostsize[Y]);
+			assert(rho->shape[X] == sim->ghostsize[X]);
+			assert(rho->shape[Y] == sim->ghostsize[Y]);
+
+			MAT_XY(rho, i0[X], i0[Y]) += w[0][0] * q;
+			MAT_XY(rho, i0[X], i1[Y]) += w[0][1] * q;
+			MAT_XY(rho, i1[X], i0[Y]) += w[1][0] * q;
+			MAT_XY(rho, i1[X], i1[Y]) += w[1][1] * q;
 		}
 	}
 	else
@@ -93,6 +127,7 @@ specie_rho_update(sim_t *sim, block_t *b, specie_block_t *sb)
 
 	return 0;
 }
+#if 0
 
 int
 neigh_comm_rho(sim_t *sim, block_t *b, int neigh_rank, int dir[MAX_DIM])
@@ -225,75 +260,107 @@ block_rho_comm(sim_t *sim, block_t *b)
 }
 #endif
 
+#endif
+
 int
-block_rho_update(sim_t *sim, block_t *b)
+rho_reset(sim_t *sim, int i)
 {
-	int is;
-	specie_block_t *sb;
+	int start[MAX_DIM], end[MAX_DIM];
+	int ix, iy;
+	mat_t *rho, *frontier;
+	field_t *field;
+	plasma_chunk_t *chunk;
+
+	field = &sim->field;
+	rho = field->rho;
+	frontier = field->frontier;
+	chunk = &sim->plasma.chunks[i];
+
+	start[X] = chunk->ib0[X];
+	start[Y] = chunk->ib0[Y];
+	end[X] = start[X] + chunk->shape[X];
+	end[Y] = start[Y] + sim->ghostsize[Y];
 
 	/* Erase previous charge density */
-	MAT_FILL(b->rho, 0.0);
-
-	for(is=0; is<sim->nspecies; is++)
+	for(iy=start[Y]; iy<end[Y]; iy++)
 	{
-		sb = &b->sblocks[is];
-		specie_rho_update(sim, b, sb);
+		for(ix=start[X]; ix<end[X]; ix++)
+		{
+			MAT_XY(rho, ix, iy) = 0.0;
+		}
 	}
 
-	mat_print(b->rho, "rho after update");
+	/* FIXME: We will need right neighbour erased before starting the charge
+	 * accumulation process */
+
+	/* Also erase the part in the frontier corresponding to our chunk */
+	for(iy=0; iy<frontier->shape[Y]; iy++)
+	{
+		for(ix=0; ix<frontier->shape[X]; ix++)
+		{
+			MAT_XY(frontier, ix, iy) = 0.0;
+		}
+	}
+
+	mat_print(sim->field.rho, "rho after reset");
 
 	return 0;
 }
+
+int
+rho_update(sim_t *sim, int i)
+{
+	int is;
+	particle_set_t *set;
+	plasma_chunk_t *chunk;
+
+	chunk = &sim->plasma.chunks[i];
+
+	for(is=0; is<sim->nspecies; is++)
+	{
+		set = &chunk->species[is];
+		rho_update_specie(sim, chunk, set);
+	}
+
+	mat_print(sim->field.rho, "rho after update");
+
+	return 0;
+}
+
 
 /* The field rho is updated based on the charge density computed on each
  * particle p, by using an interpolation function */
 int
 field_rho(sim_t *sim)
 {
-#if 0
-	int ix, iy;
-	block_t *b;
+	int i;
+	plasma_t *plasma;
+
+	plasma = &sim->plasma;
 
 	perf_start(sim->perf, TIMER_FIELD_RHO);
 
-	/* Computation */
-	for (iy=0; iy<sim->nblocks[Y]; iy++)
-	{
-		for (ix=0; ix<sim->nblocks[X]; ix++)
-		{
-			b = LBLOCK_XY(sim, ix, iy);
+	/* Reset charge density */
+	for (i=0; i<plasma->nchunks; i++)
+		rho_reset(sim, i);
 
-			block_rho_update(sim, b);
-		}
-	}
+	/* -- taskwait? -- */
+
+	/* Computation */
+	for (i=0; i<plasma->nchunks; i++)
+		rho_update(sim, i);
 
 	/* Send the ghost part of the rho field */
-	for (iy=0; iy<sim->nblocks[Y]; iy++)
-	{
-		for (ix=0; ix<sim->nblocks[X]; ix++)
-		{
-			b = LBLOCK_XY(sim, ix, iy);
-
-			comm_send_ghost_rho(sim, b);
-		}
-	}
+	comm_send_ghost_rho(sim);
 
 	/* Recv the ghost part of the rho field */
-	for (iy=0; iy<sim->nblocks[Y]; iy++)
-	{
-		for (ix=0; ix<sim->nblocks[X]; ix++)
-		{
-			b = LBLOCK_XY(sim, ix, iy);
-
-			comm_recv_ghost_rho(sim, b);
-		}
-	}
+	comm_recv_ghost_rho(sim);
 
 	perf_stop(sim->perf, TIMER_FIELD_RHO);
 
-#endif
 	return 0;
 }
+#if 0
 
 #if 0
 int

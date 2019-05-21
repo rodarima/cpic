@@ -1,8 +1,11 @@
 #pragma once
 
+#define MAX_CHUNK_NEIGH 27
+
 #include "mat.h"
 #include <libconfig.h>
 #include <pthread.h>
+#include <mpi.h>
 
 struct particle;
 struct particle_set;
@@ -19,6 +22,11 @@ struct particle_queue;
 typedef struct specie specie_t;
 typedef struct specie_block specie_block_t;
 typedef struct particle_queue particle_queue_t;
+
+struct comm_packet;
+typedef struct comm_packet comm_packet_t;
+struct specie_packet;
+typedef struct specie_packet specie_packet_t;
 
 struct field;
 typedef struct field field_t;
@@ -89,10 +97,34 @@ struct specie
 	config_setting_t *conf;
 };
 
+#pragma pack(push,1)
+
+/* We need the network structures to be packed, as otherwise, ununused regions
+ * are left uninitialized (also we reduce some space in the transmission) */
+
+struct specie_packet
+{
+	int specie_index;
+	int nparticles;
+	particle_t buf[];
+};
+
+struct comm_packet
+{
+	int count;
+	int neigh;
+	specie_packet_t s[];
+};
+
+#pragma pack(pop)
+
 struct field
 {
 	/* Shape of the field slice, without ghosts */
 	int shape[MAX_DIM];
+
+	/* Shape of the field slice, with ghosts */
+	int ghostshape[MAX_DIM];
 
 	/* Physical length of the field slice */
 	double L[MAX_DIM];
@@ -128,6 +160,22 @@ struct plasma_chunk
 	int x0[MAX_DIM];
 	int x1[MAX_DIM];
 	int L[MAX_DIM];
+
+	/* Local shape of the corresponding block */
+	int shape[MAX_DIM];
+	/* Local block index range */
+	int ib0[MAX_DIM];
+	int ib1[MAX_DIM];
+
+	/* Queues of outgoing messages. One per neighbour */
+	comm_packet_t **q;
+
+	/* MPI_Request of each packet sent */
+	MPI_Request *req;
+
+	/* The rank of each neighbour */
+	int *neigh_rank;
+
 };
 
 struct plasma
@@ -227,8 +275,9 @@ struct sim
 	 * phase, corresponding to the neighbour slice */
 	int ghostpoints;
 
-	//int blocksize[MAX_DIM];
-	//int ghostsize[MAX_DIM];
+	int blocksize[MAX_DIM];
+	int ghostsize[MAX_DIM];
+	int chunksize[MAX_DIM];
 	int plasma_chunks;
 
 	/* Number of neighbour chunks to be considered when exchanging particles
@@ -242,9 +291,6 @@ struct sim
 	/* The complete space domain slice for this process (which includes
 	 * exchange ghost vector) */
 	field_t field;
-
-	/* Specie blocks of this process */
-	specie_block_t *sblocks;
 
 	plasma_t plasma;
 

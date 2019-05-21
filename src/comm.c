@@ -5,10 +5,10 @@
 #include "specie.h"
 #include "particle.h"
 #include "comm.h"
+#include "plasma.h"
 
 #define DEBUG 1
 #include "log.h"
-
 
 int
 chunk_delta_to_index(int delta[], int dim)
@@ -135,37 +135,36 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is)
 
 	return 0;
 }
-#if 0
 
 int
-send_packet_neigh(sim_t *sim, block_t *b, int neigh)
+send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 {
 	int is, ip, count, np, tag, drank;
 	size_t size;
-	specie_block_t *sb;
+	particle_set_t *set;
 	comm_packet_t *pkt;
 	specie_packet_t *sp;
-	particle_t *p;
+	particle_t *p, *tmp;
 	void *ptr;
 
-	//dbg("Sending out packet for neighbour %d\n", neigh);
+	dbg("Sending out packet for neighbour %d\n", neigh);
 
 	np = 0;
 	count = 0;
-	pkt = b->q[neigh];
+	pkt = chunk->q[neigh];
 	size = sizeof(comm_packet_t);
 	tag = sim->iter & COMM_TAG_ITER_MASK;
-	drank = b->neigh_rank[neigh];
+	drank = chunk->neigh_rank[neigh];
 
 	/* Compute queue size */
 	for(is=0; is<sim->nspecies; is++)
 	{
-		sb = &b->sblocks[is];
+		set = &chunk->species[is];
 
 		/* Skip empty queues */
-		if(sb->outsize[neigh] == 0)
+		if(set->outsize[neigh] == 0)
 		{
-			//dbg("No particles need communication for specie %d\n", is);
+			dbg("No particles need communication for specie %d\n", is);
 			continue;
 		}
 
@@ -175,7 +174,7 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 		size += sizeof(specie_packet_t);
 
 		/* Particles */
-		size += sb->outsize[neigh] * sizeof(particle_t);
+		size += set->outsize[neigh] * sizeof(particle_t);
 	}
 
 	/* Before erasing the previous buffer, we need to ensure that the
@@ -185,12 +184,12 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 
 	if(pkt)
 	{
-		//MPI_Wait(&b->req[neigh], MPI_STATUS_IGNORE);
+		MPI_Wait(&chunk->req[neigh], MPI_STATUS_IGNORE);
 		free(pkt);
 	}
 
 	pkt = malloc(size);
-	b->q[neigh] = pkt;
+	chunk->q[neigh] = pkt;
 	pkt->count = count;
 	pkt->neigh = neigh;
 	sp = pkt->s;
@@ -198,18 +197,25 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 	/* Copy the particles into the queue */
 	for(is=0; is<sim->nspecies; is++)
 	{
-		sb = &b->sblocks[is];
+		set = &chunk->species[is];
 
 		/* Skip empty queues */
-		if(sb->outsize[neigh] == 0) continue;
+		if(set->outsize[neigh] == 0) continue;
 
-		sp->nparticles = sb->outsize[neigh];
+		sp->nparticles = set->outsize[neigh];
 		sp->specie_index = is;
 
-		for(ip=0, p=sb->out[neigh]; p; ip++, p=p->next)
+		ip = 0;
+
+		DL_FOREACH_SAFE(set->out[neigh], p, tmp)
 		{
+			dbg("Packing particle %d at (%e,%e)\n", p->i, p->x[X], p->x[Y]);
 			/* Copy the particle to the packet */
 			memcpy(&sp->buf[ip], p, sizeof(*p));
+
+			/* Free particles already copied */
+			free(p);
+			ip++;
 		}
 
 		/* We need to point carefully (byte by byte) to the next header,
@@ -219,18 +225,18 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 		/* Header */
 		ptr += sizeof(specie_packet_t);
 		/* Particles */
-		ptr += sb->outsize[neigh] * sizeof(particle_t);
-		np += sb->outsize[neigh];
+		ptr += set->outsize[neigh] * sizeof(particle_t);
+		np += set->outsize[neigh];
 		sp = ptr;
 
 		assert((((void *) sp) - ((void *) pkt)) == size);
 	}
 
-	//dbg("Sending packet of size %lu (%d particles) rank=%d tag=%d\n",
-	//		size, np, drank, tag);
+	dbg("Sending packet of size %lu (%d particles) rank=%d tag=%d\n",
+			size, np, drank, tag);
 
 	/* Now the packet is ready to be sent */
-	//MPI_Isend(pkt, size, MPI_BYTE, drank, tag, MPI_COMM_WORLD, &b->req[neigh]);
+	//MPI_Isend(pkt, size, MPI_BYTE, drank, tag, MPI_COMM_WORLD, &chunk->req[neigh]);
 	MPI_Send(pkt, size, MPI_BYTE, drank, tag, MPI_COMM_WORLD);
 
 	dbg("SENT size=%lu rank=%d neigh=%d tag=%d\n",
@@ -240,23 +246,27 @@ send_packet_neigh(sim_t *sim, block_t *b, int neigh)
 	return 0;
 }
 
+
 int
-share_particles(sim_t *sim, block_t *b, int neigh)
+share_particles(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 {
 	int is;
-	specie_block_t *sb;
+	particle_set_t *set;
 
 	for(is=0; is<sim->nspecies; is++)
 	{
-		sb = &b->sblocks[is];
+		set = &chunk->species[is];
 
 		/* TODO: Implement for multiple threads */
 
-		if(sb->outsize[neigh])
-			DL_APPEND(sb->particles, sb->out[neigh]);
+		if(set->outsize[neigh])
+		{
+			DL_APPEND(set->particles, set->out[neigh]);
+			set->nparticles += set->outsize[neigh];
+		}
 
-		sb->out[neigh] = NULL;
-		sb->outsize[neigh] = 0;
+		set->out[neigh] = NULL;
+		set->outsize[neigh] = 0;
 	}
 
 	return 0;
@@ -264,31 +274,31 @@ share_particles(sim_t *sim, block_t *b, int neigh)
 
 /* Set the packets of particles to send to each neighbour */
 int
-send_particles(sim_t *sim, block_t *b)
+send_particles(sim_t *sim, plasma_chunk_t *chunk)
 {
-	int i;
 
-	for(i=0; i<sim->nneigh_blocks; i++)
+	int i;
+	for(i=0; i<sim->nneigh_chunks; i++)
 	{
 
-		if(b->neigh_rank[i] != sim->rank)
+		if(chunk->neigh_rank[i] != sim->rank)
 		{
 			//dbg("Sending packets for neigh %d(%d)\n", i, b->neigh_rank[i]);
-			send_packet_neigh(sim, b, i);
+			send_packet_neigh(sim, chunk, i);
 			continue;
 		}
 
-		//dbg("Communication not needed for neigh %d(%d)\n", i, b->neigh_rank[i]);
-		share_particles(sim, b, i);
-
+		dbg("Communication not needed for neigh %d(%d)\n", i, chunk->neigh_rank[i]);
+		share_particles(sim, chunk, i);
 	}
+
 	return 0;
 }
 
 int
-recv_comm_packet(sim_t *sim, block_t *b, comm_packet_t *pkt)
+recv_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 {
-	specie_block_t *sb;
+	particle_set_t *set;
 	specie_packet_t *sp;
 	particle_t *p, *p2;
 	char *ptr;
@@ -300,7 +310,7 @@ recv_comm_packet(sim_t *sim, block_t *b, comm_packet_t *pkt)
 	{
 		sp = (specie_packet_t *) ptr;
 		is = sp->specie_index;
-		sb = &b->sblocks[is];
+		set = &chunk->species[is];
 
 		for(ip=0; ip<sp->nparticles; ip++)
 		{
@@ -309,7 +319,7 @@ recv_comm_packet(sim_t *sim, block_t *b, comm_packet_t *pkt)
 			p2 = malloc(sizeof(*p2));
 			memcpy(p2, p, sizeof(*p));
 
-			specie_block_add_particle(sb, p2);
+			particle_set_add(set, p2);
 		}
 
 		ptr += sizeof(specie_packet_t);
@@ -320,33 +330,33 @@ recv_comm_packet(sim_t *sim, block_t *b, comm_packet_t *pkt)
 }
 
 int
-recv_particles(sim_t *sim, block_t *b)
+recv_particles(sim_t *sim, plasma_chunk_t *chunk)
 {
 	int i;
 	int source, tag, size, neigh;
 	MPI_Status status;
 	comm_packet_t *pkt;
-	int recv_from[MAX_NEIGH];
+	int recv_from[MAX_CHUNK_NEIGH];
 
 	dbg(" --- RECV PHASE REACHED ---\n");
 
 	tag = sim->iter & COMM_TAG_ITER_MASK;
 
-	for(i=0; i<sim->nneigh_blocks; i++) recv_from[i] = 0;
+	for(i=0; i<sim->nneigh_chunks; i++) recv_from[i] = 0;
 
-	for(i=0; i<sim->nneigh_blocks; i++)
+	for(i=0; i<sim->nneigh_chunks; i++)
 	{
 		/* FIXME: We trust that only one message with the iteration tag
 		 * is sent from each neighbour */
 
-		if(b->neigh_rank[i] == sim->rank) continue;
+		if(chunk->neigh_rank[i] == sim->rank) continue;
 
 		source = MPI_ANY_SOURCE;
 
 		//dbg("Receiving packets from rank=any tag=%d iter=%d\n",
 		//		tag, sim->iter);
 
-		//MPI_Recv(buf, 1024, MPI_BYTE, b->neigh_rank[i],
+		//MPI_Recv(buf, 1024, MPI_BYTE, chunk->neigh_rank[i],
 		//	MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
 		MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
@@ -374,14 +384,14 @@ recv_particles(sim_t *sim, block_t *b)
 		recv_from[neigh]++;
 
 		/* Do some stuff with pkt */
-		recv_comm_packet(sim, b, pkt);
+		recv_comm_packet(sim, chunk, pkt);
 
 		free(pkt);
 
 	}
 	return 0;
 }
-#endif
+
 
 /* Move particles to the correct chunk */
 int
@@ -400,36 +410,32 @@ comm_plasma_chunk(sim_t *sim, int i)
 		collect_specie(sim, chunk, is);
 	}
 
-#if 0
-	exchange_local_particles();
-
 	/* Then fill the packets and send each to the corresponding neighbour */
-	send_particles(sim, b);
+	send_particles(sim, chunk);
 
 	/* Finally receive particles from the neighbours */
-	recv_particles(sim, b);
-#endif
+	recv_particles(sim, chunk);
+
 
 	return 0;
 }
-#if 0
 
 int
-comm_send_ghost_rho(sim_t *sim, block_t *b)
+comm_send_ghost_rho(sim_t *sim)
 {
 	int neigh, tag, size;
 	double *ptr;
 	mat_t *rho;
 
-	/* We only consider the 2D space by now and nblocks[Y] = 1 */
+	/* We only consider the 2D space by now and only 1 plasma chunk*/
 	if(sim->dim != 2)
 		die("Communication of fields only implemented for 2D\n");
 
-	assert(sim->nblocks[Y] == 1);
+	assert(sim->plasma_chunks == 1);
 
-	rho = b->rho;
+	rho = sim->field.rho;
 
-	neigh = (b->ig[Y] + 1) % sim->ntblocks[Y];
+	neigh = (sim->rank + 1) % sim->nprocs;
 
 	tag = COMM_TAG_OP_RHO << COMM_TAG_ITER_SIZE;
 	tag |= sim->iter & COMM_TAG_ITER_MASK;
@@ -437,8 +443,8 @@ comm_send_ghost_rho(sim_t *sim, block_t *b)
 	/* We already have the ghost row of the lower part in contiguous memory
 	 * */
 
-	ptr = &MAT_XY(rho, 0, rho->shape[Y]-1);
-	size = rho->shape[X];
+	ptr = &MAT_XY(rho, 0, sim->blocksize[Y]);
+	size = rho->shape[X] * sim->ghostpoints;
 
 	dbg("SEND rho size=%d rank=%d tag=%d\n", size, neigh, tag);
 	MPI_Send(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD);
@@ -447,21 +453,21 @@ comm_send_ghost_rho(sim_t *sim, block_t *b)
 }
 
 int
-comm_recv_ghost_rho(sim_t *sim, block_t *b)
+comm_recv_ghost_rho(sim_t *sim)
 {
-	int neigh, tag, size, ix;
+	int neigh, tag, size, ix, iy;
 	double *ptr;
 	mat_t *rho;
 
-	/* We only consider the 2D space by now and nblocks[Y] = 1 */
+	/* We only consider the 2D space by now and plasma chunks = 1 */
 	if(sim->dim != 2)
 		die("Communication of fields only implemented for 2D\n");
 
-	assert(sim->nblocks[Y] == 1);
+	assert(sim->plasma_chunks == 1);
 
-	rho = b->rho;
+	rho = sim->field.rho;
 
-	neigh = (b->ig[Y] + sim->ntblocks[Y] - 1) % sim->ntblocks[Y];
+	neigh = (sim->rank + sim->nprocs - 1) % sim->nprocs;
 
 	tag = COMM_TAG_OP_RHO << COMM_TAG_ITER_SIZE;
 	tag |= sim->iter & COMM_TAG_ITER_MASK;
@@ -469,17 +475,20 @@ comm_recv_ghost_rho(sim_t *sim, block_t *b)
 	/* We need to add the data to our rho matrix at the first row, can MPI
 	 * add the buffer as it cames, without a temporal buffer? TODO: Find out */
 
-	ptr = &MAT_XY(rho, 0, rho->shape[Y]-1);
-	size = rho->shape[X];
+	ptr = &MAT_XY(rho, 0, sim->blocksize[Y]);
+	size = rho->shape[X] * sim->ghostpoints;
 	ptr = malloc(sizeof(double) * size);
 
 	dbg("RECV rho size=%d rank=%d tag=%d\n", size, neigh, tag);
 	MPI_Recv(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
 	/* Finally add the received frontier */
-	for(ix=0; ix<size; ix++)
+	for(iy=0; iy<sim->ghostpoints; iy++)
 	{
-		MAT_XY(rho, ix, 0) += ptr[ix];
+		for(ix=0; ix<rho->shape[X]; ix++)
+		{
+			MAT_XY(rho, ix, iy) += ptr[iy*rho->shape[X] + ix];
+		}
 	}
 
 	free(ptr);
@@ -488,4 +497,3 @@ comm_recv_ghost_rho(sim_t *sim, block_t *b)
 
 	return 0;
 }
-#endif

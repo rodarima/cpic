@@ -2,6 +2,7 @@ MODULES:=src
 #MODULES+=test user
 
 CC=gcc
+#CC=clang
 #OCC=mcc
 LDLIBS:=
 CFLAGS:=-g -pthread -Wall -pg

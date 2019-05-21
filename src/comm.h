@@ -19,12 +19,12 @@ comm_block(sim_t *sim, block_t *b);
 int
 block_delta_to_index(int delta[], int dim);
 
-int
-comm_send_ghost_rho(sim_t *sim, block_t *b);
-
-int
-comm_recv_ghost_rho(sim_t *sim, block_t *b);
-
 /* Move particles to the correct chunk */
 int
 comm_plasma_chunk(sim_t *sim, int i);
+
+int
+comm_send_ghost_rho(sim_t *sim);
+
+int
+comm_recv_ghost_rho(sim_t *sim);

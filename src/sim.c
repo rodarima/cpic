@@ -46,6 +46,7 @@ sim_read_config(sim_t *s)
 	config_lookup_int(conf, "simulation.sampling_period.particle", &s->period_particle);
 	config_lookup_int(conf, "simulation.realtime_plot", &s->mode);
 	config_lookup_string(conf, "simulation.solver", &s->solver_method);
+	config_lookup_int(conf, "simulation.plasma_chunks", &s->plasma_chunks);
 
 	/* Load all dimension related vectors */
 	config_lookup_array_float(conf, "simulation.space_length", s->L, s->dim);
@@ -62,6 +63,13 @@ sim_read_config(sim_t *s)
 }
 
 int
+sim_validate_config(sim_t *s)
+{
+
+	return 0;
+}
+
+int
 sim_prepare(sim_t *s, int quiet)
 {
 	int neigh_table[] = {3, 9, 27};
@@ -70,10 +78,6 @@ sim_prepare(sim_t *s, int quiet)
 	/* The current process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &s->rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &s->nprocs);
-
-	/* We need to always advance the iteration number after exchanging any
-	 * information between blocks, as is used in the tag */
-	s->iter = -2;
 
 	if(s->dim != 2)
 	{
@@ -89,6 +93,18 @@ sim_prepare(sim_t *s, int quiet)
 		return 1;
 	}
 
+	if((s->ntpoints[X] % s->plasma_chunks) != 0)
+	{
+		err("The number of grid points in X %d cannot be divided by the number of plasma chunks %d\n",
+				s->ntpoints[X], s->plasma_chunks);
+		err("Closest grid points[X] = %d\n", (s->ntpoints[X] / s->plasma_chunks) * s->plasma_chunks);
+		return 1;
+	}
+
+	/* We need to always advance the iteration number after exchanging any
+	 * information between blocks, as is used in the tag */
+	s->iter = -2;
+
 	if(quiet)
 		s->mode = SIM_MODE_NORMAL;
 
@@ -97,22 +113,6 @@ sim_prepare(sim_t *s, int quiet)
 
 	/* We use the rank to vary deterministically the seed between process */
 	srand(s->seed + s->rank);
-	dbg("Set seed %d\n", s->seed + s->rank);
-
-	for(d=s->dim; d<MAX_DIM; d++)
-	{
-		s->ntpoints[d] = 1;
-		s->dx[d] = 0.0;
-	}
-
-	for(d=0; d<s->dim; d++)
-	{
-		/* Note that each point represents the space from x0 to x0+dx */
-		s->dx[d] = s->L[d] / s->ntpoints[d];
-	}
-
-	/* Begin with only one plasma chunk */
-	s->plasma_chunks = 1;
 
 	/* By now we only need one extra neighbour, as we use linear
 	 * interpolation, but it may change */
@@ -121,6 +121,33 @@ sim_prepare(sim_t *s, int quiet)
 	/* Number of neighbour chunks, used to determine the direction when
 	 * sending particles */
 	s->nneigh_chunks = neigh_table[s->dim - 1];
+
+	for(d=s->dim; d<MAX_DIM; d++)
+	{
+		s->ntpoints[d] = 1;
+		s->dx[d] = 0.0;
+		s->chunksize[d] = 1;
+		s->blocksize[d] = 1;
+	}
+
+	for(d=0; d<s->dim; d++)
+	{
+		/* Note that each point represents the space from x0 to x0+dx */
+		s->dx[d] = s->L[d] / s->ntpoints[d];
+	}
+
+	s->blocksize[X] = s->ntpoints[X];
+	s->blocksize[Y] = s->ntpoints[Y] / s->nprocs;
+	s->blocksize[Z] = s->ntpoints[Z];
+
+	s->ghostsize[X] = s->blocksize[X];
+	s->ghostsize[Y] = s->blocksize[Y] + s->ghostpoints;
+	s->ghostsize[Z] = s->blocksize[Z];
+
+	s->chunksize[X] = s->blocksize[X] / s->plasma_chunks;
+	s->chunksize[Y] = s->blocksize[Y];
+	s->chunksize[Z] = s->blocksize[Z];
+
 
 	dbg("Global number of points (%d %d %d)\n",
 			s->ntpoints[X],
@@ -139,10 +166,9 @@ sim_pre_step(sim_t *sim)
 	/* Move particles to the correct block */
 	particle_comm(sim);
 
-#if 0
 	/* Initial computation of rho */
 	field_rho(sim);
-#endif
+
 	return 0;
 }
 
@@ -157,6 +183,9 @@ sim_init(config_t *conf, int quiet)
 
 	/* Load config and parameters */
 	if(sim_read_config(s))
+		return NULL;
+
+	if(sim_validate_config(s))
 		return NULL;
 
 	if(sim_prepare(s, quiet))

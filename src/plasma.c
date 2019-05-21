@@ -8,7 +8,8 @@
 void
 particle_set_add(particle_set_t *set, particle_t *p)
 {
-	dbg("Adding particle p_%d to particle set %p\n", p->i, set);
+	dbg("Adding particle p_%d at (%.2f, %.2f) to particle set %p\n",
+			p->i, p->x[X], p->x[Y], set);
 	DL_APPEND(set->particles, p);
 	set->nparticles++;
 }
@@ -72,10 +73,88 @@ particle_set_init(sim_t *sim, plasma_chunk_t *chunk, int is)
 	return 0;
 }
 
+void
+neigh_deltas(int delta[], int dim, int neigh)
+{
+	int d, n, nn, tmp;
+
+	/* Number of total chunks in each dimension considered in the
+	 * neighbourhood */
+	n = 3;
+	nn = 1;
+
+	for(d = 0; d < dim; d++)
+		nn *= n;
+
+	tmp = neigh;
+	for(d=X; d<dim; d++)
+	{
+		delta[d] = tmp % n - BLOCK_NEIGH;
+		tmp /= n;
+	}
+
+	if(dim == 2)
+	{
+		dbg("Neighbour %d translated to delta (%d,%d)\n",
+				neigh, delta[X], delta[Y]);
+	}
+}
+
+int
+neigh_rank(sim_t *sim, int *ig, int *nr)
+{
+	int i, ib;
+	int delta[MAX_DIM];
+	int pos[MAX_DIM];
+
+	for(i=0; i<sim->nneigh_chunks; i++)
+	{
+		/* Each index corresponds to a displacement delta in the chunk
+		 * space */
+
+		neigh_deltas(delta, sim->dim, i);
+
+		/* Now we need to determine whether the neighbour chunk
+		 * corresponds with another MPI process or not, so we need to
+		 * call MPI_send or use shared memory. */
+
+		/* If we only advance in the X direction, then we are in the
+		 * same process */
+
+		if(delta[Y] == 0)
+		{
+			dbg("delta Y is 0, so rank for neigh %d is %d\n", i, sim->rank);
+			nr[i] = sim->rank;
+			continue;
+		}
+
+		if(sim->dim != 2)
+		{
+			err("Only 2 dimensions supported now\n");
+			abort();
+		}
+
+		/* Otherwise, we can compute the new position */
+
+		pos[X] = (ig[X] + sim->plasma.nchunks + delta[X]) % sim->plasma.nchunks;
+		pos[Y] = (ig[Y] + sim->nprocs + delta[Y]) % sim->nprocs;
+
+		dbg("Neigh %d, is at global index (%d %d)\n", i, pos[X], pos[Y]);
+
+		ib = pos[Y];
+
+		dbg("Rank for neigh %d is %d\n", i, ib);
+		nr[i] = ib;
+	}
+
+	return 0;
+}
+
 int
 plasma_chunk_init(sim_t *sim, int i)
 {
-	int is;
+	char dc;
+	int is, j, d;
 	field_t *f;
 	plasma_t *plasma;
 	plasma_chunk_t *chunk;
@@ -102,12 +181,39 @@ plasma_chunk_init(sim_t *sim, int i)
 	chunk->ig[Y] = sim->rank;
 	chunk->ig[Z] = 0;
 
+	for(d=X; d<MAX_DIM; d++)
+	{
+		dc = "XYZ"[d];
+		/* FIXME: This is redundant */
+		chunk->shape[d] = sim->chunksize[d];
+
+		chunk->ib0[d] = chunk->i[d] * sim->chunksize[d];
+		chunk->ib1[d] = chunk->ib0[d] + sim->chunksize[d];
+
+		dbg("shape[%c]=%d ib0[%c]=%d ib1[%c]=%d\n",
+				dc, chunk->shape[d],
+				dc, chunk->ib0[d],
+				dc, chunk->ib1[d]);
+	}
+
 	chunk->x0[X] = f->x0[X] + (chunk->i[X] * chunk->L[X]);
 	chunk->x1[X] = chunk->x0[X] + chunk->L[X];
 	chunk->x0[Y] = f->x0[Y];
 	chunk->x1[Y] = f->x1[Y];
 	chunk->x0[Z] = f->x0[Z];
 	chunk->x1[Z] = f->x1[Z];
+
+	chunk->q = malloc(sizeof(comm_packet_t *) * sim->nneigh_chunks);
+	chunk->req = malloc(sizeof(MPI_Request) * sim->nneigh_chunks);
+	chunk->neigh_rank = malloc(sizeof(int) * sim->nneigh_chunks);
+
+	for(j=0; j<sim->nneigh_chunks; j++)
+	{
+		chunk->q[j] = NULL;
+		chunk->req[j] = NULL;
+	}
+
+	neigh_rank(sim, chunk->ig, chunk->neigh_rank);
 
 	for(is = 0; is < sim->nspecies; is++)
 	{

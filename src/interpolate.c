@@ -147,15 +147,16 @@ interpolate_weights_x(double x[1], double dx[1], double x0[1],
 	linear_interpolation_x(delta_grid, w);
 	assert(fabs(w[0] + w[1] - 1.0) < MAX_ERR);
 }
+
 #if 0
 void
-interpolate_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b,
+interpolate_add_to_grid_xy(sim_t *sim, particle_t *p, int *x0,
 		double val, mat_t *field)
 {
 	double w[2][2];
 	int i0[2], i1[2];
 
-	interpolate_weights_xy(p->x, sim->dx, b->x0, w, i0);
+	interpolate_weights_xy(p->x, sim->dx, x0, w, i0);
 
 	dbg("w = [%f %f %f %f]\n", w[0][0], w[0][1], w[1][0], w[1][1]);
 
@@ -207,6 +208,7 @@ interpolate_add_to_grid_x(sim_t *sim, particle_t *p, block_t *b,
 	MAT_X(field,i0) += w[0] * val;
 	MAT_X(field,i1) += w[1] * val;
 }
+
 
 void
 interpolate_add_to_particle_xy(sim_t *sim, particle_t *p, block_t *b,

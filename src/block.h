@@ -2,10 +2,6 @@
 
 struct block;
 typedef struct block block_t;
-struct comm_packet;
-typedef struct comm_packet comm_packet_t;
-struct specie_packet;
-typedef struct specie_packet specie_packet_t;
 
 #include "mat.h"
 #include "specie.h"
@@ -57,26 +53,6 @@ struct block /* slice */
 };
 
 
-#pragma pack(push,1)
-
-/* We need the network structures to be packed, as otherwise, ununused regions
- * are left uninitialized */
-
-struct specie_packet
-{
-	int specie_index;
-	int nparticles;
-	particle_t buf[];
-};
-
-struct comm_packet
-{
-	int count;
-	int neigh;
-	specie_packet_t s[];
-};
-
-#pragma pack(pop)
 
 int
 blocks_init(sim_t *sim);
