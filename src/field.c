@@ -15,8 +15,8 @@
 int
 field_init(sim_t *sim, field_t *f)
 {
-	int d;
-	int fshape[MAX_DIM];
+	int d, snx;
+	int fshape[MAX_DIM], rho_shape[MAX_DIM];
 
 	f->shape[X] = sim->blocksize[X];
 	f->shape[Y] = sim->blocksize[Y];
@@ -30,11 +30,24 @@ field_init(sim_t *sim, field_t *f)
 	f->L[Y] = sim->dx[Y] * f->shape[Y];
 	f->L[Z] = sim->dx[Z] * f->shape[Z];
 
-	/* Init all local fields */
-	f->rho = mat_alloc(sim->dim, f->ghostshape);
-	f->phi = mat_alloc(sim->dim, f->shape);
+	rho_shape[X] = f->ghostshape[X];
+	rho_shape[Y] = f->ghostshape[Y];
+	rho_shape[Z] = f->ghostshape[Z];
 
-	MAT_FILL(f->phi, 0.0);
+	/* The solver may need extra room in rho in the X dimension, so we make
+	 * sure that we have:
+	 * 	shape[X] = max(f->ghostshape[X], solver_rho_nx(sim)) */
+	snx = solver_rho_nx(sim);
+
+	if(rho_shape[X] < snx)
+		rho_shape[X] = snx;
+
+	/* Init all local fields */
+	f->rho = mat_alloc(sim->dim, rho_shape);
+	f->phi = mat_alloc(sim->dim, rho_shape);
+
+	MAT_FILL(f->phi, NAN);
+	MAT_FILL(f->rho, NAN);
 
 	for(d=0; d<sim->dim; d++)
 		f->E[d] = mat_alloc(sim->dim, f->shape);
@@ -102,17 +115,18 @@ rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 
 			/* Wrap only in the X direction: we assume a periodic
 			 * domain */
-			if(i1[X] == rho->shape[X])
-				i1[X] -= rho->shape[X];
+			if(i1[X] == sim->blocksize[X])
+				i1[X] -= sim->blocksize[X];
 
-			assert(i1[X] < rho->shape[X]);
-			assert(i1[Y] < rho->shape[Y]);
+			assert(i1[X] < sim->blocksize[X]);
+			assert(i1[Y] < sim->ghostsize[Y]);
 
 			assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
 			assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);
 			assert(i1[X] >= 0 && i1[X] <= sim->ghostsize[X]);
 			assert(i1[Y] >= 1 && i1[Y] <= sim->ghostsize[Y]);
-			assert(rho->shape[X] == sim->ghostsize[X]);
+			/* We have the extra room in X for the solver */
+			assert(rho->shape[X] >= sim->ghostsize[X]);
 			assert(rho->shape[Y] == sim->ghostsize[Y]);
 
 			MAT_XY(rho, i0[X], i0[Y]) += w[0][0] * q;
@@ -279,7 +293,7 @@ rho_reset(sim_t *sim, int i)
 	chunk = &sim->plasma.chunks[i];
 
 	start[X] = chunk->ib0[X];
-	start[Y] = chunk->ib0[Y];
+	start[Y] = 0;
 	end[X] = start[X] + chunk->shape[X];
 	end[Y] = start[Y] + sim->ghostsize[Y];
 
@@ -343,9 +357,9 @@ rho_destroy_ghost(sim_t *sim, int i)
 	chunk = &sim->plasma.chunks[i];
 
 	start[X] = chunk->ib0[X];
-	start[Y] = chunk->ib0[Y] + sim->chunksize[Y];
+	start[Y] = 0 + sim->chunksize[Y];
 	end[X] = chunk->ib0[X] + chunk->shape[X];
-	end[Y] = chunk->ib0[Y] + sim->ghostsize[Y];
+	end[Y] = rho->shape[Y];
 
 	/* Erase previous charge density */
 	for(iy=start[Y]; iy<end[Y]; iy++)

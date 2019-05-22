@@ -255,6 +255,31 @@ MFT_normalize(mat_t *x, int N)
 }
 
 int
+solver_rho_nx(sim_t *sim)
+{
+	int nx, ny;
+	ptrdiff_t local_size, rho_size;
+	ptrdiff_t local_n0, local_n0_start;
+
+	nx = sim->ntpoints[X];
+	ny = sim->ntpoints[Y];
+
+	local_size = fftw_mpi_local_size_2d(
+			ny, nx/2+1, MPI_COMM_WORLD,
+			&local_n0, &local_n0_start);
+
+	rho_size = local_size * 2;
+
+	assert(local_n0 == sim->blocksize[Y]);
+
+	assert((rho_size % sim->blocksize[Y]) == 0);
+
+	//return rho_size / sim->blocksize[Y];
+	return 2 * (sim->blocksize[X]/2 + 1);
+
+}
+
+int
 MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 {
 	mat_t *G;
@@ -268,17 +293,22 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	g = s->g;
 	//tmp = calloc(100*100, sizeof(double));
 
-	ptrdiff_t local_size;
+	ptrdiff_t local_size, rho_size;
 	ptrdiff_t local_n0, local_n0_start;
 
-	local_size = fftw_mpi_local_size_2d(s->ny, s->nx, MPI_COMM_WORLD,
+	local_size = fftw_mpi_local_size_2d(s->ny, s->nx/2+1, MPI_COMM_WORLD,
 			&local_n0, &local_n0_start);
 
-	dbg("Computed shape in Y is %ld\n", local_n0);
+	rho_size = 2 * local_size;
+
+	dbg("Computed shape in Y is %ld, nx=%d ny=%d\n", local_n0, s->nx, s->ny);
 
 	assert(local_n0 == sim->field.shape[Y]);
 
-	dbg("Computed size is %ld\n", local_size);
+	dbg("Rho needed size is %ld, allocated %d\n", rho_size, b->size);
+
+	/* Ensure we have extra room to store the extra data FFTW needs */
+	//assert(b->size >= rho_size);
 
 	/* Beware: The output of the FFT has a very special symmetry, with an
 	 * output size of ny x nx/2+1. */
@@ -320,8 +350,6 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 
 	fftw_destroy_plan(direct);
 	fftw_destroy_plan(inverse);
-
-	free(g);
 
 	return 0;
 }

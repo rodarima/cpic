@@ -38,3 +38,6 @@ solver_init(sim_t *sim);
 
 int
 solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho);
+
+int
+solver_rho_nx(sim_t *sim);

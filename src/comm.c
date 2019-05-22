@@ -444,7 +444,10 @@ comm_send_ghost_rho(sim_t *sim)
 	 * */
 
 	ptr = &MAT_XY(rho, 0, sim->blocksize[Y]);
-	size = rho->shape[X] * sim->ghostpoints;
+	size = sim->blocksize[X] * sim->ghostpoints;
+
+	/* Otherwise we will need to remove the padding in X */
+	assert(sim->ghostpoints == 1);
 
 	dbg("SEND rho size=%d rank=%d tag=%d\n", size, neigh, tag);
 	MPI_Send(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD);
@@ -476,7 +479,7 @@ comm_recv_ghost_rho(sim_t *sim)
 	 * add the buffer as it cames, without a temporal buffer? TODO: Find out */
 
 	ptr = &MAT_XY(rho, 0, sim->blocksize[Y]);
-	size = rho->shape[X] * sim->ghostpoints;
+	size = sim->blocksize[X] * sim->ghostpoints;
 	ptr = malloc(sizeof(double) * size);
 
 	dbg("RECV rho size=%d rank=%d tag=%d\n", size, neigh, tag);
@@ -485,9 +488,9 @@ comm_recv_ghost_rho(sim_t *sim)
 	/* Finally add the received frontier */
 	for(iy=0; iy<sim->ghostpoints; iy++)
 	{
-		for(ix=0; ix<rho->shape[X]; ix++)
+		for(ix=0; ix<sim->blocksize[X]; ix++)
 		{
-			MAT_XY(rho, ix, iy) += ptr[iy*rho->shape[X] + ix];
+			MAT_XY(rho, ix, iy) += ptr[iy*sim->blocksize[X] + ix];
 		}
 	}
 
