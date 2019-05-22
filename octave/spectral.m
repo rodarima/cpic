@@ -15,6 +15,7 @@ d_term = 0.0; % Hockey book uses this so 1.0, but seems wrong
 scale_arrows = 2.0;
 wx = 1500;
 wy = 500;
+dx2 = L/N * 2
 
 range = linspace(xmin, xmax, N);
 [X, Y] = meshgrid(range, range);
@@ -22,8 +23,8 @@ range = linspace(xmin, xmax, N);
 % Add one charge exactly in the middle of the grid
 rho = zeros(Nt, 1);
 %rho = rho - q/(Nt-1);
-rho(1) = -q/(e0*H2);
-%rho(11) = -q/(e0*H2);
+%rho(2) = -q/(e0*H2);
+%rho(12) = -q/(e0*H2);
 %rho(Nt*1/4 + N*12/16) = -q/(e0*H2);
 %rho(Nt*2/4 + N*4/16) = +q/(e0*H2);
 %rho(Nt*3/4:Nt*3/4+N/2) = + q/(e0*H2*3);
@@ -62,6 +63,9 @@ A(1,1) = -3;
 
 rho_2d = reshape(rho, N, N);
 
+rho_2d(1,2) = -q;
+rho_2d(3,3) = -q;
+
 g = fft2(rho_2d, N, N);
 
 G = zeros(N, N);
@@ -80,13 +84,17 @@ g
 rho_2d
 
 g = g .* G;
+g
 
 phi_fft = real(ifft2(g, N, N));
 
 phi_fft
 
+Ex = (shift(phi_fft, +1, 2) - shift(phi_fft, -1, 2)) ./ dx2
+Ey = (shift(phi_fft, +1, 1) - shift(phi_fft, -1, 1)) ./ dx2
 
-return
+
+%return
 % -------------------------------------------------------------------------- %
 
 
@@ -110,7 +118,9 @@ phi = phi_linsolve;
 
 phi = reshape(phi, N, N);
 
-[Ex, Ey] = gradient(-phi, H);
+%[Ex, Ey] = gradient(-phi, H);
+Ex = (shift(phi, +1, 2) - shift(phi, -1, 2)) ./ dx2
+Ey = (shift(phi, +1, 1) - shift(phi, -1, 1)) ./ dx2
 
 subplot(2, 2, 1);
 if(use_contour)
@@ -137,7 +147,9 @@ phi = phi_fft;
 
 phi = reshape(phi, N, N);
 
-[Ex, Ey] = gradient(-phi, H);
+%[Ex, Ey] = gradient(-phi, H);
+Ex = (shift(phi, +1, 2) - shift(phi, -1, 2)) ./ dx2
+Ey = (shift(phi, +1, 1) - shift(phi, -1, 1)) ./ dx2
 
 subplot(2, 2, 3);
 if(use_contour)

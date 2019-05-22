@@ -26,6 +26,7 @@ typedef struct
 {
 	double *data;
 	int shape[MAX_DIM];
+	int real_shape[MAX_DIM];
 	int dim;
 	int size;
 } mat_t;
@@ -46,23 +47,24 @@ do {							\
 		((y)*(nx) + (x))
 
 #define MAT_INDEX_XY(m, x, y)				\
-		((y)*(m)->shape[X] + (x))
+		((y)*(m)->real_shape[X] + (x))
 #define MAT_X(m, x)					\
 		((m)->data[(x)])
 
 #define MAT_XY(m, x, y)					\
-		((m)->data[(y)*(m)->shape[X] + (x)])
+		((m)->data[(y)*(m)->real_shape[X] + (x)])
 
-#define MAT_XYZ(m, x, y, z)					\
-		((m)->data[(z)*(m)->shape[Y]*(m)->shape[X] + 	\
-		(y)*(m)->shape[X] + (x)])
+#define MAT_XYZ(m, x, y, z)				\
+		((m)->data[(z)*(m)->real_shape[Y]*(m)->real_shape[X] + 	\
+		(y)*(m)->real_shape[X] + (x)])
 
 #define MAT_FILL(m, v)					\
 do {							\
-	int __i;					\
-	double *__d = m->data;				\
-	for(__i=0; __i<m->size; __i++)			\
-		__d[__i] = v;				\
+	int __ix, __iy, __iz;				\
+	for(__iz=0; __iz<m->shape[Z]; __iz++)		\
+	for(__iy=0; __iy<m->shape[Y]; __iy++)		\
+	for(__ix=0; __ix<m->shape[X]; __ix++)		\
+		MAT_XYZ(m, __ix, __iy, __iz) = v;		\
 } while(0)
 
 #define VMAT_FILL(m, dim, v)				\
@@ -82,6 +84,9 @@ mat_init(int dim, int *shape, double v);
 
 mat_t *
 mat_alloc_square(int dim, int shape);
+
+mat_t *
+mat_view(mat_t *m, int dx, int dy, int *shape);
 
 mat_t *
 vec_init(int size, double v);

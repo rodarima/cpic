@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <complex.h>
+#include <assert.h>
 
 #define DEBUG 1
 #include "log.h"
@@ -23,10 +24,14 @@ mat_alloc(int dim, int *shape)
 	for(i = 0; i < dim; i++)
 	{
 		m->shape[i] = shape[i];
+		m->real_shape[i] = shape[i];
 		size *= shape[i];
 	}
 	for(i=dim; i<MAX_DIM; i++)
+	{
 		m->shape[i] = 1;
+		m->real_shape[i] = 1;
+	}
 
 
 	m->size = size;
@@ -39,7 +44,7 @@ mat_alloc(int dim, int *shape)
 mat_t *
 mat_alloc_square(int dim, int shape)
 {
-	int i, v[dim];
+	int i, v[MAX_DIM];
 
 	for(i=0; i<dim; i++)
 		v[i] = shape;
@@ -59,6 +64,39 @@ mat_init(int dim, int *shape, double v)
 		m->data[i] = v;
 
 	return m;
+}
+
+mat_t *
+mat_view(mat_t *m, int dx, int dy, int *shape)
+{
+	mat_t *v;
+	int i, offset;
+
+	assert(m->dim == 2);
+	assert(m->size > 0);
+
+	v = malloc(sizeof(mat_t));
+	offset = dy * m->real_shape[X] + dx;
+
+	v->dim = m->dim;
+	v->data = &m->data[offset];
+	v->size = -1;
+
+	dbg("view dx=%d dy=%d offset=%d\n", dx, dy, offset);
+	dbg("mat at %p, view at %p\n", m->data, v->data);
+
+	for(i=0; i<v->dim; i++)
+	{
+		v->shape[i] = shape[i];
+		v->real_shape[i] = m->real_shape[i];
+	}
+	for(i=v->dim; i<MAX_DIM; i++)
+	{
+		v->shape[i] = 1;
+		v->real_shape[i] = 1;
+	}
+
+	return v;
 }
 
 void
@@ -118,7 +156,7 @@ mat_print(mat_t *m, char *title)
 	{
 		for(ix=0; ix<m->shape[X]; ix++)
 		{
-			fprintf(stderr, "%10.2e ", m->data[m->shape[X] * iy + ix]);
+			fprintf(stderr, "%10.2e ", MAT_XY(m, ix, iy));
 		}
 		fprintf(stderr, "\n");
 	}

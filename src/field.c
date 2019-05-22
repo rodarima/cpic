@@ -16,7 +16,10 @@ int
 field_init(sim_t *sim, field_t *f)
 {
 	int d, snx;
-	int fshape[MAX_DIM], rho_shape[MAX_DIM];
+	int fshape[MAX_DIM];
+	int rho_shape[MAX_DIM];
+	int phi_shape[MAX_DIM];
+	int E_shape[MAX_DIM];
 
 	f->shape[X] = sim->blocksize[X];
 	f->shape[Y] = sim->blocksize[Y];
@@ -42,15 +45,39 @@ field_init(sim_t *sim, field_t *f)
 	if(rho_shape[X] < snx)
 		rho_shape[X] = snx;
 
+	phi_shape[X] = rho_shape[X];
+	phi_shape[Y] = sim->blocksize[Y] + 2*PHI_NGHOST;
+	phi_shape[Z] = sim->blocksize[Z];
+
+	E_shape[X] = sim->blocksize[X];
+	E_shape[Y] = sim->blocksize[Y] + 2*E_NGHOST;
+	E_shape[Z] = sim->blocksize[Z];
+
 	/* Init all local fields */
 	f->rho = mat_alloc(sim->dim, rho_shape);
-	f->phi = mat_alloc(sim->dim, rho_shape);
+	f->_phi = mat_alloc(sim->dim, phi_shape);
+	f->phi = mat_view(f->_phi, 0, PHI_NGHOST, sim->blocksize);
 
-	MAT_FILL(f->phi, NAN);
+	phi_shape[Y] = PHI_NGHOST;
+	f->ghostphi[NORTH] = mat_view(f->_phi, 0, 0, phi_shape);
+	f->ghostphi[SOUTH] = mat_view(f->_phi,
+			0, sim->blocksize[Y] + PHI_NGHOST, sim->blocksize);
+
+	dbg("blocksize (%d %d %d)\n",
+			sim->blocksize[X], sim->blocksize[Y], sim->blocksize[Z]);
+	dbg("phi shape (%d %d %d), _phi shape (%d %d %d)\n",
+		f->phi->shape[X], f->phi->shape[Y], f->phi->shape[Z],
+		f->_phi->shape[X], f->_phi->shape[Y], f->_phi->shape[Z]);
+
+	MAT_FILL(f->_phi, NAN);
 	MAT_FILL(f->rho, NAN);
 
 	for(d=0; d<sim->dim; d++)
-		f->E[d] = mat_alloc(sim->dim, f->shape);
+	{
+		f->_E[d] = mat_alloc(sim->dim, E_shape);
+		f->E[d] = mat_view(f->_E[d], 0, E_NGHOST, sim->blocksize);
+		MAT_FILL(f->_E[d], NAN);
+	}
 
 	/* Also the frontier buffer */
 	fshape[X] = f->shape[X];
@@ -92,52 +119,46 @@ rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 
 	field = &sim->field;
 	rho = field->rho;
+
 	q = set->info->q;
 
-	if(sim->dim == 2)
+	for(p = set->particles; p; p = p->next)
 	{
-		for(p = set->particles; p; p = p->next)
-		{
-			/* Interpolate the charge density of the particle to the grid
-			 * of the block */
-			interpolate_weights_xy(p->x, sim->dx, field->x0, w, i0);
+		/* Interpolate the charge density of the particle to the grid
+		 * of the block */
+		interpolate_weights_xy(p->x, sim->dx, field->x0, w, i0);
 
-			dbg("Computed weights for particle %p are [%e %e %e %e]\n",
-					p, w[0][0], w[0][1], w[1][0], w[1][1]);
+		dbg("Computed weights for particle %p are [%e %e %e %e]\n",
+				p, w[0][0], w[0][1], w[1][0], w[1][1]);
 
-			i1[X] = i0[X] + 1;
-			i1[Y] = i0[Y] + 1;
+		i1[X] = i0[X] + 1;
+		i1[Y] = i0[Y] + 1;
 
-			dbg("p-%d at (%e %e) write area i0=(%d %d) i1=(%d %d)\n",
-					p->i, p->x[X], p->x[Y],
-					i0[X], i0[Y],
-					i1[X], i1[Y]);
+		dbg("p-%d at (%e %e) write area i0=(%d %d) i1=(%d %d)\n",
+				p->i, p->x[X], p->x[Y],
+				i0[X], i0[Y],
+				i1[X], i1[Y]);
 
-			/* Wrap only in the X direction: we assume a periodic
-			 * domain */
-			if(i1[X] == sim->blocksize[X])
-				i1[X] -= sim->blocksize[X];
+		/* Wrap only in the X direction: we assume a periodic
+		 * domain */
+		if(i1[X] == sim->blocksize[X])
+			i1[X] -= sim->blocksize[X];
 
-			assert(i1[X] < sim->blocksize[X]);
-			assert(i1[Y] < sim->ghostsize[Y]);
+		assert(i1[X] < sim->blocksize[X]);
+		assert(i1[Y] < sim->ghostsize[Y]);
 
-			assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
-			assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);
-			assert(i1[X] >= 0 && i1[X] <= sim->ghostsize[X]);
-			assert(i1[Y] >= 1 && i1[Y] <= sim->ghostsize[Y]);
-			/* We have the extra room in X for the solver */
-			assert(rho->shape[X] >= sim->ghostsize[X]);
-			assert(rho->shape[Y] == sim->ghostsize[Y]);
+		assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
+		assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);
+		assert(i1[X] >= 0 && i1[X] <= sim->ghostsize[X]);
+		assert(i1[Y] >= 1 && i1[Y] <= sim->ghostsize[Y]);
+		/* We have the extra room in X for the solver */
+		assert(rho->shape[X] >= sim->ghostsize[X]);
+		assert(rho->shape[Y] == sim->ghostsize[Y]);
 
-			MAT_XY(rho, i0[X], i0[Y]) += w[0][0] * q;
-			MAT_XY(rho, i0[X], i1[Y]) += w[0][1] * q;
-			MAT_XY(rho, i1[X], i0[Y]) += w[1][0] * q;
-			MAT_XY(rho, i1[X], i1[Y]) += w[1][1] * q;
-		}
-	}
-	else
-	{
-		abort();
+		MAT_XY(rho, i0[X], i0[Y]) += w[0][0] * q;
+		MAT_XY(rho, i0[X], i1[Y]) += w[0][1] * q;
+		MAT_XY(rho, i1[X], i0[Y]) += w[1][0] * q;
+		MAT_XY(rho, i1[X], i1[Y]) += w[1][1] * q;
 	}
 
 
@@ -454,71 +475,73 @@ field_rho_collect(sim_t *sim, specie_t *s)
 }
 #endif
 
-#if 0
 int
 field_E_compute(sim_t *sim)
 {
-	int ix, iy, x0, x1, y0, y1, nx, ny, ii;
+	int ix, iy, x0, x1, y0, y1, nx, ny;
+	int start[MAX_DIM], end[MAX_DIM];
 	double dx2, dy2;
 	field_t *f;
 
-	f = sim->field;
-
 	/* Now we compute the minus centered gradient of phi to get E */
 
-	f = sim->field;
+	f = &sim->field;
 	dx2 = 2 * sim->dx[X];
 	dy2 = 2 * sim->dx[Y];
 
-	nx = sim->nnodes[X];
-	ny = sim->nnodes[Y];
+	nx = sim->blocksize[X];
+	ny = sim->blocksize[Y];
+	start[X] = 0;
+	end[X] = nx;
+	start[Y] = -E_NGHOST;
+	end[Y] = ny + E_NGHOST;
 
-	sim->energy_electrostatic = 0.0;
+	dbg("dx[X]=%e, dx2=%e\n", sim->dx[X], dx2);
+	dbg("dx[Y]=%e, dy2=%e\n", sim->dx[Y], dy2);
 
-	for(iy=0; iy<ny; iy++)
+	//sim->energy_electrostatic = 0.0;
+
+	for(iy=start[Y]; iy<end[Y]; iy++)
 	{
-		y0 = (iy + ny - 1) % ny;
-		y1 = (iy + 1) % ny;
+		/* Notice that we exceed the shape of phi on purpose */
+		y0 = iy - 1;
+		y1 = iy + 1;
 
-		for(ix=0; ix<nx; ix++)
+		for(ix=start[X]; ix<end[X]; ix++)
 		{
+			/* TODO: We can remove this module operation by using a
+			 * if */
 			x0 = (ix + nx - 1) % nx;
 			x1 = (ix + 1) % nx;
 
-			ii = MAT_INDEX_XY(ix, iy, nx, ny);
+			MAT_XY(f->E[Y], ix, iy) =
+				(MAT_XY(f->phi, ix, y0) - MAT_XY(f->phi, ix, y1)) / dy2;
+			dbg("At E[Y] (%d %d) we look at phi(%d %d) - phi(%d %d) (%e)\n",
+				ix, iy, ix, y0, ix, y1, MAT_XY(f->E[Y], ix, iy));
 
-			switch(sim->dim)
-			{
-				case 2:
-					MAT_X(f->E[Y], ii) =
-						(MAT_XY(f->phi, ix, y0) - MAT_XY(f->phi, ix, y1))
-						/ dy2;
-					/* Falltrough */
-				case 1:
-					MAT_X(f->E[X], ii) =
-						(MAT_XY(f->phi, x0, iy) - MAT_XY(f->phi, x1, iy))
-						/ dx2;
-					break;
-				default:
-					abort();
-			}
+			MAT_XY(f->E[X], ix, iy) =
+				(MAT_XY(f->phi, x0, iy) - MAT_XY(f->phi, x1, iy)) / dx2;
+
+			dbg("At E[X] (%d %d) we look at phi(%d %d) - phi(%d %d) (%e)\n",
+				ix, iy, x0, iy, x1, iy, MAT_XY(f->E[X], ix, iy));
 
 			/* The electrostatic energy is computed from the charge
 			 * density and electric potential just updated */
 
-			sim->energy_electrostatic += MAT_X(f->rho, ii) *
-				MAT_X(f->phi, ii);
+			//sim->energy_electrostatic += MAT_X(f->rho, ii) *
+			//	MAT_X(f->phi, ii);
 
 		}
 	}
 
 	//sim->energy_electrostatic /= (sim->nnodes[X] * sim->nnodes[Y]);
+
+	// This is not needed...
 	//sim->energy_electrostatic *= 16 * 64;
-	sim->energy_electrostatic *= -1.0;
+	//sim->energy_electrostatic *= -1.0;
 
 	return 0;
 }
-#endif
 
 int
 field_phi_solve(sim_t *sim)
@@ -558,32 +581,27 @@ field_phi_solve(sim_t *sim)
 	return 0;
 }
 
-#if 0
-int
-block_field_E(sim_t *sim, block_t *b)
-{
-
-	//field_E_compute(sim);
-
-	/* Exit after 1 iterations to test the solver */
-	//mat_print(sim->field->phi, "phi");
-
-	return 0;
-}
-#endif
-
 int
 field_E(sim_t *sim)
 {
 	field_phi_solve(sim);
 
-#if 0
+	mat_print(sim->field._phi, "_phi before communication");
+
+	comm_phi_send(sim);
+	comm_phi_recv(sim);
+
+	mat_print(sim->field._phi, "_phi after communication");
+
 	perf_start(sim->perf, TIMER_FIELD_E);
 
-	block_field_E(sim, b);
+	/* TODO: We can parallelize this with ntasks = ncores */
+	field_E_compute(sim);
+
+	mat_print(sim->field._E[X], "_E[X]");
+	mat_print(sim->field._E[Y], "_E[Y]");
 
 	perf_stop(sim->perf, TIMER_FIELD_E);
-#endif
 
 
 	return 0;

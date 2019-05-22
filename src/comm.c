@@ -500,3 +500,81 @@ comm_recv_ghost_rho(sim_t *sim)
 
 	return 0;
 }
+
+int
+comm_mat_send(sim_t *sim, double *data, int size, int dst, int op, int dir)
+{
+	int tag;
+
+	tag = op << COMM_TAG_ITER_SIZE;
+	tag |= sim->iter & COMM_TAG_ITER_MASK;
+	tag <<= COMM_TAG_DIR_SIZE;
+	tag |= dir;
+
+	dbg("SEND mat size=%d rank=%d tag=%d op=%d\n", size, dst, tag, op);
+	MPI_Send(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD);
+
+	return 0;
+}
+
+int
+comm_mat_recv(sim_t *sim, double *data, int size, int dst, int op, int dir)
+{
+	int tag;
+
+	tag = op << COMM_TAG_ITER_SIZE;
+	tag |= sim->iter & COMM_TAG_ITER_MASK;
+	tag <<= COMM_TAG_DIR_SIZE;
+	tag |= dir;
+
+	dbg("RECV mat size=%d rank=%d tag=%d op=%d\n", size, dst, tag, op);
+	MPI_Recv(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+	return 0;
+}
+
+int
+comm_phi_send(sim_t *sim)
+{
+	int size, south, north, op;
+	double *data;
+	mat_t *phi;
+
+	phi = sim->field.phi;
+
+	north = (sim->rank + sim->nprocs - 1) % sim->nprocs;
+	south = (sim->rank + sim->nprocs + 1) % sim->nprocs;
+
+	size = sim->field._phi->shape[X] * PHI_NGHOST;
+	op = COMM_TAG_OP_PHI;
+
+	/* We also send the FFT padding, as otherwise we need to pack the
+	 * frontier ghosts */
+	data = &MAT_XY(phi, 0, 0);
+	comm_mat_send(sim, data, size, north, op, NORTH);
+	data = &MAT_XY(phi, 0, sim->blocksize[Y] - PHI_NGHOST);
+	comm_mat_send(sim, data, size, south, op, SOUTH);
+
+	return 0;
+}
+
+int
+comm_phi_recv(sim_t *sim)
+{
+	int size, south, north, op;
+	mat_t *gn, *gs;
+
+	gn = sim->field.ghostphi[NORTH];
+	gs = sim->field.ghostphi[SOUTH];
+
+	north = (sim->rank + sim->nprocs - 1) % sim->nprocs;
+	south = (sim->rank + sim->nprocs + 1) % sim->nprocs;
+
+	size = gn->shape[X] * PHI_NGHOST;
+	op = COMM_TAG_OP_PHI;
+
+	comm_mat_recv(sim, gs->data, size, south, op, NORTH);
+	comm_mat_recv(sim, gn->data, size, north, op, SOUTH);
+
+	return 0;
+}

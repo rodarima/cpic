@@ -2,6 +2,11 @@
 
 #define MAX_CHUNK_NEIGH 27
 
+/* We already store the 2 points in each side of the Y frontier, so we can
+ * compute E[0] and E[NY-1] directly in the same process */
+#define PHI_NGHOST 2
+#define E_NGHOST 1
+
 #include "mat.h"
 #include <libconfig.h>
 #include <pthread.h>
@@ -97,8 +102,8 @@ struct specie
 	config_setting_t *conf;
 };
 
-#pragma pack(push,1)
 
+#pragma pack(push,1)
 /* We need the network structures to be packed, as otherwise, ununused regions
  * are left uninitialized (also we reduce some space in the transmission) */
 
@@ -115,8 +120,13 @@ struct comm_packet
 	int neigh;
 	specie_packet_t s[];
 };
-
 #pragma pack(pop)
+
+enum {
+	NORTH = 0,
+	SOUTH,
+	MAX_DIR
+};
 
 struct field
 {
@@ -136,11 +146,20 @@ struct field
 	double x0[MAX_DIM];
 	double x1[MAX_DIM];
 
-	/* Electric field */
+	/* Electric field with ghosts*/
+	mat_t *_E[MAX_DIM];
+
+	/* Electric field without ghosts (view)*/
 	mat_t *E[MAX_DIM];
 
-	/* Electric potential */
+	/* Electric potential with ghosts */
+	mat_t *_phi;
+
+	/* Electric potential without ghosts (view)*/
 	mat_t *phi;
+
+	/* Electric potential ghosts (view)*/
+	mat_t *ghostphi[MAX_DIR];
 
 	/* Charge density */
 	mat_t *rho;
