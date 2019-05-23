@@ -539,21 +539,27 @@ comm_phi_send(sim_t *sim)
 	int size, south, north, op;
 	double *data;
 	mat_t *phi;
+	mat_t *gn, *gs;
 
 	phi = sim->field.phi;
+	gn = sim->field.ghostphi[NORTH];
+	gs = sim->field.ghostphi[SOUTH];
 
 	north = (sim->rank + sim->nprocs - 1) % sim->nprocs;
 	south = (sim->rank + sim->nprocs + 1) % sim->nprocs;
 
-	size = sim->field._phi->shape[X] * PHI_NGHOST;
 	op = COMM_TAG_OP_PHI;
 
 	/* We also send the FFT padding, as otherwise we need to pack the
-	 * frontier ghosts */
+	 * frontier ghosts. Notice that we swap the destination rank and the
+	 * tag used to indicate the reception direction.*/
 	data = &MAT_XY(phi, 0, 0);
-	comm_mat_send(sim, data, size, north, op, NORTH);
-	data = &MAT_XY(phi, 0, sim->blocksize[Y] - PHI_NGHOST);
-	comm_mat_send(sim, data, size, south, op, SOUTH);
+	size = gs->real_shape[X] * gs->shape[Y];
+	comm_mat_send(sim, data, size, north, op, SOUTH);
+
+	data = &MAT_XY(phi, 0, phi->shape[Y] - gn->shape[Y]);
+	size = gn->real_shape[X] * gn->shape[Y];
+	comm_mat_send(sim, data, size, south, op, NORTH);
 
 	return 0;
 }
@@ -570,11 +576,13 @@ comm_phi_recv(sim_t *sim)
 	north = (sim->rank + sim->nprocs - 1) % sim->nprocs;
 	south = (sim->rank + sim->nprocs + 1) % sim->nprocs;
 
-	size = gn->shape[X] * PHI_NGHOST;
 	op = COMM_TAG_OP_PHI;
 
-	comm_mat_recv(sim, gs->data, size, south, op, NORTH);
-	comm_mat_recv(sim, gn->data, size, north, op, SOUTH);
+	size = gs->real_shape[X] * gs->shape[Y];
+	comm_mat_recv(sim, gs->data, size, south, op, SOUTH);
+
+	size = gn->real_shape[X] * gn->shape[Y];
+	comm_mat_recv(sim, gn->data, size, north, op, NORTH);
 
 	return 0;
 }

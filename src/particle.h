@@ -18,13 +18,13 @@ wrap_particle_position(sim_t *sim, particle_t *p);
 int
 particle_comm(sim_t *sim);
 
+int
+particle_E(sim_t *sim);
+
+
+int
+particle_x(sim_t *sim);
 #if 0
-
-int
-particle_E(sim_t *sim, specie_t *s);
-
-int
-particle_x(sim_t *sim, specie_t *s);
 
 int
 particle_J(sim_t *sim, specie_t *s);

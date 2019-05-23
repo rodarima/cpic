@@ -235,37 +235,6 @@ init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 	return 0;
 }
 
-#if 0
-static int
-block_E_update(sim_t *sim, specie_t *s, block_t *b)
-{
-	particle_t *p;
-
-	if(sim->dim == 1)
-	{
-		for (p = b->species->particles; p; p = p->next)
-		{
-			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
-			interpolate_E_set_to_particle_x(sim, p, b);
-			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
-		}
-	}
-	else if(sim->dim == 2)
-	{
-		for (p = b->species->particles; p; p = p->next)
-		{
-			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
-			interpolate_E_set_to_particle_xy(sim, p, b);
-			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
-		}
-	}
-	else
-	{
-		abort();
-	}
-	return 0;
-}
-#endif
 
 static inline void
 cross_product(double *r, double *a, double *b)
@@ -321,94 +290,6 @@ boris_rotation(double q, double m, double *u, double *v, double *E, double *B, d
 
 }
 
-#if 0
-/* The speed u and position x of the particles are computed in a single phase */
-static int
-block_x_update(sim_t *sim, specie_t *s, block_t *b)
-{
-	particle_t *p;
-	double *E, *B, u[MAX_DIM], dx[MAX_DIM];
-#if 0
-	double uu, vv;
-#endif
-	double v[MAX_DIM] = {0};
-	double dt = sim->dt;
-	double q, m;
-
-	q = s->q;
-	m = s->m;
-	B = sim->B;
-
-	for (p = b->species->particles; p; p = p->next)
-	{
-		u[X] = p->u[X];
-		u[Y] = p->u[Y];
-		u[Z] = p->u[Z];
-		E = p->E;
-
-		if(sim->iter == 0)
-		{
-
-			/* TODO: Improve the rotation to avoid the if. Also set
-			 * the time sim->t properly. */
-
-			boris_rotation(q, m, u, v, E, B, -dt/2.0);
-			dbg("Backward move: At t=%e u=(%.3e,%.3e) to t=%e u=(%.3e,%.3e)\n",
-					sim->t, u[X], u[Y],
-					sim->t-dt/2.0, v[X], v[Y]);
-			p->u[X] = v[X];
-			p->u[Y] = v[Y];
-			continue;
-		}
-
-		boris_rotation(q, m, u, v, E, B, dt);
-
-		dbg("Particle %d at x=(%.3e,%.3e) increases speed by (%.3e,%.3e)\n",
-				p->i, p->x[X], p->x[Y], v[X] - u[X], v[X] - u[X]);
-
-		/* We advance the kinetic energy here, as we know the old
-		 * velocity at t - dt/2 and the new one at t + dt/2. So we take
-		 * the average, to estimate v(t) */
-
-
-#if 0
-		uu = sqrt(v[X]*v[X] + v[Y]*v[Y]);
-		vv = sqrt(u[X]*u[X] + u[Y]*u[Y]);
-
-		sim->energy_kinetic += 0.5 * (uu+vv) * (uu+vv);
-		sim->total_momentum[X] += v[X];
-		sim->total_momentum[Y] += v[Y];
-#endif
-
-		p->u[X] = v[X];
-		p->u[Y] = v[Y];
-
-		/* Notice we advance the position x by the new velocity just
-		 * computed, following the leapfrog integrator */
-
-		dx[X] = dt * v[X];
-		dx[Y] = dt * v[Y];
-
-		if(fabs(dx[X]) > sim->L[X] || fabs(dx[Y]) > sim->L[Y])
-		{
-			err("Particle %d at x=(%.3e,%.3e) has exceeded L with dx=(%.3e,%.3e)\n",
-					p->i, p->x[X], p->x[Y], dx[X], dx[Y]);
-			err("Please, reduce dt=%.3e or increase L\n",
-					sim->dt);
-			exit(1);
-		}
-
-		p->x[X] += dx[X];
-		p->x[Y] += dx[Y];
-
-		/* Wrapping is done after the particle is moved to the right
-		 * block */
-
-	}
-
-	return 0;
-}
-#endif
 
 int
 move_particle_to_block(block_t *from, block_t *to, particle_t *p)
@@ -620,33 +501,91 @@ block_comm(sim_t *sim, specie_t *s, block_t *b)
 	return 1;
 }
 #endif
+#if 0
+static int
+block_E_update(sim_t *sim, specie_t *s, block_t *b)
+{
+	particle_t *p;
+
+	if(sim->dim == 1)
+	{
+		for (p = b->species->particles; p; p = p->next)
+		{
+			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+			interpolate_E_set_to_particle_x(sim, p, b);
+			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+		}
+	}
+	else if(sim->dim == 2)
+	{
+		for (p = b->species->particles; p; p = p->next)
+		{
+			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+			interpolate_E_set_to_particle_xy(sim, p, b);
+			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
+		}
+	}
+	else
+	{
+		abort();
+	}
+	return 0;
+}
+#endif
 
 int
-particle_E(sim_t *sim, specie_t *s)
+particle_set_E(sim_t *sim, plasma_chunk_t *chunk, int i)
 {
-#if 0
-	int ix, iy;
-	block_t *b;
+	field_t *f;
+	particle_set_t *set;
+	particle_t *p;
+
+	f = &sim->field;
+	set = &chunk->species[i];
+
+	for(p=set->particles; p; p=p->next)
+	{
+		p->E[X] = 0.0;
+		p->E[Y] = 0.0;
+		dbg("p-%d old E=(%f %f)\n", p->i, p->E[X], p->E[Y]);
+		interpolate_field_to_particle_xy(sim, p, &p->E[X], f->E[X]);
+		interpolate_field_to_particle_xy(sim, p, &p->E[Y], f->E[Y]);
+		dbg("p-%d new E=(%f %f)\n", p->i, p->E[X], p->E[Y]);
+	}
+	return 0;
+}
+
+int
+chunk_E(sim_t *sim, int i)
+{
+	plasma_chunk_t *chunk;
+
+	chunk = &sim->plasma.chunks[i];
+
+	for(i=0; i<chunk->nspecies; i++)
+	{
+		particle_set_E(sim, chunk, i);
+	}
+
+	return 0;
+}
+
+int
+particle_E(sim_t *sim)
+{
+	int i;
 
 	perf_start(sim->perf, TIMER_PARTICLE_E);
 
 	/* Computation */
-	for(iy=0; iy<sim->nblocks[Y]; iy++)
+	for(i=0; i<sim->plasma.nchunks; i++)
 	{
-		for(ix=0; i<sim->nblocks[X]; ix++)
-		{
-
-			b = &(sim->blocks[i]);
-
-			//#pragma oss task inout(*b) label(particle_block_E_update)
-			block_E_update(sim, s, b);
-		}
+		chunk_E(sim, i);
 	}
 
-	/* No communication required, as only p->E[0] is updated */
+	/* No communication required, as only p->E is updated */
 
 	perf_stop(sim->perf, TIMER_PARTICLE_E);
-#endif
 
 	return 0;
 }
@@ -670,8 +609,113 @@ particle_comm(sim_t *sim)
 	return 0;
 }
 
+#if 0
+/* The speed u and position x of the particles are computed in a single phase */
+static int
+block_x_update(sim_t *sim, specie_t *s, block_t *b)
+{
+	particle_t *p;
+	double *E, *B, u[MAX_DIM], dx[MAX_DIM];
+#if 0
+	double uu, vv;
+#endif
+	double v[MAX_DIM] = {0};
+	double dt = sim->dt;
+	double q, m;
+
+	q = s->q;
+	m = s->m;
+	B = sim->B;
+
+	for (p = b->species->particles; p; p = p->next)
+	{
+		u[X] = p->u[X];
+		u[Y] = p->u[Y];
+		u[Z] = p->u[Z];
+		E = p->E;
+
+		if(sim->iter == 0)
+		{
+
+			/* TODO: Improve the rotation to avoid the if. Also set
+			 * the time sim->t properly. */
+
+			boris_rotation(q, m, u, v, E, B, -dt/2.0);
+			dbg("Backward move: At t=%e u=(%.3e,%.3e) to t=%e u=(%.3e,%.3e)\n",
+					sim->t, u[X], u[Y],
+					sim->t-dt/2.0, v[X], v[Y]);
+			p->u[X] = v[X];
+			p->u[Y] = v[Y];
+			continue;
+		}
+
+		boris_rotation(q, m, u, v, E, B, dt);
+
+		dbg("Particle %d at x=(%.3e,%.3e) increases speed by (%.3e,%.3e)\n",
+				p->i, p->x[X], p->x[Y], v[X] - u[X], v[X] - u[X]);
+
+		/* We advance the kinetic energy here, as we know the old
+		 * velocity at t - dt/2 and the new one at t + dt/2. So we take
+		 * the average, to estimate v(t) */
+
+
+#if 0
+		uu = sqrt(v[X]*v[X] + v[Y]*v[Y]);
+		vv = sqrt(u[X]*u[X] + u[Y]*u[Y]);
+
+		sim->energy_kinetic += 0.5 * (uu+vv) * (uu+vv);
+		sim->total_momentum[X] += v[X];
+		sim->total_momentum[Y] += v[Y];
+#endif
+
+		p->u[X] = v[X];
+		p->u[Y] = v[Y];
+
+		/* Notice we advance the position x by the new velocity just
+		 * computed, following the leapfrog integrator */
+
+		dx[X] = dt * v[X];
+		dx[Y] = dt * v[Y];
+
+		if(fabs(dx[X]) > sim->L[X] || fabs(dx[Y]) > sim->L[Y])
+		{
+			err("Particle %d at x=(%.3e,%.3e) has exceeded L with dx=(%.3e,%.3e)\n",
+					p->i, p->x[X], p->x[Y], dx[X], dx[Y]);
+			err("Please, reduce dt=%.3e or increase L\n",
+					sim->dt);
+			exit(1);
+		}
+
+		p->x[X] += dx[X];
+		p->x[Y] += dx[Y];
+
+		/* Wrapping is done after the particle is moved to the right
+		 * block */
+
+	}
+
+	return 0;
+}
+#endif
+#if 0
 int
-particle_x(sim_t *sim, specie_t *s)
+chunk_x(sim_t *sim, int i)
+{
+	plasma_chunk_t *chunk;
+
+	chunk = &sim->plasma.chunks[i];
+
+	for(i=0; i<chunk->nspecies; i++)
+	{
+		particle_set_E(sim, chunk, i);
+	}
+
+	return 0;
+}
+#endif
+
+int
+particle_x(sim_t *sim)
 {
 #if 0
 	int i;
@@ -680,16 +724,15 @@ particle_x(sim_t *sim, specie_t *s)
 	perf_start(sim->perf, TIMER_PARTICLE_X);
 
 	/* Computation */
-	for (i = 0; i < sim->ntblocks[X]*sim->ntblocks[Y]; i++)
+	for(i=0; i<sim->plasma.nchunks; i++)
 	{
-		b = &(sim->blocks[i]);
-
-		block_x_update(sim, s, b);
+		chunk_x(sim, i);
 	}
 
 	particle_comm(sim);
 
 	perf_stop(sim->perf, TIMER_PARTICLE_X);
 #endif
+
 	return 0;
 }

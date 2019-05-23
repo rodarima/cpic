@@ -26,17 +26,20 @@ mat_alloc(int dim, int *shape)
 		m->shape[i] = shape[i];
 		m->real_shape[i] = shape[i];
 		size *= shape[i];
+		m->delta[i] = 0;
 	}
 	for(i=dim; i<MAX_DIM; i++)
 	{
 		m->shape[i] = 1;
 		m->real_shape[i] = 1;
+		m->delta[i] = 0;
 	}
 
 
 	m->size = size;
 
 	m->data = malloc(sizeof(double) * size);
+	m->real_data = m->data;
 
 	return m;
 }
@@ -80,10 +83,14 @@ mat_view(mat_t *m, int dx, int dy, int *shape)
 
 	v->dim = m->dim;
 	v->data = &m->data[offset];
+	v->real_data = m->data;
 	v->size = -1;
 
 	dbg("view dx=%d dy=%d offset=%d\n", dx, dy, offset);
 	dbg("mat at %p, view at %p\n", m->data, v->data);
+
+	v->delta[X] = m->delta[X] + dx;
+	v->delta[Y] = m->delta[Y] + dy;
 
 	for(i=0; i<v->dim; i++)
 	{
@@ -94,6 +101,7 @@ mat_view(mat_t *m, int dx, int dy, int *shape)
 	{
 		v->shape[i] = 1;
 		v->real_shape[i] = 1;
+		v->delta[i] = m->delta[i];
 	}
 
 	return v;
@@ -141,7 +149,7 @@ vec_print(mat_t *m, char *title)
 }
 
 int
-mat_print(mat_t *m, char *title)
+mat_print_(mat_t *m, char *title)
 {
 	int ix, iy;
 
@@ -157,6 +165,53 @@ mat_print(mat_t *m, char *title)
 		for(ix=0; ix<m->shape[X]; ix++)
 		{
 			fprintf(stderr, "%10.2e ", MAT_XY(m, ix, iy));
+		}
+		fprintf(stderr, "\n");
+	}
+
+	return 0;
+}
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+int
+mat_print(mat_t *m, char *title)
+{
+	int ix, iy, in;
+
+	if(m->dim == 1)
+		return vec_print(m, title);
+
+	if(m->dim > 2)
+		return -1;
+
+	if(title) dbg("Matrix %s:\n", title);
+
+	for(iy=0; iy<m->real_shape[Y]; iy++)
+	{
+		fprintf(stderr, ANSI_COLOR_RESET);
+
+		if(iy >= m->delta[Y] && iy < m->delta[Y] + m->shape[Y])
+			in = 1;
+		else
+			in = 0;
+
+		if(!in)
+			fprintf(stderr, ANSI_COLOR_RED);
+
+		for(ix=0; ix<m->real_shape[X]; ix++)
+		{
+			if(in && (ix < m->delta[X] || ix >= m->delta[X] + m->shape[X]))
+				in = 0;
+
+			if(!in)
+				fprintf(stderr, ANSI_COLOR_RED);
+
+			fprintf(stderr, "%10.2e ", MAT_XY_(m, ix, iy));
 		}
 		fprintf(stderr, "\n");
 	}

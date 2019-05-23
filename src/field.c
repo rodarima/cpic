@@ -46,22 +46,33 @@ field_init(sim_t *sim, field_t *f)
 		rho_shape[X] = snx;
 
 	phi_shape[X] = rho_shape[X];
-	phi_shape[Y] = sim->blocksize[Y] + 2*PHI_NGHOST;
+	phi_shape[Y] = sim->blocksize[Y] + PHI_NG_NORTH + PHI_NG_SOUTH;
 	phi_shape[Z] = sim->blocksize[Z];
 
-	E_shape[X] = sim->blocksize[X];
-	E_shape[Y] = sim->blocksize[Y] + 2*E_NGHOST;
-	E_shape[Z] = sim->blocksize[Z];
-
 	/* Init all local fields */
-	f->rho = mat_alloc(sim->dim, rho_shape);
-	f->_phi = mat_alloc(sim->dim, phi_shape);
-	f->phi = mat_view(f->_phi, 0, PHI_NGHOST, sim->blocksize);
 
-	phi_shape[Y] = PHI_NGHOST;
-	f->ghostphi[NORTH] = mat_view(f->_phi, 0, 0, phi_shape);
+	/* RHO field */
+
+	f->rho = mat_alloc(sim->dim, rho_shape);
+	MAT_FILL(f->rho, NAN);
+
+	/* PHI field */
+
+	f->_phi = mat_alloc(sim->dim, phi_shape);
+
+	phi_shape[X] = sim->blocksize[X];
+	phi_shape[Y] = sim->blocksize[Y];
+	phi_shape[Z] = sim->blocksize[Z];
+
+	f->phi = mat_view(f->_phi, 0, PHI_NG_NORTH, phi_shape);
+
+	phi_shape[Y] = PHI_NG_NORTH;
+	f->ghostphi[NORTH] = mat_view(f->_phi,
+			0, 0, phi_shape);
+
+	phi_shape[Y] = PHI_NG_SOUTH;
 	f->ghostphi[SOUTH] = mat_view(f->_phi,
-			0, sim->blocksize[Y] + PHI_NGHOST, sim->blocksize);
+			0, f->phi->shape[Y] + PHI_NG_NORTH, phi_shape);
 
 	dbg("blocksize (%d %d %d)\n",
 			sim->blocksize[X], sim->blocksize[Y], sim->blocksize[Z]);
@@ -70,12 +81,17 @@ field_init(sim_t *sim, field_t *f)
 		f->_phi->shape[X], f->_phi->shape[Y], f->_phi->shape[Z]);
 
 	MAT_FILL(f->_phi, NAN);
-	MAT_FILL(f->rho, NAN);
+
+	/* E vector field */
+
+	E_shape[X] = sim->blocksize[X];
+	E_shape[Y] = sim->blocksize[Y] + E_NG_NORTH + E_NG_SOUTH;
+	E_shape[Z] = sim->blocksize[Z];
 
 	for(d=0; d<sim->dim; d++)
 	{
 		f->_E[d] = mat_alloc(sim->dim, E_shape);
-		f->E[d] = mat_view(f->_E[d], 0, E_NGHOST, sim->blocksize);
+		f->E[d] = mat_view(f->_E[d], 0, E_NG_NORTH, sim->blocksize);
 		MAT_FILL(f->_E[d], NAN);
 	}
 
@@ -493,11 +509,8 @@ field_E_compute(sim_t *sim)
 	ny = sim->blocksize[Y];
 	start[X] = 0;
 	end[X] = nx;
-	start[Y] = -E_NGHOST;
-	end[Y] = ny + E_NGHOST;
-
-	dbg("dx[X]=%e, dx2=%e\n", sim->dx[X], dx2);
-	dbg("dx[Y]=%e, dy2=%e\n", sim->dx[Y], dy2);
+	start[Y] = -E_NG_NORTH;
+	end[Y] = ny + E_NG_SOUTH;
 
 	//sim->energy_electrostatic = 0.0;
 
@@ -516,14 +529,9 @@ field_E_compute(sim_t *sim)
 
 			MAT_XY(f->E[Y], ix, iy) =
 				(MAT_XY(f->phi, ix, y0) - MAT_XY(f->phi, ix, y1)) / dy2;
-			dbg("At E[Y] (%d %d) we look at phi(%d %d) - phi(%d %d) (%e)\n",
-				ix, iy, ix, y0, ix, y1, MAT_XY(f->E[Y], ix, iy));
 
 			MAT_XY(f->E[X], ix, iy) =
 				(MAT_XY(f->phi, x0, iy) - MAT_XY(f->phi, x1, iy)) / dx2;
-
-			dbg("At E[X] (%d %d) we look at phi(%d %d) - phi(%d %d) (%e)\n",
-				ix, iy, x0, iy, x1, iy, MAT_XY(f->E[X], ix, iy));
 
 			/* The electrostatic energy is computed from the charge
 			 * density and electric potential just updated */
@@ -586,20 +594,20 @@ field_E(sim_t *sim)
 {
 	field_phi_solve(sim);
 
-	mat_print(sim->field._phi, "_phi before communication");
+	mat_print(sim->field.phi, "phi before communication");
 
 	comm_phi_send(sim);
 	comm_phi_recv(sim);
 
-	mat_print(sim->field._phi, "_phi after communication");
+	mat_print(sim->field.phi, "phi after communication");
 
 	perf_start(sim->perf, TIMER_FIELD_E);
 
 	/* TODO: We can parallelize this with ntasks = ncores */
 	field_E_compute(sim);
 
-	mat_print(sim->field._E[X], "_E[X]");
-	mat_print(sim->field._E[Y], "_E[Y]");
+	mat_print(sim->field.E[X], "E[X]");
+	mat_print(sim->field.E[Y], "E[Y]");
 
 	perf_stop(sim->perf, TIMER_FIELD_E);
 

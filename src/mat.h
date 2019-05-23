@@ -24,7 +24,9 @@ enum dim {
 
 typedef struct
 {
+	double *real_data;
 	double *data;
+	int delta[MAX_DIM];
 	int shape[MAX_DIM];
 	int real_shape[MAX_DIM];
 	int dim;
@@ -53,6 +55,9 @@ do {							\
 
 #define MAT_XY(m, x, y)					\
 		((m)->data[(y)*(m)->real_shape[X] + (x)])
+
+#define MAT_XY_(m, x, y)					\
+		((m)->real_data[(y)*(m)->real_shape[X] + (x)])
 
 #define MAT_XYZ(m, x, y, z)				\
 		((m)->data[(z)*(m)->real_shape[Y]*(m)->real_shape[X] + 	\
@@ -96,6 +101,9 @@ vec_print(mat_t *m, char *title);
 
 int
 mat_print(mat_t *m, char *title);
+
+int
+mat_print_(mat_t *m, char *title);
 
 int
 mat_print_raw(double *A, int rows, int cols, char *title);

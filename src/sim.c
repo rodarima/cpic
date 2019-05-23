@@ -400,11 +400,27 @@ sim_step(sim_t *sim)
 	if(sim->iter >= sim->cycles)
 		return -1;
 
+	dbg("iter %d\n", sim->iter);
+
 	/* Phase CP:FS. Field solver, calculation of the electric field
 	 * from the current */
 
-	/* Line 6: Update E on the grid, eq 5 */
+	/* Line 6: Update E on the grid from rho */
 	field_E(sim);
+
+	/* Phase IP:FI. Field interpolation, projection of the electric
+	 * field from the grid nodes to the particle positions. */
+
+	/* Line 7: Interpolate E on each particle */
+	particle_E(sim);
+
+	/* Phase CP:PM. Particle mover, updating of the velocity and the
+	 * position of the particles from the values of the projected
+	 * electric field. */
+
+	/* Line 8: Update the speed on each particle, eq 6 */
+	/* Line 9: Update the position on each particle, eq 7 */
+	particle_x(sim);
 
 	usleep(50);
 #if 0
@@ -413,19 +429,6 @@ sim_step(sim_t *sim)
 	for(j = 0; j < sim->nspecies; j++)
 	{
 		s = &sim->species[j];
-		/* Phase IP:FI. Field interpolation, projection of the electric
-		 * field from the grid nodes to the particle positions. */
-
-		/* Line 7: Interpolate E on each particle, eq 8 */
-		particle_E(sim, s);
-
-		/* Phase CP:PM. Particle mover, updating of the velocity and the
-		 * position of the particles from the values of the projected
-		 * electric field. */
-
-		/* Line 8: Update the speed on each particle, eq 6 */
-		/* Line 9: Update the position on each particle, eq 7 */
-		particle_x(sim, s);
 
 		/* Phase IP:MG. Moment gathering, assembling of the electric
 		 * current from the values of the particle positions and

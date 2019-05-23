@@ -4,8 +4,10 @@
 
 /* We already store the 2 points in each side of the Y frontier, so we can
  * compute E[0] and E[NY-1] directly in the same process */
-#define PHI_NGHOST 2
-#define E_NGHOST 1
+#define PHI_NG_NORTH 1
+#define PHI_NG_SOUTH 2
+#define E_NG_NORTH 0
+#define E_NG_SOUTH 1
 
 #include "mat.h"
 #include <libconfig.h>

@@ -210,34 +210,43 @@ interpolate_add_to_grid_x(sim_t *sim, particle_t *p, block_t *b,
 }
 
 
+#endif
 void
-interpolate_add_to_particle_xy(sim_t *sim, particle_t *p, block_t *b,
-		double *val, mat_t *field)
+interpolate_field_to_particle_xy(sim_t *sim, particle_t *p, double *val, mat_t *mat)
 {
 	double w[2][2];
 	int i0[2], i1[2];
 
-	interpolate_weights_xy(p->x, sim->dx, b->x0, w, i0);
+	interpolate_weights_xy(p->x, sim->dx, sim->field.x0, w, i0);
 
-	/* No handling occurs here, as each block has one extra element of
-	 * the neighbour in each dimension, to avoid communication. */
+	/* We only need to wrap the X direction, as we have the ghost in the Y */
 
 	i1[X] = i0[X] + 1;
 	i1[Y] = i0[Y] + 1;
 
+	/* Wrap only in the X direction: we assume a periodic
+	 * domain */
+	if(i1[X] >= sim->blocksize[X])
+		i1[X] -= sim->blocksize[X];
+
+	assert(i1[X] < sim->blocksize[X]);
+	assert(i1[Y] < sim->ghostsize[Y]);
+
 	assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
 	assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);
-	assert(i1[X] >= 1 && i1[X] <= sim->ghostsize[X]);
+	assert(i1[X] >= 0 && i1[X] <= sim->ghostsize[X]);
 	assert(i1[Y] >= 1 && i1[Y] <= sim->ghostsize[Y]);
 
-	/* Notice that we only ADD to the existing values of the grid */
+	assert(mat->shape[X] == sim->blocksize[X]);
+	assert(mat->shape[Y] == sim->blocksize[Y]);
 
-	*val += w[0][0] * MAT_XY(field,i0[X],i0[Y]);
-	*val += w[0][1] * MAT_XY(field,i0[X],i1[Y]);
-	*val += w[1][0] * MAT_XY(field,i1[X],i0[Y]);
-	*val += w[1][1] * MAT_XY(field,i1[X],i1[Y]);
+	*val  = w[0][0] * MAT_XY(mat, i0[X], i0[Y]);
+	*val += w[0][1] * MAT_XY(mat, i0[X], i1[Y]);
+	*val += w[1][0] * MAT_XY(mat, i1[X], i0[Y]);
+	*val += w[1][1] * MAT_XY(mat, i1[X], i1[Y]);
 
 }
+#if 0
 
 void
 interpolate_add_to_particle_x(sim_t *sim, particle_t *p, block_t *b,
