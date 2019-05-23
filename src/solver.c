@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <math.h>
 #include "mat.h"
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include <gsl/gsl_linalg.h>
 #include <assert.h>

@@ -7,7 +7,7 @@
 #include "comm.h"
 #include "plasma.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 int

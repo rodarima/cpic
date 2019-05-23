@@ -3,7 +3,7 @@
 
 #define PLOT 0
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "specie.h"
 #include "particle.h"
@@ -502,7 +502,7 @@ sim_run(sim_t *sim)
 
 	perf_stop(sim->perf, TIMER_TOTAL);
 
-	sim_stats(sim);
+	//sim_stats(sim);
 
 	return 0;
 }

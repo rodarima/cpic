@@ -97,16 +97,30 @@ mat_t *
 vec_init(int size, double v);
 
 int
-vec_print(mat_t *m, char *title);
+_vec_print(mat_t *m, char *title);
 
 int
-mat_print(mat_t *m, char *title);
+_mat_print(mat_t *m, char *title);
 
 int
-mat_print_(mat_t *m, char *title);
+_mat_print_(mat_t *m, char *title);
 
 int
-mat_print_raw(double *A, int rows, int cols, char *title);
+_mat_print_raw(double *A, int rows, int cols, char *title);
 
 int
-cmat_print_raw(complex *A, int rows, int cols, char *title);
+_cmat_print_raw(complex *A, int rows, int cols, char *title);
+
+#ifndef DEBUG
+ #define vec_print(...)
+ #define mat_print(...)
+ #define mat_print_(...)
+ #define mat_print_raw(...)
+ #define cmat_print_raw(...)
+#else
+ #define vec_print(...) _vec_print(__VA_ARGS__)
+ #define mat_print(...) _mat_print(__VA_ARGS__)
+ #define mat_print_(...) _mat_print_(__VA_ARGS__)
+ #define mat_print_raw(...) _mat_print_raw_(__VA_ARGS__)
+ #define cmat_print_raw(...) _cmat_print_raw_(__VA_ARGS__)
+#endif

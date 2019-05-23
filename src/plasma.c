@@ -1,7 +1,7 @@
 #include "plasma.h"
 
 #include "particle.h"
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include <utlist.h>
 
@@ -233,8 +233,6 @@ plasma_init(sim_t *sim, plasma_t *plasma)
 	int i, nchunks;
 
 	nchunks = sim->plasma_chunks;
-
-	err("nchunks = %d\n", nchunks);
 
 	plasma->chunks = malloc(nchunks * sizeof(plasma_chunk_t));
 	plasma->nchunks = nchunks;

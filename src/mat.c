@@ -5,7 +5,7 @@
 #include <complex.h>
 #include <assert.h>
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 mat_t *
@@ -132,7 +132,7 @@ vec_init(int size, double v)
 }
 
 int
-vec_print(mat_t *m, char *title)
+_vec_print(mat_t *m, char *title)
 {
 	int i;
 
@@ -149,12 +149,12 @@ vec_print(mat_t *m, char *title)
 }
 
 int
-mat_print_(mat_t *m, char *title)
+_mat_print_(mat_t *m, char *title)
 {
 	int ix, iy;
 
 	if(m->dim == 1)
-		return vec_print(m, title);
+		return _vec_print(m, title);
 
 	if(m->dim > 2)
 		return -1;
@@ -179,12 +179,12 @@ mat_print_(mat_t *m, char *title)
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 int
-mat_print(mat_t *m, char *title)
+_mat_print(mat_t *m, char *title)
 {
 	int ix, iy, in;
 
 	if(m->dim == 1)
-		return vec_print(m, title);
+		return _vec_print(m, title);
 
 	if(m->dim > 2)
 		return -1;
@@ -220,7 +220,7 @@ mat_print(mat_t *m, char *title)
 }
 
 int
-mat_print_raw(double *A, int rows, int cols, char *title)
+_mat_print_raw(double *A, int rows, int cols, char *title)
 {
 	int i, j;
 
@@ -238,7 +238,7 @@ mat_print_raw(double *A, int rows, int cols, char *title)
 }
 
 int
-cmat_print_raw(complex *A, int nx, int ny, char *title)
+_cmat_print_raw(complex *A, int nx, int ny, char *title)
 {
 	int ix, iy;
 
