@@ -4,7 +4,7 @@
 #include "interpolate.h"
 #include "comm.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include <math.h>
 #include <assert.h>

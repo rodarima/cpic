@@ -1,9 +1,10 @@
+#define DEBUG 1
+#include "log.h"
+#include "mat.h"
+
 #include "solver.h"
 #include <stdio.h>
 #include <math.h>
-#include "mat.h"
-#define DEBUG 0
-#include "log.h"
 #include <gsl/gsl_linalg.h>
 #include <assert.h>
 #include <string.h>
@@ -151,6 +152,8 @@ MFT_init(sim_t *sim, solver_t *s)
 	int shape[MAX_DIM] = {1,1,1};
 	int start[MAX_DIM] = {0};
 	int end[MAX_DIM] = {0};
+	ptrdiff_t local_size;
+	ptrdiff_t local_n0, local_n0_start;
 	double cx, cy;
 	mat_t *G;
 	fftw_complex *g;
@@ -177,7 +180,12 @@ MFT_init(sim_t *sim, solver_t *s)
 
 	G = mat_alloc(s->dim, shape);
 
-	g = fftw_malloc(sizeof(fftw_complex) * shape[X] * shape[Y]);
+	local_size = fftw_mpi_local_size_2d(s->ny, s->nx/2+1, MPI_COMM_WORLD,
+			&local_n0, &local_n0_start);
+
+	assert(sim->field.shape[Y] < local_size);
+
+	g = fftw_malloc(sizeof(fftw_complex) * shape[X] * local_size);
 
 	cx = 2.0 * M_PI / nx;
 	cy = 2.0 * M_PI / ny;
@@ -260,6 +268,7 @@ solver_rho_nx(sim_t *sim)
 	int nx, ny;
 	ptrdiff_t local_size, rho_size;
 	ptrdiff_t local_n0, local_n0_start;
+	int comp_nx;
 
 	nx = sim->ntpoints[X];
 	ny = sim->ntpoints[Y];
@@ -274,8 +283,22 @@ solver_rho_nx(sim_t *sim)
 
 	assert((rho_size % sim->blocksize[Y]) == 0);
 
+	comp_nx = rho_size / sim->blocksize[Y];
+	//comp_ny = sim->blocksize[Y];
+
+	// USE ALWAYS THE FFTW PROVIDED SIZE!
+	//dbg("comp_nx = %d, estimated = %d\n",
+	//		comp_nx,
+	//		2 * (sim->blocksize[X]/2 + 1));
+	//assert(comp_nx == 2 * (sim->blocksize[X]/2 + 1));
+
+	//if(comp_nx > *rnx) *rnx = comp_nx;
+	//if(comp_ny > *rny) *rny = comp_ny;
+
 	//return rho_size / sim->blocksize[Y];
-	return 2 * (sim->blocksize[X]/2 + 1);
+	//return 2 * (sim->blocksize[X]/2 + 1);
+
+	return comp_nx;
 
 }
 
@@ -308,7 +331,7 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	dbg("Rho needed size is %ld, allocated %d\n", rho_size, b->size);
 
 	/* Ensure we have extra room to store the extra data FFTW needs */
-	//assert(b->size >= rho_size);
+	assert(b->size >= rho_size);
 
 	/* Beware: The output of the FFT has a very special symmetry, with an
 	 * output size of ny x nx/2+1. */
@@ -329,11 +352,11 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 
 	fftw_execute(direct);
 
-	cmat_print_raw(g, G->shape[X], G->shape[Y], "g before kernel");
+	//cmat_print_raw(g, G->shape[X], G->shape[Y], "g before kernel");
 
 	MFT_kernel(s);
 
-	cmat_print_raw(g, G->shape[X], G->shape[Y], "g after kernel");
+	//cmat_print_raw(g, G->shape[X], G->shape[Y], "g after kernel");
 
 	inverse = fftw_mpi_plan_dft_c2r_2d(s->ny, s->nx,
 			g, x->data, MPI_COMM_WORLD,

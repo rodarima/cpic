@@ -1,3 +1,5 @@
+#define DEBUG 1
+#include "log.h"
 #include "mat.h"
 
 #include <stdlib.h>
@@ -5,8 +7,6 @@
 #include <complex.h>
 #include <assert.h>
 
-#define DEBUG 0
-#include "log.h"
 
 mat_t *
 mat_alloc(int dim, int *shape)
@@ -182,6 +182,10 @@ int
 _mat_print(mat_t *m, char *title)
 {
 	int ix, iy, in;
+	int mx, my;
+	char *long_ending = "...";
+	char *xending = NULL;
+	char *yending = NULL;
 
 	if(m->dim == 1)
 		return _vec_print(m, title);
@@ -191,7 +195,21 @@ _mat_print(mat_t *m, char *title)
 
 	if(title) dbg("Matrix %s:\n", title);
 
-	for(iy=0; iy<m->real_shape[Y]; iy++)
+	mx = m->real_shape[X];
+	my = m->real_shape[Y];
+
+	if(my > 10)
+	{
+		yending = long_ending;
+		my = 10;
+	}
+	if(mx > 10)
+	{
+		xending = long_ending;
+		mx = 10;
+	}
+
+	for(iy=0; iy<my; iy++)
 	{
 		fprintf(stderr, ANSI_COLOR_RESET);
 
@@ -203,7 +221,7 @@ _mat_print(mat_t *m, char *title)
 		if(!in)
 			fprintf(stderr, ANSI_COLOR_RED);
 
-		for(ix=0; ix<m->real_shape[X]; ix++)
+		for(ix=0; ix<mx; ix++)
 		{
 			if(in && (ix < m->delta[X] || ix >= m->delta[X] + m->shape[X]))
 				in = 0;
@@ -213,8 +231,13 @@ _mat_print(mat_t *m, char *title)
 
 			fprintf(stderr, "%10.2e ", MAT_XY_(m, ix, iy));
 		}
-		fprintf(stderr, "\n");
+		if(xending)
+			fprintf(stderr, "...\n");
+		else
+			fprintf(stderr, "\n");
 	}
+	if(yending)
+		fprintf(stderr, "...\n");
 
 	return 0;
 }

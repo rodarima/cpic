@@ -163,6 +163,9 @@ struct field
 	/* Electric potential ghosts (view)*/
 	mat_t *ghostphi[MAX_DIR];
 
+	MPI_Request *req_phi;
+	MPI_Request *req_rho;
+
 	/* Charge density */
 	mat_t *rho;
 

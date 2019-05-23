@@ -7,7 +7,7 @@
 #include "comm.h"
 #include "plasma.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 int
@@ -184,7 +184,7 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 
 	if(pkt)
 	{
-		//MPI_Wait(&chunk->req[neigh], MPI_STATUS_IGNORE);
+		MPI_Wait(&chunk->req[neigh], MPI_STATUS_IGNORE);
 		free(pkt);
 	}
 
@@ -236,8 +236,8 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 			size, np, drank, tag);
 
 	/* Now the packet is ready to be sent */
-	//MPI_Isend(pkt, size, MPI_BYTE, drank, tag, MPI_COMM_WORLD, &chunk->req[neigh]);
-	MPI_Send(pkt, size, MPI_BYTE, drank, tag, MPI_COMM_WORLD);
+	MPI_Isend(pkt, size, MPI_BYTE, drank, tag, MPI_COMM_WORLD, &chunk->req[neigh]);
+	//MPI_Send(pkt, size, MPI_BYTE, drank, tag, MPI_COMM_WORLD);
 
 	dbg("SENT size=%lu rank=%d neigh=%d tag=%d\n",
 			size, drank, neigh, tag);
@@ -421,88 +421,7 @@ comm_plasma_chunk(sim_t *sim, int i)
 }
 
 int
-comm_send_ghost_rho(sim_t *sim)
-{
-	int neigh, tag, size;
-	double *ptr;
-	mat_t *rho;
-
-	/* We only consider the 2D space by now and only 1 plasma chunk*/
-	if(sim->dim != 2)
-		die("Communication of fields only implemented for 2D\n");
-
-	assert(sim->plasma_chunks == 1);
-
-	rho = sim->field.rho;
-
-	neigh = (sim->rank + 1) % sim->nprocs;
-
-	tag = COMM_TAG_OP_RHO << COMM_TAG_ITER_SIZE;
-	tag |= sim->iter & COMM_TAG_ITER_MASK;
-
-	/* We already have the ghost row of the lower part in contiguous memory
-	 * */
-
-	ptr = &MAT_XY(rho, 0, sim->blocksize[Y]);
-	size = sim->blocksize[X] * sim->ghostpoints;
-
-	/* Otherwise we will need to remove the padding in X */
-	assert(sim->ghostpoints == 1);
-
-	dbg("SEND rho size=%d rank=%d tag=%d\n", size, neigh, tag);
-	MPI_Send(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD);
-
-	return 0;
-}
-
-int
-comm_recv_ghost_rho(sim_t *sim)
-{
-	int neigh, tag, size, ix, iy;
-	double *ptr;
-	mat_t *rho;
-
-	/* We only consider the 2D space by now and plasma chunks = 1 */
-	if(sim->dim != 2)
-		die("Communication of fields only implemented for 2D\n");
-
-	assert(sim->plasma_chunks == 1);
-
-	rho = sim->field.rho;
-
-	neigh = (sim->rank + sim->nprocs - 1) % sim->nprocs;
-
-	tag = COMM_TAG_OP_RHO << COMM_TAG_ITER_SIZE;
-	tag |= sim->iter & COMM_TAG_ITER_MASK;
-
-	/* We need to add the data to our rho matrix at the first row, can MPI
-	 * add the buffer as it cames, without a temporal buffer? TODO: Find out */
-
-	ptr = &MAT_XY(rho, 0, sim->blocksize[Y]);
-	size = sim->blocksize[X] * sim->ghostpoints;
-	ptr = malloc(sizeof(double) * size);
-
-	dbg("RECV rho size=%d rank=%d tag=%d\n", size, neigh, tag);
-	MPI_Recv(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-	/* Finally add the received frontier */
-	for(iy=0; iy<sim->ghostpoints; iy++)
-	{
-		for(ix=0; ix<sim->blocksize[X]; ix++)
-		{
-			MAT_XY(rho, ix, iy) += ptr[iy*sim->blocksize[X] + ix];
-		}
-	}
-
-	free(ptr);
-
-	mat_print(rho, "rho after add the ghost");
-
-	return 0;
-}
-
-int
-comm_mat_send(sim_t *sim, double *data, int size, int dst, int op, int dir)
+comm_mat_send(sim_t *sim, double *data, int size, int dst, int op, int dir, MPI_Request *req)
 {
 	int tag;
 
@@ -511,8 +430,12 @@ comm_mat_send(sim_t *sim, double *data, int size, int dst, int op, int dir)
 	tag <<= COMM_TAG_DIR_SIZE;
 	tag |= dir;
 
+	if(*req)
+		MPI_Wait(req, MPI_STATUS_IGNORE);
+
 	dbg("SEND mat size=%d rank=%d tag=%d op=%d\n", size, dst, tag, op);
-	MPI_Send(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD);
+	//MPI_Send(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD);
+	MPI_Isend(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD, req);
 
 	return 0;
 }
@@ -534,16 +457,109 @@ comm_mat_recv(sim_t *sim, double *data, int size, int dst, int op, int dir)
 }
 
 int
+comm_send_ghost_rho(sim_t *sim)
+{
+	int op, neigh, size;
+	double *ptr;
+	mat_t *rho;
+	field_t *f;
+
+	f = &sim->field;
+
+	/* We only consider the 2D space by now and only 1 plasma chunk*/
+	if(sim->dim != 2)
+		die("Communication of fields only implemented for 2D\n");
+
+	assert(sim->plasma_chunks == 1);
+
+	rho = f->rho;
+
+	neigh = (sim->rank + 1) % sim->nprocs;
+
+	op = COMM_TAG_OP_RHO;
+
+	/* We already have the ghost row of the lower part in contiguous memory
+	 * */
+
+	ptr = &MAT_XY(rho, 0, sim->blocksize[Y] - sim->ghostpoints);
+
+	/* We only send 1 row of ghost elements, so we truncate rho to avoid
+	 * sending the VARIABLE padding added by the FFTW */
+	size = sim->blocksize[X] * sim->ghostpoints;
+
+	/* Otherwise we will need to remove the padding in X */
+	assert(sim->ghostpoints == 1);
+
+	dbg("SEND rho size=%d rank=%d op=%d\n", size, neigh, op);
+	//MPI_Send(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD);
+	comm_mat_send(sim, ptr, size, neigh, op, SOUTH, &f->req_rho[SOUTH]);
+
+	return 0;
+}
+
+int
+comm_recv_ghost_rho(sim_t *sim)
+{
+	int op, neigh, size, ix, iy;
+	double *ptr;
+	mat_t *rho;
+
+	/* We only consider the 2D space by now and plasma chunks = 1 */
+	if(sim->dim != 2)
+		die("Communication of fields only implemented for 2D\n");
+
+	assert(sim->plasma_chunks == 1);
+
+	/* Otherwise we will need to remove the padding in X */
+	assert(sim->ghostpoints == 1);
+
+	rho = sim->field.rho;
+
+	neigh = (sim->rank + sim->nprocs - 1) % sim->nprocs;
+
+	op = COMM_TAG_OP_RHO;
+
+	/* We need to add the data to our rho matrix at the first row, can MPI
+	 * add the buffer as it cames, without a temporal buffer? TODO: Find out */
+
+	ptr = &MAT_XY(rho, 0, sim->blocksize[Y]);
+
+	/* We only recv 1 row of ghost elements, so we truncate rho to avoid
+	 * sending the VARIABLE padding added by the FFTW */
+	size = sim->blocksize[X] * sim->ghostpoints;
+	ptr = malloc(sizeof(double) * size);
+
+	dbg("RECV rho size=%d rank=%d op=%d\n", size, neigh, op);
+	comm_mat_recv(sim, ptr, size, neigh, op, SOUTH);
+
+	/* Finally add the received frontier */
+	iy = 0;
+	for(ix=0; ix<sim->blocksize[X]; ix++)
+	{
+		MAT_XY(rho, ix, iy) += ptr[ix];
+	}
+
+	free(ptr);
+
+	mat_print(rho, "rho after add the ghost");
+
+	return 0;
+}
+
+
+int
 comm_phi_send(sim_t *sim)
 {
 	int size, south, north, op;
 	double *data;
 	mat_t *phi;
 	mat_t *gn, *gs;
+	field_t *f;
 
-	phi = sim->field.phi;
-	gn = sim->field.ghostphi[NORTH];
-	gs = sim->field.ghostphi[SOUTH];
+	f = &sim->field;
+	phi = f->phi;
+	gn = f->ghostphi[NORTH];
+	gs = f->ghostphi[SOUTH];
 
 	north = (sim->rank + sim->nprocs - 1) % sim->nprocs;
 	south = (sim->rank + sim->nprocs + 1) % sim->nprocs;
@@ -553,13 +569,14 @@ comm_phi_send(sim_t *sim)
 	/* We also send the FFT padding, as otherwise we need to pack the
 	 * frontier ghosts. Notice that we swap the destination rank and the
 	 * tag used to indicate the reception direction.*/
+
 	data = &MAT_XY(phi, 0, 0);
 	size = gs->real_shape[X] * gs->shape[Y];
-	comm_mat_send(sim, data, size, north, op, SOUTH);
+	comm_mat_send(sim, data, size, north, op, SOUTH, &f->req_phi[SOUTH]);
 
 	data = &MAT_XY(phi, 0, phi->shape[Y] - gn->shape[Y]);
 	size = gn->real_shape[X] * gn->shape[Y];
-	comm_mat_send(sim, data, size, south, op, NORTH);
+	comm_mat_send(sim, data, size, south, op, NORTH, &f->req_phi[NORTH]);
 
 	return 0;
 }

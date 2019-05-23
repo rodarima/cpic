@@ -111,16 +111,18 @@ _mat_print_raw(double *A, int rows, int cols, char *title);
 int
 _cmat_print_raw(complex *A, int rows, int cols, char *title);
 
-#ifndef DEBUG
+#define MAT_DEBUG 1
+
+#if MAT_DEBUG
+ #define vec_print(...) _vec_print(__VA_ARGS__)
+ #define mat_print(...) _mat_print(__VA_ARGS__)
+ #define mat_print_(...) _mat_print_(__VA_ARGS__)
+ #define mat_print_raw(...) _mat_print_raw(__VA_ARGS__)
+ #define cmat_print_raw(...) _cmat_print_raw(__VA_ARGS__)
+#else
  #define vec_print(...)
  #define mat_print(...)
  #define mat_print_(...)
  #define mat_print_raw(...)
  #define cmat_print_raw(...)
-#else
- #define vec_print(...) _vec_print(__VA_ARGS__)
- #define mat_print(...) _mat_print(__VA_ARGS__)
- #define mat_print_(...) _mat_print_(__VA_ARGS__)
- #define mat_print_raw(...) _mat_print_raw_(__VA_ARGS__)
- #define cmat_print_raw(...) _cmat_print_raw_(__VA_ARGS__)
 #endif

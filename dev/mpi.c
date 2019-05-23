@@ -8,7 +8,8 @@ int main(int argc, char **argv)
 	int number;
 	MPI_Request req;
 
-	MPI_Init(&argc, &argv);
+	MPI_Init(NULL, NULL);
+	//MPI_Init(&argc, &argv);
 
 	// Find out rank, size
 	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
@@ -17,7 +18,8 @@ int main(int argc, char **argv)
 	if (world_rank == 0)
 	{
 		number = 666;
-		MPI_Isend(&number, 1, MPI_INT, 1, 0, MPI_COMM_WORLD, &req);
+		MPI_Send(&number, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
+		//MPI_Send(&number, 1, MPI_INT, 1, 0, MPI_COMM_WORLD, &req);
 	}
 	else if (world_rank == 1)
 	{

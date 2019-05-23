@@ -15,6 +15,12 @@
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
+#ifndef GLOBAL_DEBUG
+#define GLOBAL_DEBUG 1
+#endif
+
+#if GLOBAL_DEBUG
+
 #if DEBUG
 #define dbg(...) do {						\
 	int __rank; 						\
@@ -26,6 +32,10 @@
 	fprintf(stderr, "\x1b[0m");				\
 	funlockfile(stderr);					\
 } while(0)
+#else
+#define dbg(...)
+#endif
+
 #else
 #define dbg(...)
 #endif

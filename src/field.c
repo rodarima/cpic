@@ -1,11 +1,11 @@
 #include "field.h"
 #include "solver.h"
 #include "interpolate.h"
-#include "mat.h"
 #include "comm.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
+#include "mat.h"
 
 #include <string.h>
 #include <assert.h>
@@ -45,10 +45,6 @@ field_init(sim_t *sim, field_t *f)
 	if(rho_shape[X] < snx)
 		rho_shape[X] = snx;
 
-	phi_shape[X] = rho_shape[X];
-	phi_shape[Y] = sim->blocksize[Y] + PHI_NG_NORTH + PHI_NG_SOUTH;
-	phi_shape[Z] = sim->blocksize[Z];
-
 	/* Init all local fields */
 
 	/* RHO field */
@@ -57,6 +53,10 @@ field_init(sim_t *sim, field_t *f)
 	MAT_FILL(f->rho, NAN);
 
 	/* PHI field */
+
+	phi_shape[X] = rho_shape[X];
+	phi_shape[Y] = sim->blocksize[Y] + PHI_NG_NORTH + PHI_NG_SOUTH;
+	phi_shape[Z] = sim->blocksize[Z];
 
 	f->_phi = mat_alloc(sim->dim, phi_shape);
 
@@ -93,6 +93,16 @@ field_init(sim_t *sim, field_t *f)
 		f->_E[d] = mat_alloc(sim->dim, E_shape);
 		f->E[d] = mat_view(f->_E[d], 0, E_NG_NORTH, sim->blocksize);
 		MAT_FILL(f->_E[d], NAN);
+	}
+
+	/* MPI requests */
+
+	f->req_phi = malloc(sizeof(MPI_Request) * MAX_DIR);
+	f->req_rho = malloc(sizeof(MPI_Request) * MAX_DIR);
+	for(d=0; d<MAX_DIR; d++)
+	{
+		f->req_phi[d] = NULL;
+		f->req_rho[d] = NULL;
 	}
 
 	/* Also the frontier buffer */
@@ -175,6 +185,10 @@ rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 		MAT_XY(rho, i0[X], i1[Y]) += w[0][1] * q;
 		MAT_XY(rho, i1[X], i0[Y]) += w[1][0] * q;
 		MAT_XY(rho, i1[X], i1[Y]) += w[1][1] * q;
+
+		assert(MAT_XY(rho, i0[X], i0[Y]) != 0.0);
+		dbg("p-%d rho(%d,%d)=%e\n",
+				p->i, i0[X], i0[Y], MAT_XY(rho, i0[X], i0[Y]));
 	}
 
 
@@ -373,6 +387,7 @@ rho_update(sim_t *sim, int i)
 	{
 		set = &chunk->species[is];
 		rho_update_specie(sim, chunk, set);
+		mat_print(sim->field.rho, "rho after update one specie");
 	}
 
 	mat_print(sim->field.rho, "rho after update");
