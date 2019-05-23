@@ -420,37 +420,26 @@ sim_step(sim_t *sim)
 
 	/* Line 8: Update the speed on each particle, eq 6 */
 	/* Line 9: Update the position on each particle, eq 7 */
-	particle_x(sim);
+	plasma_x(sim);
 
-	usleep(50);
-#if 0
-	int j;
-
-	for(j = 0; j < sim->nspecies; j++)
-	{
-		s = &sim->species[j];
-
-		/* Phase IP:MG. Moment gathering, assembling of the electric
-		 * current from the values of the particle positions and
-		 * velocities. */
-
-	}
+	/* Phase IP:MG. Moment gathering, assembling of the electric
+	 * current from the values of the particle positions and
+	 * velocities. */
 
 	/* Interpolate density of charge of each specie to the field */
 	field_rho(sim);
-
 
 	/* Print the status */
 	//if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
 	//	specie_print(sim, s);
 
-	conservation_energy(sim);
+	//conservation_energy(sim);
 	//test_radius(sim);
 
+#if 0
 	if(sim->mode == SIM_MODE_DEBUG)
 		sim_plot(sim);
 
-#if 0
 	/* As we add the kinetic energy of the particles in each block, we erase
 	 * here the previous energy */
 	sim->energy_kinetic = 0.0;
@@ -461,7 +450,6 @@ sim_step(sim_t *sim)
 
 	sim->iter += 1;
 	sim->t = sim->iter * sim->dt;
-#endif
 	return 0;
 }
 
@@ -514,7 +502,7 @@ sim_run(sim_t *sim)
 
 	perf_stop(sim->perf, TIMER_TOTAL);
 
-	//sim_stats(sim);
+	sim_stats(sim);
 
 	return 0;
 }

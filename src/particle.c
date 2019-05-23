@@ -609,12 +609,13 @@ particle_comm(sim_t *sim)
 	return 0;
 }
 
-#if 0
 /* The speed u and position x of the particles are computed in a single phase */
 static int
-block_x_update(sim_t *sim, specie_t *s, block_t *b)
+particle_x_update(sim_t *sim, plasma_chunk_t *chunk, int i)
 {
+	particle_set_t *set;
 	particle_t *p;
+	specie_t *s;
 	double *E, *B, u[MAX_DIM], dx[MAX_DIM];
 #if 0
 	double uu, vv;
@@ -623,11 +624,14 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 	double dt = sim->dt;
 	double q, m;
 
+	set = &chunk->species[i];
+	s = set->info;
+
 	q = s->q;
 	m = s->m;
 	B = sim->B;
 
-	for (p = b->species->particles; p; p = p->next)
+	for (p = set->particles; p; p = p->next)
 	{
 		u[X] = p->u[X];
 		u[Y] = p->u[Y];
@@ -696,10 +700,9 @@ block_x_update(sim_t *sim, specie_t *s, block_t *b)
 
 	return 0;
 }
-#endif
-#if 0
+
 int
-chunk_x(sim_t *sim, int i)
+chunk_x_update(sim_t *sim, int i)
 {
 	plasma_chunk_t *chunk;
 
@@ -707,32 +710,28 @@ chunk_x(sim_t *sim, int i)
 
 	for(i=0; i<chunk->nspecies; i++)
 	{
-		particle_set_E(sim, chunk, i);
+		particle_x_update(sim, chunk, i);
 	}
 
 	return 0;
 }
-#endif
 
 int
-particle_x(sim_t *sim)
+plasma_x(sim_t *sim)
 {
-#if 0
 	int i;
-	block_t *b;
 
 	perf_start(sim->perf, TIMER_PARTICLE_X);
 
 	/* Computation */
 	for(i=0; i<sim->plasma.nchunks; i++)
 	{
-		chunk_x(sim, i);
+		chunk_x_update(sim, i);
 	}
 
 	particle_comm(sim);
 
 	perf_stop(sim->perf, TIMER_PARTICLE_X);
-#endif
 
 	return 0;
 }

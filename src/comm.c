@@ -184,7 +184,7 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 
 	if(pkt)
 	{
-		MPI_Wait(&chunk->req[neigh], MPI_STATUS_IGNORE);
+		//MPI_Wait(&chunk->req[neigh], MPI_STATUS_IGNORE);
 		free(pkt);
 	}
 

@@ -21,9 +21,9 @@ particle_comm(sim_t *sim);
 int
 particle_E(sim_t *sim);
 
-
 int
-particle_x(sim_t *sim);
+plasma_x(sim_t *sim);
+
 #if 0
 
 int
