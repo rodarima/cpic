@@ -15,7 +15,7 @@
 int
 field_init(sim_t *sim, field_t *f)
 {
-	int d, snx;
+	int d, snx, sny, rho_alloc_size;
 	int fshape[MAX_DIM];
 	int rho_shape[MAX_DIM];
 	int phi_shape[MAX_DIM];
@@ -40,10 +40,21 @@ field_init(sim_t *sim, field_t *f)
 	/* The solver may need extra room in rho in the X dimension, so we make
 	 * sure that we have:
 	 * 	shape[X] = max(f->ghostshape[X], solver_rho_nx(sim)) */
-	snx = solver_rho_nx(sim);
+	rho_alloc_size = solver_rho_size(sim, &snx, &sny);
 
 	if(rho_shape[X] < snx)
+	{
+		dbg("The solver needs %d extra elements of padding in X, total %d\n",
+				snx - rho_shape[X], snx);
 		rho_shape[X] = snx;
+	}
+
+	if(rho_shape[Y] < sny)
+	{
+		dbg("The solver needs %d extra elements of padding in Y, total %d\n",
+				sny - rho_shape[Y], sny);
+		rho_shape[Y] = sny;
+	}
 
 	/* Init all local fields */
 
@@ -183,9 +194,12 @@ rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 		assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);
 		assert(i1[X] >= 0 && i1[X] <= sim->ghostsize[X]);
 		assert(i1[Y] >= 1 && i1[Y] <= sim->ghostsize[Y]);
+
 		/* We have the extra room in X for the solver */
 		assert(_rho->shape[X] >= sim->ghostsize[X]);
-		assert(_rho->shape[Y] == sim->ghostsize[Y]);
+
+		/* And also may be in Y */
+		assert(_rho->shape[Y] >= sim->ghostsize[Y]);
 
 		MAT_XY(_rho, i0[X], i0[Y]) += w[0][0] * q;
 		MAT_XY(_rho, i0[X], i1[Y]) += w[0][1] * q;

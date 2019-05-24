@@ -267,7 +267,7 @@ MFT_normalize(mat_t *x, int N)
 }
 
 int
-solver_rho_nx(sim_t *sim)
+solver_rho_size(sim_t *sim, int *cnx, int *cny)
 {
 	int nx, ny;
 	ptrdiff_t local_size, rho_size;
@@ -293,7 +293,10 @@ solver_rho_nx(sim_t *sim)
 	dbg("solver local_size=%ld, rho_size=%ld, comp_nx=%d, padded_nx=%d\n",
 			local_size, rho_size, comp_nx, padded_nx);
 
-	return padded_nx;
+	*cnx = padded_nx;
+	*cny = (rho_size + padded_nx-1) / padded_nx;
+
+	return rho_size;
 
 	/* Notice that the real shape of rho in X (real_shape[X]) will be
 	 * different between processes. We must take care of that when dealing

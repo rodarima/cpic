@@ -112,7 +112,7 @@ _mat_print_raw(double *A, int rows, int cols, char *title);
 int
 _cmat_print_raw(complex *A, int rows, int cols, char *title);
 
-#define MAT_DEBUG 1
+#define MAT_DEBUG 0
 
 #if MAT_DEBUG
  #define vec_print(...) _vec_print(__VA_ARGS__)
