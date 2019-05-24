@@ -1,6 +1,6 @@
 CC=gcc
 
-CFLAGS:=-g
+CFLAGS:=-g -pg
 LDLIBS:=-lm -lstdc++ -lGL -lmgl2
 
 CFLAGS+=`pkg-config --cflags glfw3`

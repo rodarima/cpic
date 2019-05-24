@@ -30,6 +30,7 @@ typedef struct
 	int shape[MAX_DIM];
 	int real_shape[MAX_DIM];
 	int dim;
+	int real_size;
 	int size;
 } mat_t;
 

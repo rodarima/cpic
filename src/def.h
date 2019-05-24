@@ -166,7 +166,11 @@ struct field
 	MPI_Request *req_phi;
 	MPI_Request *req_rho;
 
-	/* Charge density */
+	/* Charge density with the FFT padding in the X and the frontier ghosts
+	 * in the Y */
+	mat_t *_rho;
+
+	/* Charge density without padding and ghosts (view) */
 	mat_t *rho;
 
 	/* Exchange ghost frontier in the Y dimension only */

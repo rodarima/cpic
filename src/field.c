@@ -49,8 +49,14 @@ field_init(sim_t *sim, field_t *f)
 
 	/* RHO field */
 
-	f->rho = mat_alloc(sim->dim, rho_shape);
-	MAT_FILL(f->rho, NAN);
+	dbg("Allocated RHO shape (%d %d %d)\n",
+			rho_shape[X],
+			rho_shape[Y],
+			rho_shape[Z]);
+	f->_rho = mat_alloc(sim->dim, rho_shape);
+	f->rho = mat_view(f->_rho, 0, 0, sim->blocksize);
+	MAT_FILL(f->_rho, NAN);
+	//MAT_FILL(f->_rho, 0.0);
 
 	/* PHI field */
 
@@ -138,13 +144,13 @@ rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 {
 	particle_t *p;
 	field_t *field;
-	mat_t *rho;
+	mat_t *_rho;
 	double q;
 	double w[2][2];
 	int i0[2], i1[2];
 
 	field = &sim->field;
-	rho = field->rho;
+	_rho = field->_rho;
 
 	q = set->info->q;
 
@@ -178,17 +184,17 @@ rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 		assert(i1[X] >= 0 && i1[X] <= sim->ghostsize[X]);
 		assert(i1[Y] >= 1 && i1[Y] <= sim->ghostsize[Y]);
 		/* We have the extra room in X for the solver */
-		assert(rho->shape[X] >= sim->ghostsize[X]);
-		assert(rho->shape[Y] == sim->ghostsize[Y]);
+		assert(_rho->shape[X] >= sim->ghostsize[X]);
+		assert(_rho->shape[Y] == sim->ghostsize[Y]);
 
-		MAT_XY(rho, i0[X], i0[Y]) += w[0][0] * q;
-		MAT_XY(rho, i0[X], i1[Y]) += w[0][1] * q;
-		MAT_XY(rho, i1[X], i0[Y]) += w[1][0] * q;
-		MAT_XY(rho, i1[X], i1[Y]) += w[1][1] * q;
+		MAT_XY(_rho, i0[X], i0[Y]) += w[0][0] * q;
+		MAT_XY(_rho, i0[X], i1[Y]) += w[0][1] * q;
+		MAT_XY(_rho, i1[X], i0[Y]) += w[1][0] * q;
+		MAT_XY(_rho, i1[X], i1[Y]) += w[1][1] * q;
 
-		assert(MAT_XY(rho, i0[X], i0[Y]) != 0.0);
-		dbg("p-%d rho(%d,%d)=%e\n",
-				p->i, i0[X], i0[Y], MAT_XY(rho, i0[X], i0[Y]));
+		assert(MAT_XY(_rho, i0[X], i0[Y]) != 0.0);
+		dbg("p-%d _rho(%d,%d)=%e\n",
+				p->i, i0[X], i0[Y], MAT_XY(_rho, i0[X], i0[Y]));
 	}
 
 
@@ -334,12 +340,12 @@ rho_reset(sim_t *sim, int i)
 {
 	int start[MAX_DIM], end[MAX_DIM];
 	int ix, iy;
-	mat_t *rho, *frontier;
+	mat_t *_rho, *frontier;
 	field_t *field;
 	plasma_chunk_t *chunk;
 
 	field = &sim->field;
-	rho = field->rho;
+	_rho = field->_rho;
 	frontier = field->frontier;
 	chunk = &sim->plasma.chunks[i];
 
@@ -353,7 +359,7 @@ rho_reset(sim_t *sim, int i)
 	{
 		for(ix=start[X]; ix<end[X]; ix++)
 		{
-			MAT_XY(rho, ix, iy) = 0.0;
+			MAT_XY(_rho, ix, iy) = 0.0;
 		}
 	}
 
@@ -369,7 +375,7 @@ rho_reset(sim_t *sim, int i)
 		}
 	}
 
-	mat_print(sim->field.rho, "rho after reset");
+	mat_print(field->rho, "rho after reset");
 
 	return 0;
 }
@@ -400,25 +406,25 @@ rho_destroy_ghost(sim_t *sim, int i)
 {
 	int start[MAX_DIM], end[MAX_DIM];
 	int ix, iy;
-	mat_t *rho;
+	mat_t *_rho;
 	field_t *field;
 	plasma_chunk_t *chunk;
 
 	field = &sim->field;
-	rho = field->rho;
+	_rho = field->_rho;
 	chunk = &sim->plasma.chunks[i];
 
 	start[X] = chunk->ib0[X];
 	start[Y] = 0 + sim->chunksize[Y];
 	end[X] = chunk->ib0[X] + chunk->shape[X];
-	end[Y] = rho->shape[Y];
+	end[Y] = _rho->shape[Y];
 
 	/* Erase previous charge density */
 	for(iy=start[Y]; iy<end[Y]; iy++)
 	{
 		for(ix=start[X]; ix<end[X]; ix++)
 		{
-			MAT_XY(rho, ix, iy) = NAN;
+			MAT_XY(_rho, ix, iy) = NAN;
 		}
 	}
 

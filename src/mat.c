@@ -37,6 +37,7 @@ mat_alloc(int dim, int *shape)
 
 
 	m->size = size;
+	m->real_size = size;
 
 	m->data = malloc(sizeof(double) * size);
 	m->real_data = m->data;
@@ -83,8 +84,9 @@ mat_view(mat_t *m, int dx, int dy, int *shape)
 
 	v->dim = m->dim;
 	v->data = &m->data[offset];
-	v->real_data = m->data;
+	v->real_data = m->real_data;
 	v->size = -1;
+	v->real_size = m->real_size;
 
 	dbg("view dx=%d dy=%d offset=%d\n", dx, dy, offset);
 	dbg("mat at %p, view at %p\n", m->data, v->data);
@@ -178,6 +180,8 @@ _mat_print_(mat_t *m, char *title)
 #define ANSI_COLOR_MAGENTA "\x1b[35m"
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
+#define MAX_X_CUT 8
+#define MAX_Y_CUT 12
 int
 _mat_print(mat_t *m, char *title)
 {
@@ -193,20 +197,28 @@ _mat_print(mat_t *m, char *title)
 	if(m->dim > 2)
 		return -1;
 
-	if(title) dbg("Matrix %s:\n", title);
+	if(title)
+	{
+		dbg("Matrix %s:\n", title);
+		dbg("  shape=(%d %d) real_shape=(%d %d) delta=(%d %d) data=%p, real_data=%p\n",
+			m->shape[X], m->shape[Y],
+			m->real_shape[X], m->real_shape[Y],
+			m->delta[X], m->delta[Y],
+			m->data, m->real_data);
+	}
 
 	mx = m->real_shape[X];
 	my = m->real_shape[Y];
 
-	if(my > 10)
+	if(my > MAX_Y_CUT)
 	{
 		yending = long_ending;
-		my = 10;
+		my = MAX_Y_CUT;
 	}
-	if(mx > 10)
+	if(mx > MAX_X_CUT)
 	{
 		xending = long_ending;
-		mx = 10;
+		mx = MAX_X_CUT;
 	}
 
 	for(iy=0; iy<my; iy++)
@@ -231,13 +243,97 @@ _mat_print(mat_t *m, char *title)
 
 			fprintf(stderr, "%10.2e ", MAT_XY_(m, ix, iy));
 		}
-		if(xending)
-			fprintf(stderr, "...\n");
-		else
+		if(!xending)
+		{
 			fprintf(stderr, "\n");
+			continue;
+		}
+
+		fprintf(stderr, ANSI_COLOR_RESET);
+		fprintf(stderr, "...");
+
+		if(iy >= m->delta[Y] && iy < m->delta[Y] + m->shape[Y])
+			in = 1;
+		else
+			in = 0;
+
+		if(!in)
+			fprintf(stderr, ANSI_COLOR_RED);
+
+		for(ix=m->real_shape[X]-mx; ix<m->real_shape[X]; ix++)
+		{
+			if(in && (ix < m->delta[X] || ix >= m->delta[X] + m->shape[X]))
+				in = 0;
+
+			if(!in)
+				fprintf(stderr, ANSI_COLOR_RED);
+
+			fprintf(stderr, "%10.2e ", MAT_XY_(m, ix, iy));
+		}
+		fprintf(stderr, ANSI_COLOR_RESET);
+		fprintf(stderr, "\n");
 	}
-	if(yending)
-		fprintf(stderr, "...\n");
+
+	fprintf(stderr, ANSI_COLOR_RESET);
+
+	if(!yending)
+		return 0;
+
+	fprintf(stderr, "...\n");
+
+	for(iy=m->real_shape[Y]-my; iy<m->real_shape[Y]; iy++)
+	{
+
+		if(iy >= m->delta[Y] && iy < m->delta[Y] + m->shape[Y])
+			in = 1;
+		else
+			in = 0;
+
+		if(!in)
+			fprintf(stderr, ANSI_COLOR_RED);
+
+		for(ix=0; ix<mx; ix++)
+		{
+			if(in && (ix < m->delta[X] || ix >= m->delta[X] + m->shape[X]))
+				in = 0;
+
+			if(!in)
+				fprintf(stderr, ANSI_COLOR_RED);
+
+			fprintf(stderr, "%10.2e ", MAT_XY_(m, ix, iy));
+		}
+		if(!xending)
+		{
+			fprintf(stderr, "\n");
+			continue;
+		}
+
+		fprintf(stderr, ANSI_COLOR_RESET);
+		fprintf(stderr, "...");
+
+		if(iy >= m->delta[Y] && iy < m->delta[Y] + m->shape[Y])
+			in = 1;
+		else
+			in = 0;
+
+		if(!in)
+			fprintf(stderr, ANSI_COLOR_RED);
+
+		for(ix=m->real_shape[X]-mx; ix<m->real_shape[X]; ix++)
+		{
+			if(in && (ix < m->delta[X] || ix >= m->delta[X] + m->shape[X]))
+				in = 0;
+
+			if(!in)
+				fprintf(stderr, ANSI_COLOR_RED);
+
+			fprintf(stderr, "%10.2e ", MAT_XY_(m, ix, iy));
+		}
+
+		fprintf(stderr, ANSI_COLOR_RESET);
+		fprintf(stderr, "\n");
+	}
+	fprintf(stderr, ANSI_COLOR_RESET);
 
 	return 0;
 }

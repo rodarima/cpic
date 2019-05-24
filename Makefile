@@ -8,6 +8,9 @@ LDLIBS:=
 CFLAGS:=-g -pthread -Wall -pg
 LDFLAGS:=-L. -Wl,-rpath,.
 
+# Stack protector
+#CFLAGS+=-fstack-protector-all
+
 # Optimization?
 #CFLAGS+=-O2
 
