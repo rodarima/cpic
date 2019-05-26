@@ -4,7 +4,7 @@
 #include "sim.h"
 #include "mat.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 #include <math.h>
@@ -91,13 +91,15 @@ relative_position_grid(double x0, double x, double dx, int *i0)
 	block_delta = x - x0;
 	block_rel = block_delta / dx;
 
-	dbg("block x0 = %f, x = %f, block delta = %f\n", x0, x, block_delta);
+	dbg("block x0 = %f, x = %f, dx = %f, block delta = %f\n", x0, x, dx, block_delta);
 	dbg("block rel = %f\n", block_rel);
 
 	*i0 = (int) floor(block_rel);
 
 	grid_delta = fmod(block_delta, dx);
 	rel = grid_delta / dx;
+
+	dbg("grid_delta = %f, rel = %f\n", grid_delta, rel);
 
 	assert(rel <= 1.0);
 	assert(rel >= 0.0);

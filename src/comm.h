@@ -26,7 +26,7 @@ block_delta_to_index(int delta[], int dim);
 
 /* Move particles to the correct chunk */
 int
-comm_plasma_chunk(sim_t *sim, int i);
+comm_plasma_chunk(sim_t *sim, int i, int global_exchange);
 
 int
 comm_send_ghost_rho(sim_t *sim);

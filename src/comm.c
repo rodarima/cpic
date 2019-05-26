@@ -46,21 +46,38 @@ queue_particle(particle_set_t *set, particle_t *p, int j)
 	return 0;
 }
 
+void
+particle_chunk_index(sim_t *sim, plasma_chunk_t *chunk, particle_t *p, int *dst)
+{
+	double dx, dy;
+
+	/* Ensure the particle is already wrapped */
+	assert(p->x[X] >= 0.0);
+	assert(p->x[Y] >= 0.0);
+	assert(p->x[X] < sim->L[X]);
+	assert(p->x[Y] < sim->L[Y]);
+
+	dx = chunk->L[X];
+	dy = chunk->L[Y];
+
+	dst[X] = p->x[X] / dx;
+	dst[Y] = p->x[Y] / dy;
+}
+
 int
 collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is)
 {
 	particle_t *p, *tmp;
 	particle_set_t *set;
-	double px, py;
 	double x0, x1, y0, y1;
-	int ix, iy, ncx, ncy, delta[MAX_DIM];
-	int jx, jy, j;
+	int j, ix, iy;
+	int dst, dst_ig[MAX_DIM];
 
 	set = &chunk->species[is];
 
 	/* TODO: Ensure the destination received the packet before
 	 * erasing the queue */
-	for(j=0; j<sim->nneigh_chunks; j++)
+	for(j=0; j<sim->nprocs; j++)
 	{
 		set->out[j] = NULL;
 		set->outsize[j] = 0;
@@ -81,65 +98,37 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is)
 	dbg("Chunk goes from (x=%e,y=%e) to (x=%e,y=%e)\n",
 			x0, y0, x1, y1);
 
-	ncx = sim->plasma_chunks;
-	ncy = sim->nprocs;
-
 	DL_FOREACH_SAFE(set->particles, p, tmp)
 	{
-		px = p->x[X];
-		py = p->x[Y];
-
-		delta[X] = 0;
-		delta[Y] = 0;
-
 		/* Wrap particle position arount the whole simulation space, to
 		 * determine the target chunk */
 		wrap_particle_position(sim, p);
 
-		/* First we check the X axis */
-		if(px < x0) delta[X] = -1;
-		else if(px >= x1) delta[X] = +1;
+		particle_chunk_index(sim, chunk, p, dst_ig);
 
-		/* Then the Y axis */
-		if(py < y0) delta[Y] = -1;
-		else if(py >= y1) delta[Y] = +1;
+		/* If the particle is in our chunk, no movement is needed */
+		if(dst_ig[X] == ix && dst_ig[Y] == iy) continue;
 
-		/* Now we look for the proper chunk to move the particle if
-		 * needed */
-		if(delta[X] != 0 || delta[Y] != 0)
-		{
-			jx = (ix + delta[X] + ncx) % ncx;
-			jy = (iy + delta[Y] + ncy) % ncy;
+		/* Only one chunk per process in the Y direction */
+		dst = dst_ig[Y];
 
-			assert(jx >= 0);
-			assert(jy >= 0);
-			assert(jx < ncx);
-			assert(jy < ncy);
+		dbg("p%d at (%e,%e) exceeds chunk space "
+			"(%e,%e) to (%e,%e), queueing in out dst=%d "
+			"ig (%d,%d)\n",
+			p->i,
+			p->x[X], p->x[Y],
+			x0, y0, x1, y1, dst, dst_ig[X], dst_ig[Y]);
 
-			j = chunk_delta_to_index(delta, sim->dim);
-
-			dbg("p%d at (%f,%f) exceeds chunk space "
-				"(%f,%f) to (%f,%f), queueing in out j=%d "
-				"delta (%d,%d)\n",
-				p->i,
-				p->x[X], p->x[Y],
-				x0, y0, x1, y1, j, delta[X], delta[Y]);
-
-			queue_particle(set, p, j);
-
-			/* Ensure we have a different destintation */
-			assert(ix != jx || iy != jy);
-		}
-
+		queue_particle(set, p, dst);
 	}
 
 	return 0;
 }
 
 int
-send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int neigh)
+send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int dst)
 {
-	int is, ip, count, np, tag, drank;
+	int is, ip, count, np, tag;
 	size_t size;
 	particle_set_t *set;
 	comm_packet_t *pkt;
@@ -147,14 +136,13 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 	particle_t *p, *tmp;
 	void *ptr;
 
-	dbg("Sending out packet for neighbour %d\n", neigh);
+	dbg("Sending out packet to process %d\n", dst);
 
 	np = 0;
 	count = 0;
-	pkt = chunk->q[neigh];
+	pkt = chunk->q[dst];
 	size = sizeof(comm_packet_t);
 	tag = sim->iter & COMM_TAG_ITER_MASK;
-	drank = chunk->neigh_rank[neigh];
 
 	/* Compute queue size */
 	for(is=0; is<sim->nspecies; is++)
@@ -162,7 +150,7 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 		set = &chunk->species[is];
 
 		/* Skip empty queues */
-		if(set->outsize[neigh] == 0)
+		if(set->outsize[dst] == 0)
 		{
 			dbg("No particles need communication for specie %d\n", is);
 			continue;
@@ -174,7 +162,7 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 		size += sizeof(specie_packet_t);
 
 		/* Particles */
-		size += set->outsize[neigh] * sizeof(particle_t);
+		size += set->outsize[dst] * sizeof(particle_t);
 	}
 
 	/* Before erasing the previous buffer, we need to ensure that the
@@ -184,14 +172,14 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 
 	if(pkt)
 	{
-		MPI_Wait(&chunk->req[neigh], MPI_STATUS_IGNORE);
+		MPI_Wait(&chunk->req[dst], MPI_STATUS_IGNORE);
 		free(pkt);
 	}
 
 	pkt = malloc(size);
-	chunk->q[neigh] = pkt;
+	chunk->q[dst] = pkt;
 	pkt->count = count;
-	pkt->neigh = neigh;
+	pkt->neigh = sim->rank;
 	sp = pkt->s;
 
 	/* Copy the particles into the queue */
@@ -200,14 +188,14 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 		set = &chunk->species[is];
 
 		/* Skip empty queues */
-		if(set->outsize[neigh] == 0) continue;
+		if(set->outsize[dst] == 0) continue;
 
-		sp->nparticles = set->outsize[neigh];
+		sp->nparticles = set->outsize[dst];
 		sp->specie_index = is;
 
 		ip = 0;
 
-		DL_FOREACH_SAFE(set->out[neigh], p, tmp)
+		DL_FOREACH_SAFE(set->out[dst], p, tmp)
 		{
 			dbg("Packing particle %d at (%e,%e)\n", p->i, p->x[X], p->x[Y]);
 			/* Copy the particle to the packet */
@@ -225,23 +213,23 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 		/* Header */
 		ptr += sizeof(specie_packet_t);
 		/* Particles */
-		ptr += set->outsize[neigh] * sizeof(particle_t);
-		np += set->outsize[neigh];
+		ptr += set->outsize[dst] * sizeof(particle_t);
+		np += set->outsize[dst];
 		sp = ptr;
 
 		assert((((void *) sp) - ((void *) pkt)) == size);
 	}
 
 	dbg("Sending packet of size %lu (%d particles) rank=%d tag=%d\n",
-			size, np, drank, tag);
+			size, np, dst, tag);
 
 	/* Now the packet is ready to be sent */
-	MPI_Isend(pkt, size, MPI_BYTE, drank, tag, MPI_COMM_WORLD, &chunk->req[neigh]);
-	//MPI_Send(pkt, size, MPI_BYTE, drank, tag, MPI_COMM_WORLD);
+	MPI_Isend(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD, &chunk->req[dst]);
+	//MPI_Send(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD);
 
-	dbg("SENT size=%lu rank=%d neigh=%d tag=%d\n",
-			size, drank, neigh, tag);
-	//dbg("Sending to rank %d done\n", drank);
+	dbg("SENT size=%lu dst=%d tag=%d\n",
+			size, dst, tag);
+	//dbg("Sending to rank %d done\n", dst);
 
 	return 0;
 }
@@ -274,22 +262,45 @@ share_particles(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 
 /* Set the packets of particles to send to each neighbour */
 int
-send_particles(sim_t *sim, plasma_chunk_t *chunk)
+send_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 {
 
-	int i;
-	for(i=0; i<sim->nneigh_chunks; i++)
-	{
+	int i, is, next, prev;
 
-		if(chunk->neigh_rank[i] != sim->rank)
+	prev = (sim->rank - 1 + sim->nprocs) % sim->nprocs;
+	next = (sim->rank + 1) % sim->nprocs;
+
+	if(global_exchange)
+		dbg("Global exchange\n");
+	else
+		dbg("Local exchange\n");
+
+	for(i=0; i<sim->nprocs; i++)
+	{
+		if(!global_exchange)
 		{
-			//dbg("Sending packets for neigh %d(%d)\n", i, b->neigh_rank[i]);
-			send_packet_neigh(sim, chunk, i);
+			if(i != next && i != prev && i != sim->rank)
+			{
+				/* Ensure we don't have stored particles
+				 * for global communication, when
+				 * running in local */
+				for(is=0; is<chunk->nspecies; is++)
+					assert(chunk->species[is].outsize[i] == 0);
+
+				continue;
+			}
+		}
+
+		if(i == sim->rank)
+		{
+			dbg("Communication not needed for myself %d\n", i);
+			share_particles(sim, chunk, i);
 			continue;
 		}
 
-		dbg("Communication not needed for neigh %d(%d)\n", i, chunk->neigh_rank[i]);
-		share_particles(sim, chunk, i);
+		dbg("Sending packets to proc %d\n", i);
+		send_packet_neigh(sim, chunk, i);
+
 	}
 
 	return 0;
@@ -315,6 +326,7 @@ recv_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 		for(ip=0; ip<sp->nparticles; ip++)
 		{
 			p = &sp->buf[ip];
+			dbg("Unpacking particle %d at (%e,%e)\n", p->i, p->x[X], p->x[Y]);
 
 			p2 = malloc(sizeof(*p2));
 			memcpy(p2, p, sizeof(*p));
@@ -330,26 +342,33 @@ recv_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 }
 
 int
-recv_particles(sim_t *sim, plasma_chunk_t *chunk)
+recv_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 {
 	int i;
 	int source, tag, size, neigh;
 	MPI_Status status;
 	comm_packet_t *pkt;
-	int recv_from[MAX_CHUNK_NEIGH];
+	int *recv_from;
+	int max_procs;
 
 	dbg(" --- RECV PHASE REACHED ---\n");
 
+	if(global_exchange)
+		max_procs = sim->nprocs;
+	else
+		max_procs = 2;
+
+	recv_from = calloc(sim->nprocs, sizeof(int));
+
 	tag = sim->iter & COMM_TAG_ITER_MASK;
 
-	for(i=0; i<sim->nneigh_chunks; i++) recv_from[i] = 0;
-
-	for(i=0; i<sim->nneigh_chunks; i++)
+	/* FIXME: We shouldn't need to receive from more than 2 processes */
+	for(i=0; i<max_procs; i++)
 	{
 		/* FIXME: We trust that only one message with the iteration tag
 		 * is sent from each neighbour */
 
-		if(chunk->neigh_rank[i] == sim->rank) continue;
+		if(i == sim->rank) continue;
 
 		source = MPI_ANY_SOURCE;
 
@@ -389,13 +408,16 @@ recv_particles(sim_t *sim, plasma_chunk_t *chunk)
 		free(pkt);
 
 	}
+
+	free(recv_from);
+
 	return 0;
 }
 
 
 /* Move particles to the correct chunk */
 int
-comm_plasma_chunk(sim_t *sim, int i)
+comm_plasma_chunk(sim_t *sim, int i, int global_exchange)
 {
 	int is;
 	plasma_chunk_t *chunk;
@@ -411,10 +433,10 @@ comm_plasma_chunk(sim_t *sim, int i)
 	}
 
 	/* Then fill the packets and send each to the corresponding neighbour */
-	send_particles(sim, chunk);
+	send_particles(sim, chunk, global_exchange);
 
 	/* Finally receive particles from the neighbours */
-	recv_particles(sim, chunk);
+	recv_particles(sim, chunk, global_exchange);
 
 
 	return 0;

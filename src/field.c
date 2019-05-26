@@ -41,6 +41,7 @@ field_init(sim_t *sim, field_t *f)
 	 * sure that we have:
 	 * 	shape[X] = max(f->ghostshape[X], solver_rho_nx(sim)) */
 	rho_alloc_size = solver_rho_size(sim, &snx, &sny);
+	dbg("The solver wants %d bytes for rho\n", rho_alloc_size);
 
 	if(rho_shape[X] < snx)
 	{
@@ -165,10 +166,17 @@ rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 
 	q = set->info->q;
 
+	dbg("Field domain x0=(%e, %e) x1=(%e,%e)\n",
+			field->x0[X], field->x0[Y],
+			field->x1[X], field->x1[Y]);
+
 	for(p = set->particles; p; p = p->next)
 	{
 		/* Interpolate the charge density of the particle to the grid
 		 * of the block */
+		dbg("Rho interpolation for p-%d at (%e, %e)\n",
+				p->i, p->x[X], p->x[Y]);
+
 		interpolate_weights_xy(p->x, sim->dx, field->x0, w, i0);
 
 		dbg("Computed weights for particle %p are [%e %e %e %e]\n",

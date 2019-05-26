@@ -603,7 +603,23 @@ particle_comm(sim_t *sim)
 	/* Communication */
 	for (i = 0; i < plasma->nchunks; i++)
 	{
-		comm_plasma_chunk(sim, i);
+		comm_plasma_chunk(sim, i, 0);
+	}
+
+	return 0;
+}
+
+int
+particle_comm_initial(sim_t *sim)
+{
+	int i;
+	plasma_t *plasma;
+	plasma = &sim->plasma;
+
+	/* Communication */
+	for (i = 0; i < plasma->nchunks; i++)
+	{
+		comm_plasma_chunk(sim, i, 1);
 	}
 
 	return 0;

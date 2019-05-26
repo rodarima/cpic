@@ -185,15 +185,16 @@ struct plasma_chunk
 	/* Local index of the chunk inside the local plasma */
 	int i[MAX_DIM];
 	int ig[MAX_DIM];
-	int x0[MAX_DIM];
-	int x1[MAX_DIM];
-	int L[MAX_DIM];
+	double x0[MAX_DIM];
+	double x1[MAX_DIM];
+	double L[MAX_DIM];
 
 	/* Local shape of the corresponding block */
 	int shape[MAX_DIM];
 	/* Local block index range */
 	int ib0[MAX_DIM];
 	int ib1[MAX_DIM];
+
 
 	/* Queues of outgoing messages. One per neighbour */
 	comm_packet_t **q;

@@ -164,7 +164,7 @@ int
 sim_pre_step(sim_t *sim)
 {
 	/* Move particles to the correct block */
-	particle_comm(sim);
+	particle_comm_initial(sim);
 
 	/* Initial computation of rho */
 	field_rho(sim);

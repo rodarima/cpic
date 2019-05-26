@@ -31,10 +31,10 @@ particle_set_init(sim_t *sim, plasma_chunk_t *chunk, int is)
 	set->particles = NULL;
 	set->nparticles = 0;
 
-	set->out = malloc(sizeof(particle_t *) * sim->nneigh_chunks);
-	set->outsize = malloc(sizeof(int) * sim->nneigh_chunks);
+	set->out = malloc(sizeof(particle_t *) * sim->nprocs);
+	set->outsize = malloc(sizeof(int) * sim->nprocs);
 
-	for(j=0; j<sim->nneigh_chunks; j++)
+	for(j=0; j<sim->nprocs; j++)
 	{
 		set->out[j] = NULL;
 		set->outsize[j] = 0;
@@ -203,11 +203,11 @@ plasma_chunk_init(sim_t *sim, int i)
 	chunk->x0[Z] = f->x0[Z];
 	chunk->x1[Z] = f->x1[Z];
 
-	chunk->q = malloc(sizeof(comm_packet_t *) * sim->nneigh_chunks);
-	chunk->req = malloc(sizeof(MPI_Request) * sim->nneigh_chunks);
+	chunk->q = malloc(sizeof(comm_packet_t *) * sim->nprocs);
+	chunk->req = malloc(sizeof(MPI_Request) * sim->nprocs);
 	chunk->neigh_rank = malloc(sizeof(int) * sim->nneigh_chunks);
 
-	for(j=0; j<sim->nneigh_chunks; j++)
+	for(j=0; j<sim->nprocs; j++)
 	{
 		chunk->q[j] = NULL;
 		chunk->req[j] = NULL;
