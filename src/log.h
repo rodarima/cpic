@@ -15,11 +15,7 @@
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
-#ifndef GLOBAL_DEBUG
-#define GLOBAL_DEBUG 1
-#endif
-
-#if GLOBAL_DEBUG
+#ifdef GLOBAL_DEBUG
 
 #if DEBUG
 #define dbg(...) do {						\

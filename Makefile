@@ -8,6 +8,8 @@ LDLIBS:=
 CFLAGS:=-g -pthread -Wall -pg
 LDFLAGS:=-L. -Wl,-rpath,.
 
+#CFLAGS+=-DGLOBAL_DEBUG
+
 # Stack protector
 #CFLAGS+=-fstack-protector-all
 
