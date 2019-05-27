@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <utlist.h>
 #include <string.h>
+#include <extrae.h>
 
 int
 init_default(sim_t *sim, block_t *b, specie_block_t *sb);
@@ -735,7 +736,13 @@ chunk_x_update(sim_t *sim, int i)
 int
 plasma_x(sim_t *sim)
 {
-	int i;
+	int i, ret;
+
+	ret = Extrae_is_initialized();
+	err("EXTRAE INIT? %d\n", ret);
+	assert(ret == 1);
+
+	Extrae_event(1000, 666);
 
 	perf_start(sim->perf, TIMER_PARTICLE_X);
 
@@ -748,6 +755,8 @@ plasma_x(sim_t *sim)
 	particle_comm(sim);
 
 	perf_stop(sim->perf, TIMER_PARTICLE_X);
+
+	Extrae_event(1000, 999);
 
 	return 0;
 }

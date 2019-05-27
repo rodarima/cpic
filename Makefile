@@ -5,10 +5,13 @@ CC=gcc
 #CC=clang
 #OCC=mcc
 LDLIBS:=
-CFLAGS:=-g -pthread -Wall -pg
+CFLAGS:=-g -pthread -Wall -O0
 LDFLAGS:=-L. -Wl,-rpath,.
 
 #CFLAGS+=-DGLOBAL_DEBUG
+
+# Instrument functions so Extrae can get some information
+CFLAGS+=-finstrument-functions
 
 # Stack protector
 #CFLAGS+=-fstack-protector-all
@@ -46,9 +49,12 @@ include $(DEP)
 %.d: %.c
 	@$(CPP) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
-all: $(BIN)
+all: $(BIN) function.list cpic.prv
 
 #test/cyclotron: $(CPIC_OBJ)
+
+function.list: cpic
+	nm -g cpic | sed -e 's/ . / /g' -e '/GLIBC/d' -e '/ _/d' -e '/^ /d' -e 's/ /#/g' > function.list
 
 clean:
 	rm -f $(OBJ) $(BIN) $(DEP)
@@ -59,8 +65,10 @@ clean:
 #load:
 #	module load gcc/7.2.0 extrae ompss-2
 #
-run:
+cpic.prv: cpic extrae2.xml trace.sh
+	rm -rf set-0/ TRACE.sym TRACE.mpits
 	mpirun --oversubscribe -n 4 ./trace.sh ./cpic conf/mpi.conf
+	mpi2prv -f TRACE.mpits -o cpic.prv
 
 #runmn:
 #	LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/apps/PM/ompss-2/2018.11/lib taskset -c 0-20 ./cpic
