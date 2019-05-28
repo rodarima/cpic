@@ -574,6 +574,7 @@ chunk_E(sim_t *sim, int i)
 int
 particle_E(sim_t *sim)
 {
+	Extrae_event(1000, 2);
 	int i;
 
 	perf_start(sim->perf, TIMER_PARTICLE_E);
@@ -587,6 +588,7 @@ particle_E(sim_t *sim)
 	/* No communication required, as only p->E is updated */
 
 	perf_stop(sim->perf, TIMER_PARTICLE_E);
+	Extrae_event(1000, 0);
 
 	return 0;
 }
@@ -739,10 +741,9 @@ plasma_x(sim_t *sim)
 	int i, ret;
 
 	ret = Extrae_is_initialized();
-	err("EXTRAE INIT? %d\n", ret);
 	assert(ret == 1);
 
-	Extrae_event(1000, 666);
+	Extrae_event(1000, 3);
 
 	perf_start(sim->perf, TIMER_PARTICLE_X);
 
@@ -756,7 +757,7 @@ plasma_x(sim_t *sim)
 
 	perf_stop(sim->perf, TIMER_PARTICLE_X);
 
-	Extrae_event(1000, 999);
+	Extrae_event(1000, 0);
 
 	return 0;
 }

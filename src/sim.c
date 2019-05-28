@@ -24,6 +24,7 @@
 
 #include <mpi.h>
 #include <unistd.h>
+#include <extrae.h>
 
 #define ENERGY_CHECK 1
 
@@ -241,6 +242,15 @@ sim_init(config_t *conf, int quiet)
 	sim_pre_step(s);
 
 	s->iter++;
+
+	extrae_type_t type = 1000;
+	char *description = "RODRIGO HERE: In function";
+	extrae_value_t values[] = {0, 1, 2, 3, 4};
+	unsigned nvalues = sizeof(values)/sizeof(extrae_value_t);
+	char *description_values[] = {
+		"END", "field_E", "particle_E", "plasma_x", "field_rho"};
+
+	Extrae_define_event_type(&type, description, &nvalues, values, description_values);
 
 	return s;
 }
