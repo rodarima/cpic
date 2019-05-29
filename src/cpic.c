@@ -3,7 +3,6 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 #include <assert.h>
 #include <libgen.h>
 
@@ -39,6 +38,8 @@ main(int argc, char *argv[])
 	char *include_dir;
 	int opt;
 	int quiet = 0;
+
+	printf("MAIN REACHED\n");
 
 	/* FIXME: Determine if we want to allow MPI to know our argv. By now we
 	 * simply set a NULL argv */

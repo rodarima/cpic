@@ -4,6 +4,7 @@
 #define DEBUG 0
 #include "log.h"
 #include <utlist.h>
+#include "utils.h"
 
 void
 particle_set_add(particle_set_t *set, particle_t *p)
@@ -31,8 +32,8 @@ particle_set_init(sim_t *sim, plasma_chunk_t *chunk, int is)
 	set->particles = NULL;
 	set->nparticles = 0;
 
-	set->out = malloc(sizeof(particle_t *) * sim->nprocs);
-	set->outsize = malloc(sizeof(int) * sim->nprocs);
+	set->out = safe_malloc(sizeof(particle_t *) * sim->nprocs);
+	set->outsize = safe_malloc(sizeof(int) * sim->nprocs);
 
 	for(j=0; j<sim->nprocs; j++)
 	{
@@ -153,7 +154,6 @@ neigh_rank(sim_t *sim, int *ig, int *nr)
 int
 plasma_chunk_init(sim_t *sim, int i)
 {
-	char dc;
 	int is, j, d;
 	field_t *f;
 	plasma_t *plasma;
@@ -168,7 +168,7 @@ plasma_chunk_init(sim_t *sim, int i)
 	chunk->i[Y] = 0;
 	chunk->i[Z] = 0;
 
-	chunk->species = malloc(sizeof(particle_set_t) * sim->nspecies);
+	chunk->species = safe_malloc(sizeof(particle_set_t) * sim->nspecies);
 	chunk->nspecies = sim->nspecies;
 
 	/* We need to compute the chunk boundaries */
@@ -183,7 +183,6 @@ plasma_chunk_init(sim_t *sim, int i)
 
 	for(d=X; d<MAX_DIM; d++)
 	{
-		dc = "XYZ"[d];
 		/* FIXME: This is redundant */
 		chunk->shape[d] = sim->chunksize[d];
 
@@ -191,9 +190,9 @@ plasma_chunk_init(sim_t *sim, int i)
 		chunk->ib1[d] = chunk->ib0[d] + sim->chunksize[d];
 
 		dbg("shape[%c]=%d ib0[%c]=%d ib1[%c]=%d\n",
-				dc, chunk->shape[d],
-				dc, chunk->ib0[d],
-				dc, chunk->ib1[d]);
+				"XYZ"[d], chunk->shape[d],
+				"XYZ"[d], chunk->ib0[d],
+				"XYZ"[d], chunk->ib1[d]);
 	}
 
 	chunk->x0[X] = f->x0[X] + (chunk->i[X] * chunk->L[X]);
@@ -203,9 +202,9 @@ plasma_chunk_init(sim_t *sim, int i)
 	chunk->x0[Z] = f->x0[Z];
 	chunk->x1[Z] = f->x1[Z];
 
-	chunk->q = malloc(sizeof(comm_packet_t *) * sim->nprocs);
-	chunk->req = malloc(sizeof(MPI_Request) * sim->nprocs);
-	chunk->neigh_rank = malloc(sizeof(int) * sim->nneigh_chunks);
+	chunk->q = safe_malloc(sizeof(comm_packet_t *) * sim->nprocs);
+	chunk->req = safe_malloc(sizeof(MPI_Request) * sim->nprocs);
+	chunk->neigh_rank = safe_malloc(sizeof(int) * sim->nneigh_chunks);
 
 	for(j=0; j<sim->nprocs; j++)
 	{
@@ -234,7 +233,7 @@ plasma_init(sim_t *sim, plasma_t *plasma)
 
 	nchunks = sim->plasma_chunks;
 
-	plasma->chunks = malloc(nchunks * sizeof(plasma_chunk_t));
+	plasma->chunks = safe_malloc(nchunks * sizeof(plasma_chunk_t));
 	plasma->nchunks = nchunks;
 
 	for(i=0; i < nchunks; i++)

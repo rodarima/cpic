@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 #include <math.h>
 #include <time.h>
 #include <GLFW/glfw3.h>
@@ -400,7 +399,7 @@ plot_init(sim_t *sim)
 {
 	plot_t *plot;
 
-	plot = calloc(sizeof(plot_t), 1);
+	plot = safe_calloc(sizeof(plot_t), 1);
 
 	plot->sim = sim;
 	plot->wait = 1;

@@ -6,6 +6,7 @@
 #include "particle.h"
 #include "comm.h"
 #include "plasma.h"
+#include "utils.h"
 
 #define DEBUG 1
 #include "log.h"
@@ -46,6 +47,26 @@ queue_particle(particle_set_t *set, particle_t *p, int j)
 	return 0;
 }
 
+int
+compute_tag(int op, int iter, int value, int value_size)
+{
+	int tag;
+	int value_mask;
+
+	value_mask = ~((~0U)<<value_size);
+
+	/* Ensure we have the first bit to zero */
+	assert(COMM_TAG_ITER_SIZE + COMM_TAG_OP_SIZE
+			+ value_size < sizeof(int) * 8);
+
+	tag = op << COMM_TAG_ITER_SIZE;
+	tag |= iter & COMM_TAG_ITER_MASK;
+	tag <<= value_size;
+	tag |= value & value_mask;
+
+	return tag;
+}
+
 void
 particle_chunk_index(sim_t *sim, plasma_chunk_t *chunk, particle_t *p, int *dst)
 {
@@ -65,7 +86,7 @@ particle_chunk_index(sim_t *sim, plasma_chunk_t *chunk, particle_t *p, int *dst)
 }
 
 int
-collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is)
+collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 {
 	particle_t *p, *tmp;
 	particle_set_t *set;
@@ -112,12 +133,13 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is)
 		/* Only one chunk per process in the Y direction */
 		dst = dst_ig[Y];
 
-		dbg("p%d at (%e,%e) exceeds chunk space "
-			"(%e,%e) to (%e,%e), queueing in out dst=%d "
-			"ig (%d,%d)\n",
-			p->i,
-			p->x[X], p->x[Y],
-			x0, y0, x1, y1, dst, dst_ig[X], dst_ig[Y]);
+		if(p->i < 100)
+			dbg("p%d at (%e,%e) exceeds chunk space "
+				"(%e,%e) to (%e,%e), queueing in out dst=%d "
+				"ig (%d,%d)\n",
+				p->i,
+				p->x[X], p->x[Y],
+				x0, y0, x1, y1, dst, dst_ig[X], dst_ig[Y]);
 
 		queue_particle(set, p, dst);
 	}
@@ -128,7 +150,7 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is)
 int
 send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int dst)
 {
-	int is, ip, count, np, tag;
+	int is, ip, count, np, tag, op;
 	size_t size;
 	particle_set_t *set;
 	comm_packet_t *pkt;
@@ -142,7 +164,8 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int dst)
 	count = 0;
 	pkt = chunk->q[dst];
 	size = sizeof(comm_packet_t);
-	tag = sim->iter & COMM_TAG_ITER_MASK;
+	op = COMM_TAG_OP_PARTICLES;
+	tag = compute_tag(op, sim->iter, 0, COMM_TAG_DIR_SIZE);
 
 	/* Compute queue size */
 	for(is=0; is<sim->nspecies; is++)
@@ -172,11 +195,12 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int dst)
 
 	if(pkt)
 	{
+		dbg("WAIT particle pkt to=%d to be sent\n", dst);
 		MPI_Wait(&chunk->req[dst], MPI_STATUS_IGNORE);
 		free(pkt);
 	}
 
-	pkt = malloc(size);
+	pkt = safe_malloc(size);
 	chunk->q[dst] = pkt;
 	pkt->count = count;
 	pkt->neigh = sim->rank;
@@ -197,7 +221,8 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int dst)
 
 		DL_FOREACH_SAFE(set->out[dst], p, tmp)
 		{
-			dbg("Packing particle %d at (%e,%e)\n", p->i, p->x[X], p->x[Y]);
+			if(p->i < 100)
+				dbg("Packing particle %d at (%e,%e)\n", p->i, p->x[X], p->x[Y]);
 			/* Copy the particle to the packet */
 			memcpy(&sp->buf[ip], p, sizeof(*p));
 
@@ -223,12 +248,12 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int dst)
 	dbg("Sending packet of size %lu (%d particles) rank=%d tag=%d\n",
 			size, np, dst, tag);
 
+	dbg("SENT size=%lu dst=%d tag=%d\n",
+			size, dst, tag);
 	/* Now the packet is ready to be sent */
 	MPI_Isend(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD, &chunk->req[dst]);
 	//MPI_Send(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD);
 
-	dbg("SENT size=%lu dst=%d tag=%d\n",
-			size, dst, tag);
 	//dbg("Sending to rank %d done\n", dst);
 
 	return 0;
@@ -285,7 +310,10 @@ send_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 				 * for global communication, when
 				 * running in local */
 				for(is=0; is<chunk->nspecies; is++)
+				{
+					dbg("Testing proc %d with specie %d\n", i, is);
 					assert(chunk->species[is].outsize[i] == 0);
+				}
 
 				continue;
 			}
@@ -326,9 +354,10 @@ recv_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 		for(ip=0; ip<sp->nparticles; ip++)
 		{
 			p = &sp->buf[ip];
-			dbg("Unpacking particle %d at (%e,%e)\n", p->i, p->x[X], p->x[Y]);
+			if(p->i < 100)
+				dbg("Unpacking particle %d at (%e,%e)\n", p->i, p->x[X], p->x[Y]);
 
-			p2 = malloc(sizeof(*p2));
+			p2 = safe_malloc(sizeof(*p2));
 			memcpy(p2, p, sizeof(*p));
 
 			particle_set_add(set, p2);
@@ -345,7 +374,7 @@ int
 recv_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 {
 	int i;
-	int source, tag, size, neigh;
+	int source, tag, size, neigh, op;
 	MPI_Status status;
 	comm_packet_t *pkt;
 	int *recv_from;
@@ -354,21 +383,20 @@ recv_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 	dbg(" --- RECV PHASE REACHED ---\n");
 
 	if(global_exchange)
-		max_procs = sim->nprocs;
+		max_procs = sim->nprocs - 1; // Exclude myself
 	else
 		max_procs = 2;
 
-	recv_from = calloc(sim->nprocs, sizeof(int));
+	recv_from = safe_calloc(sim->nprocs, sizeof(int));
 
-	tag = sim->iter & COMM_TAG_ITER_MASK;
+	op = COMM_TAG_OP_PARTICLES;
+	tag = compute_tag(op, sim->iter, 0, COMM_TAG_DIR_SIZE);
 
 	/* FIXME: We shouldn't need to receive from more than 2 processes */
 	for(i=0; i<max_procs; i++)
 	{
 		/* FIXME: We trust that only one message with the iteration tag
 		 * is sent from each neighbour */
-
-		if(i == sim->rank) continue;
 
 		source = MPI_ANY_SOURCE;
 
@@ -378,26 +406,26 @@ recv_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 		//MPI_Recv(buf, 1024, MPI_BYTE, chunk->neigh_rank[i],
 		//	MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
+		dbg("PROB rank=%d tag=%d\n", source, tag);
 		MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
 
 		source = status.MPI_SOURCE;
 
-		dbg("PROB rank=%d tag=%d\n", source, tag);
 
 		assert(status.MPI_TAG == tag);
 
 		MPI_Get_count(&status, MPI_BYTE, &size);
 
-		pkt = malloc(size);
+		pkt = safe_malloc(size);
 
+		dbg("RECV size=%d rank=%d neigh=%d tag=%d rf[%d]=%d\n",
+				size, source, neigh, tag, neigh, recv_from[neigh]);
 		/* Can this receive another packet? */
 		MPI_Recv(pkt, size, MPI_BYTE, source, tag,
 				MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
 		neigh = pkt->neigh;
 
-		dbg("RECV size=%d rank=%d neigh=%d tag=%d rf[%d]=%d\n",
-				size, source, neigh, tag, neigh, recv_from[neigh]);
 
 		assert(recv_from[neigh] == 0);
 		recv_from[neigh]++;
@@ -429,7 +457,7 @@ comm_plasma_chunk(sim_t *sim, int i, int global_exchange)
 	/* Collect particles in a queue that need to change chunk */
 	for(is = 0; is < sim->nspecies; is++)
 	{
-		collect_specie(sim, chunk, is);
+		collect_specie(sim, chunk, is, global_exchange);
 	}
 
 	/* Then fill the packets and send each to the corresponding neighbour */
@@ -447,10 +475,7 @@ comm_mat_send(sim_t *sim, double *data, int size, int dst, int op, int dir, MPI_
 {
 	int tag;
 
-	tag = op << COMM_TAG_ITER_SIZE;
-	tag |= sim->iter & COMM_TAG_ITER_MASK;
-	tag <<= COMM_TAG_DIR_SIZE;
-	tag |= dir;
+	tag = compute_tag(op, sim->iter, dir, COMM_TAG_DIR_SIZE);
 
 	if(*req)
 		MPI_Wait(req, MPI_STATUS_IGNORE);
@@ -467,10 +492,7 @@ comm_mat_recv(sim_t *sim, double *data, int size, int dst, int op, int dir)
 {
 	int tag;
 
-	tag = op << COMM_TAG_ITER_SIZE;
-	tag |= sim->iter & COMM_TAG_ITER_MASK;
-	tag <<= COMM_TAG_DIR_SIZE;
-	tag |= dir;
+	tag = compute_tag(op, sim->iter, dir, COMM_TAG_DIR_SIZE);
 
 	dbg("RECV mat size=%d rank=%d tag=%d op=%d\n", size, dst, tag, op);
 	MPI_Recv(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -512,7 +534,7 @@ comm_send_ghost_rho(sim_t *sim)
 	/* Otherwise we will need to remove the padding in X */
 	assert(sim->ghostpoints == 1);
 
-	dbg("SEND rho size=%d rank=%d op=%d\n", size, neigh, op);
+	dbg("Sending rho to=%d\n", neigh);
 	//MPI_Send(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD);
 	comm_mat_send(sim, ptr, size, neigh, op, SOUTH, &f->req_rho[SOUTH]);
 
@@ -549,9 +571,9 @@ comm_recv_ghost_rho(sim_t *sim)
 	/* We only recv 1 row of ghost elements, so we truncate rho to avoid
 	 * sending the VARIABLE padding added by the FFTW */
 	size = sim->blocksize[X] * sim->ghostpoints;
-	ptr = malloc(sizeof(double) * size);
+	ptr = safe_malloc(sizeof(double) * size);
 
-	dbg("RECV rho size=%d rank=%d op=%d\n", size, neigh, op);
+	dbg("Receiving rho from rank=%d\n", neigh);
 	comm_mat_recv(sim, ptr, size, neigh, op, SOUTH);
 
 	/* Finally add the received frontier */
@@ -594,10 +616,12 @@ comm_phi_send(sim_t *sim)
 
 	data = &MAT_XY(phi, 0, 0);
 	size = gs->real_shape[X] * gs->shape[Y];
+	dbg("Sending phi to rank=%d\n", north);
 	comm_mat_send(sim, data, size, north, op, SOUTH, &f->req_phi[SOUTH]);
 
 	data = &MAT_XY(phi, 0, phi->shape[Y] - gn->shape[Y]);
 	size = gn->real_shape[X] * gn->shape[Y];
+	dbg("Sending phi to rank=%d\n", south);
 	comm_mat_send(sim, data, size, south, op, NORTH, &f->req_phi[NORTH]);
 
 	return 0;
@@ -617,10 +641,15 @@ comm_phi_recv(sim_t *sim)
 
 	op = COMM_TAG_OP_PHI;
 
+	/* FIXME: This may produce a deadlock, when we filled the buffer with
+	 * the second receive, while waiting for the first one */
+
 	size = gs->real_shape[X] * gs->shape[Y];
+	dbg("Receiving phi from rank=%d\n", south);
 	comm_mat_recv(sim, gs->data, size, south, op, SOUTH);
 
 	size = gn->real_shape[X] * gn->shape[Y];
+	dbg("Receiving phi from rank=%d\n", north);
 	comm_mat_recv(sim, gn->data, size, north, op, NORTH);
 
 	return 0;

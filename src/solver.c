@@ -1,8 +1,9 @@
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "mat.h"
 
 #include "solver.h"
+#include "utils.h"
 #include <stdio.h>
 #include <math.h>
 #include <gsl/gsl_linalg.h>
@@ -29,6 +30,7 @@ LU_init(solver_t *s)
 	N = nx * ny;
 
 	A = gsl_matrix_calloc(N, N);
+	if(!A) abort();
 
 	/* Build 1D coefficients of A */
 
@@ -85,6 +87,7 @@ LU_init(solver_t *s)
 	//mat_print_raw(A->data, N, N, "coefficients");
 
 	s->P = gsl_permutation_calloc(N);
+	if(!s->P) abort();
 
 	dbg("Please wait, solver is precomputing LU\n");
 
@@ -323,17 +326,14 @@ solver_rho_size(sim_t *sim, int *cnx, int *cny)
 int
 MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 {
-	mat_t *G;
 	fftw_complex *g;
 	//double *tmp;
 	fftw_plan direct, inverse;
 
 	/* Solve Ax = b using MFT spectral method */
 
-	G = s->G;
 	g = s->g;
 	assert(g);
-	//tmp = calloc(100*100, sizeof(double));
 
 	ptrdiff_t local_size, rho_size;
 	ptrdiff_t local_n0, local_n0_start;
@@ -380,11 +380,11 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 
 	fftw_execute(direct);
 
-	//cmat_print_raw(g, G->shape[X], G->shape[Y], "g before kernel");
+	//cmat_print_raw(g, g->shape[X], g->shape[Y], "g before kernel");
 
 	MFT_kernel(s);
 
-	//cmat_print_raw(g, G->shape[X], G->shape[Y], "g after kernel");
+	//cmat_print_raw(g, g->shape[X], g->shape[Y], "g after kernel");
 
 	dbg("inverse in=%p out=%p nx=%d ny=%d\n",
 			g, x->data, s->nx, s->ny);
@@ -522,7 +522,7 @@ solver_init(sim_t *sim)
 		return NULL;
 	}
 
-	solver = malloc(sizeof(solver_t));
+	solver = safe_malloc(sizeof(solver_t));
 
 	if(strcmp(sim->solver_method, "LU") == 0)
 		solver->method = METHOD_LU;

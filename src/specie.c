@@ -5,8 +5,8 @@
 
 #define DEBUG 0
 #include "log.h"
+#include "utils.h"
 
-#include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
 #include <utlist.h>
@@ -48,7 +48,7 @@ species_init(sim_t *sim)
 	}
 
 	sim->nspecies = ns;
-	sim->species = malloc(ns * sizeof(specie_t));
+	sim->species = safe_malloc(ns * sizeof(specie_t));
 
 	for(i=0; i < ns; i++)
 	{

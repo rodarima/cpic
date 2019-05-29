@@ -3,15 +3,15 @@
 #include "interpolate.h"
 #include "comm.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "mat.h"
+#include "utils.h"
 
 #include <string.h>
 #include <assert.h>
 #include <math.h>
 #include <libconfig.h>
-#include <extrae.h>
 
 int
 field_init(sim_t *sim, field_t *f)
@@ -62,6 +62,7 @@ field_init(sim_t *sim, field_t *f)
 
 	/* RHO field */
 
+
 	dbg("Allocated RHO shape (%d %d %d)\n",
 			rho_shape[X],
 			rho_shape[Y],
@@ -70,6 +71,7 @@ field_init(sim_t *sim, field_t *f)
 	f->rho = mat_view(f->_rho, 0, 0, sim->blocksize);
 	MAT_FILL(f->_rho, NAN);
 	//MAT_FILL(f->_rho, 0.0);
+	assert(rho_alloc_size <= f->_rho->size);
 
 	/* PHI field */
 
@@ -116,8 +118,8 @@ field_init(sim_t *sim, field_t *f)
 
 	/* MPI requests */
 
-	f->req_phi = malloc(sizeof(MPI_Request) * MAX_DIR);
-	f->req_rho = malloc(sizeof(MPI_Request) * MAX_DIR);
+	f->req_phi = safe_malloc(sizeof(MPI_Request) * MAX_DIR);
+	f->req_rho = safe_malloc(sizeof(MPI_Request) * MAX_DIR);
 	for(d=0; d<MAX_DIR; d++)
 	{
 		f->req_phi[d] = NULL;
@@ -462,8 +464,6 @@ rho_destroy_ghost(sim_t *sim, int i)
 int
 field_rho(sim_t *sim)
 {
-	Extrae_event(1000, 4);
-
 	int i;
 	plasma_t *plasma;
 
@@ -491,8 +491,6 @@ field_rho(sim_t *sim)
 	comm_recv_ghost_rho(sim);
 
 	perf_stop(sim->perf, TIMER_FIELD_RHO);
-
-	Extrae_event(1000, 0);
 
 	return 0;
 }
@@ -640,7 +638,6 @@ field_phi_solve(sim_t *sim)
 int
 field_E(sim_t *sim)
 {
-	Extrae_event(1000, 1);
 	field_phi_solve(sim);
 
 	mat_print(sim->field.phi, "phi before communication");
@@ -659,8 +656,6 @@ field_E(sim_t *sim)
 	mat_print(sim->field.E[Y], "E[Y]");
 
 	perf_stop(sim->perf, TIMER_FIELD_E);
-
-	Extrae_event(1000, 0);
 
 	return 0;
 }

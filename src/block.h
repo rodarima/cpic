@@ -8,7 +8,6 @@ typedef struct block block_t;
 #include "particle.h"
 #include "field.h"
 
-#include <stdlib.h>
 #include <libconfig.h>
 #include <mpi.h>
 

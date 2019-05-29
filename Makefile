@@ -5,13 +5,17 @@ CC=gcc
 #CC=clang
 #OCC=mcc
 LDLIBS:=
-CFLAGS:=-g -pthread -Wall
+CFLAGS:=-g -pthread -Wall -pg
 LDFLAGS:=-L. -Wl,-rpath,.
 
-CFLAGS+=-DGLOBAL_DEBUG
+# Use debug messages
+#CFLAGS+=-DGLOBAL_DEBUG
 
 # Instrument functions so Extrae can get some information
 CFLAGS+=-finstrument-functions
+
+# Avoid optimized instructions, so we can still use Valgrind
+CFLAGS+=-march=x86-64 -mtune=generic
 
 # Stack protector
 #CFLAGS+=-fstack-protector-all
@@ -70,14 +74,23 @@ clean:
 #load:
 #	module load gcc/7.2.0 extrae ompss-2
 #
-cpic.prv: cpic extrae2.xml trace.sh function.list
+cpic.prv: cpic extrae2.xml trace.sh function.list conf/mpi.conf
 	rm -rf set-0/ TRACE.sym TRACE.mpits
-	taskset -c 0-8 mpirun --oversubscribe -n 8 bash -c './trace.sh ./cpic conf/mpi.conf 2> $$PMIX_RANK.log'
+	taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './trace.sh ./cpic conf/mpi.conf 2> $$PMIX_RANK.log'
 	mpi2prv -f TRACE.mpits -o cpic.prv
 
-run: cpic.prv
+valgrind:
+	taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c 'valgrind ./cpic conf/mpi.conf 2> $$PMIX_RANK.log'
 
-.PHONY: cpic.prv
+trace: cpic.prv
+
+run:
+	taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> $$PMIX_RANK.log'
+
+gprof:
+	GMON_OUT_PREFIX=gmon taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> $$PMIX_RANK.log'
+
+.PHONY: run valgrind trace gprof
 
 #runmn:
 #	LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/apps/PM/ompss-2/2018.11/lib taskset -c 0-20 ./cpic

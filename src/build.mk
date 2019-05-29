@@ -17,7 +17,8 @@ src_cflags:=-g -pthread -Wall
 
 src_ldlibs+=-lfftw3_mpi -lfftw3
 
-src_ldlibs+=-lmpitrace
+# Extrae API (not needed anymore)
+#src_ldlibs+=-lmpitrace
 
 #src_ldlibs+=-lGL -lmgl2
 #src_cflags+=`pkg-config --cflags glfw3`

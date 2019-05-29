@@ -6,11 +6,11 @@
 
 #define DEBUG 1
 #include "log.h"
+#include "utils.h"
 #include <math.h>
 #include <assert.h>
 #include <utlist.h>
 #include <string.h>
-#include <extrae.h>
 
 int
 init_default(sim_t *sim, block_t *b, specie_block_t *sb);
@@ -41,7 +41,7 @@ particle_init()
 {
 	particle_t *p;
 
-	p = malloc(sizeof(*p));
+	p = safe_malloc(sizeof(*p));
 
 	/* As we send the particle via MPI_Send directly, some wholes don't get
 	 * initialized, thus we use memset meanwhile */
@@ -136,8 +136,9 @@ init_randpos(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 		p->E[Y] = 0.0;
 		p->E[Z] = 0.0;
 
-		dbg("Particle %d randpos init at (%e, %e) in chunk (%d, %d)\n",
-			p->i, p->x[X], p->x[Y], chunk->ig[X], chunk->ig[Y]);
+		if(p->i < 100)
+			dbg("Particle %d randpos init at (%e, %e) in chunk (%d, %d)\n",
+				p->i, p->x[X], p->x[Y], chunk->ig[X], chunk->ig[Y]);
 
 		//if(p->x[Y] > b->x1[Y] || p->x[Y] < b->x0[Y])
 		//	err("WARN: Particle %d exceeds block boundary in Y\n", p->i);
@@ -229,8 +230,9 @@ init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 			p->E[d] = 0.0;
 		}
 
-		dbg("Particle %d offset init at (%e, %e) in chunk (%d, %d)\n",
-			p->i, p->x[X], p->x[Y], chunk->ig[X], chunk->ig[Y]);
+		if(p->i < 100)
+			dbg("Particle %d offset init at (%e, %e) in chunk (%d, %d)\n",
+				p->i, p->x[X], p->x[Y], chunk->ig[X], chunk->ig[Y]);
 	}
 
 	return 0;
@@ -316,8 +318,9 @@ move_particle_to_block(block_t *from, block_t *to, particle_t *p)
 void
 wrap_particle_position(sim_t *sim, particle_t *p)
 {
-	dbg("Particle %d is at (%.10e, %.10e) before wrap\n",
-			p->i, p->x[X], p->x[Y]);
+	if(p->i < 100)
+		dbg("Particle %d is at (%.10e, %.10e) before wrap\n",
+				p->i, p->x[X], p->x[Y]);
 
 	if(sim->dim >= 1)
 	{
@@ -337,8 +340,9 @@ wrap_particle_position(sim_t *sim, particle_t *p)
 			p->x[Y] += sim->L[Y];
 	}
 
-	dbg("Particle %d is now at (%.10e, %.10e)\n",
-			p->i, p->x[X], p->x[Y]);
+	if(p->i < 100)
+		dbg("Particle %d is now at (%.10e, %.10e)\n",
+				p->i, p->x[X], p->x[Y]);
 
 	/* Notice that we allow p->x to be equal to L, as when the position is
 	 * wrapped from x<0 but -1e-17 < x, the wrap sets x equal to L, as with
@@ -548,10 +552,12 @@ particle_set_E(sim_t *sim, plasma_chunk_t *chunk, int i)
 	{
 		p->E[X] = 0.0;
 		p->E[Y] = 0.0;
-		dbg("p-%d old E=(%f %f)\n", p->i, p->E[X], p->E[Y]);
+		if(p->i < 100)
+			dbg("p-%d old E=(%f %f)\n", p->i, p->E[X], p->E[Y]);
 		interpolate_field_to_particle_xy(sim, p, &p->E[X], f->E[X]);
 		interpolate_field_to_particle_xy(sim, p, &p->E[Y], f->E[Y]);
-		dbg("p-%d new E=(%f %f)\n", p->i, p->E[X], p->E[Y]);
+		if(p->i < 100)
+			dbg("p-%d new E=(%f %f)\n", p->i, p->E[X], p->E[Y]);
 	}
 	return 0;
 }
@@ -574,7 +580,6 @@ chunk_E(sim_t *sim, int i)
 int
 particle_E(sim_t *sim)
 {
-	Extrae_event(1000, 2);
 	int i;
 
 	perf_start(sim->perf, TIMER_PARTICLE_E);
@@ -588,7 +593,6 @@ particle_E(sim_t *sim)
 	/* No communication required, as only p->E is updated */
 
 	perf_stop(sim->perf, TIMER_PARTICLE_E);
-	Extrae_event(1000, 0);
 
 	return 0;
 }
@@ -664,9 +668,10 @@ particle_x_update(sim_t *sim, plasma_chunk_t *chunk, int i)
 			 * the time sim->t properly. */
 
 			boris_rotation(q, m, u, v, E, B, -dt/2.0);
-			dbg("Backward move: At t=%e u=(%.3e,%.3e) to t=%e u=(%.3e,%.3e)\n",
-					sim->t, u[X], u[Y],
-					sim->t-dt/2.0, v[X], v[Y]);
+			if(p->i < 100)
+				dbg("Backward move: At t=%e u=(%.3e,%.3e) to t=%e u=(%.3e,%.3e)\n",
+						sim->t, u[X], u[Y],
+						sim->t-dt/2.0, v[X], v[Y]);
 			p->u[X] = v[X];
 			p->u[Y] = v[Y];
 			continue;
@@ -674,8 +679,9 @@ particle_x_update(sim_t *sim, plasma_chunk_t *chunk, int i)
 
 		boris_rotation(q, m, u, v, E, B, dt);
 
-		dbg("Particle %d at x=(%.3e,%.3e) increases speed by (%.3e,%.3e)\n",
-				p->i, p->x[X], p->x[Y], v[X] - u[X], v[X] - u[X]);
+		if(p->i < 100)
+			dbg("Particle %d at x=(%.3e,%.3e) increases speed by (%.3e,%.3e)\n",
+					p->i, p->x[X], p->x[Y], v[X] - u[X], v[X] - u[X]);
 
 		/* We advance the kinetic energy here, as we know the old
 		 * velocity at t - dt/2 and the new one at t + dt/2. So we take
@@ -700,17 +706,42 @@ particle_x_update(sim_t *sim, plasma_chunk_t *chunk, int i)
 		dx[X] = dt * v[X];
 		dx[Y] = dt * v[Y];
 
-		if(fabs(dx[X]) > sim->L[X] || fabs(dx[Y]) > sim->L[Y])
+		if(fabs(dx[X]) > sim->L[X])
 		{
-			err("Particle %d at x=(%.3e,%.3e) has exceeded L with dx=(%.3e,%.3e)\n",
-					p->i, p->x[X], p->x[Y], dx[X], dx[Y]);
+			err("Particle %d at x=(%.3e,%.3e) has exceeded L[X]=%.3e with dx[X]=%.3e\n",
+					p->i, p->x[X], p->x[Y], sim->L[X], dx[X]);
 			err("Please, reduce dt=%.3e or increase L\n",
 					sim->dt);
 			exit(1);
 		}
 
+		if(fabs(dx[Y]) > chunk->L[Y])
+		{
+			err("Particle %d at x=(%.3e,%.3e) has exceeded chunk L[Y]=%.3e with dx[Y]=%.3e\n",
+					p->i, p->x[X], p->x[Y], chunk->L[Y], dx[Y]);
+			err("Please, reduce dt=%.3e or increase L\n",
+					sim->dt);
+			exit(1);
+		}
+
+		if(fabs(dx[X]) > sim->dx[X] || fabs(dx[Y]) > sim->dx[Y])
+		{
+			err("Particle %d at x=(%.3e,%.3e)+(%.3e,%.3e) has exceeded sim dx=(%.3e,%.3e)\n",
+					p->i, p->x[X], p->x[Y],
+					dx[X], dx[Y],
+					sim->dx[X], sim->dx[Y]);
+			err("Please, reduce dt=%.3e or increase L\n",
+					sim->dt);
+			exit(1);
+		}
+
+
 		p->x[X] += dx[X];
 		p->x[Y] += dx[Y];
+
+		if(p->i < 100)
+			dbg("Particle %d moved to x=(%.3e,%.3e)\n",
+					p->i, p->x[X], p->x[Y]);
 
 		/* Wrapping is done after the particle is moved to the right
 		 * block */
@@ -738,12 +769,7 @@ chunk_x_update(sim_t *sim, int i)
 int
 plasma_x(sim_t *sim)
 {
-	int i, ret;
-
-	ret = Extrae_is_initialized();
-	assert(ret == 1);
-
-	Extrae_event(1000, 3);
+	int i;
 
 	perf_start(sim->perf, TIMER_PARTICLE_X);
 
@@ -756,8 +782,6 @@ plasma_x(sim_t *sim)
 	particle_comm(sim);
 
 	perf_stop(sim->perf, TIMER_PARTICLE_X);
-
-	Extrae_event(1000, 0);
 
 	return 0;
 }

@@ -1,14 +1,14 @@
 #include "perf.h"
 
 #include <time.h>
-#include <stdlib.h>
+#include "utils.h"
 
 perf_t *
 perf_init()
 {
 	perf_t *perf;
 
-	perf = calloc(sizeof(*perf), 1);
+	perf = safe_calloc(sizeof(*perf), 1);
 
 	return perf;
 }

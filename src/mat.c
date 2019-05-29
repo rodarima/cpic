@@ -1,8 +1,8 @@
 #define DEBUG 0
 #include "log.h"
 #include "mat.h"
+#include "utils.h"
 
-#include <stdlib.h>
 #include <stdio.h>
 #include <complex.h>
 #include <assert.h>
@@ -17,7 +17,7 @@ mat_alloc(int dim, int *shape)
 	if(dim > MAX_DIM)
 		return NULL;
 
-	m = malloc(sizeof(mat_t));
+	m = safe_malloc(sizeof(mat_t));
 	m->dim = dim;
 
 	size = 1;
@@ -39,7 +39,7 @@ mat_alloc(int dim, int *shape)
 	m->size = size;
 	m->real_size = size;
 
-	m->data = malloc(sizeof(double) * size);
+	m->data = safe_malloc(sizeof(double) * size);
 	m->real_data = m->data;
 
 	return m;
@@ -79,7 +79,7 @@ mat_view(mat_t *m, int dx, int dy, int *shape)
 	assert(m->dim == 2);
 	assert(m->size > 0);
 
-	v = malloc(sizeof(mat_t));
+	v = safe_malloc(sizeof(mat_t));
 	offset = dy * m->real_shape[X] + dx;
 
 	v->dim = m->dim;
@@ -121,7 +121,7 @@ vec_init(int size, double v)
 	mat_t *m;
 	int i;
 
-	int *sizev = malloc(sizeof(int));
+	int *sizev = safe_malloc(sizeof(int));
 
 	sizev[0] = size;
 

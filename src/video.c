@@ -1,7 +1,6 @@
 #include "video.h"
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <GL/gl.h>
 
@@ -11,7 +10,7 @@ video_init(int w, int h, const char *fname)
 	char *cmd;
 	video_t *v;
 
-	v = malloc(sizeof(*v));
+	v = safe_malloc(sizeof(*v));
 
 	v->w = w;
 	v->h = h;
@@ -33,13 +32,7 @@ video_init(int w, int h, const char *fname)
 
 	free(cmd);
 
-	v->buffer = malloc(w * h * sizeof(int));
-
-	if(!v->buffer)
-	{
-		perror("malloc");
-		return NULL;
-	}
+	v->buffer = safe_malloc(w * h * sizeof(int));
 
 	return v;
 }

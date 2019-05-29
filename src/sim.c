@@ -3,7 +3,7 @@
 
 #define PLOT 0
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include "specie.h"
 #include "particle.h"
@@ -18,13 +18,13 @@
 #include "perf.h"
 #include "comm.h"
 #include "plasma.h"
+#include "utils.h"
 
 #include <math.h>
 #include <assert.h>
 
 #include <mpi.h>
 #include <unistd.h>
-#include <extrae.h>
 
 #define ENERGY_CHECK 1
 
@@ -178,7 +178,7 @@ sim_init(config_t *conf, int quiet)
 {
 	sim_t *s;
 
-	s = malloc(sizeof(sim_t));
+	s = safe_malloc(sizeof(sim_t));
 
 	s->conf = conf;
 
@@ -242,15 +242,6 @@ sim_init(config_t *conf, int quiet)
 	sim_pre_step(s);
 
 	s->iter++;
-
-	extrae_type_t type = 1000;
-	char *description = "RODRIGO HERE: In function";
-	extrae_value_t values[] = {0, 1, 2, 3, 4};
-	unsigned nvalues = sizeof(values)/sizeof(extrae_value_t);
-	char *description_values[] = {
-		"END", "field_E", "particle_E", "plasma_x", "field_rho"};
-
-	Extrae_define_event_type(&type, description, &nvalues, values, description_values);
 
 	return s;
 }
@@ -410,7 +401,7 @@ sim_step(sim_t *sim)
 	if(sim->iter >= sim->cycles)
 		return -1;
 
-	dbg("iter %d\n", sim->iter);
+	dbg("::::::::::::::::::::::::::::::: iter %d ::::::::::::::::::::::::::::\n", sim->iter);
 
 	/* Phase CP:FS. Field solver, calculation of the electric field
 	 * from the current */
@@ -457,6 +448,7 @@ sim_step(sim_t *sim)
 	sim->total_momentum[X] = 0.0;
 	sim->total_momentum[Y] = 0.0;
 #endif
+	dbg("::::::::::::::::::::::::::: iter %d ended ::::::::::::::::::::::::::::\n", sim->iter);
 
 	sim->iter += 1;
 	sim->t = sim->iter * sim->dt;
