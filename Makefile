@@ -59,10 +59,10 @@ all: $(BIN)
 
 #nm -g cpic | sed -e 's/ . / /g' -e '/GLIBC/d' -e '/ _/d' -e '/^ /d' -e 's/ /#/g' -e '/interpol/d' > function.list
 
-function.all: cpic
+extrae/function.all: cpic
 	nm -g cpic > $@
 
-function.list: function.all
+extrae/function.list: extrae/function.all filter.list
 	grep -wf filter.list $< | sed -e 's/ . /#/g' > $@
 
 clean:
@@ -74,21 +74,21 @@ clean:
 #load:
 #	module load gcc/7.2.0 extrae ompss-2
 #
-cpic.prv: cpic extrae2.xml trace.sh function.list conf/mpi.conf
+trace/cpic.prv: cpic extrae/extrae2.xml extrae/trace.sh extrae/function.list conf/mpi.conf
 	rm -rf set-0/ TRACE.sym TRACE.mpits
-	taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './trace.sh ./cpic conf/mpi.conf 2> $$PMIX_RANK.log'
-	mpi2prv -f TRACE.mpits -o cpic.prv
+	taskset -c 0-15 mpirun --oversubscribe -n 4 bash -c 'extrae/trace.sh ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+	mpi2prv -f TRACE.mpits -o trace/cpic.prv
 
 valgrind:
-	taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c 'valgrind ./cpic conf/mpi.conf 2> $$PMIX_RANK.log'
+	taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c 'valgrind ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
 
-trace: cpic.prv
+trace: trace/cpic.prv
 
 run:
-	taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> $$PMIX_RANK.log'
+	taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
 
 gprof:
-	GMON_OUT_PREFIX=gmon taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> $$PMIX_RANK.log'
+	GMON_OUT_PREFIX=gmon taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
 
 .PHONY: run valgrind trace gprof
 
