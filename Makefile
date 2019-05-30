@@ -1,4 +1,4 @@
-MODULES:=src
+MODULES:=src test
 #MODULES+=test user
 
 CC=gcc

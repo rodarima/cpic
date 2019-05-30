@@ -1,17 +1,20 @@
 module:=test
 
-src:=$(wildcard $(module)/*.c)
-tests:=$(subst .c,.test,$(src))
-obj:=$(subst .c,.o,$(src))
+test_src:=$(wildcard $(module)/*.c)
+tests:=$(subst .c,.test,$(test_src))
+test_obj:=$(subst .c,.o,$(test_src))
 
 test_ldlibs:=-lm -lconfig -lfftw3 -lgsl -lgslcblas -lGL -lmgl2
 test_cflags:=-g -pthread -Wall
 
-test_cflags+=`pkg-config --cflags glfw3`
-test_ldlibs+=`pkg-config --libs glfw3`
+test_cflags+=$(src_cflags)
+test_ldlibs+=$(src_ldlibs)
 
-test_cflags+=`mpicc --showme:compile`
-test_ldlibs+=`mpicc --showme:link`
+#test_cflags+=`pkg-config --cflags glfw3`
+#test_ldlibs+=`pkg-config --libs glfw3`
+#
+#test_cflags+=`mpicc --showme:compile`
+#test_ldlibs+=`mpicc --showme:link`
 
 %.test: %.o cpic.a
 	$(CC) $(CFLAGS) $(test_cflags) $(LDLIBS) $(test_ldlibs) $^ -o $@
@@ -22,5 +25,5 @@ test: $(tests)
 	@for f in $(tests); do $$f || exit 1; done
 
 # Add to main rules
-SRC += $(src)
+SRC += $(test_src)
 BIN += $(tests)

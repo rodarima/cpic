@@ -27,7 +27,7 @@ test_rel()
 }
 
 int
-main()
+main(int argc, char *argv[])
 {
 	double rel[2];
 	double w[2][2];
@@ -45,6 +45,8 @@ main()
 	assert(w[1][0] == 1./16.);
 	assert(w[0][1] == 9./16.);
 	assert(w[1][1] == 3./16.);
+
+	printf("OK %s: Interpolation test passed\n", argv[0]);
 
 	return 0;
 }
