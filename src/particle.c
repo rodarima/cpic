@@ -19,20 +19,13 @@ int
 init_randpos(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
 
 int
-init_h2e(sim_t *sim, block_t *b, specie_block_t *sb);
-
-int
 init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
 
 particle_config_t pc[] =
 {
 	{"random position",		init_randpos},
 	{"position delta",		init_position_delta},
-#if 0
 	{"default",			init_default},
-	{"harmonic two electrons",	init_h2e},
-	{"random position",		init_randpos},
-#endif
 	{NULL, NULL}
 };
 
@@ -93,14 +86,11 @@ particles_init(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 	return 0;
 }
 
-#if 0
-
 int
 init_default(sim_t *sim, block_t *b, specie_block_t *sb)
 {
 	return init_randpos(sim, b, sb);
 }
-#endif
 
 double
 uniform(double a, double b)
@@ -147,51 +137,6 @@ init_randpos(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 	return 0;
 }
 
-#if 0
-int
-init_h2e(sim_t *sim, config_setting_t *cs, specie_t *s)
-{
-	int i, odd;
-	particle_t *p;
-	double v[MAX_DIM];
-	config_setting_t *cs_v;
-
-	cs_v = config_setting_get_member(cs, "drift_velocity");
-	if(config_array_float(cs_v, v, sim->dim))
-		return 1;
-
-	if(s->nparticles != 2)
-	{
-		err("Use only 2 particles\n");
-		exit(1);
-	}
-
-	for(i = 0; i < s->nparticles; i++)
-	{
-		odd = i % 2;
-		p = &s->particles[i];
-
-		p->i = i;
-		p->x[X] = sim->L[X] * (odd ? 5./8. : 3./8.);
-		p->x[Y] = sim->L[Y] / 2.0;
-
-//		p->x[X] += i/1e5;
-
-		p->u[X] = odd ? -v[X] : v[X];
-		p->u[Y] = 0.0;
-
-		p->E[X] = 0.0;
-		p->E[Y] = 0.0;
-
-//		p->J[X] = 0.0;
-//		p->J[Y] = 0.0;
-	}
-
-	return 0;
-}
-
-
-#endif
 int
 init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 {
@@ -293,28 +238,6 @@ boris_rotation(double q, double m, double *u, double *v, double *E, double *B, d
 
 }
 
-
-int
-move_particle_to_block(block_t *from, block_t *to, particle_t *p)
-{
-#if 0
-	dbg("Moving particle %d at x=(%.3e,%.3e) from block (%d,%d) to block (%d, %d)\n",
-			p->i, p->x[X], p->x[Y],
-			from->i[X], from->i[X],
-			to->i[X], to->i[Y]);
-
-	/* XXX: If the following order is swapped, the particle
-	 * is not removed, nor added. Is this a bug? */
-	DL_DELETE(from->species->particles, p);
-	/* XXX If the particle is added to the same block again,
-	 * we use prepend to avoid iterating on it */
-	//DL_APPEND(left->particles, p);
-	DL_PREPEND(to->species->particles, p);
-
-#endif
-	return 0;
-}
-
 void
 wrap_particle_position(sim_t *sim, particle_t *p)
 {
@@ -359,184 +282,6 @@ wrap_particle_position(sim_t *sim, particle_t *p)
 		assert(p->x[Y] >= 0.0);
 	}
 }
-
-#if 0
-static int
-block_comm_2d(sim_t *sim, specie_t *s, block_t *b)
-{
-	block_t *to_block;
-	particle_t *p, *tmp;
-	double px, py;
-	double x0, x1, y0, y1;
-	int idx, idy, ix, iy, nbx, nby;
-	int jx, jy;
-
-	dbg("Moving particles for block (%d,%d) x0=(%e,%e) x1=(%e,%e)\n",
-		b->i[X], b->i[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
-
-	ix = b->i[X];
-	iy = b->i[Y];
-
-	x0 = b->x0[X];
-	x1 = b->x1[X];
-
-	y0 = b->x0[Y];
-	y1 = b->x1[Y];
-
-	nbx = sim->nblocks[X];
-	nby = sim->nblocks[Y];
-
-	DL_FOREACH_SAFE(b->species->particles, p, tmp)
-	{
-		px = p->x[X];
-		py = p->x[Y];
-
-		idx = 0;
-		idy = 0;
-
-		wrap_particle_position(sim, p);
-
-		/* FIXME: Allow bigger jumps than 1 block */
-
-		/* First we check the X axis */
-		if(px < x0) idx = -1;
-		else if(px >= x1) idx = +1;
-
-		/* Then the Y axis */
-		if(py < y0) idy = -1;
-		else if(py >= y1) idy = +1;
-
-		/* Now we look for the proper block to move the particle if
-		 * needed */
-		if(idx != 0 || idy != 0)
-		{
-			jx = (ix + idx + nbx) % nbx;
-			jy = (iy + idy + nby) % nby;
-
-			assert(jx >= 0);
-			assert(jy >= 0);
-			assert(jx < nbx);
-			assert(jy < nby);
-
-			to_block = BLOCK_XY(sim, sim->blocks, jx, jy);
-
-			move_particle_to_block(b, to_block, p);
-		}
-
-	}
-
-	return 0;
-}
-#endif
-
-#if 0
-static int
-block_comm_1d(sim_t *sim, specie_t *s, block_t *b)
-{
-	block_t *to_block;
-	particle_t *p, *tmp;
-	double px;
-	double x0, x1;
-	int idx, ix, nbx;
-	int jx;
-
-	dbg("Moving particles for block (%d,%d) x0=(%e,%e) x1=(%e,%e)\n",
-		b->i[X], b->i[Y], b->x0[X], b->x0[Y], b->x1[X], b->x1[Y]);
-
-	ix = b->i[X];
-
-	x0 = b->x0[X];
-	x1 = b->x1[X];
-
-	nbx = sim->nblocks[X];
-
-	DL_FOREACH_SAFE(b->particles, p, tmp)
-	{
-		px = p->x[X];
-
-		idx = 0;
-
-		wrap_particle_position(sim, p);
-
-		/* FIXME: Allow bigger jumps than 1 block */
-
-		/* First we check the X axis */
-		if(px < x0) idx = -1;
-		else if(px >= x1) idx = +1;
-
-		/* Now we look for the proper block to move the particle if
-		 * needed */
-		if(idx != 0)
-		{
-			jx = (ix + idx + nbx) % nbx;
-
-			assert(jx >= 0);
-			assert(jx < nbx);
-
-			to_block = BLOCK_X(sim, s->blocks, jx);
-
-			move_particle_to_block(b, to_block, p);
-		}
-
-	}
-
-	return 0;
-}
-#endif
-
-#if 0
-/* After updating the position of the particles, they may have changed to
- * another block. Remove from the old block, and add in the new one. We assume
- * only one block at each time is allowed */
-//#pragma oss task inout(*b, *left, *right) label(particle_block_comm)
-static int
-block_comm(sim_t *sim, specie_t *s, block_t *b)
-{
-#if 0
-	if(sim->dim == 1)
-		return block_comm_1d(sim, s, b);
-	else
-#endif
-	if(sim->dim == 2)
-		return block_comm_2d(sim, s, b);
-	else
-		abort();
-
-	/* Not reached */
-	return 1;
-}
-#endif
-#if 0
-static int
-block_E_update(sim_t *sim, specie_t *s, block_t *b)
-{
-	particle_t *p;
-
-	if(sim->dim == 1)
-	{
-		for (p = b->species->particles; p; p = p->next)
-		{
-			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
-			interpolate_E_set_to_particle_x(sim, p, b);
-			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
-		}
-	}
-	else if(sim->dim == 2)
-	{
-		for (p = b->species->particles; p; p = p->next)
-		{
-			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
-			interpolate_E_set_to_particle_xy(sim, p, b);
-			dbg("particle %p E[X] = %f (%p)\n", p, p->E[X], &p->E[X]);
-		}
-	}
-	else
-	{
-		abort();
-	}
-	return 0;
-}
-#endif
 
 int
 particle_set_E(sim_t *sim, plasma_chunk_t *chunk, int i)

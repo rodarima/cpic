@@ -331,52 +331,6 @@ conservation_energy(sim_t *sim)
 }
 #endif
 
-#if 0
-void
-test_radius(sim_t *sim)
-{
-	/* FIXME: This is bad */
-	static double minx=0.0, maxx=0.0;
-	static int dir = 0, old_dir = 0;;
-
-	double r, rexp, qabs, m, v;
-	particle_t *p;
-
-	if(minx == 0.0) minx = sim->L[X];
-
-	p = &sim->species[0].particles[0];
-
-	if (p->x[X] < minx) minx = p->x[X];
-	if (p->x[X] > maxx) maxx = p->x[X];
-
-	if (p->u[X] < 0.0) dir = -1;
-	else dir = +1;
-
-	if(dir != old_dir)
-	{
-		old_dir = dir;
-
-		qabs = fabs(sim->species[0].q);
-		m = fabs(sim->species[0].m);
-		v = sqrt(p->u[X]*p->u[X] + p->u[Y]*p->u[Y]);
-
-		r = (maxx - minx) / 2.0;
-		rexp = m * v / (qabs * fabs(sim->B[Z]));
-
-		if(dir == +1)
-		{
-			printf("Pos = (%10.3e, %10.3e), Velocity %10.3e\n", p->x[X], p->x[Y], v);
-			printf("Larmor radius %10.3e, expected %10.3e\n", r, rexp);
-		}
-
-		minx = p->x[X];
-		maxx = p->x[X];
-
-	}
-
-}
-#endif
-
 int
 sim_plot(sim_t *sim)
 {
