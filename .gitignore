@@ -24,3 +24,4 @@ vgcore.*
 *.fls
 *.log
 *.toc
+log/
