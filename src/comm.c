@@ -90,7 +90,6 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 {
 	particle_t *p, *tmp;
 	particle_set_t *set;
-	double x0, x1, y0, y1;
 	int j, ix, iy;
 	int dst, dst_ig[MAX_DIM];
 
@@ -110,6 +109,8 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 	ix = chunk->ig[X];
 	iy = chunk->ig[Y];
 
+#if GLOBAL_DEBUG
+	double x0, x1, y0, y1;
 	x0 = chunk->x0[X];
 	y0 = chunk->x0[Y];
 
@@ -118,6 +119,7 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 
 	dbg("Chunk goes from (x=%e,y=%e) to (x=%e,y=%e)\n",
 			x0, y0, x1, y1);
+#endif
 
 	DL_FOREACH_SAFE(set->particles, p, tmp)
 	{
@@ -133,6 +135,7 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 		/* Only one chunk per process in the Y direction */
 		dst = dst_ig[Y];
 
+#if GLOBAL_DEBUG
 		if(p->i < 100)
 			dbg("p%d at (%e,%e) exceeds chunk space "
 				"(%e,%e) to (%e,%e), queueing in out dst=%d "
@@ -140,6 +143,7 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 				p->i,
 				p->x[X], p->x[Y],
 				x0, y0, x1, y1, dst, dst_ig[X], dst_ig[Y]);
+#endif
 
 		queue_particle(set, p, dst);
 	}
