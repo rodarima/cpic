@@ -1,26 +1,29 @@
 MODULES:=src test
 #MODULES+=test user
 
-CC=gcc
+#CC=gcc
 #CC=clang
 #OCC=mcc
 LDLIBS:=
-CFLAGS:=-g -pthread -Wall -pg
+CFLAGS:=-g -Wall -Werror
 LDFLAGS:=-L. -Wl,-rpath,.
+
+# Enable profiling with gprof
+#CFLAGS+=-pg
 
 # Use debug messages
 #CFLAGS+=-DGLOBAL_DEBUG
 
 # Instrument functions so Extrae can get some information
-CFLAGS+=-finstrument-functions
+#CFLAGS+=-finstrument-functions
 
 # Avoid optimized instructions, so we can still use Valgrind
-CFLAGS+=-march=x86-64 -mtune=generic
+#CFLAGS+=-march=x86-64 -mtune=generic
 
 # Stack protector
 #CFLAGS+=-fstack-protector-all
 
-# Optimization?
+# Optimization
 #CFLAGS+=-O2
 
 #Include all modules for headers
@@ -28,30 +31,46 @@ CFLAGS+=$(patsubst %,-I%,$(MODULES))
 
 BIN:=
 SRC:=
+GEN:=
 
 all:
 
 
 # include the description for each module
-include $(patsubst %,%/build.mk,$(MODULES))
+INC_MAKEFILES:=$(patsubst %,%/build.mk,$(MODULES))
 
+include $(INC_MAKEFILES)
 
 # include the C include dependencies
-include $(OBJ:.o=.d)
+#$(info Including ${OBJ:.o=.d})
+#include $(OBJ:.o=.d)
+#$(info $$OBJ is [${OBJ}])
+DEP:=$(patsubst %.c,%.d, $(filter %.c,$(SRC)))
+
+include $(DEP)
 
 # determine the object files
 OBJ := \
 $(patsubst %.c,%.o, $(filter %.c,$(SRC))) \
 $(patsubst %.y,%.o, $(filter %.y,$(SRC)))
+#
+#$(info $$SRC is [${SRC}])
+#$(info $$OBJ is [${OBJ}])
 #OBJ=$(SRC:.c=.o)
-DEP=$(SRC:.c=.d)
+#DEP:=$(SRC:.c=.d)
+#$(info Including ${OBJ})
 
-include $(DEP)
+#include $(DEP)
 
 # rule to generate a dep file by using the C preprocessor
 # (see man cpp for details on the -MM and -MT options)
+
+#%.mcc.d: %.mcc.c
+#	$(CPP) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
+
 %.d: %.c
 	@$(CPP) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
+
 
 all: $(BIN)
 
@@ -66,7 +85,7 @@ extrae/function.list: extrae/function.all filter.list
 	grep -wf filter.list $< | sed -e 's/ . /#/g' > $@
 
 clean:
-	rm -f $(OBJ) $(BIN) $(DEP)
+	rm -f $(OBJ) $(BIN) $(DEP) $(GEN)
 
 #%.mcc.c: %.c
 #	$(OCC) $(CFLAGS) $(OCFLAGS) -y -o $@ $<
