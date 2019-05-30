@@ -236,12 +236,14 @@ sim_init(config_t *conf, int quiet)
 #endif
 
 	s->iter++;
+	s->t = s->iter * s->dt;
 
 	/* Advance the simulation to place each particle in the correct block,
 	 * and compute rho */
 	sim_pre_step(s);
 
 	s->iter++;
+	s->t = s->iter * s->dt;
 
 	return s;
 }

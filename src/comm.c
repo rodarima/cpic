@@ -382,10 +382,16 @@ recv_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 
 	dbg(" --- RECV PHASE REACHED ---\n");
 
-	if(global_exchange)
-		max_procs = sim->nprocs - 1; // Exclude myself
-	else
+	/* Exclude myself assuming global exchange */
+	max_procs = sim->nprocs - 1;
+
+	/* Or reduce the number of processes in local exchange: Note that if
+	 * there are only 2 MPI processes, both local and global exchange are
+	 * equal */
+	if(!global_exchange && max_procs > 2)
+	{
 		max_procs = 2;
+	}
 
 	recv_from = safe_calloc(sim->nprocs, sizeof(int));
 
@@ -406,11 +412,11 @@ recv_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 		//MPI_Recv(buf, 1024, MPI_BYTE, chunk->neigh_rank[i],
 		//	MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-		dbg("PROB rank=%d tag=%d\n", source, tag);
 		MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
 
 		source = status.MPI_SOURCE;
 
+		dbg("PROB rank=%d tag=%d\n", source, tag);
 
 		assert(status.MPI_TAG == tag);
 
@@ -418,14 +424,14 @@ recv_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 
 		pkt = safe_malloc(size);
 
-		dbg("RECV size=%d rank=%d neigh=%d tag=%d rf[%d]=%d\n",
-				size, source, neigh, tag, neigh, recv_from[neigh]);
 		/* Can this receive another packet? */
 		MPI_Recv(pkt, size, MPI_BYTE, source, tag,
 				MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
 		neigh = pkt->neigh;
 
+		dbg("RECV size=%d rank=%d neigh=%d tag=%d rf[%d]=%d\n",
+				size, source, neigh, tag, neigh, recv_from[neigh]);
 
 		assert(recv_from[neigh] == 0);
 		recv_from[neigh]++;

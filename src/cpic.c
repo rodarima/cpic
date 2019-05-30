@@ -39,8 +39,6 @@ main(int argc, char *argv[])
 	int opt;
 	int quiet = 0;
 
-	printf("MAIN REACHED\n");
-
 	/* FIXME: Determine if we want to allow MPI to know our argv. By now we
 	 * simply set a NULL argv */
 	MPI_Init(NULL, NULL);

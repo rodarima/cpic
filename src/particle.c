@@ -13,7 +13,7 @@
 #include <string.h>
 
 int
-init_default(sim_t *sim, block_t *b, specie_block_t *sb);
+init_default(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
 
 int
 init_randpos(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
@@ -87,9 +87,9 @@ particles_init(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 }
 
 int
-init_default(sim_t *sim, block_t *b, specie_block_t *sb)
+init_default(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 {
-	return init_randpos(sim, b, sb);
+	return init_randpos(sim, chunk, set);
 }
 
 double
@@ -406,6 +406,10 @@ particle_x_update(sim_t *sim, plasma_chunk_t *chunk, int i)
 		u[Z] = p->u[Z];
 		E = p->E;
 
+		E[X] = 0.0;
+		E[Y] = 0.0;
+		E[Z] = 0.0;
+
 		if(sim->iter == 0)
 		{
 
@@ -426,7 +430,7 @@ particle_x_update(sim_t *sim, plasma_chunk_t *chunk, int i)
 
 		if(p->i < 100)
 			dbg("Particle %d at x=(%.3e,%.3e) increases speed by (%.3e,%.3e)\n",
-					p->i, p->x[X], p->x[Y], v[X] - u[X], v[X] - u[X]);
+					p->i, p->x[X], p->x[Y], v[X] - u[X], v[Y] - u[Y]);
 
 		/* We advance the kinetic energy here, as we know the old
 		 * velocity at t - dt/2 and the new one at t + dt/2. So we take
