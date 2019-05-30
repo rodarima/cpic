@@ -129,10 +129,11 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 {
 	specie_t *s;
 	particle_t *p;
-	double dr[MAX_DIM];
+	double dr[MAX_DIM] __attribute__((unused));
 	double r[MAX_DIM];
-	double R[MAX_DIM] = {0};
-	double *center, dist, err, t, rel;
+	double R[MAX_DIM] __attribute__((unused)) = {0};
+	double *center, dist, err;
+	double t __attribute__((unused)), rel __attribute__((unused));
 
 	p = find_particle(sim, 0, &s);
 	/* We don't have the particle, it must be in another process */
