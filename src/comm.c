@@ -476,7 +476,6 @@ comm_plasma_chunk(sim_t *sim, int i, int global_exchange)
 	/* Finally receive particles from the neighbours */
 	recv_particles(sim, chunk, global_exchange);
 
-
 	return 0;
 }
 
@@ -524,8 +523,6 @@ comm_send_ghost_rho(sim_t *sim)
 	if(sim->dim != 2)
 		die("Communication of fields only implemented for 2D\n");
 
-	assert(sim->plasma_chunks == 1);
-
 	rho = f->rho;
 
 	neigh = (sim->rank + 1) % sim->nprocs;
@@ -561,8 +558,6 @@ comm_recv_ghost_rho(sim_t *sim)
 	/* We only consider the 2D space by now and plasma chunks = 1 */
 	if(sim->dim != 2)
 		die("Communication of fields only implemented for 2D\n");
-
-	assert(sim->plasma_chunks == 1);
 
 	/* Otherwise we will need to remove the padding in X */
 	assert(sim->ghostpoints == 1);

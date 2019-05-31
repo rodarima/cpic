@@ -314,9 +314,13 @@ chunk_E(sim_t *sim, int i)
 
 	chunk = &sim->plasma.chunks[i];
 
-	for(i=0; i<chunk->nspecies; i++)
+	#pragma oss task inout(*chunk) label(chunk_E)
 	{
-		particle_set_E(sim, chunk, i);
+		dbg("Running task chunk_E with chunk %d\n", i);
+		for(i=0; i<chunk->nspecies; i++)
+		{
+			particle_set_E(sim, chunk, i);
+		}
 	}
 
 	return 0;
@@ -501,15 +505,24 @@ particle_x_update(sim_t *sim, plasma_chunk_t *chunk, int i)
 }
 
 int
-chunk_x_update(sim_t *sim, int i)
+chunk_x_update(sim_t *sim, int ic)
 {
-	plasma_chunk_t *chunk;
+	plasma_chunk_t *chunk, *next;
+	int is, jc, n;
 
-	chunk = &sim->plasma.chunks[i];
+	n = sim->plasma.nchunks;
+	jc = (ic + 1) % n;
 
-	for(i=0; i<chunk->nspecies; i++)
+	chunk = &sim->plasma.chunks[ic];
+	next = &sim->plasma.chunks[jc];
+
+	#pragma oss task inout(*chunk) inout(*next) label(chunk_x_update)
 	{
-		particle_x_update(sim, chunk, i);
+		dbg("Running task x update on chunk %d\n", ic);
+		for(is=0; is<chunk->nspecies; is++)
+		{
+			particle_x_update(sim, chunk, is);
+		}
 	}
 
 	return 0;
@@ -523,10 +536,13 @@ plasma_x(sim_t *sim)
 	perf_start(sim->perf, TIMER_PARTICLE_X);
 
 	/* Computation */
-	for(i=0; i<sim->plasma.nchunks; i++)
-	{
+	for(i=0; i<sim->plasma.nchunks; i+=2)
 		chunk_x_update(sim, i);
-	}
+
+	for(i=1; i<sim->plasma.nchunks; i+=2)
+		chunk_x_update(sim, i);
+
+	#pragma oss taskwait
 
 	particle_comm(sim);
 

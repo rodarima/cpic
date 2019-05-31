@@ -3,9 +3,11 @@ MODULES:=src test
 
 #CC=gcc
 #CC=clang
+CC=mcc --ompss-2 --line-markers
 #OCC=mcc
 LDLIBS:=
-CFLAGS:=-g -Wall -Werror
+CFLAGS:=-g -Wall
+#CFLAGS:=-g -Wall -Werror
 LDFLAGS:=-L. -Wl,-rpath,.
 
 # Enable profiling with gprof
@@ -32,6 +34,7 @@ CFLAGS+=$(patsubst %,-I%,$(MODULES))
 BIN:=
 SRC:=
 GEN:=
+OBJ:=
 
 all:
 
@@ -50,7 +53,7 @@ DEP:=$(patsubst %.c,%.d, $(filter %.c,$(SRC)))
 include $(DEP)
 
 # determine the object files
-OBJ := \
+OBJ += \
 $(patsubst %.c,%.o, $(filter %.c,$(SRC))) \
 $(patsubst %.y,%.o, $(filter %.y,$(SRC)))
 #

@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 
 #define CYCLOTRON_CONF "conf/cyclotron.conf"
 #define WEAK_CHECK 1
@@ -271,12 +272,12 @@ int main(int argc, char *argv[])
 
 	if(c.max_err > c.limit)
 	{
-		err("FAIL %s: The error %e exceeds the limit %e\n",
+		printf("FAIL %s: The error %e exceeds the limit %e\n",
 				argv[0], c.max_err, c.limit);
 		return 1;
 	}
 
-	err("OK %s: Absolute error %.3e is lower than the limit %.3e\n",
+	printf("OK %s: Absolute error %.3e is lower than the limit %.3e\n",
 			argv[0], c.max_err, c.limit);
 
 	MPI_Finalize();
