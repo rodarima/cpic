@@ -29,7 +29,7 @@
 	</callers>
 
 	<user-functions enabled="yes"
-		list="/home/bsc15/bsc15557/cpic/function.list"
+		list="extrae/function.list"
 		exclude-automatic-functions="yes">
 
 		<counters enabled="yes" />

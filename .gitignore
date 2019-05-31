@@ -25,3 +25,4 @@ vgcore.*
 *.log
 *.toc
 log/
+extrae/function.*

@@ -359,6 +359,9 @@ sim_step(sim_t *sim)
 
 	dbg("::::::::::::::::::::::::::::::: iter %d ::::::::::::::::::::::::::::\n", sim->iter);
 
+	if(sim->rank == 0)
+		printf("iter %d/%d\n", sim->iter, sim->cycles);
+
 	/* Phase CP:FS. Field solver, calculation of the electric field
 	 * from the current */
 

@@ -8,7 +8,10 @@ CC=mcc --ompss-2 --line-markers
 LDLIBS:=
 CFLAGS:=-g -Wall
 #CFLAGS:=-g -Wall -Werror
-LDFLAGS:=-L. -Wl,-rpath,.
+#LDFLAGS:=-L. -Wl,-rpath,.
+
+# Enable debug in Mercurium
+#CC+=--v
 
 # Enable profiling with gprof
 #CFLAGS+=-pg
@@ -17,7 +20,7 @@ LDFLAGS:=-L. -Wl,-rpath,.
 #CFLAGS+=-DGLOBAL_DEBUG
 
 # Instrument functions so Extrae can get some information
-#CFLAGS+=-finstrument-functions
+CFLAGS+=-finstrument-functions
 
 # Avoid optimized instructions, so we can still use Valgrind
 #CFLAGS+=-march=x86-64 -mtune=generic
@@ -84,8 +87,8 @@ all: $(BIN)
 extrae/function.all: cpic
 	nm -g cpic > $@
 
-extrae/function.list: extrae/function.all filter.list
-	grep -wf filter.list $< | sed -e 's/ . /#/g' > $@
+extrae/function.list: extrae/function.all extrae/filter.list
+	grep -wf extrae/filter.list $< | sed -e 's/ . /#/g' > $@
 
 clean:
 	rm -f $(OBJ) $(BIN) $(DEP) $(GEN)
@@ -96,10 +99,13 @@ clean:
 #load:
 #	module load gcc/7.2.0 extrae ompss-2
 #
-trace/cpic.prv: cpic extrae/extrae2.xml extrae/trace.sh extrae/function.list conf/mpi.conf
+trace/cpic.prv: cpic extrae/extrae2.xml extrae/trace.sh extrae/function.list conf/mpi.conf Makefile
 	rm -rf set-0/ TRACE.sym TRACE.mpits
-	taskset -c 0-15 mpirun --oversubscribe -n 4 bash -c 'extrae/trace.sh ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+	mpirun -n 2 --map-by NUMA:PE=4 extrae/trace.sh ./cpic conf/mpi.conf
+	#mpirun -n 2 --cpus-per-proc 4 extrae/trace.sh ./cpic conf/mpi.conf
+	#mpirun -n 2 taskset -c 0-15 extrae/trace.sh ./cpic conf/mpi.conf
 	mpi2prv -f TRACE.mpits -o trace/cpic.prv
+	grep 'User function' trace/cpic.pcf
 
 valgrind:
 	taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c 'valgrind ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
@@ -107,7 +113,7 @@ valgrind:
 trace: trace/cpic.prv
 
 run:
-	taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+	taskset -c 0-15 mpirun --oversubscribe -n 8 bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
 
 gprof:
 	GMON_OUT_PREFIX=gmon taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
