@@ -152,7 +152,7 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 }
 
 int
-send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int dst)
+send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 {
 	int is, ip, count, np, tag, op;
 	size_t size;
@@ -169,7 +169,7 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int dst)
 	pkt = chunk->q[dst];
 	size = sizeof(comm_packet_t);
 	op = COMM_TAG_OP_PARTICLES;
-	tag = compute_tag(op, sim->iter, 0, COMM_TAG_DIR_SIZE);
+	tag = compute_tag(op, sim->iter, chunk_index, COMM_TAG_DIR_SIZE);
 
 	/* Compute queue size */
 	for(is=0; is<sim->nspecies; is++)
@@ -291,7 +291,7 @@ share_particles(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 
 /* Set the packets of particles to send to each neighbour */
 int
-send_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
+send_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_exchange)
 {
 
 	int i, is, next, prev;
@@ -331,7 +331,7 @@ send_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 		}
 
 		dbg("Sending packets to proc %d\n", i);
-		send_packet_neigh(sim, chunk, i);
+		send_packet_neigh(sim, chunk, chunk_index, i);
 
 	}
 
@@ -375,7 +375,7 @@ recv_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 }
 
 int
-recv_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
+recv_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_exchange)
 {
 	int i;
 	int source, tag, size, neigh, op;
@@ -400,7 +400,7 @@ recv_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 	recv_from = safe_calloc(sim->nprocs, sizeof(int));
 
 	op = COMM_TAG_OP_PARTICLES;
-	tag = compute_tag(op, sim->iter, 0, COMM_TAG_DIR_SIZE);
+	tag = compute_tag(op, sim->iter, chunk_index, COMM_TAG_DIR_SIZE);
 
 	/* FIXME: We shouldn't need to receive from more than 2 processes */
 	for(i=0; i<max_procs; i++)
@@ -471,10 +471,10 @@ comm_plasma_chunk(sim_t *sim, int i, int global_exchange)
 	}
 
 	/* Then fill the packets and send each to the corresponding neighbour */
-	send_particles(sim, chunk, global_exchange);
+	send_particles(sim, chunk, i, global_exchange);
 
 	/* Finally receive particles from the neighbours */
-	recv_particles(sim, chunk, global_exchange);
+	recv_particles(sim, chunk, i, global_exchange);
 
 	return 0;
 }

@@ -18,6 +18,9 @@
 #define COMM_TAG_DIR_SIZE 4
 #define COMM_TAG_DIR_MASK (~((~0)<<COMM_TAG_DIR_SIZE))
 
+#define COMM_TAG_CHUNK_SIZE 10
+#define COMM_TAG_CHUNK_MASK (~((~0)<<COMM_TAG_DIR_SIZE))
+
 int
 comm_block(sim_t *sim, block_t *b);
 
