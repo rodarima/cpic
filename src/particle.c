@@ -538,6 +538,7 @@ plasma_x(sim_t *sim)
 	/* Computation */
 	for(i=0; i<sim->plasma.nchunks; i+=2)
 		chunk_x_update(sim, i);
+	#pragma oss taskwait
 
 	for(i=1; i<sim->plasma.nchunks; i+=2)
 		chunk_x_update(sim, i);

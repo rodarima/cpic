@@ -36,6 +36,18 @@ chunk_delta_to_index(int delta[], int dim)
 }
 
 int
+count_particles(particle_t *list)
+{
+	particle_t *p;
+	int counter;
+
+	p = NULL;
+	DL_COUNT(list, p, counter);
+
+	return counter;
+}
+
+int
 queue_particle(particle_set_t *set, particle_t *p, int j)
 {
 	DL_DELETE(set->particles, p);
@@ -44,6 +56,8 @@ queue_particle(particle_set_t *set, particle_t *p, int j)
 	DL_APPEND(set->out[j], p);
 	set->outsize[j]++;
 
+	assert(count_particles(set->particles) == set->nparticles);
+	assert(count_particles(set->out[j]) == set->outsize[j]);
 	return 0;
 }
 
@@ -147,6 +161,7 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 
 		queue_particle(set, p, dst);
 	}
+
 
 	return 0;
 }
@@ -338,6 +353,7 @@ send_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_ex
 	return 0;
 }
 
+//#pragma oss task inout(*chunk) label(recv_comm_packet)
 int
 recv_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 {

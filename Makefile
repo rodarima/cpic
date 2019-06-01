@@ -1,6 +1,7 @@
 MODULES:=src test
 #MODULES+=test user
 
+
 #CC=gcc
 #CC=clang
 CC=mcc --ompss-2 --line-markers
@@ -17,7 +18,7 @@ CFLAGS:=-g -Wall
 #CFLAGS+=-pg
 
 # Use debug messages
-#CFLAGS+=-DGLOBAL_DEBUG
+CFLAGS+=-DGLOBAL_DEBUG
 
 # Instrument functions so Extrae can get some information
 CFLAGS+=-finstrument-functions
@@ -38,6 +39,11 @@ BIN:=
 SRC:=
 GEN:=
 OBJ:=
+
+# MPI configuration
+NPROCS?=4
+NCORES?=4
+MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES)
 
 all:
 
@@ -101,19 +107,20 @@ clean:
 #
 trace/cpic.prv: cpic extrae/extrae2.xml extrae/trace.sh extrae/function.list conf/mpi.conf Makefile
 	rm -rf set-0/ TRACE.sym TRACE.mpits
-	mpirun -n 2 --map-by NUMA:PE=4 extrae/trace.sh ./cpic conf/mpi.conf
+	$(MPIRUN) extrae/trace.sh ./cpic conf/mpi.conf
 	#mpirun -n 2 --cpus-per-proc 4 extrae/trace.sh ./cpic conf/mpi.conf
 	#mpirun -n 2 taskset -c 0-15 extrae/trace.sh ./cpic conf/mpi.conf
 	mpi2prv -f TRACE.mpits -o trace/cpic.prv
 	grep 'User function' trace/cpic.pcf
 
 valgrind:
-	taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c 'valgrind ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+	$(MPIRUN) bash -c 'valgrind ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
 
 trace: trace/cpic.prv
 
 run:
-	taskset -c 0-15 mpirun --oversubscribe -n 8 bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+	rm -f log/*
+	$(MPIRUN) bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
 
 gprof:
 	GMON_OUT_PREFIX=gmon taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
