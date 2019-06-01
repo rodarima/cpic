@@ -26,3 +26,6 @@ vgcore.*
 *.toc
 log/
 extrae/function.*
+*.pcf
+*.prv
+*.row
