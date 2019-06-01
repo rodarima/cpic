@@ -11,6 +11,9 @@
 #define DEBUG 1
 #include "log.h"
 
+/* Add some extra tests which can be costly */
+//#define CHECK_SLOW
+
 int
 chunk_delta_to_index(int delta[], int dim)
 {
@@ -50,14 +53,23 @@ count_particles(particle_t *list)
 int
 queue_particle(particle_set_t *set, particle_t *p, int j)
 {
+	int nall, nout;
 	DL_DELETE(set->particles, p);
 	set->nparticles--;
 
 	DL_APPEND(set->out[j], p);
 	set->outsize[j]++;
 
-	assert(count_particles(set->particles) == set->nparticles);
-	assert(count_particles(set->out[j]) == set->outsize[j]);
+#ifdef CHECK_SLOW
+	nall = count_particles(set->particles);
+	nout = count_particles(set->out[j]);
+
+	dbg("Queue particle %d from main set size %d (%d?) into out[%d] size %d (%d?)\n",
+			p->i, nall, set->nparticles, j, nout, set->outsize[j]);
+
+	assert(nall == set->nparticles);
+	assert(nout == set->outsize[j]);
+#endif
 	return 0;
 }
 
@@ -293,8 +305,11 @@ share_particles(sim_t *sim, plasma_chunk_t *chunk, int neigh)
 
 		if(set->outsize[neigh])
 		{
-			DL_APPEND(set->particles, set->out[neigh]);
+			DL_CONCAT(set->particles, set->out[neigh]);
 			set->nparticles += set->outsize[neigh];
+#ifdef CHECK_SLOW
+			assert(count_particles(set->particles) == set->nparticles);
+#endif
 		}
 
 		set->out[neigh] = NULL;
