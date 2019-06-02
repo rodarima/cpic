@@ -339,14 +339,17 @@ field_rho(sim_t *sim)
 
 	/* Reset charge density */
 	for (i=0; i<plasma->nchunks; i++)
+		#pragma oss task out(plasma->chunk[i])
 		rho_reset(sim, i);
 
 	/* -- taskwait? -- */
 
 	/* Computation */
 	for (i=0; i<plasma->nchunks; i++)
+		#pragma oss task inout(plasma->chunk[i])
 		rho_update(sim, i);
 
+	#pragma oss taskwait
 	/* Send the ghost part of the rho field */
 	comm_send_ghost_rho(sim);
 
