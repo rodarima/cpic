@@ -362,6 +362,8 @@ particle_comm(sim_t *sim)
 		comm_plasma_chunk(sim, i, 0);
 	}
 
+	#pragma oss taskwait
+
 	return 0;
 }
 
@@ -377,6 +379,8 @@ particle_comm_initial(sim_t *sim)
 	{
 		comm_plasma_chunk(sim, i, 1);
 	}
+
+	#pragma oss taskwait
 
 	return 0;
 }

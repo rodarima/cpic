@@ -18,7 +18,7 @@ CFLAGS:=-g -Wall
 #CFLAGS+=-pg
 
 # Use debug messages
-CFLAGS+=-DGLOBAL_DEBUG
+#CFLAGS+=-DGLOBAL_DEBUG
 
 # Instrument functions so Extrae can get some information
 CFLAGS+=-finstrument-functions
@@ -40,10 +40,19 @@ SRC:=
 GEN:=
 OBJ:=
 
-# MPI configuration
-NPROCS?=4
-NCORES?=4
-MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES)
+HOSTNAME=$(shell hostname)
+
+# MPI configuration based on the computing device
+ifeq ($(HOSTNAME), mio)
+ NPROCS?=2
+ NCORES?=1
+ MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES) --oversubscribe
+else
+ NPROCS?=4
+ NCORES?=4
+ MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES)
+endif
+
 
 all:
 

@@ -395,6 +395,8 @@ recv_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 			p2 = safe_malloc(sizeof(*p2));
 			memcpy(p2, p, sizeof(*p));
 
+			/* FIXME: The particle may belong to another chunk in
+			 * this process */
 			particle_set_add(set, p2);
 		}
 
@@ -495,17 +497,22 @@ comm_plasma_chunk(sim_t *sim, int i, int global_exchange)
 	plasma = &sim->plasma;
 	chunk = &plasma->chunks[i];
 
-	/* Collect particles in a queue that need to change chunk */
-	for(is = 0; is < sim->nspecies; is++)
+	/* FIXME: The introduction of this task produces a segmentation fault */
+	//#pragma oss task inout(*chunk)
 	{
-		collect_specie(sim, chunk, is, global_exchange);
+
+		/* Collect particles in a queue that need to change chunk */
+		for(is = 0; is < sim->nspecies; is++)
+		{
+			collect_specie(sim, chunk, is, global_exchange);
+		}
+
+		/* Then fill the packets and send each to the corresponding neighbour */
+		send_particles(sim, chunk, i, global_exchange);
+
+		/* Finally receive particles from the neighbours */
+		recv_particles(sim, chunk, i, global_exchange);
 	}
-
-	/* Then fill the packets and send each to the corresponding neighbour */
-	send_particles(sim, chunk, i, global_exchange);
-
-	/* Finally receive particles from the neighbours */
-	recv_particles(sim, chunk, i, global_exchange);
 
 	return 0;
 }
