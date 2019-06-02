@@ -24,4 +24,6 @@ vgcore.*
 *.fls
 *.log
 *.toc
+*.bbl
+*.blg
 log/

@@ -1,0 +1,40 @@
+\chapter{Analysis}
+
+
+%\section{Analyze time distribution}
+
+In order to reduce the amount of CPU time involved in each step of the 
+simulation, the best strategy is to reduce the time spent in the most time 
+consuming part.
+
+The CPU time involved in each part of the simulation may depend on various 
+factors, such as the number of grid points, the number of particles or the 
+boundary conditions. As an example, consider a simulation with a large number of 
+grid points, with few particles---the computation of the electric field 
+(\texttt{field\_E}) will dominate the simulation time, as shown in the figure 
+\ref{fig:cm-big-grid}. In a case of a large number of particles and a smaller 
+grid, the particle interpolation (\texttt{particle\_E}) dominates the whole 
+execution as seen in the figure \ref{fig:cm-lots-particles}.
+
+\begin{figure}[h]
+	\centering
+	\subfloat[1024 particles, 512x512 grid points]{
+		\includegraphics[width=\linewidth]{callmap-grid512x512-n1024.png}
+		\label{fig:cm-big-grid}
+	}
+	\\
+	\subfloat[10240 particles, 64x64 grid points]{
+		\includegraphics[width=\linewidth]{callmap-grid64x64-n10240.png}
+		\label{fig:cm-lots-particles}
+	}
+	\caption{Comparison of the time spent in each function at two different 
+	simulations.}
+\end{figure}
+
+In order to optimize the general use case, different inputs will be tested and 
+the main simulation steps will be characterized. Furthermore, different 
+algorithms or methods may be used to improve the speed. As an example, the LU 
+algorithm is compared with the spectral method MFT.
+
+\section{Analysis with varying inputs}
+

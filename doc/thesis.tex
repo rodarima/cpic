@@ -1,0 +1,69 @@
+\documentclass[a4paper,12pt]{book}
+%\documentclass[a5paper,12pt,landscape]{book}
+%\documentclass[a5paper,12pt,landscape]{report}
+
+\usepackage[margin=2cm]{geometry}
+
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+%\usepackage[utf8]{inputenc}
+
+\usepackage{tikz}
+\usetikzlibrary{calc}
+\usetikzlibrary{arrows, backgrounds}
+\usetikzlibrary{matrix, arrows.meta}
+\usepackage[pdf]{graphviz}
+
+%\usepackage{amsfonts}
+%\usepackage{amsmath}
+%\usepackage{amsthm}
+\usepackage{bm}
+
+% Used for split environment
+\usepackage{amsmath}
+% Separate rows in align environment by this amount
+\addtolength{\jot}{1em}
+
+\usepackage{graphicx}
+\graphicspath{{../fig/} {fig/}}
+\usepackage{subfig}
+\usepackage{wrapfig}
+
+\usepackage{caption}
+\captionsetup{font=footnotesize}
+
+\newcommand*\V[1]{\bm{#1}}
+\newcommand{\E}{\V{E}}
+\newcommand{\B}{\V{B}}
+\renewcommand*{\v}{\V{v}}
+\newcommand{\x}{\V{x}}
+\newcommand{\dt}{\Delta t}
+\newcommand{\dx}{\Delta x}
+
+\title{Simulation of plasma with \texttt{cpic} using OmpSs}
+\author{Rodrigo Arias Mallo}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\input{chapter/intro.tex}
+\input{chapter/related-work.tex}
+\input{chapter/plasma-intro.tex}
+\input{chapter/plasma-simulation.tex}
+\input{chapter/design.tex}
+\input{chapter/simulator.tex}
+\input{chapter/analysis.tex}
+\input{chapter/caveats.tex}
+
+%
+%\chapter{Results}
+%
+%\chapter{Conclusions}
+
+\bibliographystyle{siam}
+\bibliography{bib}
+
+\end{document}

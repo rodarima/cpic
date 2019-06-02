@@ -1,6 +1,8 @@
-BIN=report.pdf
+BIN=thesis.pdf
+
+CHAPTERS=$(wildcard chapter/*.tex)
 
 all: $(BIN)
 
-%.pdf: %.tex
-	latexmk $< -pdf
+thesis.pdf: thesis.tex $(CHAPTERS)
+	latexmk -latexoption=-shell-escape $< -pdf

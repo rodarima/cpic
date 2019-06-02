@@ -1,0 +1,64 @@
+\chapter{Introduction}
+\label{ch:intro}
+
+It may be surprising to find out that the most common state of matter is plasma 
+when we look at the universe. A plasma is an ionized gas consisting of ions and
+free electrons distributed over a region in space.
+in which at least one electron 
+of the atom is separated, so it remains positively charged (ionized) 
+\cite{chen}.  Usually this happens in the vacuum
+
+\section{Motivation}
+
+% Why?
+
+\section{Objectives}
+
+\section{Context}
+
+\section{Structure}
+
+\begin{wrapfigure}{r}{0.3\textwidth}
+\centering
+\scalebox{0.7} {
+\begin{tikzpicture}[>=latex,thick]
+	\matrix (m) [
+		matrix of nodes,
+		column sep=5mm,
+		row sep=5mm,
+		nodes={
+			draw, % General options for all nodes
+			line width=1pt,
+			anchor=center,
+			text centered,
+			rounded corners,
+			minimum width=5cm,
+			minimum height=8mm,
+		},
+		txt/.style={text width=1.5cm,anchor=center},
+	]
+	{
+		Physical phenomenon \\
+		Mathematical model \\
+		Discretization \\
+		Numerical algorithms \\
+		|[fill=black!10]| Parallelization \\
+		Simulation program \\
+		Computer experiment \\
+	};
+	\foreach \i [evaluate={\j=int(\i+1)}] in {1,...,6}{
+		\draw[->] (m-\i-1) -- (m-\j-1);
+	}
+
+\end{tikzpicture}
+}
+\caption{Principal steps in computer experiment}
+\label{fig:structure}
+\end{wrapfigure}
+
+The structure of the document follows the diagram shown in the 
+figure~\ref{fig:structure}. In chapter~\ref{ch:intro}, plasma is described as a 
+physical phenomenon and we focus on the relevant properties that we want to 
+study, from which we derive a mathematical model.  In 
+chapter~\ref{ch:plasma-sim} and~\ref{sec:test}. The discretization of the 
+mathematical model allows the computer simulation by using numerical algorithms.
