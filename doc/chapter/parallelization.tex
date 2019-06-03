@@ -1,0 +1,44 @@
+\chapter{Parallelization techniques}
+
+\section{Message Passing Interface}
+
+From the need of standarize communications in a distributed computing
+environment, the first draft was proposed in 1992 at the Workshop on Standards
+for Message Passing in a Distributed Memory Environment, and has now become one
+of the most used communication protocol in HPC. The Message Passing Interface
+(MPI) provides a simple to use set of routines to allow processes distributed
+among different nodes to comunicate efficiently.
+
+\subsection{Concepts}
+
+
+\paragraph{Communicator} A communicator refers to a group of processes, in which
+each has assigned a unique identifier called the \textit{rank}.
+
+\paragraph{Point-to-point communication} In order for a process to exchange
+information with another process, the MPI standard defines what are called
+point-to-point communication routines. The most common examples are
+\texttt{MPI\_Send} to send data, and \texttt{MPI\_Recv} for the reception.
+Both routines need the process rank of the process to stablish the connection.
+Additionally a tag is used to label each message, which can be specified in the
+reception to filter other messages.
+
+\paragraph{Blocking communication} The standard defines various types of
+communication methods for sending and receiving data. The so called blocking
+routines are designed such that the call does not return until the communication
+has been done. In the \texttt{MPI\_Send} case, the call returns when the sending
+data can be safely modified, as has been sent or buffered. In the case of
+\texttt{MPI\_Recv} the routine only returns when the data has been received.
+
+\paragraph{Non-blocking communication} Similarly as with the blocking
+communication, the routines \texttt{MPI\_Isend} and \texttt{MPI\_Irecv} don't
+wait until the message is sent or received to return. They return inmediately,
+and the communication status can be checked with \texttt{MPI\_Test} or the
+process can wait until the communication request has finished with
+\texttt{MPI\_Wait}.
+
+\subsection{Implementations}
+
+
+\section{OmpSs-2}
+
