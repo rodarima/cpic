@@ -137,19 +137,10 @@ the integration of the field equations
 Which can be combined into the Poisson equation
 %
 \begin{equation}
+\label{eq:poisson}
 \nabla^2\phi = - \frac{\rho}{\epsilon_0}
 \end{equation}
 %
 Different methods can be used to obtain the electric field, but we will focus on 
-finite difference equations and spectral methods.
-
-\subsection{Finite differences}
-
-\begin{align}
-\E_x(x,y) &= \frac{\phi(x-1,y) - \phi(x+1,y)}{2\,\Delta x} \\
-\E_y(x,y) &= \frac{\phi(x,y-1) - \phi(x,y+1)}{2\,\Delta y}
-\end{align}
-
-\subsection{Spectral methods}
-
+matrix and spectral methods.
 

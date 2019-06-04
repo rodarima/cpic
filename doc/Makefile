@@ -1,6 +1,6 @@
 BIN=thesis.pdf
 
-CHAPTERS=$(wildcard chapter/*.tex)
+CHAPTERS=$(wildcard ch/*.tex)
 
 all: $(BIN)
 

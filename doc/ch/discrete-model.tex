@@ -1,0 +1,111 @@
+\chapter{Discrete model}
+\label{ch:discrete-model}
+
+The mathematical model is discretized in algebraic operations, in order to be 
+computable.
+
+\section{Charge assignment}
+
+At each grid point $g$ at $(x,y)$ we accumulate the charge of each particle $p$ 
+as
+
+\begin{equation}
+\rho(x, y) = \sum_p W(\x_g(x, y) - \x_p) + \rho_0
+\end{equation}
+
+\section{Field equations}
+
+The electric potential $\phi$ can be obtained from the charge density $\rho$.  
+Several methods are available to solve the Poisson equation (eq.  
+\ref{eq:poisson}).
+%
+The electric field can be obtained by finite differences as
+%
+\begin{align}
+\E_x(x,y) &= \frac{\phi(x-1,y) - \phi(x+1,y)}{2\,\Delta x} \\
+\E_y(x,y) &= \frac{\phi(x,y-1) - \phi(x,y+1)}{2\,\Delta y}
+\end{align}
+
+\paragraph{Iterative  methods} such as Jacobi, Gauss-Seidel, Successive Over 
+Relaxation (SOR), Chebyshev acceleration are some of the most familiar methods 
+to solve the Poisson equation.
+
+\paragraph{Matrix methods} The equations from finite differencing the mesh are 
+considered a large system of equations. We can find in this methods the Thomas 
+Tridiagonal algorithm, Conjugate-Gradient, LU or Incomplete Decomposition.
+
+\paragraph{Spectral methods} Also known as Rapid Elliptic Solvers (RES) are a 
+family of methods that use the fast Fourier transform (FFT). Are know for being 
+usually faster than the previous ones, with a complexity in $O(N_g \log_2 N_g)$
+
+We will focus on the spectral methods, more specific on the Multiple Fourier 
+Transform (MTF) method, as it is the main method implemented in the simulator.
+
+\subsection{Multiple Fourier Transform (MFT)}
+
+The general second-order PDE with constant coefficients and periodic boundary 
+conditions
+%
+\begin{equation}
+\label{eq:gen-fd}
+a \frac{\partial^2 \phi}{\partial x^2}+b\frac{\partial \phi}{\partial x}+c\phi +
+d \frac{\partial^2 \phi}{\partial y^2}+e\frac{\partial \phi}{\partial y}+f\phi
+\end{equation}
+%
+can be solved by using the FFT. If we expand $\phi$ and $g$ in a finite double 
+Fourier series, we obtain
+%
+\begin{equation}
+\phi(x,y) = \sum_{k,l} \hat \phi(k, l) \exp\left({\frac{2\pi i (xk + 
+yl)}{n}}\right)
+\end{equation}
+%
+and
+%
+\begin{equation}
+g(x,y) = \sum_{k,l} \hat g(k, l) \exp\left({\frac{2\pi i (xk + yl)}{n}}\right)
+\end{equation}
+%
+which now can be substituted in the Eq.~\ref{eq:gen-fd}, to obtain
+%
+\begin{equation}
+\hat \phi(k,l) = \hat G(k,l) \, \hat g(k,l),\quad 0<k,l<n-1
+\end{equation}
+%
+with for a unit mesh
+%
+\begin{equation}
+\begin{split}
+\hat G(k,l) = \Bigg[
+& 2a \left( \cos \frac{2\pi k}{n} - 1 \right) +
+ib \sin \frac{2\pi k}{n} + c \,+ \\
+& 2d \left( \cos \frac{2\pi l}{n} - 1 \right) +
+ie \sin \frac{2\pi l}{n} + f
+\Bigg]^{-1}
+\end{split}
+\end{equation}
+%
+To solve the Poisson equation, discretized as Eq. [missing], we have $a=d=1$ and 
+$b=c=e=f=0$ so we can simplify $\hat G(k,l)$ as
+%
+\begin{equation}
+\hat G(k,l) = \frac{1}{2}\left[
+\cos \frac{2\pi k}{n} +
+\cos \frac{2\pi l}{n} -
+2 \right]^{-1}
+\end{equation}
+%
+The steps to compute the electric field can be summarized as follows:
+\begin{enumerate}
+\item Compute the complex FFT $\hat g$ of $g$
+\item Multiply each element of $\hat g$ by the corresponding complex coefficient 
+$\hat G$, to obtain $\hat \phi$
+\item Compute the inverse FFT of $\hat \phi$ to get $\phi$
+\end{enumerate}
+%
+The complexity in the worst case is in $O(N_g \log_2 N_g)$ with the number of 
+total points in the grid $N_g$.
+
+\section{Force interpolation}
+\section{Equations of motion}
+

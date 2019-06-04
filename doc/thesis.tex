@@ -12,7 +12,7 @@
 \usetikzlibrary{calc}
 \usetikzlibrary{arrows, backgrounds}
 \usetikzlibrary{matrix, arrows.meta}
-\usepackage[pdf]{graphviz}
+\usetikzlibrary{decorations.pathreplacing}
 
 %\usepackage{amsfonts}
 %\usepackage{amsmath}
@@ -49,21 +49,25 @@
 \maketitle
 \tableofcontents
 
-\input{chapter/intro.tex}
-\input{chapter/related-work.tex}
+\input{ch/intro.tex}
+\input{ch/related-work.tex}
 
-\part{Theory}
+\part{Theory\\ \small \textit{No C code here}}
 
-\input{chapter/plasma-intro.tex}
-\input{chapter/plasma-simulation.tex}
+% What is a plasma: write about the physical phenomenon
+\input{ch/plasma.tex}
 
-\part{Computation}
+% Begin the simulation of plasma part
+\input{ch/simulation.tex}
+\input{ch/discrete-model.tex}
 
-\input{chapter/parallelization.tex}
-\input{chapter/design.tex}
-\input{chapter/simulator.tex}
-\input{chapter/analysis.tex}
-\input{chapter/caveats.tex}
+\part{Copmutation\\ \small \textit{No more physics now}}
+
+\input{ch/parallelization.tex}
+\input{ch/design.tex}
+\input{ch/simulator.tex}
+\input{ch/analysis.tex}
+\input{ch/caveats.tex}
 
 %
 %\chapter{Results}

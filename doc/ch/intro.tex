@@ -18,7 +18,8 @@ of the atom is separated, so it remains positively charged (ionized)
 
 \section{Structure}
 %
-\begin{wrapfigure}{O}{0.3\textwidth}
+\begin{figure}[h]
+%\begin{wrapfigure}{O}{0.3\textwidth}
 \centering
 \scalebox{0.7} {
 \begin{tikzpicture}[>=latex,thick]
@@ -49,12 +50,25 @@ of the atom is separated, so it remains positively charged (ionized)
 	\foreach \i [evaluate={\j=int(\i+1)}] in {1,...,6}{
 		\draw[->] (m-\i-1) -- (m-\j-1);
 	}
+	\draw [
+		decorate,decoration={brace,amplitude=5pt,raise=10pt},
+	] (m-1-1.north east) -- (m-1-1.south east) node 
+	[black,midway,right,xshift=18pt] {Chapter~\ref{ch:plasma-intro}};
+	\draw [
+		decorate,decoration={brace,amplitude=5pt,raise=10pt},
+	] (m-2-1.north east) -- (m-2-1.south east) node 
+	[black,midway,right,xshift=18pt] {Chapter~\ref{ch:plasma-sim}};
+	\draw [
+		decorate,decoration={brace,amplitude=5pt,raise=10pt},
+	] (m-3-1.north east) -- (m-4-1.south east) node 
+	[black,midway,right,xshift=18pt] {Chapter~\ref{ch:discrete-model}};
 
 \end{tikzpicture}
 }
 \caption{Principal steps in computer experiment}
 \label{fig:structure}
-\end{wrapfigure}
+\end{figure}
+%\end{wrapfigure}
 %
 The structure of the document follows the diagram shown in the 
 figure~\ref{fig:structure}. In chapter~\ref{ch:intro}, plasma is described as a 
