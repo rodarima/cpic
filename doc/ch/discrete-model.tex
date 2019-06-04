@@ -12,19 +12,65 @@ as
 \begin{equation}
 \rho(x, y) = \sum_p W(\x_g(x, y) - \x_p) + \rho_0
 \end{equation}
-
+%
+The weighting function $W$ determines the shape of the particle charge. 
+Different schemes can be used to approximate the charge density from the 
+particles. We will focus on linear interpolation
+%
+\begin{equation}
+W(\x) = \frac{\x}{\Delta \x}
+\end{equation}
+%
+A particle $p$ always affects the four enclosing grid points in the 
+neighbourhood, but more complex interpolation methods may extend the update 
+region even further.
+%
+\begin{center}
+\begin{tikzpicture}[
+		>=latex,
+		effect/.style={dashed,-{Latex[length=3mm, width=1mm]}},
+		particle/.style={fill=black,radius=3pt},
+	]
+	\draw [step=2cm] (1,1) grid (5,5);
+	\coordinate (p) at (2.5,3.2);
+	\draw[effect] (p) -- (2,2);
+	\draw[effect] (p) -- (2,4);
+	\draw[effect] (p) -- (4,2);
+	\draw[effect] (p) -- (4,4);
+	\draw[particle] (p) circle;
+	\node[left] at (p) {$p$};
+\end{tikzpicture}
+\end{center}
+%
 \section{Field equations}
 
 The electric potential $\phi$ can be obtained from the charge density $\rho$.  
 Several methods are available to solve the Poisson equation (eq.  
 \ref{eq:poisson}).
 %
-The electric field can be obtained by finite differences as
+% TODO: Check the error bound
+For two dimensions, we can approximate the solution using the second order 
+centered finite differences (with an error proportional to $\Delta x ^2 \Delta 
+y^2$), as
 %
-\begin{align}
+\begin{equation}
+\label{eq:discrete-poisson}
+\frac{\phi(x-1, y) + \phi(x, y-1) - 4\phi(x,y) + \phi(x+1,y)+\phi(x,y+1)}{\Delta 
+x ^2 \Delta y^2} = - \frac{\rho(x,y)}{\epsilon_0}
+\end{equation}
+%
+which leads to a system of linear equations with $N_g$ equations.
+The electric field $\E$ can then be obtained by first order finite differences 
+in each dimension
+%
+\begin{equation}
+\begin{split}
+\label{eq:phi-to-E}
 \E_x(x,y) &= \frac{\phi(x-1,y) - \phi(x+1,y)}{2\,\Delta x} \\
 \E_y(x,y) &= \frac{\phi(x,y-1) - \phi(x,y+1)}{2\,\Delta y}
-\end{align}
+\end{split}
+\end{equation}
+%
 
 \paragraph{Iterative  methods} such as Jacobi, Gauss-Seidel, Successive Over 
 Relaxation (SOR), Chebyshev acceleration are some of the most familiar methods 
@@ -85,8 +131,8 @@ ie \sin \frac{2\pi l}{n} + f
 \end{split}
 \end{equation}
 %
-To solve the Poisson equation, discretized as Eq. [missing], we have $a=d=1$ and 
-$b=c=e=f=0$ so we can simplify $\hat G(k,l)$ as
+To solve the Poisson equation, discretized as Eq.~\ref{eq:discrete-poisson}, we 
+have $a=d=1$ and $b=c=e=f=0$ so we can simplify $\hat G(k,l)$ as
 %
 \begin{equation}
 \hat G(k,l) = \frac{1}{2}\left[
@@ -96,6 +142,35 @@ $b=c=e=f=0$ so we can simplify $\hat G(k,l)$ as
 \end{equation}
 %
 The steps to compute the electric field can be summarized as follows:
+%
+\begin{center}
+\begin{tikzpicture}[>=latex,thick]
+	\matrix (m) [
+		matrix of nodes,
+		column sep=20mm,
+		nodes={
+			%line width=1pt,
+			anchor=center,
+			text centered,
+			%minimum width=1cm,
+			minimum height=8mm,
+		},
+%		txt/.style={text width=1.5cm,anchor=center},
+	]
+	{
+		$\rho$ & $\hat \rho$ & $\hat \phi$ & $\phi$ & $\E$\\
+	};
+	\foreach \i [evaluate={\j=int(\i+1)}] in {1,...,4}{
+		\draw[->] (m-1-\i) -- (m-1-\j);
+	}
+	\draw[draw=none] (m-1-1) -- (m-1-2) node[midway,above] {FFT};
+	\draw[draw=none] (m-1-2) -- (m-1-3) node[midway,above] {$\hat G$};
+	\draw[draw=none] (m-1-3) -- (m-1-4) node[midway,above] {IFFT};
+	\draw[draw=none] (m-1-4) -- (m-1-5) node[midway,above] 
+	{Eq.~\ref{eq:phi-to-E}};
+\end{tikzpicture}
+\end{center}
+%
 \begin{enumerate}
 \item Compute the complex FFT $\hat g$ of $g$
 \item Multiply each element of $\hat g$ by the corresponding complex coefficient 
@@ -107,5 +182,8 @@ The complexity in the worst case is in $O(N_g \log_2 N_g)$ with the number of
 total points in the grid $N_g$.
 
 \section{Force interpolation}
+
+
+
 \section{Equations of motion}
 
