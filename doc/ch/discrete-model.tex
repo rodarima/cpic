@@ -124,9 +124,12 @@ computation effort, in case the solver already computes the FFT.
 %
 \section{Field equations}
 
-The electric potential $\phi$ can be obtained from the charge density $\rho$.  
+In order to compute the electric field $\E$, the electric potential $\phi$ is 
+generally needed, which can be obtained from the charge density $\rho$.
+
+\subsection{Electric potential}
 Several methods are available to solve the Poisson equation 
-(Eq.~\ref{eq:poisson}):
+(Eq.~\ref{eq:poisson}).
 
 \paragraph{Iterative  methods} such as Jacobi, Gauss-Seidel, Successive Over 
 Relaxation (SOR), Chebyshev acceleration are some of the most familiar methods 
@@ -143,12 +146,12 @@ usually faster than the previous ones, with a complexity in $O(N_g \log_2 N_g)$
 \vspace{1em}
 \noindent
 %
-We will focus on the spectral methods, more specific on the Multiple Fourier 
-Transform (MTF) method, as it is the main method implemented in the simulator, 
-due to its relative simplicity and low computational complexity.
+We will only focus on the LU for small problems and for testing, and spectral 
+methods, more specific on the Multiple Fourier Transform (MTF) method, as it is 
+the main method implemented in the simulator, due to its relative simplicity and 
+low computational complexity.
 
 \subsection{LU decomposition}
-
 %
 % TODO: Check the error bound
 For two dimensions, we can approximate the solution using the second order 
@@ -161,23 +164,8 @@ y^2$), as
 x ^2 \Delta y^2} = - \frac{\rho(x,y)}{\epsilon_0}
 \end{equation}%}}}
 %
-which leads to a system of linear equations with $N_g$ equations.
-The electric field $\E$ can then be obtained by centered first order finite 
-differences in each dimension
-%
-\begin{equation}%{{{
-\begin{split}
-\label{eq:phi-to-E}
-\E_x(x,y) &= \frac{\phi(x-1,y) - \phi(x+1,y)}{2\,\Delta x} \\
-\E_y(x,y) &= \frac{\phi(x,y-1) - \phi(x,y+1)}{2\,\Delta y}
-\end{split}
-\end{equation}%}}}
-%
-
-
-
-The system of $N_g$ equations formed by the equation~\ref{eq:discrete-poisson} 
-can be also written in matrix form
+which leads to a system of $N_g$ linear equations and can be also written in 
+matrix form
 %
 \begin{equation}
 \label{eq:eq-system}
@@ -188,9 +176,31 @@ The $N_g \times N_g$ coefficient matrix $A$ has non-zero coefficients only at
 $a_{ii} = 4$ and $a_{ij} = -1$ with $j \in \{i+1, i-1, i+N_x, i-N_x\} \mod N_x$, 
 for all $0 \le i \le Ng$.
 %
-The $LU$ decomposition can be used to form two systems of equations that can be 
-solved faster. If we rewrite the system of equations~\ref{eq:eq-system} as the 
-usual form $Ax=b$ with
+However, the matrix $A$ is singular, so the system of equations has infinite 
+solutions. Boundary conditions can be added to get a unique solution. The extra 
+equation $\phi(0,0) = 0$ leads to a system with only one solution, but with one 
+extra equation. In order to keep the matrix $A$ square, the following steps may 
+be taken:
+
+\begin{enumerate}
+\item Subtract  the extra equation $\phi(0,0) = 0$ to the first row of $A$, with 
+the only change in the coefficient to $a_{11} = 3$.
+
+\item Add all first $N_g$ equations: Each equation has one coefficient of $4$ 
+and four of $-1$ except the first equation. Also we assume the total charge 
+density is zero, obtaining $\phi(0,0) = 0$.
+
+\item Subtract it from the last equation, which leads to a zero coefficient that 
+can be removed.
+\end{enumerate}
+%
+The only change that remains is at the coefficient $a_{11} = 3$. Now the matrix 
+$A$ is squared and non-singular and has only one solution and can now be solved 
+with the $LU$ method.
+
+The $LU$ decomposition, with a complexity in $O(2/3N_g^3)$, can be used to form 
+two systems of equations that can be solved faster. If we rewrite the system of 
+equations~\ref{eq:eq-system} as the usual form $Ax=b$ with
 \begin{equation}
 x = \phi,\quad b = -\frac{\Delta x ^2 \Delta y^2\,\rho}{\epsilon_0}
 \end{equation}
@@ -198,9 +208,11 @@ x = \phi,\quad b = -\frac{\Delta x ^2 \Delta y^2\,\rho}{\epsilon_0}
 Then we can use the decomposition $A=LU$ to form two systems of equations
 %
 \begin{equation}
+\label{eq:LU-systems}
 Ux=y, \quad Ly=b
 \end{equation}
-
+%
+which can be solved in complexity $O(2N_g^2)$.
 
 
 \subsection{Multiple Fourier Transform (MFT)}
@@ -211,7 +223,8 @@ conditions
 \begin{equation}%{{{
 \label{eq:gen-fd}
 a \frac{\partial^2 \phi}{\partial x^2}+b\frac{\partial \phi}{\partial x}+c\phi +
-d \frac{\partial^2 \phi}{\partial y^2}+e\frac{\partial \phi}{\partial y}+f\phi
+d \frac{\partial^2 \phi}{\partial y^2}+e\frac{\partial \phi}{\partial y}+f\phi = 
+g(x,y)
 \end{equation}%}}}
 %
 can be solved by using the FFT. If we expand $\phi$ and $g$ in a finite double 
@@ -231,7 +244,7 @@ g(x,y) = \sum_{k,l} \hat g(k, l) \exp\left({\frac{2\pi i (xk + yl)}{n}}\right)
 which now can be substituted in the Eq.~\ref{eq:gen-fd}, to obtain
 %
 \begin{equation}%{{{
-\hat \phi(k,l) = \hat G(k,l) \, \hat g(k,l),\quad 0<k,l<n-1
+\hat \phi(k,l) = \hat G(k,l) \, \hat g(k,l),\quad 0<k<N_x,\,0<l<N_y
 \end{equation}%}}}
 %
 with for a unit mesh
@@ -257,7 +270,8 @@ have $a=d=1$ and $b=c=e=f=0$ so we can simplify $\hat G(k,l)$ as
 2 \right]^{-1}
 \end{equation}%}}}
 %
-The steps to compute the electric field can be summarized as follows:
+Let $g = -{\Delta x ^2 \Delta y^2\,\rho}/{\epsilon_0}$, then the steps to 
+compute the electric potential can be summarized as follows:
 %
 \begin{center}%{{{
 \begin{tikzpicture}[>=latex,thick]
@@ -274,16 +288,16 @@ The steps to compute the electric field can be summarized as follows:
 %		txt/.style={text width=1.5cm,anchor=center},
 	]
 	{
-		$\rho$ & $\hat \rho$ & $\hat \phi$ & $\phi$ & $\E$\\
+		$g$ & $\hat g$ & $\hat \phi$ & $\phi$ \\%& $\E$\\
 	};
-	\foreach \i [evaluate={\j=int(\i+1)}] in {1,...,4}{
+	\foreach \i [evaluate={\j=int(\i+1)}] in {1,...,3}{
 		\draw[->] (m-1-\i) -- (m-1-\j);
 	}
 	\draw[draw=none] (m-1-1) -- (m-1-2) node[midway,above] {FFT};
 	\draw[draw=none] (m-1-2) -- (m-1-3) node[midway,above] {$\hat G$};
 	\draw[draw=none] (m-1-3) -- (m-1-4) node[midway,above] {IFFT};
-	\draw[draw=none] (m-1-4) -- (m-1-5) node[midway,above] 
-	{Eq.~\ref{eq:phi-to-E}};
+%	\draw[draw=none] (m-1-4) -- (m-1-5) node[midway,above]
+%	{Eq.~\ref{eq:phi-to-E}};
 \end{tikzpicture}
 \end{center}%}}}
 %
@@ -296,6 +310,19 @@ $\hat G$, to obtain $\hat \phi$
 %
 The complexity in the worst case is in $O(N_g \log_2 N_g)$ with the number of 
 total points in the grid $N_g$.
+
+\subsection{Electric field}
+The electric field $\E$ can then be obtained by centered first order finite 
+differences in each dimension
+%
+\begin{equation}%{{{
+\begin{split}
+\label{eq:phi-to-E}
+\E_x(x,y) &= \frac{\phi(x-1,y) - \phi(x+1,y)}{2\,\Delta x} \\
+\E_y(x,y) &= \frac{\phi(x,y-1) - \phi(x,y+1)}{2\,\Delta y}
+\end{split}
+\end{equation}%}}}
+%
 
 \section{Force interpolation}
 
