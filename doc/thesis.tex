@@ -27,18 +27,35 @@
 \usepackage{graphicx}
 \graphicspath{{../fig/} {fig/}}
 \usepackage{subfig}
-\usepackage{wrapfig}
+%\usepackage{wrapfig}
+
+% Clickable links
+\usepackage{hyperref}
+\hypersetup{
+	colorlinks,
+	citecolor=black,
+	filecolor=black,
+	linkcolor=black,
+	urlcolor=black
+}
+
+\usepackage{epigraph}
+\setlength{\epigraphwidth}{0.7\textwidth}
 
 \usepackage{caption}
 \captionsetup{font=footnotesize}
 
 \newcommand*\V[1]{\bm{#1}}
 \newcommand{\E}{\V{E}}
+\newcommand{\F}{\V{F}}
 \newcommand{\B}{\V{B}}
 \renewcommand*{\v}{\V{v}}
 \newcommand{\x}{\V{x}}
 \newcommand{\dt}{\Delta t}
 \newcommand{\dx}{\Delta x}
+
+% Norm
+\newcommand\norm[1]{\left\lVert#1\right\rVert}
 
 \title{Particle-in-cell plasma simulation with OmpSs-2}
 \author{Rodrigo Arias Mallo}
@@ -47,6 +64,8 @@
 \begin{document}
 
 \maketitle
+
+
 \tableofcontents
 
 \input{ch/intro.tex}
@@ -74,7 +93,14 @@
 %
 %\chapter{Conclusions}
 
+
 \bibliographystyle{siam}
 \bibliography{bib}
+
+%\epigraph{So I wish to you the good luck to be somewhere where you are free to 
+%maintain the kind of integrity I have described, and where you do not feel 
+%forced by a need to maintain your position in the organization, or financial 
+%support, or so on, to lose your integrity. May you have that freedom.}{Cargo 
+%Cult Science, Caltech (1974)---\textit{Richard P. Feynman}}
 
 \end{document}

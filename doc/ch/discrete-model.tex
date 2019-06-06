@@ -9,38 +9,101 @@ computable.
 At each grid point $g$ at $(x,y)$ we accumulate the charge of each particle $p$ 
 as
 
-\begin{equation}
+\begin{equation}%{{{
 \rho(x, y) = \sum_p W(\x_g(x, y) - \x_p) + \rho_0
-\end{equation}
+\end{equation}%}}}
 %
 The weighting function $W$ determines the shape of the particle charge. 
 Different schemes can be used to approximate the charge density from the 
 particles. We will focus on linear interpolation
 %
-\begin{equation}
-W(\x) = \frac{\x}{\Delta \x}
-\end{equation}
+\begin{equation}%{{{
+W(\x) =
+\begin{cases}
+			2\x/\Delta \x & \text{if}\ \x \le \Delta \x/2 \\
+			0 & \text{otherwise}
+\end{cases}
+\end{equation}%}}}
 %
 A particle $p$ always affects the four enclosing grid points in the 
 neighbourhood, but more complex interpolation methods may extend the update 
 region even further.
 %
-\begin{center}
+\begin{center}%{{{
 \begin{tikzpicture}[
 		>=latex,
 		effect/.style={dashed,-{Latex[length=3mm, width=1mm]}},
 		particle/.style={fill=black,radius=3pt},
 	]
-	\draw [step=2cm] (1,1) grid (5,5);
+	\draw [step=2cm,dotted] (1,1) grid (5,5);
 	\coordinate (p) at (2.5,3.2);
-	\draw[effect] (p) -- (2,2);
-	\draw[effect] (p) -- (2,4);
-	\draw[effect] (p) -- (4,2);
-	\draw[effect] (p) -- (4,4);
+	\coordinate (center) at (3,3);
+	\coordinate (A) at ($(center)+(-1,1)$);
+	\coordinate (B) at ($(center)+(1,1)$);
+	\coordinate (C) at ($(center)+(1,-1)$);
+	\coordinate (D) at ($(center)+(-1,-1)$);
+	\draw[effect] (p) -- (A);
+	\draw[effect] (p) -- (B);
+	\draw[effect] (p) -- (C);
+	\draw[effect] (p) -- (D);
+	\node[above left]  at (A) {$A$};
+	\node[above right] at (B) {$B$};
+	\node[below right] at (C) {$C$};
+	\node[below left]  at (D) {$D$};
 	\draw[particle] (p) circle;
 	\node[left] at (p) {$p$};
 \end{tikzpicture}
-\end{center}
+\hspace{0.5cm}
+\begin{tikzpicture}[
+		>=latex,
+		box/.style={black},
+		particle/.style={fill=black,radius=3pt},
+		div/.style={dashed},
+	]
+	\draw [step=2cm,dotted] (1,1) grid (5,5);
+	\coordinate (p) at (2.5,3.2);
+	\coordinate (center) at (3,3);
+	\coordinate (A) at ($(p)+(-1,1)$);
+	\coordinate (B) at ($(p)+(1,1)$);
+	\coordinate (C) at ($(p)+(1,-1)$);
+	\coordinate (D) at ($(p)+(-1,-1)$);
+	\draw[box] (A) -- (B) -- (C) -- (D) -- (A);
+	\draw[div] ($(A)!(center)!(B)$) -- (center);
+	\draw[div] ($(B)!(center)!(C)$) -- (center);
+	\draw[div] ($(C)!(center)!(D)$) -- (center);
+	\draw[div] ($(D)!(center)!(A)$) -- (center);
+	\node at ($(center)!0.5!(A)$) {$a$};
+	\node at ($(center)!0.5!(B)$) {$b$};
+	\node at ($(center)!0.5!(C)$) {$c$};
+	\node at ($(center)!0.5!(D)$) {$d$};
+	\draw[particle] (p) circle;
+\end{tikzpicture}
+\hspace{0.5cm}
+\begin{tikzpicture}[
+		>=latex,
+		box/.style={black},
+		particle/.style={fill=black,radius=3pt},
+		div/.style={dashed},
+	]
+	\draw [step=2cm,dotted] (1,1) grid (5,5);
+	\coordinate (p) at (2.5,3.2);
+	\coordinate (center) at (3,3);
+	\coordinate (A) at ($(center)+(-1,1)$);
+	\coordinate (B) at ($(center)+(1,1)$);
+	\coordinate (C) at ($(center)+(1,-1)$);
+	\coordinate (D) at ($(center)+(-1,-1)$);
+	\draw[box] (A) -- (B) -- (C) -- (D) -- (A);
+	\draw[div] ($(A)!(p)!(B)$) -- (p);
+	\draw[div] ($(B)!(p)!(C)$) -- (p);
+	\draw[div] ($(C)!(p)!(D)$) -- (p);
+	\draw[div] ($(D)!(p)!(A)$) -- (p);
+	\node at ($(p)!0.5!(A)$) {$c$};
+	\node at ($(p)!0.5!(B)$) {$d$};
+	\node at ($(p)!0.5!(C)$) {$a$};
+	\node at ($(p)!0.5!(D)$) {$b$};
+	\draw[particle] (p) circle;
+\end{tikzpicture}
+\end{center}%}}}
 %
 \section{Field equations}
 
@@ -53,23 +116,23 @@ For two dimensions, we can approximate the solution using the second order
 centered finite differences (with an error proportional to $\Delta x ^2 \Delta 
 y^2$), as
 %
-\begin{equation}
+\begin{equation}%{{{
 \label{eq:discrete-poisson}
 \frac{\phi(x-1, y) + \phi(x, y-1) - 4\phi(x,y) + \phi(x+1,y)+\phi(x,y+1)}{\Delta 
 x ^2 \Delta y^2} = - \frac{\rho(x,y)}{\epsilon_0}
-\end{equation}
+\end{equation}%}}}
 %
 which leads to a system of linear equations with $N_g$ equations.
 The electric field $\E$ can then be obtained by first order finite differences 
 in each dimension
 %
-\begin{equation}
+\begin{equation}%{{{
 \begin{split}
 \label{eq:phi-to-E}
 \E_x(x,y) &= \frac{\phi(x-1,y) - \phi(x+1,y)}{2\,\Delta x} \\
 \E_y(x,y) &= \frac{\phi(x,y-1) - \phi(x,y+1)}{2\,\Delta y}
 \end{split}
-\end{equation}
+\end{equation}%}}}
 %
 
 \paragraph{Iterative  methods} such as Jacobi, Gauss-Seidel, Successive Over 
@@ -92,35 +155,35 @@ Transform (MTF) method, as it is the main method implemented in the simulator.
 The general second-order PDE with constant coefficients and periodic boundary 
 conditions
 %
-\begin{equation}
+\begin{equation}%{{{
 \label{eq:gen-fd}
 a \frac{\partial^2 \phi}{\partial x^2}+b\frac{\partial \phi}{\partial x}+c\phi +
 d \frac{\partial^2 \phi}{\partial y^2}+e\frac{\partial \phi}{\partial y}+f\phi
-\end{equation}
+\end{equation}%}}}
 %
 can be solved by using the FFT. If we expand $\phi$ and $g$ in a finite double 
 Fourier series, we obtain
 %
-\begin{equation}
+\begin{equation}%{{{
 \phi(x,y) = \sum_{k,l} \hat \phi(k, l) \exp\left({\frac{2\pi i (xk + 
 yl)}{n}}\right)
-\end{equation}
+\end{equation}%}}}
 %
 and
 %
-\begin{equation}
+\begin{equation}%{{{
 g(x,y) = \sum_{k,l} \hat g(k, l) \exp\left({\frac{2\pi i (xk + yl)}{n}}\right)
-\end{equation}
+\end{equation}%}}}
 %
 which now can be substituted in the Eq.~\ref{eq:gen-fd}, to obtain
 %
-\begin{equation}
+\begin{equation}%{{{
 \hat \phi(k,l) = \hat G(k,l) \, \hat g(k,l),\quad 0<k,l<n-1
-\end{equation}
+\end{equation}%}}}
 %
 with for a unit mesh
 %
-\begin{equation}
+\begin{equation}%{{{
 \begin{split}
 \hat G(k,l) = \Bigg[
 & 2a \left( \cos \frac{2\pi k}{n} - 1 \right) +
@@ -129,21 +192,21 @@ ib \sin \frac{2\pi k}{n} + c \,+ \\
 ie \sin \frac{2\pi l}{n} + f
 \Bigg]^{-1}
 \end{split}
-\end{equation}
+\end{equation}%}}}
 %
 To solve the Poisson equation, discretized as Eq.~\ref{eq:discrete-poisson}, we 
 have $a=d=1$ and $b=c=e=f=0$ so we can simplify $\hat G(k,l)$ as
 %
-\begin{equation}
+\begin{equation}%{{{
 \hat G(k,l) = \frac{1}{2}\left[
 \cos \frac{2\pi k}{n} +
 \cos \frac{2\pi l}{n} -
 2 \right]^{-1}
-\end{equation}
+\end{equation}%}}}
 %
 The steps to compute the electric field can be summarized as follows:
 %
-\begin{center}
+\begin{center}%{{{
 \begin{tikzpicture}[>=latex,thick]
 	\matrix (m) [
 		matrix of nodes,
@@ -169,7 +232,7 @@ The steps to compute the electric field can be summarized as follows:
 	\draw[draw=none] (m-1-4) -- (m-1-5) node[midway,above] 
 	{Eq.~\ref{eq:phi-to-E}};
 \end{tikzpicture}
-\end{center}
+\end{center}%}}}
 %
 \begin{enumerate}
 \item Compute the complex FFT $\hat g$ of $g$
@@ -183,6 +246,13 @@ total points in the grid $N_g$.
 
 \section{Force interpolation}
 
+The force acting on a particle is computed similarly as the charge deposition, 
+but in the reverse order. The electric field $\E$ is interpolated on the 
+particle position, using the same interpolation function $W$. Then the force is 
+computed as
+\begin{equation}%{{{
+\F_p = q \sum_{g} W(\x_g - \x) \E_g
+\end{equation}%}}}
 
 
 \section{Equations of motion}
