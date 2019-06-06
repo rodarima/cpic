@@ -5,31 +5,37 @@ The mathematical model is discretized in algebraic operations, in order to be
 computable.
 
 \section{Charge assignment}
-
 At each grid point $g$ at $(x,y)$ we accumulate the charge of each particle $p$ 
-as
-
+in $(x_p, y_p)$ as
+%
 \begin{equation}%{{{
-\rho(x, y) = \sum_p W(\x_g(x, y) - \x_p) + \rho_0
+\rho(x, y) = \sum_p q\,W(x - x_p,\ y - y_p) + \rho_0
 \end{equation}%}}}
 %
-The weighting function $W$ determines the shape of the particle charge. 
-Different schemes can be used to approximate the charge density from the 
-particles. We will focus on linear interpolation
+The background charge density $\rho_0$ is used to neutralize the total charge 
+when is non-zero. The weighting function $W$ determines the shape of the 
+particle charge. Different schemes can be used to approximate the charge density 
+from the particles. We will focus on bilinear interpolation for it's simplicity 
+and low computation requirements. The corresponding weighting function can be 
+written as
 %
 \begin{equation}%{{{
-W(\x) =
+W(x, y) =
 \begin{cases}
-			2\x/\Delta \x & \text{if}\ \x \le \Delta \x/2 \\
+			\displaystyle\frac{(1-|x|)(1-|y|)}{\Delta x \Delta y} & \text{if}\ x \le 
+			\Delta x,\text{ and } y\le \Delta y \\
 			0 & \text{otherwise}
 \end{cases}
 \end{equation}%}}}
 %
-A particle $p$ always affects the four enclosing grid points in the 
+Then, a particle $p$ always affects the four enclosing grid points in the 
 neighbourhood, but more complex interpolation methods may extend the update 
-region even further.
+region even further. It may be noted that the increase in smoothing, at 
+computation expense, can gain from the reduced number of particles needed to 
+obtain a similar result, avoiding nonphysical effects.
 %
-\begin{center}%{{{
+\begin{figure}[]%{{{
+\centering
 \begin{tikzpicture}[
 		>=latex,
 		effect/.style={dashed,-{Latex[length=3mm, width=1mm]}},
@@ -103,37 +109,24 @@ region even further.
 	\node at ($(p)!0.5!(D)$) {$b$};
 	\draw[particle] (p) circle;
 \end{tikzpicture}
-\end{center}%}}}
+\caption{Interpolation of particle $p$ charge into the four grid points A to D.}
+\label{fig:interpolation}
+\end{figure}%}}}
+%
+The particle $p$ has a uniform charge area, centered at the particle position, 
+with size $\Delta \x$, as shown in the figure~\ref{fig:interpolation}. Each grid 
+point $A,B,C$ and $D$ receives the amount of charge weighed by the area $a,b,c$ 
+and $d$. It can be observed that the area is equal to the opposite region, when 
+the particle $p$ is used to divide the grid cell.
+%
+The particle shape can be altered later in the Fourier space, without large 
+computation effort, in case the solver already computes the FFT.
 %
 \section{Field equations}
 
 The electric potential $\phi$ can be obtained from the charge density $\rho$.  
-Several methods are available to solve the Poisson equation (eq.  
-\ref{eq:poisson}).
-%
-% TODO: Check the error bound
-For two dimensions, we can approximate the solution using the second order 
-centered finite differences (with an error proportional to $\Delta x ^2 \Delta 
-y^2$), as
-%
-\begin{equation}%{{{
-\label{eq:discrete-poisson}
-\frac{\phi(x-1, y) + \phi(x, y-1) - 4\phi(x,y) + \phi(x+1,y)+\phi(x,y+1)}{\Delta 
-x ^2 \Delta y^2} = - \frac{\rho(x,y)}{\epsilon_0}
-\end{equation}%}}}
-%
-which leads to a system of linear equations with $N_g$ equations.
-The electric field $\E$ can then be obtained by first order finite differences 
-in each dimension
-%
-\begin{equation}%{{{
-\begin{split}
-\label{eq:phi-to-E}
-\E_x(x,y) &= \frac{\phi(x-1,y) - \phi(x+1,y)}{2\,\Delta x} \\
-\E_y(x,y) &= \frac{\phi(x,y-1) - \phi(x,y+1)}{2\,\Delta y}
-\end{split}
-\end{equation}%}}}
-%
+Several methods are available to solve the Poisson equation 
+(Eq.~\ref{eq:poisson}):
 
 \paragraph{Iterative  methods} such as Jacobi, Gauss-Seidel, Successive Over 
 Relaxation (SOR), Chebyshev acceleration are some of the most familiar methods 
@@ -147,8 +140,68 @@ Tridiagonal algorithm, Conjugate-Gradient, LU or Incomplete Decomposition.
 family of methods that use the fast Fourier transform (FFT). Are know for being 
 usually faster than the previous ones, with a complexity in $O(N_g \log_2 N_g)$
 
+\vspace{1em}
+\noindent
+%
 We will focus on the spectral methods, more specific on the Multiple Fourier 
-Transform (MTF) method, as it is the main method implemented in the simulator.
+Transform (MTF) method, as it is the main method implemented in the simulator, 
+due to its relative simplicity and low computational complexity.
+
+\subsection{LU decomposition}
+
+%
+% TODO: Check the error bound
+For two dimensions, we can approximate the solution using the second order 
+centered finite differences (with an error proportional to $\Delta x ^2 \Delta 
+y^2$), as
+%
+\begin{equation}%{{{
+\label{eq:discrete-poisson}
+\frac{\phi(x-1, y) + \phi(x, y-1) - 4\phi(x,y) + \phi(x+1,y)+\phi(x,y+1)}{\Delta 
+x ^2 \Delta y^2} = - \frac{\rho(x,y)}{\epsilon_0}
+\end{equation}%}}}
+%
+which leads to a system of linear equations with $N_g$ equations.
+The electric field $\E$ can then be obtained by centered first order finite 
+differences in each dimension
+%
+\begin{equation}%{{{
+\begin{split}
+\label{eq:phi-to-E}
+\E_x(x,y) &= \frac{\phi(x-1,y) - \phi(x+1,y)}{2\,\Delta x} \\
+\E_y(x,y) &= \frac{\phi(x,y-1) - \phi(x,y+1)}{2\,\Delta y}
+\end{split}
+\end{equation}%}}}
+%
+
+
+
+The system of $N_g$ equations formed by the equation~\ref{eq:discrete-poisson} 
+can be also written in matrix form
+%
+\begin{equation}
+\label{eq:eq-system}
+A\phi = -\frac{\Delta x ^2 \Delta y^2\,\rho}{\epsilon_0}
+\end{equation}
+%
+The $N_g \times N_g$ coefficient matrix $A$ has non-zero coefficients only at 
+$a_{ii} = 4$ and $a_{ij} = -1$ with $j \in \{i+1, i-1, i+N_x, i-N_x\} \mod N_x$, 
+for all $0 \le i \le Ng$.
+%
+The $LU$ decomposition can be used to form two systems of equations that can be 
+solved faster. If we rewrite the system of equations~\ref{eq:eq-system} as the 
+usual form $Ax=b$ with
+\begin{equation}
+x = \phi,\quad b = -\frac{\Delta x ^2 \Delta y^2\,\rho}{\epsilon_0}
+\end{equation}
+%
+Then we can use the decomposition $A=LU$ to form two systems of equations
+%
+\begin{equation}
+Ux=y, \quad Ly=b
+\end{equation}
+
+
 
 \subsection{Multiple Fourier Transform (MFT)}
 
