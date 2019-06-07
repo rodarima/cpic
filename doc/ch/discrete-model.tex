@@ -5,11 +5,11 @@ The mathematical model is discretized in algebraic operations, in order to be
 computable.
 
 \section{Charge assignment}
-At each grid point $g$ at $(x,y)$ we accumulate the charge of each particle $p$ 
-in $(x_p, y_p)$ as
+At each grid point $g$ at $\x$ we accumulate the charge of each particle $p$ in 
+$\x_p$ as
 %
 \begin{equation}%{{{
-\rho(x, y) = \sum_p q\,W(x - x_p,\ y - y_p) + \rho_0
+\rho(\x) = \sum_p q\,W(\x - \x_p) + \rho_0
 \end{equation}%}}}
 %
 The background charge density $\rho_0$ is used to neutralize the total charge 
@@ -20,17 +20,18 @@ and low computation requirements. The corresponding weighting function can be
 written as
 %
 \begin{equation}%{{{
-W(x, y) =
+W(\x) =
 \begin{cases}
-			\displaystyle\frac{(1-|x|)(1-|y|)}{\Delta x \Delta y} & \text{if}\ x \le 
-			\Delta x,\text{ and } y\le \Delta y \\
+			\displaystyle\left(1 - \frac{|x|}{\Delta x}\right)
+				\left(1 - \frac{|y|}{\Delta y}\right) & \text{if}\ -\Delta\x < \x < 
+				\Delta \x\\
 			0 & \text{otherwise}
 \end{cases}
 \end{equation}%}}}
 %
-Then, a particle $p$ always affects the four enclosing grid points in the 
-neighbourhood, but more complex interpolation methods may extend the update 
-region even further. It may be noted that the increase in smoothing, at 
+Notice that a particle $p$ always affects the four enclosing grid points in the 
+neighbourhood $\neigh{p}$, but more complex interpolation methods may extend the 
+update region even further. It may be noted that the increase in smoothing, at 
 computation expense, can gain from the reduced number of particles needed to 
 obtain a similar result, avoiding nonphysical effects.
 %
@@ -113,11 +114,11 @@ obtain a similar result, avoiding nonphysical effects.
 \label{fig:interpolation}
 \end{figure}%}}}
 %
-The particle $p$ has a uniform charge area, centered at the particle position, 
-with size $\Delta \x$, as shown in the figure~\ref{fig:interpolation}. Each grid 
-point $A,B,C$ and $D$ receives the amount of charge weighed by the area $a,b,c$ 
-and $d$. It can be observed that the area is equal to the opposite region, when 
-the particle $p$ is used to divide the grid cell.
+The particle $p$ has a uniform charge area, centered at the particle position 
+$\x_p$, with size $\Delta \x$, as shown in the figure~\ref{fig:interpolation}.  
+Each grid point $A,B,C$ and $D$ receives the amount of charge weighed by the 
+area $a,b,c$ and $d$. It can be observed that the area is equal to the opposite 
+region, when the particle $p$ is used to divide the grid cell.
 %
 The particle shape can be altered later in the Fourier space, without large 
 computation effort, in case the solver already computes the FFT.
@@ -326,14 +327,126 @@ differences in each dimension
 
 \section{Force interpolation}
 
-The force acting on a particle is computed similarly as the charge deposition, 
-but in the reverse order. The electric field $\E$ is interpolated on the 
-particle position, using the same interpolation function $W$. Then the force is 
-computed as
+The force acting on a particle $p$ can be decomposed in two main parts, the 
+electric and magnetic force $\F=\F_E + \F_B$.
+
+The electric force $\F_E$ is computed similarly as the charge deposition, but in 
+the reverse order. The force $\F_E$ is interpolated from the electric field $\E$ 
+of the neighbour grid points $\neigh{p}$, using the same interpolation function 
+$W$.
 \begin{equation}%{{{
-\F_p = q \sum_{g} W(\x_g - \x) \E_g
+\begin{split}
+\F_E &= q \sum_{g \in \neigh{p}} W(\x_p - \x_g)\ \E(\x_g) \\
+\end{split}
+\end{equation}%}}}
+Notice that a particle $p$ only needs the values of the electric field in the 
+neighbourhood $\neigh{p}$.
+
+The magnetic force $\F_B$ is constant in the simulator, as we only consider a 
+fixed background magnetic field $\B_0$. For a particle $p$ with velocity $\v$  
+can be written as
+%
+\begin{equation}%{{{
+\F_B = q (\v \times \B_0)
 \end{equation}%}}}
 
 
 \section{Equations of motion}
 
+In order to move the particles, the equations of motion need to be solved:
+%
+\begin{equation}
+\frac{d\x}{dt}=\v
+\end{equation}
+\begin{equation}
+m \frac{d\v}{dt} = \F
+\end{equation}
+%
+The \textit{leap-frog} method is a common integration scheme with second-order 
+accuracy and an error proportional to $\Delta t^2$. The name describes de 
+behavior of the position and velocity, which are updated at interleaved time 
+steps, similarly to the trajectory of a frog. The method is time reversible with 
+an stability far superior of other higher-order integration methods, such as 
+fourth order Runge-Kutta. A more in depth stability analysis can be found in 
+Chapter 4 of Hockney and Eastwood book~\cite{hockney}.  The discretized 
+equations can be written as
+%
+\begin{equation}
+\frac{\x^{n+1} - \x^{n}}{\Delta \x} = \v^{n + 1/2}
+\end{equation}
+%
+\begin{equation}
+m\frac{\v^{n+1/2} - \v^{n-1/2}}{\Delta \x} = \F(x^n)
+\end{equation}
+%
+Several methods are available, but we will focus on the Boris integrator.
+
+\subsection{Boris integrator}
+
+Consists of three steps:
+%
+\begin{enumerate}
+\item Add half of the electric impulse
+\item Rotate
+\item Add the remaining half electric impulse
+\end{enumerate}
+%
+The Boris integrator computes the velocity of a particle in a constant electric 
+field $\E$ and a constant magnetic field $\B$. We have the velocity 
+$\v_{t-\Delta t/2}$ of the particle at $t-\Delta t/2$ as we use the leapfrog 
+integrator.
+%
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+	scale=2,
+	>=latex]
+
+	\def\centerarc[#1](#2)(#3:#4:#5)% Syntax: [draw options] (center) (initial angle:final angle:radius)
+		{\draw[#1] ($(#2)+({#5*cos(#3)},{#5*sin(#3)})$) arc (#3:#4:#5); }
+
+	\def\startangle{-25}
+	\def\midangle{0}
+	\def\endangle{25}
+	\def\radius{2.0}
+	\pgfmathsetmacro{\vlen}{\radius*tan(\startangle)}%
+
+	\coordinate (O) at (0,0);
+	\coordinate (S) at (\startangle:\radius);
+	\coordinate (E) at (\endangle:\radius);
+
+%	\centerarc[dashed](O)(\startangle:\endangle:\radius);
+	\centerarc[->](O)(\startangle:\endangle:0.2*\radius);
+
+	\draw (O)+(0.4,0.1) node [right] {$\theta$};
+
+	\draw [thick,->] (O) -- (E) node [midway, above] {$\V{v^+}$};
+	\draw [thick,->] (O) -- (S) node [midway, below] {$\V{v^-}$};
+
+	\path (S) +(\startangle-90:\vlen) coordinate (V1E);
+%	\path (E) +(\endangle-90:\vlen) coordinate (V3E);
+
+%	%\draw [->] (E) -- (V3E);
+	\draw [->] (S) -- (V1E) node [midway, right] {$\V{v'} \times \V t$};
+%
+	\draw [->] (O) -- (V1E) node [midway, above] {$\V{v'}$};
+	\draw [->] (S) -- (E) node [near end, right] {$\V{v'} \times \V s$};
+
+%	\draw [fill=white] (O) circle (0.02);
+
+\end{tikzpicture}
+\caption{Velocity space rotation from $\v-$ to $\v+$}
+\end{figure}
+%
+\paragraph{Add half electric impulse} We define $\V{v^-}$ as the velocity after 
+half a electric impulse:
+$$\v^- = \v_{t-\dt/2} + \frac{q \E}{m} \frac{\dt}{2}$$
+
+\paragraph{Rotate for the magnetic field} The rotation is done in two steps, 
+first the half rotation is computed, with an angle of $\theta/2$:
+$$\v' = \v^- + \v^- \times \V t $$
+
+Then the rotation is completed by symmetry, using the $\V s$ vector
+$$ \V s = \frac{2 \V t}{1 + \V t^2} $$
+as
+$$ \V{v^+} = \V{v^-} + \V{v}' \times \V{s} $$
