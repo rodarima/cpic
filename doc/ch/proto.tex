@@ -1,10 +1,10 @@
 \chapter{Sequential simulator}
 \label{ch:sequential}
 
-In other to begin the implementation of the simulator, a initial version was
+In order to begin the implementation of the simulator, an initial version was
 considered with the minimum complexity, to verify the correctness of the model.
 A graphic subsystem was build with MathGL and OpenGL to produce realtime plots
-of different elements of the simulation. Of special interests are the particle
+of different elements of the simulation. Of special interest are the particle
 motion, the electric potential and the electric field.
 
 The language of choice was C for the low overhead, the lack of automatic memory
@@ -19,8 +19,9 @@ and mass, denominated specie. Each particle was implemented as a structure with
 a given index $i$, a position vector $\x$, velocity $\v$ and other extra fields
 such as the interpolated electric field at the particle position $\E$.
 %
-The fields were allocated in contiguous arrays, with the $x$ dimension aligned
-with the cache line, also called row-major storage.
+Only one dimension was implemented for the first tests, but soon extended to two 
+dimensions.  The fields were allocated in contiguous arrays, with the $x$ 
+dimension aligned with the cache line, also called row-major storage.
 
 The configuration of the simulation is specified in plain configuration files,
 with the syntax defined by the \texttt{libconfig} library. Is important to allow
@@ -42,12 +43,12 @@ simulation.
 
 \subsection{Two particle test}
 
-A simple test consists of two electrons placed at some distance different of
-$L/2$ with no initial speed. The analytical solution is known and the motion 
-should follow a harmonic oscillation trajectory. The energy conservation can be 
-observed in the figure~\ref{fig:1d-2particles-energy}, where the total energy 
-only varies due to the interpolation noise as the time $t$ grows in the $x$ 
-axis.
+A simple one-dimensional test consists of two electrons placed at some distance 
+different of $L/2$ with no initial speed. The analytical solution is known and 
+the motion should follow a harmonic oscillation trajectory. The energy 
+conservation can be observed in the figure~\ref{fig:1d-2particles-energy}, where 
+the total energy only varies due to the interpolation noise as the time $t$ 
+grows in the $x$ axis.
 %
 \begin{figure}[h]
 	\centering
@@ -55,3 +56,20 @@ axis.
 	\caption{Energy conservation in two particle test}
 	\label{fig:1d-2particles-energy}
 \end{figure}
+
+\subsection{Two stream instability}
+
+%
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.8\linewidth]{1d/2stream/out.png}
+	\caption{Phase space position--velocity of the two stream instability, shown 
+	at iterations: 0, 200, 400 and 600 (left to right, top to bottom)}
+	\label{fig:1d-2stream}
+\end{figure}
+
+Another example in one dimension is the two stream instability, which consists 
+of two streams of particles with opposite velocity. With 500 particles in each 
+stream, a very characteristic set of vortices are created in the 
+position-velocity phase space, which can be shown in the 
+figure~\ref{fig:1d-2stream}.
