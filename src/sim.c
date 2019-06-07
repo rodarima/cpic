@@ -182,6 +182,7 @@ conservation_energy(sim_t *sim)
 	//sim->total_momentum[X] *= s->m * 5.0;
 	//sim->total_momentum[Y] *= s->m * 5.0;
 
+	sim->energy_kinetic /= 2.0;
 
 
 	EE = sim->energy_electrostatic;
