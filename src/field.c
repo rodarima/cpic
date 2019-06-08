@@ -3,7 +3,7 @@
 #include "interpolate.h"
 #include "comm.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include "mat.h"
 #include "utils.h"
@@ -180,6 +180,10 @@ rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 		dbg("Rho interpolation for p-%d at (%e, %e)\n",
 				p->i, p->x[X], p->x[Y]);
 
+		/* Ensure the particle is in the chunk */
+		assert((chunk->x0[X] <= p->x[X]) && (p->x[X] < chunk->x1[X]));
+		assert((chunk->x0[Y] <= p->x[Y]) && (p->x[Y] < chunk->x1[Y]));
+
 		interpolate_weights_xy(p->x, sim->dx, field->x0, w, i0);
 
 		dbg("Computed weights for particle %p are [%e %e %e %e]\n",
@@ -266,8 +270,6 @@ rho_reset(sim_t *sim, int i)
 		}
 	}
 
-	mat_print(field->rho, "rho after reset");
-
 	return 0;
 }
 
@@ -284,10 +286,8 @@ rho_update(sim_t *sim, int i)
 	{
 		set = &chunk->species[is];
 		rho_update_specie(sim, chunk, set);
-		mat_print(sim->field.rho, "rho after update one specie");
+		//mat_print(sim->field.rho, "rho after update one specie");
 	}
-
-	mat_print(sim->field.rho, "rho after update");
 
 	return 0;
 }
@@ -319,8 +319,6 @@ rho_destroy_ghost(sim_t *sim, int i)
 		}
 	}
 
-	mat_print(sim->field.rho, "rho after ghost destruction");
-
 	return 0;
 }
 
@@ -340,26 +338,35 @@ field_rho(sim_t *sim)
 	/* Reset charge density */
 	for (i=0; i<plasma->nchunks; i++)
 	{
-		#pragma oss task out(plasma->chunks[i])
+//		#pragma oss task out(plasma->chunks[i]) label(rho_reset)
 		rho_reset(sim, i);
 	}
+
+	mat_print(sim->field.rho, "rho after reset");
 
 	/* -- taskwait? -- */
 
 	/* Computation */
 	for (i=0; i<plasma->nchunks; i++)
 	{
-		#pragma oss task inout(plasma->chunk[i])
+//		#pragma oss task out(plasma->chunks[i]) label(rho_update)
 		rho_update(sim, i);
 	}
 
-	#pragma oss taskwait
+	mat_print(sim->field.rho, "rho after update");
+
+	//#pragma oss taskwait
+//	#pragma oss task in(plasma->chunks[0:plasma->nchunks-1]) label(comm_send_ghost_rho)
 	/* Send the ghost part of the rho field */
 	comm_send_ghost_rho(sim);
 
+//	#pragma oss task out(plasma->chunks[0:plasma->nchunks-1]) label(rho_destroy_ghost)
 	for (i=0; i<plasma->nchunks; i++)
 		rho_destroy_ghost(sim, i);
 
+	mat_print(sim->field.rho, "rho after ghost destruction");
+
+//	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_recv_ghost_rho)
 	/* Recv the ghost part of the rho field */
 	comm_recv_ghost_rho(sim);
 

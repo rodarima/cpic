@@ -74,6 +74,29 @@ queue_particle(particle_set_t *set, particle_t *p, int j)
 }
 
 int
+queue_local_particle(particle_set_t *set, particle_t *p, int chunk_index)
+{
+	int nall, nout;
+	DL_DELETE(set->particles, p);
+	set->nparticles--;
+
+	DL_APPEND(set->lout[chunk_index], p);
+	set->loutsize[chunk_index]++;
+
+#ifdef CHECK_SLOW
+	nall = count_particles(set->particles);
+	nout = count_particles(set->lout[chunk_index]);
+
+	dbg("Queue local particle %d from main set size %d (%d?) into lout[%d] size %d (%d?)\n",
+			p->i, nall, set->nparticles, chunk_index, nout, set->loutsize[chunk_index]);
+
+	assert(nall == set->nparticles);
+	assert(nout == set->loutsize[chunk_index]);
+#endif
+	return 0;
+}
+
+int
 compute_tag(int op, int iter, int value, int value_size)
 {
 	int tag;
@@ -111,12 +134,75 @@ particle_chunk_index(sim_t *sim, plasma_chunk_t *chunk, particle_t *p, int *dst)
 	dst[Y] = p->x[Y] / dy;
 }
 
+/* Check ONLY in the X dimension, if any particle has exceeded the chunk size in
+ * X, and place it in the correct lout[] position */
+int
+collect_local(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
+{
+	particle_t *p, *tmp;
+	particle_set_t *set;
+	int j, ix, iy, ix_next, ix_prev;
+	int dst, dst_ig[MAX_DIM];
+
+	set = &chunk->species[is];
+
+	/* Check that no particles are left from the previous iteration */
+	for(j=0; j<sim->plasma_chunks; j++)
+	{
+		assert(set->lout[j] == NULL);
+		assert(set->loutsize[j] == 0);
+	}
+
+	ix = chunk->ig[X];
+	iy = chunk->ig[Y];
+
+	dbg("Collecting local particles for chunk %d for specie %d\n", ix, is);
+
+	ix_next = (ix + 1) % sim->plasma_chunks;
+	ix_prev = (ix - 1 + sim->plasma_chunks) % sim->plasma_chunks;
+
+	dbg("Chunk %d goes from x0=(%e %e) to x1=(%e %e)\n",
+			ix, chunk->x0[X], chunk->x0[Y],
+			chunk->x1[X], chunk->x1[Y]);
+
+	DL_FOREACH_SAFE(set->particles, p, tmp)
+	{
+		/* Wrap particle position arount the whole simulation space, to
+		 * determine the target chunk */
+		wrap_particle_position(sim, p);
+
+		particle_chunk_index(sim, chunk, p, dst_ig);
+
+		/* The particle is in the same process */
+		if(dst_ig[X] == ix)
+		{
+			/* And also in the same chunk */
+			dbg("p%d remains in chunk (%d %d), skips move\n",
+					p->i, ix, iy);
+			continue;
+		}
+
+		/* Otherwise, the particle is in the same process but
+		 * needs to move chunk */
+
+		/* Ensure the particle only needs to jump to the
+		 * neighbour chunk if we are in local exchange */
+		assert(global_exchange ||
+			((dst_ig[X] == ix_next) || (dst_ig[X] == ix_prev)));
+
+		queue_local_particle(set, p, dst_ig[X]);
+	}
+
+
+	return 0;
+}
+
 int
 collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 {
 	particle_t *p, *tmp;
 	particle_set_t *set;
-	int j, ix, iy;
+	int j, ix, iy, iy_next, iy_prev;
 	int dst, dst_ig[MAX_DIM];
 
 	set = &chunk->species[is];
@@ -129,11 +215,14 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 		set->outsize[j] = 0;
 	}
 
-	dbg("Moving particles for chunk (%d,%d)\n",
+	dbg("Collecting particles for chunk (%d,%d) for vertical move\n",
 			chunk->ig[X], chunk->ig[Y]);
 
 	ix = chunk->ig[X];
 	iy = chunk->ig[Y];
+
+	iy_next = (iy + 1) % sim->nprocs;
+	iy_prev = (iy - 1 + sim->nprocs) % sim->nprocs;
 
 #if GLOBAL_DEBUG
 	double x0, x1, y0, y1;
@@ -155,11 +244,23 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 
 		particle_chunk_index(sim, chunk, p, dst_ig);
 
-		/* If the particle is in our chunk, no movement is needed */
-		if(dst_ig[X] == ix && dst_ig[Y] == iy) continue;
+		/* Ensure the particle is in the chunk in the X dimension */
+		assert(dst_ig[X] == ix);
+
+		if(dst_ig[Y] == iy)
+		{
+			dbg("p%d remains in chunk (%d %d), skips move\n", p->i, ix, iy);
+			continue;
+		}
 
 		/* Only one chunk per process in the Y direction */
 		dst = dst_ig[Y];
+
+		/* Ensure local communication only with neighbours */
+		if(!global_exchange)
+		{
+			assert(dst == iy_next || dst == iy_prev);
+		}
 
 #if GLOBAL_DEBUG
 		if(p->i < 100)
@@ -290,30 +391,100 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 	return 0;
 }
 
-
 int
-share_particles(sim_t *sim, plasma_chunk_t *chunk, int neigh)
+concat_particles(plasma_chunk_t *dst, plasma_chunk_t *src)
 {
-	int is;
-	particle_set_t *set;
+	int is, ix;
+	particle_t *p;
+	particle_set_t *dst_set, *src_set;
 
-	for(is=0; is<sim->nspecies; is++)
+	assert(src->nspecies == dst->nspecies);
+
+	dbg("Sending particles from chunk %d to chunk %d\n",
+			src->ig[X], dst->ig[X]);
+
+	for(is=0; is<src->nspecies; is++)
 	{
-		set = &chunk->species[is];
+		src_set = &src->species[is];
+		dst_set = &dst->species[is];
 
-		/* TODO: Implement for multiple threads */
+		ix = dst->ig[X];
 
-		if(set->outsize[neigh])
+		/* Check if we have some particles to send to "dst" of specie
+		 * "is" */
+		if(src_set->loutsize[ix] == 0)
 		{
-			DL_CONCAT(set->particles, set->out[neigh]);
-			set->nparticles += set->outsize[neigh];
-#ifdef CHECK_SLOW
-			assert(count_particles(set->particles) == set->nparticles);
-#endif
+			assert(src_set->lout[ix] == NULL);
+			continue;
 		}
 
-		set->out[neigh] = NULL;
-		set->outsize[neigh] = 0;
+		dbg("Found %d particles of specie %d\n",
+				src_set->loutsize[ix], is);
+
+		for(p=src_set->lout[ix]; p; p=p->next)
+		{
+			dbg("p%d\n", p->i);
+		}
+
+		DL_CONCAT(dst_set->particles, src_set->lout[ix]);
+		dst_set->nparticles += src_set->loutsize[ix];
+#ifdef CHECK_SLOW
+		assert(count_particles(dst_set->particles) == dst_set->nparticles);
+#endif
+		src_set->lout[ix] = NULL;
+		src_set->loutsize[ix] = 0;
+
+	}
+	return 0;
+}
+
+/* Place all particles in the chunk at lout list, in the chunk main list of
+ * particles (even if they are outside of the chunk in the Y dimension) */
+int
+spread_local_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
+{
+	int is, ic, nc;
+	particle_set_t *set, *dst_set;
+	plasma_t *plasma;
+	plasma_chunk_t *dst_chunk;
+
+	plasma = &sim->plasma;
+	nc = sim->plasma_chunks;
+
+	if(global_exchange)
+	{
+		dbg("Global exchange: spread local\n");
+		for(ic=0; ic<sim->plasma_chunks; ic++)
+		{
+			dst_chunk = &plasma->chunks[ic];
+
+			concat_particles(dst_chunk, chunk);
+		}
+	}
+	else
+	{
+		dbg("Local exchange: spread local\n");
+		/* Only the two neighbours are needed */
+		ic = (chunk->ig[X] - 1 + nc) % nc;
+		dst_chunk = &plasma->chunks[ic];
+
+		concat_particles(dst_chunk, chunk);
+
+		ic = (chunk->ig[X] + 1) % nc;
+		dst_chunk = &plasma->chunks[ic];
+
+		concat_particles(dst_chunk, chunk);
+	}
+
+	/* Ensure we have no left particles in any local list */
+	for(ic=0; ic<sim->plasma_chunks; ic++)
+	{
+		for(is=0; is<sim->nspecies; is++)
+		{
+			set = &chunk->species[is];
+			assert(set->lout[ic] == NULL);
+			assert(set->loutsize[ic] == 0);
+		}
 	}
 
 	return 0;
@@ -345,7 +516,8 @@ send_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_ex
 				 * running in local */
 				for(is=0; is<chunk->nspecies; is++)
 				{
-					dbg("Testing proc %d with specie %d\n", i, is);
+					dbg("At chunk (%d %d), testing proc %d with specie %d\n",
+							chunk->ig[X], chunk->ig[Y], i, is);
 					assert(chunk->species[is].outsize[i] == 0);
 				}
 
@@ -356,7 +528,7 @@ send_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_ex
 		if(i == sim->rank)
 		{
 			dbg("Communication not needed for myself %d\n", i);
-			share_particles(sim, chunk, i);
+			//share_particles(sim, chunk, i, global_exchange);
 			continue;
 		}
 
@@ -512,6 +684,45 @@ comm_plasma_chunk(sim_t *sim, int i, int global_exchange)
 
 		/* Finally receive particles from the neighbours */
 		recv_particles(sim, chunk, i, global_exchange);
+	}
+
+	return 0;
+}
+
+int
+comm_plasma(sim_t *sim, int global_exchange)
+{
+	int i, is;
+	plasma_t *plasma;
+	plasma_chunk_t *chunk;
+
+	plasma = &sim->plasma;
+
+	for (i = 0; i < plasma->nchunks; i++)
+	{
+		chunk = &plasma->chunks[i];
+		/* Place each particle outside a chunk in the X dimension, in
+		 * the lout list */
+		for(is = 0; is < sim->nspecies; is++)
+		{
+			collect_local(sim, chunk, is, global_exchange);
+		}
+	}
+
+	for (i = 0; i < plasma->nchunks; i++)
+	{
+		chunk = &plasma->chunks[i];
+
+		/* Exchange each particle in lout to the correct chunk */
+		spread_local_particles(sim, chunk, global_exchange);
+	}
+
+	/* All particles are properly placed in the X dimension from here on */
+
+	for (i = 0; i < plasma->nchunks; i++)
+	{
+		//#pragma oss task inout(plasma->chunks[i]) label(comm_plasma_chunk)
+		comm_plasma_chunk(sim, i, global_exchange);
 	}
 
 	return 0;

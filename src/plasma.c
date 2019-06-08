@@ -41,6 +41,16 @@ particle_set_init(sim_t *sim, plasma_chunk_t *chunk, int is)
 		set->outsize[j] = 0;
 	}
 
+	set->lout = safe_malloc(sizeof(particle_t *) * sim->plasma_chunks);
+	set->loutsize = safe_malloc(sizeof(int) * sim->plasma_chunks);
+
+	for(j=0; j<sim->plasma_chunks; j++)
+	{
+		set->lout[j] = NULL;
+		set->loutsize[j] = 0;
+	}
+
+
 	step = sim->nprocs * sim->plasma_chunks;
 	ic = chunk->ig[X] * sim->nprocs + chunk->ig[Y];
 

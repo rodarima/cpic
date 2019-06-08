@@ -314,7 +314,7 @@ chunk_E(sim_t *sim, int i)
 
 	chunk = &sim->plasma.chunks[i];
 
-	#pragma oss task inout(*chunk) label(chunk_E)
+	//#pragma oss task inout(*chunk) label(chunk_E)
 	{
 		dbg("Running task chunk_E with chunk %d\n", i);
 		for(i=0; i<chunk->nspecies; i++)
@@ -351,38 +351,13 @@ particle_E(sim_t *sim)
 int
 particle_comm(sim_t *sim)
 {
-	int i;
-	plasma_t *plasma;
-
-	plasma = &sim->plasma;
-
-	/* Communication */
-	for (i = 0; i < plasma->nchunks; i++)
-	{
-		comm_plasma_chunk(sim, i, 0);
-	}
-
-	#pragma oss taskwait
-
-	return 0;
+	return comm_plasma(sim, 0);
 }
 
 int
 particle_comm_initial(sim_t *sim)
 {
-	int i;
-	plasma_t *plasma;
-	plasma = &sim->plasma;
-
-	/* Communication */
-	for (i = 0; i < plasma->nchunks; i++)
-	{
-		comm_plasma_chunk(sim, i, 1);
-	}
-
-	#pragma oss taskwait
-
-	return 0;
+	return comm_plasma(sim, 1);
 }
 
 /* The speed u and position x of the particles are computed in a single phase */
@@ -542,7 +517,7 @@ plasma_x(sim_t *sim)
 	/* Computation */
 	for(i=0; i<sim->plasma.nchunks; i+=2)
 		chunk_x_update(sim, i);
-	#pragma oss taskwait
+	//#pragma oss taskwait
 
 	for(i=1; i<sim->plasma.nchunks; i+=2)
 		chunk_x_update(sim, i);

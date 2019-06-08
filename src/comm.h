@@ -42,3 +42,6 @@ comm_phi_send(sim_t *sim);
 
 int
 comm_phi_recv(sim_t *sim);
+
+int
+comm_plasma(sim_t *sim, int global_exchange);

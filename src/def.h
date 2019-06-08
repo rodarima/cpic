@@ -80,6 +80,10 @@ struct particle_set
 	/* Temporal particle lists to send and receive from the neighbour */
 	int *outsize;
 	particle_t **out;
+
+	/* Local particle list (between chunks) */
+	int *loutsize;
+	particle_t **lout;
 };
 
 struct particle_config
