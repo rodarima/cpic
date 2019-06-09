@@ -42,10 +42,13 @@ OBJ:=
 
 HOSTNAME=$(shell hostname)
 
+#NANOS6_HEADER=NANOS6=verbose NANOS6_VERBOSE=all
+#NANOS6_HEADER=NANOS6=verbose
+
 # MPI configuration based on the computing device
 ifeq ($(HOSTNAME), mio)
  NPROCS?=2
- NCORES?=1
+ NCORES?=2
  MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES) --oversubscribe
 else
  NPROCS?=4
@@ -129,7 +132,7 @@ trace: trace/cpic.prv
 
 run:
 	rm -f log/*
-	$(MPIRUN) bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+	$(MPIRUN) bash -c '$(NANOS6_HEADER) ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
 
 gprof:
 	GMON_OUT_PREFIX=gmon taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'

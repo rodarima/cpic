@@ -3,7 +3,7 @@
 #include "block.h"
 #include "sim.h"
 
-#define COMM_TAG_NEIGH_SIZE 5
+#define COMM_TAG_NEIGH_SIZE 4
 #define COMM_TAG_ITER_SIZE 10
 #define COMM_TAG_ITER_MASK (~((~0)<<COMM_TAG_ITER_SIZE))
 #define COMM_TAG_NEIGH_MASK (~((~0)<<COMM_TAG_NEIGH_SIZE))

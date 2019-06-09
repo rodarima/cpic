@@ -36,12 +36,20 @@ main(int argc, char *argv[])
 	config_t conf;
 	const char *fn;
 	char *include_dir;
-	int opt;
+	int i, opt, prov;
 	int quiet = 0;
 
 	/* FIXME: Determine if we want to allow MPI to know our argv. By now we
 	 * simply set a NULL argv */
-	MPI_Init(NULL, NULL);
+	//i = 1;
+	//while(i) sleep(5);
+
+	MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &prov);
+	if(prov != MPI_THREAD_MULTIPLE)
+	{
+		err("MPI doesn't support MPI_THREAD_MULTIPLE\n");
+		return 1;
+	}
 
 	while((opt = getopt(argc, argv, "q")) != -1)
 	{

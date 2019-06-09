@@ -8,7 +8,7 @@
 #include "plasma.h"
 #include "utils.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 /* Add some extra tests which can be costly */
@@ -108,6 +108,8 @@ compute_tag(int op, int iter, int value, int value_size)
 	assert(COMM_TAG_ITER_SIZE + COMM_TAG_OP_SIZE
 			+ value_size < sizeof(int) * 8);
 
+	assert(value < (1<<value_size));
+
 	tag = op << COMM_TAG_ITER_SIZE;
 	tag |= iter & COMM_TAG_ITER_MASK;
 	tag <<= value_size;
@@ -137,7 +139,7 @@ particle_chunk_index(sim_t *sim, plasma_chunk_t *chunk, particle_t *p, int *dst)
 /* Check ONLY in the X dimension, if any particle has exceeded the chunk size in
  * X, and place it in the correct lout[] position */
 int
-collect_local(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
+spread_local_particles(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 {
 	particle_t *p, *tmp;
 	particle_set_t *set;
@@ -297,7 +299,7 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 	pkt = chunk->q[dst];
 	size = sizeof(comm_packet_t);
 	op = COMM_TAG_OP_PARTICLES;
-	tag = compute_tag(op, sim->iter, chunk_index, COMM_TAG_DIR_SIZE);
+	tag = compute_tag(op, sim->iter, chunk_index, COMM_TAG_NEIGH_SIZE);
 
 	/* Compute queue size */
 	for(is=0; is<sim->nspecies; is++)
@@ -384,6 +386,7 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 			size, dst, tag);
 	/* Now the packet is ready to be sent */
 	MPI_Isend(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD, &chunk->req[dst]);
+
 	//MPI_Send(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD);
 
 	//dbg("Sending to rank %d done\n", dst);
@@ -400,8 +403,8 @@ concat_particles(plasma_chunk_t *dst, plasma_chunk_t *src)
 
 	assert(src->nspecies == dst->nspecies);
 
-	dbg("Sending particles from chunk %d to chunk %d\n",
-			src->ig[X], dst->ig[X]);
+//	dbg("Sending particles from chunk %d to chunk %d\n",
+//			src->ig[X], dst->ig[X]);
 
 	for(is=0; is<src->nspecies; is++)
 	{
@@ -418,6 +421,7 @@ concat_particles(plasma_chunk_t *dst, plasma_chunk_t *src)
 			continue;
 		}
 
+#if 0
 		dbg("Found %d particles of specie %d\n",
 				src_set->loutsize[ix], is);
 
@@ -425,6 +429,7 @@ concat_particles(plasma_chunk_t *dst, plasma_chunk_t *src)
 		{
 			dbg("p%d\n", p->i);
 		}
+#endif
 
 		DL_CONCAT(dst_set->particles, src_set->lout[ix]);
 		dst_set->nparticles += src_set->loutsize[ix];
@@ -441,51 +446,73 @@ concat_particles(plasma_chunk_t *dst, plasma_chunk_t *src)
 /* Place all particles in the chunk at lout list, in the chunk main list of
  * particles (even if they are outside of the chunk in the Y dimension) */
 int
-spread_local_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
+collect_local_particles(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 {
-	int is, ic, nc;
+	int is, ic, nc, chunk_ix;
+	int ic_prev, ic_next;
 	particle_set_t *set, *dst_set;
 	plasma_t *plasma;
-	plasma_chunk_t *dst_chunk;
+	plasma_chunk_t *dst_chunk, *src_chunk, *next_chunk, *prev_chunk;
 
 	plasma = &sim->plasma;
 	nc = sim->plasma_chunks;
+	dst_chunk = chunk;
+	chunk_ix = chunk->ig[X];
 
 	if(global_exchange)
 	{
-		dbg("Global exchange: spread local\n");
-		for(ic=0; ic<sim->plasma_chunks; ic++)
+		#pragma oss task inout(*chunk) \
+			inout(plasma->chunks[0:plasma->nchunks-1]) \
+			label(collect_local_particles)
 		{
-			dst_chunk = &plasma->chunks[ic];
+			dbg("Global exchange: spread local\n");
+			for(ic=0; ic<sim->plasma_chunks; ic++)
+			{
+				src_chunk = &plasma->chunks[ic];
 
-			concat_particles(dst_chunk, chunk);
+				concat_particles(dst_chunk, src_chunk);
+			}
 		}
 	}
 	else
 	{
-		dbg("Local exchange: spread local\n");
-		/* Only the two neighbours are needed */
-		ic = (chunk->ig[X] - 1 + nc) % nc;
-		dst_chunk = &plasma->chunks[ic];
+		ic_prev = (chunk->ig[X] - 1 + nc) % nc;
+		ic_next = (chunk->ig[X] + 1) % nc;
 
-		concat_particles(dst_chunk, chunk);
+		prev_chunk = &plasma->chunks[ic_prev];
+		next_chunk = &plasma->chunks[ic_next];
 
-		ic = (chunk->ig[X] + 1) % nc;
-		dst_chunk = &plasma->chunks[ic];
-
-		concat_particles(dst_chunk, chunk);
-	}
-
-	/* Ensure we have no left particles in any local list */
-	for(ic=0; ic<sim->plasma_chunks; ic++)
-	{
-		for(is=0; is<sim->nspecies; is++)
+		#pragma oss task inout(*chunk) \
+			inout(*prev_chunk) inout(*next_chunk) \
+			label(collect_local_particles)
 		{
-			set = &chunk->species[is];
-			assert(set->lout[ic] == NULL);
-			assert(set->loutsize[ic] == 0);
+			dbg("Local exchange: spread local\n");
+			/* Only the two neighbours are needed */
+
+			concat_particles(dst_chunk, prev_chunk);
+			concat_particles(dst_chunk, next_chunk);
 		}
 	}
+
+#ifndef NDEBUG
+
+	#pragma oss task inout(*chunk) label(check lout == NULL in chunks)
+	{
+		/* Ensure we have no left particles in any local list */
+		for(ic=0; ic<sim->plasma_chunks; ic++)
+		{
+			//dbg("Checking chunk %d\n", ic);
+			chunk = &plasma->chunks[ic];
+			for(is=0; is<sim->nspecies; is++)
+			{
+				set = &chunk->species[is];
+				//dbg("Checking lout[%d] == NULL\n", chunk_ix);
+				assert(set->lout[chunk_ix] == NULL);
+				assert(set->loutsize[chunk_ix] == 0);
+			}
+		}
+	}
+#endif
 
 	return 0;
 }
@@ -605,7 +632,7 @@ recv_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_ex
 	recv_from = safe_calloc(sim->nprocs, sizeof(int));
 
 	op = COMM_TAG_OP_PARTICLES;
-	tag = compute_tag(op, sim->iter, chunk_index, COMM_TAG_DIR_SIZE);
+	tag = compute_tag(op, sim->iter, chunk_index, COMM_TAG_NEIGH_SIZE);
 
 	/* FIXME: We shouldn't need to receive from more than 2 processes */
 	for(i=0; i<max_procs; i++)
@@ -621,6 +648,7 @@ recv_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_ex
 		//MPI_Recv(buf, 1024, MPI_BYTE, chunk->neigh_rank[i],
 		//	MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
+		usleep(100000);
 		MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
 
 		source = status.MPI_SOURCE;
@@ -639,7 +667,7 @@ recv_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_ex
 
 		neigh = pkt->neigh;
 
-		dbg("RECV size=%d rank=%d neigh=%d tag=%d rf[%d]=%d\n",
+		err("RECV size=%d rank=%d neigh=%d tag=%d rf[%d]=%d\n",
 				size, source, neigh, tag, neigh, recv_from[neigh]);
 
 		assert(recv_from[neigh] == 0);
@@ -669,22 +697,17 @@ comm_plasma_chunk(sim_t *sim, int i, int global_exchange)
 	plasma = &sim->plasma;
 	chunk = &plasma->chunks[i];
 
-	/* FIXME: The introduction of this task produces a segmentation fault */
-	//#pragma oss task inout(*chunk)
+	/* Collect particles in a queue that need to change chunk */
+	for(is = 0; is < sim->nspecies; is++)
 	{
-
-		/* Collect particles in a queue that need to change chunk */
-		for(is = 0; is < sim->nspecies; is++)
-		{
-			collect_specie(sim, chunk, is, global_exchange);
-		}
-
-		/* Then fill the packets and send each to the corresponding neighbour */
-		send_particles(sim, chunk, i, global_exchange);
-
-		/* Finally receive particles from the neighbours */
-		recv_particles(sim, chunk, i, global_exchange);
+		collect_specie(sim, chunk, is, global_exchange);
 	}
+
+	/* Then fill the packets and send each to the corresponding neighbour */
+	send_particles(sim, chunk, i, global_exchange);
+
+	/* Finally receive particles from the neighbours */
+	recv_particles(sim, chunk, i, global_exchange);
 
 	return 0;
 }
@@ -703,9 +726,10 @@ comm_plasma(sim_t *sim, int global_exchange)
 		chunk = &plasma->chunks[i];
 		/* Place each particle outside a chunk in the X dimension, in
 		 * the lout list */
+		#pragma oss task inout(*chunk) label(spread_local_particles)
 		for(is = 0; is < sim->nspecies; is++)
 		{
-			collect_local(sim, chunk, is, global_exchange);
+			spread_local_particles(sim, chunk, is, global_exchange);
 		}
 	}
 
@@ -714,16 +738,18 @@ comm_plasma(sim_t *sim, int global_exchange)
 		chunk = &plasma->chunks[i];
 
 		/* Exchange each particle in lout to the correct chunk */
-		spread_local_particles(sim, chunk, global_exchange);
+		collect_local_particles(sim, chunk, global_exchange);
 	}
 
 	/* All particles are properly placed in the X dimension from here on */
 
 	for (i = 0; i < plasma->nchunks; i++)
 	{
-		//#pragma oss task inout(plasma->chunks[i]) label(comm_plasma_chunk)
+		#pragma oss task inout(plasma->chunks[i]) label(comm_plasma_chunk)
 		comm_plasma_chunk(sim, i, global_exchange);
 	}
+
+	#pragma oss taskwait
 
 	return 0;
 }
