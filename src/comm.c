@@ -8,7 +8,7 @@
 #include "plasma.h"
 #include "utils.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 /* Add some extra tests which can be costly */
@@ -179,8 +179,8 @@ spread_local_particles(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exc
 		if(dst_ig[X] == ix)
 		{
 			/* And also in the same chunk */
-			dbg("p%d remains in chunk (%d %d), skips move\n",
-					p->i, ix, iy);
+			//dbg("p%d remains in chunk (%d %d), skips move\n",
+			//		p->i, ix, iy);
 			continue;
 		}
 
@@ -251,7 +251,7 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 
 		if(dst_ig[Y] == iy)
 		{
-			dbg("p%d remains in chunk (%d %d), skips move\n", p->i, ix, iy);
+			//dbg("p%d remains in chunk (%d %d), skips move\n", p->i, ix, iy);
 			continue;
 		}
 
@@ -292,14 +292,14 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 	particle_t *p, *tmp;
 	void *ptr;
 
-	dbg("Sending out packet to process %d\n", dst);
+	dbg("Sending out packet to process %d from chunk %d\n", dst, chunk_index);
 
 	np = 0;
 	count = 0;
 	pkt = chunk->q[dst];
 	size = sizeof(comm_packet_t);
 	op = COMM_TAG_OP_PARTICLES;
-	tag = compute_tag(op, sim->iter, chunk_index, COMM_TAG_NEIGH_SIZE);
+	tag = compute_tag(op, sim->iter, 0, 0);
 
 	/* Compute queue size */
 	for(is=0; is<sim->nspecies; is++)
@@ -338,6 +338,10 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 	chunk->q[dst] = pkt;
 	pkt->count = count;
 	pkt->neigh = sim->rank;
+	pkt->chunk_ig[X] = chunk->ig[X];
+	assert(pkt->chunk_ig[X] == chunk_index);
+	pkt->chunk_ig[Y] = chunk->ig[Y];
+	pkt->chunk_ig[Z] = chunk->ig[Z];
 	sp = pkt->s;
 
 	/* Copy the particles into the queue */
@@ -379,13 +383,13 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 		assert((((void *) sp) - ((void *) pkt)) == size);
 	}
 
-	dbg("Sending packet of size %lu (%d particles) rank=%d tag=%d\n",
+	dbg("Sending packet of size %lu (%d particles) rank=%d tag=%x\n",
 			size, np, dst, tag);
 
-	dbg("SENT size=%lu dst=%d tag=%d\n",
-			size, dst, tag);
 	/* Now the packet is ready to be sent */
 	MPI_Isend(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD, &chunk->req[dst]);
+	dbg("SENT size=%lu dst=%d tag=%x\n",
+			size, dst, tag);
 
 	//MPI_Send(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD);
 
@@ -522,15 +526,17 @@ int
 send_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_exchange)
 {
 
-	int i, is, next, prev;
+	int i, is, next, prev, ix;
 
 	prev = (sim->rank - 1 + sim->nprocs) % sim->nprocs;
 	next = (sim->rank + 1) % sim->nprocs;
+	ix = chunk->ig[X];
+	assert(ix == chunk_index);
 
 	if(global_exchange)
-		dbg("Global exchange\n");
+		dbg("Sending particles: Global exchange for chunk %d\n", ix);
 	else
-		dbg("Local exchange\n");
+		dbg("Sending particles: Local exchange for chunk %d\n", ix);
 
 	for(i=0; i<sim->nprocs; i++)
 	{
@@ -559,7 +565,7 @@ send_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_ex
 			continue;
 		}
 
-		dbg("Sending packets to proc %d\n", i);
+		dbg("Sending packets to proc %d from chunk %d\n", i, ix);
 		send_packet_neigh(sim, chunk, chunk_index, i);
 
 	}
@@ -606,15 +612,132 @@ recv_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 	return 0;
 }
 
+//int
+//recv_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_exchange)
+//{
+//	int i;
+//	int source, tag, size, neigh, op;
+//	MPI_Status status;
+//	comm_packet_t *pkt;
+//	int *recv_from;
+//	int max_procs;
+//
+//	dbg(" --- RECV PHASE REACHED ---\n");
+//
+//	/* Exclude myself assuming global exchange */
+//	max_procs = sim->nprocs - 1;
+//
+//	/* Or reduce the number of processes in local exchange: Note that if
+//	 * there are only 2 MPI processes, both local and global exchange are
+//	 * equal: max_procs = 1 */
+//	if(!global_exchange && max_procs > 2)
+//	{
+//		max_procs = 2;
+//	}
+//
+//	recv_from = safe_calloc(sim->nprocs, sizeof(int));
+//
+//	op = COMM_TAG_OP_PARTICLES;
+//	tag = compute_tag(op, sim->iter, chunk_index, COMM_TAG_CHUNK_SIZE);
+//
+//	for(i=0; i<max_procs; i++)
+//	{
+//		/* FIXME: We trust that only one message with the iteration tag
+//		 * is sent from each neighbour */
+//
+//#ifndef WITH_TAMPI
+//
+//		source = MPI_ANY_SOURCE;
+//
+//		dbg("Probing from rank=any tag=%x iter=%d chunk ix=%d\n",
+//				tag, sim->iter, chunk->ig[X]);
+//
+//		//MPI_Recv(buf, 1024, MPI_BYTE, chunk->neigh_rank[i],
+//		//	MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+//
+//		MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
+//
+//		source = status.MPI_SOURCE;
+//
+//		dbg("PROB rank=%d tag=%x\n", source, tag);
+//
+//		assert(status.MPI_TAG == tag);
+//
+//		MPI_Get_count(&status, MPI_BYTE, &size);
+//
+//		pkt = safe_malloc(size);
+//
+//		dbg("RECVING size=%d rank=%d neigh=? tag=%x chunk ix=%d\n",
+//				size, source, tag, chunk->ig[X]);
+//
+//		/* Can this receive another packet? */
+//		MPI_Recv(pkt, size, MPI_BYTE, source, tag,
+//				MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+//
+//		neigh = pkt->neigh;
+//
+//		dbg("RECV size=%d rank=%d neigh=%d tag=%x rf[%d]=%d\n",
+//				size, source, neigh, tag, neigh, recv_from[neigh]);
+//#else
+//		TAMPI_Recv(pkt, size, MPI_BYTE, source, tag,
+//				MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+//#endif
+//
+//		assert(recv_from[neigh] == 0);
+//		recv_from[neigh]++;
+//
+//		/* Do some stuff with pkt */
+//		recv_comm_packet(sim, chunk, pkt);
+//
+//		free(pkt);
+//
+//	}
+//
+//	free(recv_from);
+//
+//	return 0;
+//}
+
+
+///* Move particles to the correct chunk */
+//int
+//comm_plasma_chunk(sim_t *sim, int i, int global_exchange)
+//{
+//	int is;
+//	plasma_chunk_t *chunk;
+//	plasma_t *plasma;
+//
+//	plasma = &sim->plasma;
+//	chunk = &plasma->chunks[i];
+//
+//	/* Collect particles in a queue that need to change chunk */
+//	for(is = 0; is < sim->nspecies; is++)
+//	{
+//		collect_specie(sim, chunk, is, global_exchange);
+//	}
+//
+//	/* Then fill the packets and send each to the corresponding neighbour */
+//	send_particles(sim, chunk, i, global_exchange);
+//
+//	dbg("WAITING FOR 1 SECOND TO FORCE DEADLOCK!\n");
+//	sleep(10);
+//
+//	/* Finally receive particles from the neighbours */
+//	recv_particles(sim, chunk, i, global_exchange);
+//
+//	return 0;
+//}
+
 int
-recv_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_exchange)
+comm_recv_plasma(sim_t *sim, int global_exchange)
 {
 	int i;
-	int source, tag, size, neigh, op;
+	int source, tag, size, neigh, op, chunk_ix;
 	MPI_Status status;
 	comm_packet_t *pkt;
+	plasma_chunk_t *chunk;
 	int *recv_from;
-	int max_procs;
+	int max_procs, max_chunks, max_comms;
 
 	dbg(" --- RECV PHASE REACHED ---\n");
 
@@ -623,91 +746,75 @@ recv_particles(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_ex
 
 	/* Or reduce the number of processes in local exchange: Note that if
 	 * there are only 2 MPI processes, both local and global exchange are
-	 * equal */
+	 * equal: max_procs = 1 */
 	if(!global_exchange && max_procs > 2)
 	{
 		max_procs = 2;
 	}
 
+	max_chunks = sim->plasma_chunks;
+	max_comms = max_procs * max_chunks;
+
 	recv_from = safe_calloc(sim->nprocs, sizeof(int));
 
 	op = COMM_TAG_OP_PARTICLES;
-	tag = compute_tag(op, sim->iter, chunk_index, COMM_TAG_NEIGH_SIZE);
+	tag = compute_tag(op, sim->iter, 0, 0);
 
-	/* FIXME: We shouldn't need to receive from more than 2 processes */
-	for(i=0; i<max_procs; i++)
+	for(i=0; i<max_comms; i++)
 	{
-		/* FIXME: We trust that only one message with the iteration tag
-		 * is sent from each neighbour */
+
+#ifndef WITH_TAMPI
 
 		source = MPI_ANY_SOURCE;
 
-		//dbg("Receiving packets from rank=any tag=%d iter=%d\n",
-		//		tag, sim->iter);
+		dbg("Probing from rank=any tag=%x iter=%d\n",
+				tag, sim->iter);
 
-		//MPI_Recv(buf, 1024, MPI_BYTE, chunk->neigh_rank[i],
-		//	MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-		usleep(100000);
 		MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
 
 		source = status.MPI_SOURCE;
 
-		dbg("PROB rank=%d tag=%d\n", source, tag);
+		dbg("PROB rank=%d tag=%x\n", source, tag);
 
-		assert(status.MPI_TAG == tag);
+		assert(status.MPI_TAG == tag); /* NEEDED ? */
 
 		MPI_Get_count(&status, MPI_BYTE, &size);
 
 		pkt = safe_malloc(size);
+
+		dbg("RECVING size=%d rank=%d tag=%x\n",
+				size, source, tag);
 
 		/* Can this receive another packet? */
 		MPI_Recv(pkt, size, MPI_BYTE, source, tag,
 				MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
 		neigh = pkt->neigh;
+		chunk_ix = pkt->chunk_ig[X];
 
-		err("RECV size=%d rank=%d neigh=%d tag=%d rf[%d]=%d\n",
-				size, source, neigh, tag, neigh, recv_from[neigh]);
+		dbg("RECV size=%d rank=%d neigh=%d tag=%x chunk_ix=%d rf[%d]=%d\n",
+				size, source, neigh, tag, chunk_ix, neigh, recv_from[neigh]);
+#else
+		BUG HERE!
+		TAMPI_Recv(pkt, size, MPI_BYTE, source, tag,
+				MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+#endif
 
-		assert(recv_from[neigh] == 0);
+		assert(recv_from[neigh] < max_chunks);
 		recv_from[neigh]++;
 
 		/* Do some stuff with pkt */
-		recv_comm_packet(sim, chunk, pkt);
-
-		free(pkt);
+		chunk = &sim->plasma.chunks[chunk_ix];
+		#pragma oss task inout(*chunk)
+		{
+			recv_comm_packet(sim, chunk, pkt);
+			free(pkt);
+		}
 
 	}
 
 	free(recv_from);
-
-	return 0;
-}
-
-
-/* Move particles to the correct chunk */
-int
-comm_plasma_chunk(sim_t *sim, int i, int global_exchange)
-{
-	int is;
-	plasma_chunk_t *chunk;
-	plasma_t *plasma;
-
-	plasma = &sim->plasma;
-	chunk = &plasma->chunks[i];
-
-	/* Collect particles in a queue that need to change chunk */
-	for(is = 0; is < sim->nspecies; is++)
-	{
-		collect_specie(sim, chunk, is, global_exchange);
-	}
-
-	/* Then fill the packets and send each to the corresponding neighbour */
-	send_particles(sim, chunk, i, global_exchange);
-
-	/* Finally receive particles from the neighbours */
-	recv_particles(sim, chunk, i, global_exchange);
+	#pragma oss taskwait
 
 	return 0;
 }
@@ -745,11 +852,30 @@ comm_plasma(sim_t *sim, int global_exchange)
 
 	for (i = 0; i < plasma->nchunks; i++)
 	{
-		#pragma oss task inout(plasma->chunks[i]) label(comm_plasma_chunk)
-		comm_plasma_chunk(sim, i, global_exchange);
+		#pragma oss task inout(plasma->chunks[i]) label(collect and send particles)
+		{
+			chunk = &plasma->chunks[i];
+			/* Collect particles in a queue that need to change chunk */
+			for(is = 0; is < sim->nspecies; is++)
+			{
+				collect_specie(sim, chunk, is, global_exchange);
+			}
+
+			/* Then fill the packets and send each to the corresponding neighbour */
+			send_particles(sim, chunk, i, global_exchange);
+		}
 	}
 
+	//dbg("WAITING FOR 1 SECOND TO FORCE DEADLOCK!\n");
+	//sleep(1);
+	//#pragma oss taskwait
+
+	comm_recv_plasma(sim, global_exchange);
+
+
+	dbg("Waiting for particle communication tasks\n");
 	#pragma oss taskwait
+	dbg("All communication of particles done\n");
 
 	return 0;
 }
@@ -764,7 +890,7 @@ comm_mat_send(sim_t *sim, double *data, int size, int dst, int op, int dir, MPI_
 	if(*req)
 		MPI_Wait(req, MPI_STATUS_IGNORE);
 
-	dbg("SEND mat size=%d rank=%d tag=%d op=%d\n", size, dst, tag, op);
+	dbg("SEND mat size=%d rank=%d tag=%x op=%d\n", size, dst, tag, op);
 	//MPI_Send(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD);
 	MPI_Isend(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD, req);
 
@@ -778,7 +904,7 @@ comm_mat_recv(sim_t *sim, double *data, int size, int dst, int op, int dir)
 
 	tag = compute_tag(op, sim->iter, dir, COMM_TAG_DIR_SIZE);
 
-	dbg("RECV mat size=%d rank=%d tag=%d op=%d\n", size, dst, tag, op);
+	dbg("RECV mat size=%d rank=%d tag=%x op=%d\n", size, dst, tag, op);
 	MPI_Recv(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
 	return 0;

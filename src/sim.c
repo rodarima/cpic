@@ -170,6 +170,8 @@ sim_pre_step(sim_t *sim)
 	/* Initial computation of rho */
 	field_rho(sim);
 
+	#pragma oss taskwait
+
 	return 0;
 }
 

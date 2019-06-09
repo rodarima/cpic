@@ -31,6 +31,9 @@ obj_lib:=$(subst .c,.o,$(src))
 src_cflags:=
 src_ldlibs:=
 
+# Add TAMPI BEFORE MPI
+src_ldlibs=-ltampi-c
+
 src_cflags+=$(shell mpicc --showme:compile)
 src_ldlibs+=$(shell mpicc --showme:link)
 

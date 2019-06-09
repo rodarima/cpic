@@ -125,6 +125,7 @@ struct comm_packet
 {
 	int count;
 	int neigh;
+	int chunk_ig[MAX_DIM];
 	specie_packet_t s[];
 };
 #pragma pack(pop)

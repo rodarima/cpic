@@ -3,7 +3,7 @@
 #include "interpolate.h"
 #include "comm.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "mat.h"
 #include "utils.h"
@@ -338,7 +338,7 @@ field_rho(sim_t *sim)
 	/* Reset charge density */
 	for (i=0; i<plasma->nchunks; i++)
 	{
-//		#pragma oss task out(plasma->chunks[i]) label(rho_reset)
+		#pragma oss task out(plasma->chunks[i]) label(rho_reset)
 		rho_reset(sim, i);
 	}
 
@@ -349,7 +349,7 @@ field_rho(sim_t *sim)
 	/* Computation */
 	for (i=0; i<plasma->nchunks; i++)
 	{
-//		#pragma oss task out(plasma->chunks[i]) label(rho_update)
+		#pragma oss task out(plasma->chunks[i]) label(rho_update)
 		rho_update(sim, i);
 	}
 

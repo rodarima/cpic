@@ -3,9 +3,10 @@
 #include "block.h"
 #include "sim.h"
 
-#define COMM_TAG_NEIGH_SIZE 4
 #define COMM_TAG_ITER_SIZE 10
 #define COMM_TAG_ITER_MASK (~((~0)<<COMM_TAG_ITER_SIZE))
+
+#define COMM_TAG_NEIGH_SIZE 4
 #define COMM_TAG_NEIGH_MASK (~((~0)<<COMM_TAG_NEIGH_SIZE))
 
 #define COMM_TAG_OP_PARTICLES 1
@@ -18,8 +19,8 @@
 #define COMM_TAG_DIR_SIZE 4
 #define COMM_TAG_DIR_MASK (~((~0)<<COMM_TAG_DIR_SIZE))
 
-#define COMM_TAG_CHUNK_SIZE 10
-#define COMM_TAG_CHUNK_MASK (~((~0)<<COMM_TAG_DIR_SIZE))
+#define COMM_TAG_CHUNK_SIZE 8
+#define COMM_TAG_CHUNK_MASK (~((~0)<<COMM_TAG_CHUNK_SIZE))
 
 int
 comm_block(sim_t *sim, block_t *b);

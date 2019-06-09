@@ -20,6 +20,9 @@ CFLAGS:=-g -Wall
 # Use debug messages
 #CFLAGS+=-DGLOBAL_DEBUG
 
+# Use TAMPI
+#CFLAGS+=-DWITH_TAMPI
+
 # Instrument functions so Extrae can get some information
 CFLAGS+=-finstrument-functions
 
@@ -130,9 +133,12 @@ valgrind:
 
 trace: trace/cpic.prv
 
-run:
+run: cpic
 	rm -f log/*
 	$(MPIRUN) bash -c '$(NANOS6_HEADER) ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+
+gdb: cpic
+	$(MPIRUN) xterm -e gdb --args ./cpic conf/mpi.conf
 
 gprof:
 	GMON_OUT_PREFIX=gmon taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'

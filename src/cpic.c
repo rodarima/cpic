@@ -17,7 +17,12 @@
 
 #include <unistd.h>
 #include <libconfig.h>
+
+#ifdef WITH_TAMPI
+#include <TAMPI.h>
+#else
 #include <mpi.h>
+#endif
 
 
 int
@@ -44,12 +49,21 @@ main(int argc, char *argv[])
 	//i = 1;
 	//while(i) sleep(5);
 
+#ifdef WITH_TAMPI
+	MPI_Init_thread(NULL, NULL, MPI_TASK_MULTIPLE, &prov);
+	if(prov != MPI_TASK_MULTIPLE)
+	{
+		err("MPI doesn't support MPI_TASK_MULTIPLE\n");
+		return 1;
+	}
+#else
 	MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &prov);
 	if(prov != MPI_THREAD_MULTIPLE)
 	{
 		err("MPI doesn't support MPI_THREAD_MULTIPLE\n");
 		return 1;
 	}
+#endif
 
 	while((opt = getopt(argc, argv, "q")) != -1)
 	{
