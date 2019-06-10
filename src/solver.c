@@ -14,6 +14,12 @@
 #include <fftw3.h>
 #include <fftw3-mpi.h>
 
+/* Where is this header? */
+//#include <fftw3_threads.h>
+
+void fftw_plan_with_nthreads(int nthreads);
+
+
 #define MAX_ERR 1e-10
 
 
@@ -224,7 +230,14 @@ MFT_init(sim_t *sim, solver_t *s)
 	s->G = G;
 	s->g = g;
 
-	/* Initialize the fftw MPI subsystem */
+	/* Initialize the FFTW3 threads subsystem */
+	if(!fftw_init_threads())
+		die("fftw_init_threads failed\n");
+
+	fftw_plan_with_nthreads(4);
+
+
+	/* Initialize the FFTW3 MPI subsystem */
 	fftw_mpi_init();
 
 	return 0;

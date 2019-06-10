@@ -805,7 +805,7 @@ comm_recv_plasma(sim_t *sim, int global_exchange)
 
 		/* Do some stuff with pkt */
 		chunk = &sim->plasma.chunks[chunk_ix];
-		#pragma oss task inout(*chunk)
+		#pragma oss task inout(*chunk) label(recv_comm_packet)
 		{
 			recv_comm_packet(sim, chunk, pkt);
 			free(pkt);

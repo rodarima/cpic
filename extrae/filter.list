@@ -74,3 +74,7 @@ solver_rho_size
 specie_init
 species_init
 vec_init
+spread_local_particles
+comm_plasma
+comm_recv_plasma
+collect_local_particles

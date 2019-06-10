@@ -330,6 +330,7 @@ field_rho(sim_t *sim)
 {
 	int i;
 	plasma_t *plasma;
+	plasma_chunk_t *c0, *c1;
 
 	plasma = &sim->plasma;
 
@@ -347,26 +348,35 @@ field_rho(sim_t *sim)
 	/* -- taskwait? -- */
 
 	/* Computation */
-	for (i=0; i<plasma->nchunks; i++)
+	for (i=0; i<plasma->nchunks; i+=2)
 	{
-		#pragma oss task out(plasma->chunks[i]) label(rho_update)
+		c0 = &plasma->chunks[i];
+		c1 = &plasma->chunks[(i + 1) % plasma->nchunks];
+		#pragma oss task inout(*c0) inout(*c1) label(rho_update_0)
+		rho_update(sim, i);
+	}
+	for (i=1; i<plasma->nchunks; i+=2)
+	{
+		c0 = &plasma->chunks[i];
+		c1 = &plasma->chunks[(i + 1) % plasma->nchunks];
+		#pragma oss task inout(*c0) inout(*c1) label(rho_update_1)
 		rho_update(sim, i);
 	}
 
 	mat_print(sim->field.rho, "rho after update");
 
 	//#pragma oss taskwait
-//	#pragma oss task in(plasma->chunks[0:plasma->nchunks-1]) label(comm_send_ghost_rho)
+	#pragma oss task in(plasma->chunks[0:plasma->nchunks-1]) label(comm_send_ghost_rho)
 	/* Send the ghost part of the rho field */
 	comm_send_ghost_rho(sim);
 
-//	#pragma oss task out(plasma->chunks[0:plasma->nchunks-1]) label(rho_destroy_ghost)
+	#pragma oss task out(plasma->chunks[0:plasma->nchunks-1]) label(rho_destroy_ghost)
 	for (i=0; i<plasma->nchunks; i++)
 		rho_destroy_ghost(sim, i);
 
 	mat_print(sim->field.rho, "rho after ghost destruction");
 
-//	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_recv_ghost_rho)
+	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_recv_ghost_rho)
 	/* Recv the ghost part of the rho field */
 	comm_recv_ghost_rho(sim);
 
@@ -376,7 +386,7 @@ field_rho(sim_t *sim)
 }
 
 int
-field_E_compute(sim_t *sim)
+field_E_compute(sim_t *sim, plasma_chunk_t *chunk)
 {
 	int ix, iy, x0, x1, y0, y1, nx, ny;
 	int start[MAX_DIM], end[MAX_DIM];
@@ -391,8 +401,8 @@ field_E_compute(sim_t *sim)
 
 	nx = sim->blocksize[X];
 	ny = sim->blocksize[Y];
-	start[X] = 0;
-	end[X] = nx;
+	start[X] = chunk->ib0[X];
+	end[X] = chunk->ib1[X];
 	start[Y] = -E_NG_NORTH;
 	end[Y] = ny + E_NG_SOUTH;
 
@@ -458,19 +468,30 @@ field_phi_solve(sim_t *sim)
 int
 field_E(sim_t *sim)
 {
+	plasma_chunk_t *chunk;
+	int ic;
+
+	#pragma oss task inout(sim->plasma.chunks[0:sim->plasma.nchunks-1]) label(field_phi_solve)
 	field_phi_solve(sim);
 
 	mat_print(sim->field.phi, "phi before communication");
 
+	#pragma oss task inout(sim->plasma.chunks[0:sim->plasma.nchunks-1]) label(comm_phi_send)
 	comm_phi_send(sim);
+
+	#pragma oss task inout(sim->plasma.chunks[0:sim->plasma.nchunks-1]) label(comm_phi_recv)
 	comm_phi_recv(sim);
 
 	mat_print(sim->field.phi, "phi after communication");
 
 	perf_start(sim->perf, TIMER_FIELD_E);
 
-	/* TODO: We can parallelize this with ntasks = ncores */
-	field_E_compute(sim);
+	for(ic=0; ic<sim->plasma_chunks; ic++)
+	{
+		chunk = &sim->plasma.chunks[ic];
+		#pragma oss task inout(*chunk) label(field_E_compute)
+		field_E_compute(sim, chunk);
+	}
 
 	mat_print(sim->field.E[X], "E[X]");
 	mat_print(sim->field.E[Y], "E[Y]");

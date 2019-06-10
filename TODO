@@ -11,3 +11,10 @@
 - Distribution of initial temperature
 - Fix error in computation of phi
 - Ensure no memleaks in particle comm
+
+OmpSs:
+
+- Include the posibility to define labels which are defined at runtime, so I can
+  use any text, possibly with an index
+
+- Let the user assert that a specific task is running/not running

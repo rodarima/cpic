@@ -314,7 +314,7 @@ chunk_E(sim_t *sim, int i)
 
 	chunk = &sim->plasma.chunks[i];
 
-	//#pragma oss task inout(*chunk) label(chunk_E)
+	#pragma oss task inout(*chunk) label(chunk_E)
 	{
 		dbg("Running task chunk_E with chunk %d\n", i);
 		for(i=0; i<chunk->nspecies; i++)
@@ -522,7 +522,7 @@ plasma_x(sim_t *sim)
 	for(i=1; i<sim->plasma.nchunks; i+=2)
 		chunk_x_update(sim, i);
 
-	#pragma oss taskwait
+	//#pragma oss taskwait
 
 	particle_comm(sim);
 

@@ -4,6 +4,7 @@ MODULES:=src test
 
 #CC=gcc
 #CC=clang
+#CC=mcc
 CC=mcc --ompss-2 --line-markers
 #OCC=mcc
 LDLIBS:=
