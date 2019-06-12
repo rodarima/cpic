@@ -465,7 +465,7 @@ sim_run(sim_t *sim)
 
 	perf_stop(sim->perf, TIMER_TOTAL);
 
-	//sim_stats(sim);
+	sim_stats(sim);
 
 	return 0;
 }

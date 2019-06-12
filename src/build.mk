@@ -40,7 +40,9 @@ src_ldlibs+=$(shell mpicc --showme:link)
 src_ldlibs+=-lm -lconfig -lgsl -lgslcblas
 src_cflags+=-g -pthread -Wall
 
-src_ldlibs+=-lfftw3_omp -lfftw3_mpi -lfftw3
+#src_ldlibs+=-lfftw3_omp
+src_ldlibs+=-lfftw3_threads
+src_ldlibs+=-lfftw3_mpi -lfftw3
 
 # Extrae API (not needed anymore)
 #src_ldlibs+=-lmpitrace

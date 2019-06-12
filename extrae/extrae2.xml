@@ -35,20 +35,19 @@
 		<counters enabled="yes" />
 	</user-functions>
 
-	<counters enabled="no">
-		<cpu enabled="yes" starting-set-distribution="1">
-			<set enabled="yes" domain="all" changeat-time="0">
-				PAPI_TOT_INS,PAPI_TOT_CYC,PAPI_L1_DCM,PAPI_L2_DCM,PAPI_L3_TCM,PAPI_BR_INS,PAPI_BR_MSP,RESOURCE_STALLS
-			</set>
-			<set enabled="yes" domain="all" changeat-time="0">
-				PAPI_TOT_INS,PAPI_TOT_CYC,PAPI_VEC_SP,PAPI_SR_INS,PAPI_LD_INS,PAPI_FP_INS
-				<sampling enabled="no" period="1000000000">PAPI_TOT_CYC</sampling>
+	<counters enabled="yes">
+		<cpu enabled="yes" starting-set-distribution="0">
+			<set enabled="yes" domain="all" changeat-time="0s">
+				PAPI_TOT_INS,PAPI_TOT_CYC
+				<sampling enabled="yes" period="100000">PAPI_TOT_CYC</sampling>
 			</set>
 		</cpu>
 		<network enabled="no" />
 		<resource-usage enabled="no" />
 		<memory-usage enabled="no" />
 	</counters>
+
+	<sampling enabled="no" type="default" period="50m" variability="10m" />
 
 	<storage enabled="no">
 		<trace-prefix enabled="yes">TRACE</trace-prefix>
@@ -58,7 +57,7 @@
 	</storage>
 
 	<buffer enabled="yes">
-		<size enabled="yes">5000000</size>
+		<size enabled="yes">500000000</size>
 		<circular enabled="no" />
 	</buffer>
 
@@ -82,7 +81,6 @@
 		<mpi-statistics enabled="yes" />
 	</bursts>
 
-	<sampling enabled="no" type="default" period="50m" variability="10m" />
 
 	<dynamic-memory enabled="no">
 		<alloc enabled="yes" threshold="32768" />

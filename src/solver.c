@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #define DEBUG 1
 #include "log.h"
 #include "mat.h"
@@ -13,6 +14,8 @@
 #include <complex.h>
 #include <fftw3.h>
 #include <fftw3-mpi.h>
+#include <sched.h>
+#include <nanos6/debug.h>
 
 /* Where is this header? */
 //#include <fftw3_threads.h>
@@ -21,6 +24,8 @@ void fftw_plan_with_nthreads(int nthreads);
 
 
 #define MAX_ERR 1e-10
+
+#define WITH_FFTW3_THREADS
 
 
 int
@@ -161,6 +166,8 @@ MFT_init(sim_t *sim, solver_t *s)
 	int shape[MAX_DIM] = {1,1,1};
 	int start[MAX_DIM] = {0};
 	int end[MAX_DIM] = {0};
+	int threads;
+	//cpu_set_t mask;
 	ptrdiff_t local_size;
 	ptrdiff_t local_n0, local_n0_start;
 	double cx, cy;
@@ -230,11 +237,22 @@ MFT_init(sim_t *sim, solver_t *s)
 	s->G = G;
 	s->g = g;
 
+#ifdef WITH_FFTW3_THREADS
 	/* Initialize the FFTW3 threads subsystem */
 	if(!fftw_init_threads())
 		die("fftw_init_threads failed\n");
 
-	fftw_plan_with_nthreads(4);
+
+	//CPU_ZERO(&mask);
+	//sched_getaffinity(0, sizeof(mask), &mask);
+	//threads = CPU_COUNT(&mask);
+
+	threads = nanos6_get_num_cpus();
+
+	err("Using %d threads in FFTW\n", threads);
+
+	fftw_plan_with_nthreads(threads);
+#endif
 
 
 	/* Initialize the FFTW3 MPI subsystem */

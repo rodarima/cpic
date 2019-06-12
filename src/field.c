@@ -363,20 +363,22 @@ field_rho(sim_t *sim)
 		rho_update(sim, i);
 	}
 
+	#pragma oss taskwait
+
 	mat_print(sim->field.rho, "rho after update");
 
 	//#pragma oss taskwait
-	#pragma oss task in(plasma->chunks[0:plasma->nchunks-1]) label(comm_send_ghost_rho)
+//	#pragma oss task in(plasma->chunks[0:plasma->nchunks-1]) label(comm_send_ghost_rho)
 	/* Send the ghost part of the rho field */
 	comm_send_ghost_rho(sim);
 
-	#pragma oss task out(plasma->chunks[0:plasma->nchunks-1]) label(rho_destroy_ghost)
+//	#pragma oss task out(plasma->chunks[0:plasma->nchunks-1]) label(rho_destroy_ghost)
 	for (i=0; i<plasma->nchunks; i++)
 		rho_destroy_ghost(sim, i);
 
 	mat_print(sim->field.rho, "rho after ghost destruction");
 
-	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_recv_ghost_rho)
+//	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_recv_ghost_rho)
 	/* Recv the ghost part of the rho field */
 	comm_recv_ghost_rho(sim);
 

@@ -55,8 +55,8 @@ ifeq ($(HOSTNAME), mio)
  NCORES?=2
  MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES) --oversubscribe
 else
- NPROCS?=4
- NCORES?=4
+ NPROCS?=1
+ NCORES?=16
  MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES)
 endif
 
