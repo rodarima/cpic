@@ -19,10 +19,10 @@ CFLAGS:=-g -Wall
 #CFLAGS+=-pg
 
 # Use debug messages
-#CFLAGS+=-DGLOBAL_DEBUG
+CFLAGS+=-DGLOBAL_DEBUG
 
 # Use TAMPI
-#CFLAGS+=-DWITH_TAMPI
+CFLAGS+=-DWITH_TAMPI
 
 # Instrument functions so Extrae can get some information
 CFLAGS+=-finstrument-functions
@@ -49,15 +49,19 @@ HOSTNAME=$(shell hostname)
 #NANOS6_HEADER=NANOS6=verbose NANOS6_VERBOSE=all
 #NANOS6_HEADER=NANOS6=verbose
 
+#NANOS6_DEBUG=NANOS6=verbose NANOS6_VERBOSE=all
+NANOS6_DEBUG=NANOS6=verbose
+
 # MPI configuration based on the computing device
 ifeq ($(HOSTNAME), mio)
  NPROCS?=2
  NCORES?=2
  MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES) --oversubscribe
 else
- NPROCS?=1
+ NPROCS?=2
  NCORES?=16
- MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES)
+ #MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES)
+ MPIRUN=srun -B 1:$(NCORES) -N $(NPROCS)
 endif
 
 
@@ -137,6 +141,10 @@ trace: trace/cpic.prv
 run: cpic
 	rm -f log/*
 	$(MPIRUN) bash -c '$(NANOS6_HEADER) ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+
+debug: cpic
+	rm -f log/*
+	$(MPIRUN) bash -c '$(NANOS6_DEBUG) ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
 
 gdb: cpic
 	$(MPIRUN) xterm -e gdb --args ./cpic conf/mpi.conf

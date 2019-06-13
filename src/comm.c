@@ -8,8 +8,14 @@
 #include "plasma.h"
 #include "utils.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
+
+#define BUFSIZE_PARTICLE (1024*64)
+
+#ifdef WITH_TAMPI
+#include <TAMPI.h>
+#endif
 
 /* Add some extra tests which can be costly */
 //#define CHECK_SLOW
@@ -284,7 +290,7 @@ collect_specie(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchange)
 int
 send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 {
-	int is, ip, count, np, tag, op;
+	int i, is, ip, count, np, tag, op, left;
 	size_t size;
 	particle_set_t *set;
 	comm_packet_t *pkt;
@@ -299,7 +305,15 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 	pkt = chunk->q[dst];
 	size = sizeof(comm_packet_t);
 	op = COMM_TAG_OP_PARTICLES;
+
+#ifdef WITH_TAMPI
+	/* If we use TAMPI, we don't need to avoid the deadlock by avoiding the
+	 * filter per chunk, so we can use the proper tag */
+	tag = compute_tag(op, sim->iter, chunk->ig[X], COMM_TAG_CHUNK_SIZE);
+#else
+	/* Otherwise, we must identify the chunk at the reception stage */
 	tag = compute_tag(op, sim->iter, 0, 0);
+#endif
 
 	/* Compute queue size */
 	for(is=0; is<sim->nspecies; is++)
@@ -327,15 +341,18 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 	 * already finished first, in case that advanced nodes are not a
 	 * problem. */
 
+#ifndef WITH_TAMPI
 	if(pkt)
 	{
 		dbg("WAIT particle pkt to=%d to be sent\n", dst);
 		MPI_Wait(&chunk->req[dst], MPI_STATUS_IGNORE);
 		free(pkt);
 	}
+#endif
 
 	pkt = safe_malloc(size);
 	chunk->q[dst] = pkt;
+	pkt->size = size;
 	pkt->count = count;
 	pkt->neigh = sim->rank;
 	pkt->chunk_ig[X] = chunk->ig[X];
@@ -383,6 +400,8 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 		assert((((void *) sp) - ((void *) pkt)) == size);
 	}
 
+#ifndef WITH_TAMPI
+
 	dbg("Sending packet of size %lu (%d particles) rank=%d tag=%x\n",
 			size, np, dst, tag);
 
@@ -390,6 +409,27 @@ send_packet_neigh(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 	MPI_Isend(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD, &chunk->req[dst]);
 	dbg("SENT size=%lu dst=%d tag=%x\n",
 			size, dst, tag);
+#else
+
+#pragma oss task in(*pkt) label(tampi particle send)
+{
+	/* Send by parts */
+	for(ptr=pkt,i=0; i<size; i+=BUFSIZE_PARTICLE)
+	{
+		left = size - i;
+		if(left > BUFSIZE_PARTICLE) left = BUFSIZE_PARTICLE;
+		dbg("Sending PARTIAL packet of size %lu (total %d, %d particles) rank=%d tag=%x\n",
+				left, size, np, dst, tag);
+		MPI_Send(ptr + i, left, MPI_BYTE, dst, tag, MPI_COMM_WORLD);
+		dbg("SENT size=%lu dst=%d tag=%x\n",
+				left, dst, tag);
+	}
+
+	/* We can free the packet now, as we used blocking send */
+	free(pkt);
+}
+
+#endif
 
 	//MPI_Send(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD);
 
@@ -580,7 +620,7 @@ recv_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 	particle_set_t *set;
 	specie_packet_t *sp;
 	particle_t *p, *p2;
-	char *ptr;
+	void *ptr;
 	int i, is, ip;
 
 	ptr = (char *) pkt->s;
@@ -731,18 +771,20 @@ recv_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 int
 comm_recv_plasma(sim_t *sim, int global_exchange)
 {
-	int i;
+	int ip, ic, i, j, left, done, count;
 	int source, tag, size, neigh, op, chunk_ix;
 	MPI_Status status;
 	comm_packet_t *pkt;
 	plasma_chunk_t *chunk;
-	int *recv_from;
+	int *recv_from, *proc_table;
 	int max_procs, max_chunks, max_comms;
+	void *ptr;
 
 	dbg(" --- RECV PHASE REACHED ---\n");
 
 	/* Exclude myself assuming global exchange */
 	max_procs = sim->nprocs - 1;
+	proc_table = safe_calloc(sim->nprocs, sizeof(int));
 
 	/* Or reduce the number of processes in local exchange: Note that if
 	 * there are only 2 MPI processes, both local and global exchange are
@@ -752,69 +794,167 @@ comm_recv_plasma(sim_t *sim, int global_exchange)
 		max_procs = 2;
 	}
 
+	if(global_exchange)
+	{
+		for(ip=0,count=0; ip<max_procs; ip++, count++)
+		{
+			if(count == sim->rank) count++;
+			proc_table[ip] = count;
+		}
+	}
+	else
+	{
+		/* We may not need the second one, by we will not use it if
+		 * max_procs is set to 1, when there are only 2 processes */
+		proc_table[0] = (sim->rank - 1 + sim->nprocs) % sim->nprocs;
+		proc_table[1] = (sim->rank + 1) % sim->nprocs;
+	}
+
 	max_chunks = sim->plasma_chunks;
 	max_comms = max_procs * max_chunks;
+
+	dbg("COMM max_comms=%d max_procs=%d max_chunks=%d\n",
+			max_comms, max_procs, max_chunks);
 
 	recv_from = safe_calloc(sim->nprocs, sizeof(int));
 
 	op = COMM_TAG_OP_PARTICLES;
-	tag = compute_tag(op, sim->iter, 0, 0);
 
-	for(i=0; i<max_comms; i++)
+#ifndef WITH_TAMPI
+	/* Don't filter to avoid deadlock using MPI */
+	tag = compute_tag(op, sim->iter, 0, 0);
+#endif
+
+	for(ip=0; ip<max_procs; ip++)
 	{
+		for(ic=0; ic<max_chunks; ic++)
+		{
 
 #ifndef WITH_TAMPI
 
-		source = MPI_ANY_SOURCE;
+			source = MPI_ANY_SOURCE;
 
-		dbg("Probing from rank=any tag=%x iter=%d\n",
-				tag, sim->iter);
+			dbg("Probing from rank=any tag=%x iter=%d\n",
+					tag, sim->iter);
 
-		MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
+			MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
 
-		source = status.MPI_SOURCE;
+			source = status.MPI_SOURCE;
 
-		dbg("PROB rank=%d tag=%x\n", source, tag);
+			dbg("PROB rank=%d tag=%x\n", source, tag);
 
-		assert(status.MPI_TAG == tag); /* NEEDED ? */
+			assert(status.MPI_TAG == tag); /* NEEDED ? */
 
-		MPI_Get_count(&status, MPI_BYTE, &size);
+			MPI_Get_count(&status, MPI_BYTE, &size);
 
-		pkt = safe_malloc(size);
+			pkt = safe_malloc(size);
 
-		dbg("RECVING size=%d rank=%d tag=%x\n",
-				size, source, tag);
+			dbg("RECVING size=%d rank=%d tag=%x\n",
+					size, source, tag);
 
-		/* Can this receive another packet? */
-		MPI_Recv(pkt, size, MPI_BYTE, source, tag,
-				MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			/* Can this receive another packet? */
+			MPI_Recv(pkt, size, MPI_BYTE, source, tag,
+					MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-		neigh = pkt->neigh;
-		chunk_ix = pkt->chunk_ig[X];
+			neigh = pkt->neigh;
+			chunk_ix = pkt->chunk_ig[X];
 
-		dbg("RECV size=%d rank=%d neigh=%d tag=%x chunk_ix=%d rf[%d]=%d\n",
-				size, source, neigh, tag, chunk_ix, neigh, recv_from[neigh]);
+			dbg("RECV size=%d rank=%d neigh=%d tag=%x chunk_ix=%d rf[%d]=%d\n",
+					size, source, neigh, tag, chunk_ix, neigh, recv_from[neigh]);
+
+			assert(recv_from[neigh] < max_chunks);
+			recv_from[neigh]++;
+
+			/* Do some stuff with pkt */
+			chunk = &sim->plasma.chunks[chunk_ix];
+
+			#pragma oss task in(*pkt) inout(*chunk) label(recv_comm_packet)
+			{
+				recv_comm_packet(sim, chunk, pkt);
+				free(pkt);
+			}
 #else
-		BUG HERE!
-		TAMPI_Recv(pkt, size, MPI_BYTE, source, tag,
-				MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-#endif
 
-		assert(recv_from[neigh] < max_chunks);
-		recv_from[neigh]++;
+			/* With TAMPI we create a new reception task */
 
-		/* Do some stuff with pkt */
-		chunk = &sim->plasma.chunks[chunk_ix];
-		#pragma oss task inout(*chunk) label(recv_comm_packet)
-		{
-			recv_comm_packet(sim, chunk, pkt);
-			free(pkt);
-		}
+			size = BUFSIZE_PARTICLE;
+			pkt = safe_malloc(size);
+			chunk_ix = ic;
+
+			dbg("Packet for chunk %d is at %p\n", ic, pkt);
+
+			source = proc_table[ip];
+			chunk = &sim->plasma.chunks[ic];
+
+			dbg("Creating task for tampi recv proc=%d inout(chunk=%p (%d)) out(pkt=%p)\n",
+					source, chunk, ic, pkt);
+
+#pragma oss task out(*pkt) inout(*chunk) label(tampi particles recv)
+	{
+
+			/* Filter by the chunk using the tag */
+			tag = compute_tag(op, sim->iter, ic, COMM_TAG_CHUNK_SIZE);
+
+			/* First receive to get the header */
+			dbg("RECV-ing FIRST packet chunk=%d rank=%d tag=%x size=%d\n",
+				ic, source, tag, size);
+			MPI_Recv(pkt, size, MPI_BYTE, source, tag,
+					MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			dbg("RECV size=%d rank=%d neigh=? tag=%x chunk_ix=%d\n",
+					size, source, tag, chunk_ix);
+
+			neigh = pkt->neigh;
+
+			if(pkt->size > size)
+			{
+				done = size;
+				size = pkt->size;
+
+				/* If the packet is only a fragment, continue until we
+				 * fill the whole buffer */
+				pkt = realloc(pkt, size);
+
+				/* Recv by chunks */
+				for(ptr=pkt,i=BUFSIZE_PARTICLE; i<size; i+=BUFSIZE_PARTICLE)
+				{
+					left = size - i;
+					if(left > BUFSIZE_PARTICLE) left = size;
+					dbg("RECV-ing CONTINUATION packet of size %lu (total %lu) rank=%d tag=%x\n",
+							left, size, source, tag);
+					MPI_Recv(ptr+i, left, MPI_BYTE, source, tag,
+							MPI_COMM_WORLD,
+							MPI_STATUS_IGNORE);
+					dbg("RECV size=%d rank=%d neigh=%d tag=%x chunk_ix=%d\n",
+							size, source, neigh, tag, chunk_ix);
+				}
+			}
+
+			/* Do some stuff with pkt */
+			chunk = &sim->plasma.chunks[chunk_ix];
+
+			//#pragma oss task in(*pkt) inout(*chunk) label(recv_comm_packet)
+			{
+				dbg("Proccessing recv packet %p for chunk %d from proc %d\n",
+						pkt, ic, source);
+				recv_comm_packet(sim, chunk, pkt);
+				free(pkt);
+				dbg("Proccessing done for packet %p for chunk %d from proc %d\n",
+						pkt, ic, source);
+			}
+
+			dbg("Completed task for tampi recv inout(chunk=%p (%d)) out(pkt=%p)\n",
+					chunk, ic, pkt);
 
 	}
+#endif
 
-	free(recv_from);
+		}
+	}
+
 	#pragma oss taskwait
+
+	free(proc_table);
+	free(recv_from);
 
 	return 0;
 }

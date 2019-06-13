@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "mat.h"
 
@@ -241,22 +241,20 @@ MFT_init(sim_t *sim, solver_t *s)
 	/* Initialize the FFTW3 threads subsystem */
 	if(!fftw_init_threads())
 		die("fftw_init_threads failed\n");
-
-
-	//CPU_ZERO(&mask);
-	//sched_getaffinity(0, sizeof(mask), &mask);
-	//threads = CPU_COUNT(&mask);
-
-	threads = nanos6_get_num_cpus();
-
-	err("Using %d threads in FFTW\n", threads);
-
-	fftw_plan_with_nthreads(threads);
 #endif
 
 
 	/* Initialize the FFTW3 MPI subsystem */
 	fftw_mpi_init();
+
+	/* In the FFTW example this is placed after mpi_init */
+
+#ifdef WITH_FFTW3_THREADS
+	threads = nanos6_get_num_cpus();
+	threads = 1;
+	err("Using %d threads in FFTW\n", threads);
+	fftw_plan_with_nthreads(threads);
+#endif
 
 	return 0;
 }

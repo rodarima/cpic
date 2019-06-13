@@ -35,11 +35,11 @@
 		<counters enabled="yes" />
 	</user-functions>
 
-	<counters enabled="yes">
+	<counters enabled="no">
 		<cpu enabled="yes" starting-set-distribution="0">
 			<set enabled="yes" domain="all" changeat-time="0s">
 				PAPI_TOT_INS,PAPI_TOT_CYC
-				<sampling enabled="yes" period="100000">PAPI_TOT_CYC</sampling>
+				<sampling enabled="no" period="100000">PAPI_TOT_CYC</sampling>
 			</set>
 		</cpu>
 		<network enabled="no" />
@@ -57,7 +57,7 @@
 	</storage>
 
 	<buffer enabled="yes">
-		<size enabled="yes">500000000</size>
+		<size enabled="yes">5000000</size>
 		<circular enabled="no" />
 	</buffer>
 

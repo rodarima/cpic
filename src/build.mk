@@ -32,7 +32,8 @@ src_cflags:=
 src_ldlibs:=
 
 # Add TAMPI BEFORE MPI
-src_ldlibs=-ltampi-c
+#src_ldlibs=-ltampi-c
+src_ldlibs=$(TAMPI_HOME)/lib/libtampi.a
 
 src_cflags+=$(shell mpicc --showme:compile)
 src_ldlibs+=$(shell mpicc --showme:link)
@@ -69,7 +70,7 @@ MCC_CFLAGS:=--line-markers
 
 
 cpic: $(obj)
-	$(CC) $(CFLAGS) $(src_cflags) $(LDFLAGS) $(LDLIBS) $(src_ldlibs) $^ -o $@
+	mcxx --ompss-2 --line-markers $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
 cpic.a: $(obj_lib)
 	ar rcs $@ $^

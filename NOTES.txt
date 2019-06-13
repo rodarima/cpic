@@ -17,3 +17,17 @@ Let's first begin with the simple case: There is only one task per MPI process.
 
 Then each specie block should have a list of particles to send, and another to
 receive.
+
+Thu, 13 Jun 2019 17:48:04 +0200
+
+The FFTW took 677,640 us with 32 cores and 2 nodes.
+
+With a size of 2048x2048:
+
+Cores	Nodes	Threads	Time FFTW
+16	2	1	140 ms
+16	2	48?	670 ms
+
+16	2	16	3829 ms
+16	2	1	2658 ms
+

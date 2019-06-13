@@ -41,13 +41,21 @@ main(int argc, char *argv[])
 	config_t conf;
 	const char *fn;
 	char *include_dir;
-	int i, opt, prov;
+	int j,i, opt, prov;
 	int quiet = 0;
+	char caca[100];
+	int rank;
 
 	/* FIXME: Determine if we want to allow MPI to know our argv. By now we
 	 * simply set a NULL argv */
 	//i = 1;
-	//while(i) sleep(5);
+	//while(i)
+	//{
+	//	printf("LOOPING\n");
+	//	while(i) j++;
+	//}
+
+	//printf("ENTRANDO EN MAIN\n");
 
 #ifdef WITH_TAMPI
 	MPI_Init_thread(NULL, NULL, MPI_TASK_MULTIPLE, &prov);
@@ -64,6 +72,18 @@ main(int argc, char *argv[])
 		return 1;
 	}
 #endif
+
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+//	if(!rank)
+//	{
+//		printf("Attach to %d\n", getpid());
+//		i = 1;
+//		while(i)
+//		{
+//			printf("LOOPING\n");
+//			while(i) j++;
+//		}
+//	}
 
 	while((opt = getopt(argc, argv, "q")) != -1)
 	{

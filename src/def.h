@@ -123,6 +123,8 @@ struct specie_packet
 
 struct comm_packet
 {
+	/* Size of the full packet in bytes */
+	int size;
 	int count;
 	int neigh;
 	int chunk_ig[MAX_DIM];
