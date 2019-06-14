@@ -125,7 +125,8 @@ struct comm_packet
 {
 	/* Size of the full packet in bytes */
 	int size;
-	int count;
+	int nspecies;
+	int nparticles;
 	int neigh;
 	int chunk_ig[MAX_DIM];
 	specie_packet_t s[];
