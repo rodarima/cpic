@@ -1,26 +1,16 @@
 digraph G {
 	rankdir = TB;
-	graph [nodesep=0.5 ranksep=0.8 style=ortho];
-	node [shape=circle width=1.5];
-	//node [height=0.7];
-	//node [shape=box]
+	graph [nodesep=0.5 ranksep=0.8];
+	node [shape=circle width=1.2];
 
 	subgraph {
-		comm_send -> {collect; pack; send}[style=dashed]
 		collect -> pack [label="chunk"];
-		pack -> send [label="chunk"];
-		{rank = same; comm_send}
-		{rank = same; collect;pack;send}
-	}
-
-	subgraph{
-		comm_recv -> {recv; unpack}[style=dashed]
+		pack -> send [label="buf"];
+		send -> recv [style=dashed];
 		recv -> unpack [label="chunk"];
-		{rank = same; comm_recv}
-		{rank = same; recv; unpack}
+		//comm_send -> {collect; pack; send}[style=dashed];
+		//comm_recv -> {recv; unpack}[style=dashed];
+		//{rank = same; comm_recv; comm_send};
+		{rank = same; collect; pack; send; recv; unpack;};
 	}
-
-	//particle_comm -> comm_send [style=dashed];
-	//particle_comm -> comm_recv [style=dashed];
-
 }
