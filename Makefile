@@ -8,7 +8,7 @@ MODULES:=src test
 CC=mcc --ompss-2 --line-markers
 #OCC=mcc
 LDLIBS:=
-CFLAGS:=-g -Wall
+CFLAGS:=-g -O3 -Wall
 #CFLAGS:=-g -Wall -Werror
 #LDFLAGS:=-L. -Wl,-rpath,.
 
@@ -26,6 +26,9 @@ CFLAGS+=-DWITH_TAMPI
 
 # Instrument functions so Extrae can get some information
 CFLAGS+=-finstrument-functions
+
+# Debug
+#CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
 # Avoid optimized instructions, so we can still use Valgrind
 #CFLAGS+=-march=x86-64 -mtune=generic
@@ -58,10 +61,14 @@ ifeq ($(HOSTNAME), mio)
  NCORES?=2
  MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES) --oversubscribe
 else
- NPROCS?=2
- NCORES?=16
+ NNODES?=1
+ NPROCS?=16
+ NCORES?=2
+ PROCS_PER_NODE?=8
+ CPUS_PER_TASK?=2
  #MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES)
- MPIRUN=srun -B 1:$(NCORES) -N $(NPROCS)
+ #MPIRUN=srun -B 1:$(NCORES) -N $(NPROCS)
+ MPIRUN=srun -N $(NNODES) --cpus-per-task $(CPUS_PER_TASK) --tasks-per-node $(PROCS_PER_NODE)
 endif
 
 
@@ -147,7 +154,7 @@ debug: cpic
 	$(MPIRUN) bash -c '$(NANOS6_DEBUG) ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
 
 gdb: cpic
-	$(MPIRUN) xterm -e gdb --args ./cpic conf/mpi.conf
+	$(MPIRUN) xterm -e bash -c 'gdb --args ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
 
 gprof:
 	GMON_OUT_PREFIX=gmon taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
