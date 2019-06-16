@@ -129,6 +129,7 @@ struct comm_packet
 	int nparticles;
 	int neigh;
 	int chunk_ig[MAX_DIM];
+	int dst_chunk[MAX_DIM];
 	specie_packet_t s[];
 };
 #pragma pack(pop)

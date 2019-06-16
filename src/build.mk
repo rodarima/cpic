@@ -32,6 +32,7 @@ src_cflags:=
 src_ldlibs:=
 
 # Add TAMPI BEFORE MPI
+TAMPI_HOME?=/usr
 #src_ldlibs=-ltampi-c
 src_ldlibs=$(TAMPI_HOME)/lib/libtampi.a
 

@@ -36,5 +36,9 @@
 #define dbg(...)
 #endif
 
+#define ASSERT(cond, ...) do {					\
+	if(!(cond)) { fprintf(stderr, __VA_ARGS__); abort(); }	\
+} while(0);
+
 #define err(...) fprintf(stderr, __VA_ARGS__);
 #define die(...) do { err(__VA_ARGS__); abort(); } while(0)

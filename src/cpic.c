@@ -74,16 +74,16 @@ main(int argc, char *argv[])
 #endif
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-//	if(!rank)
-//	{
-//		printf("Attach to %d\n", getpid());
-//		i = 1;
-//		while(i)
-//		{
-//			printf("LOOPING\n");
-//			while(i) j++;
-//		}
-//	}
+	//if(!rank)
+	//{
+	//	printf("Attach to %d\n", getpid());
+	//	i = 1;
+	//	while(i)
+	//	{
+	//		printf("LOOPING\n");
+	//		while(i) j++;
+	//	}
+	//}
 
 	while((opt = getopt(argc, argv, "q")) != -1)
 	{
