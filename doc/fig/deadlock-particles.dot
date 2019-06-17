@@ -1,0 +1,25 @@
+digraph G {
+	rankdir = TB;
+	graph [nodesep=0 ranksep=1 margin=0.1];
+	node [shape=box width=1];
+
+	subgraph {
+		c_00 [label="recv"];
+		c_01 [label="recv"];
+		c_02 [label="wait"];
+		c_03 [label="wait"];
+
+		c_10 [label="wait"];
+		c_11 [label="wait"];
+		c_12 [label="recv"];
+		c_13 [label="recv"];
+
+		c_00 -> c_10;
+		c_01 -> c_11;
+
+		c_12 -> c_02;
+		c_13 -> c_03;
+		{rank = same; c_00; c_01; c_02; c_03};
+		{rank = same; c_10; c_11; c_12; c_13};
+	}
+}
