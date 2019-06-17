@@ -247,6 +247,15 @@ struct sim
 	/* Current iteration */
 	int iter;
 
+	/* Should the simulation continue? */
+	int running;
+
+	/* Sampling mode */
+	int sampling;
+
+	/* Sampling mode: limit to stop the simulation based on the SEM */
+	double stop_SEM;
+
 	/** Time step in seconds*/
 	double dt;
 

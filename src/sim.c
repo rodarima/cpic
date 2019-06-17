@@ -45,6 +45,7 @@ sim_read_config(sim_t *s)
 	config_lookup_int(conf, "simulation.sampling_period.energy", &s->period_energy);
 	config_lookup_int(conf, "simulation.sampling_period.field", &s->period_field);
 	config_lookup_int(conf, "simulation.sampling_period.particle", &s->period_particle);
+	config_lookup_float(conf, "simulation.stop_SEM", &s->stop_SEM);
 	config_lookup_int(conf, "simulation.realtime_plot", &s->mode);
 	config_lookup_string(conf, "simulation.solver", &s->solver_method);
 	config_lookup_int(conf, "simulation.plasma_chunks", &s->plasma_chunks);
@@ -105,6 +106,16 @@ sim_prepare(sim_t *s, int quiet)
 	/* We need to always advance the iteration number after exchanging any
 	 * information between blocks, as is used in the tag */
 	s->iter = -2;
+
+	s->running = 1;
+
+	s->sampling = 0;
+
+	if(s->stop_SEM > 0.0)
+	{
+		err("Ssampling enabled\n");
+		s->sampling = 1;
+	}
 
 	if(quiet)
 		s->mode = SIM_MODE_NORMAL;
@@ -353,8 +364,22 @@ sim_plot(sim_t *sim)
 }
 
 int
+sampling_complete(sim_t *sim, double t)
+{
+	double mean, std, sem;
+	perf_add(sim->perf, TIMER_ITERATION, t);
+	perf_stats(sim->perf, TIMER_ITERATION, &mean, &std, &sem);
+
+	printf("stats mean=%e std=%e sem=%e\n", mean, std, sem);
+
+	/* Complete the sampling when the error is below 1% with 95% confidence */
+	return 1.96 * sem < sim->stop_SEM && sim->iter > 30;
+}
+
+int
 sim_step(sim_t *sim)
 {
+	double t_iter;
 
 	if(sim->iter >= sim->cycles)
 		return -1;
@@ -419,9 +444,15 @@ sim_step(sim_t *sim)
 	if(sim->rank == 0)
 	{
 		perf_stop(sim->perf, TIMER_ITERATION);
+		t_iter = perf_measure(sim->perf, TIMER_ITERATION);
 		printf("iter %d iteration_timer %e\n",
-				sim->iter,
-				perf_measure(sim->perf, TIMER_ITERATION));
+				sim->iter, t_iter);
+
+		if(sim->sampling && sampling_complete(sim, t_iter))
+		{
+			printf("sampling complete\n");
+			sim->running = 0;
+		}
 	}
 
 	sim->iter += 1;
@@ -475,7 +506,7 @@ sim_run(sim_t *sim)
 
 	printf("simulation begin\n");
 
-	while(sim->iter < sim->cycles)
+	while(sim->running && sim->iter < sim->cycles)
 		sim_step(sim);
 
 	perf_stop(sim->perf, TIMER_TOTAL);

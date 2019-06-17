@@ -23,6 +23,9 @@ struct perf
 {
 	struct timespec begin[MAX_TIMERS];
 	struct timespec acc[MAX_TIMERS];
+	double mean[MAX_TIMERS];
+	double std[MAX_TIMERS];
+	int n[MAX_TIMERS];
 };
 
 perf_t *
