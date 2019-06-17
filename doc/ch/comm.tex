@@ -59,20 +59,10 @@ for(i = 0; i < plasma->nchunks; i++)
 }
 \end{lstlisting}
 %
-
-As soon as the collecting tasks have been instantiated, it is time to start the 
-exchange particle process.
-
-%TODO
 The execution of the corresponding exchange particle tasks will start only if 
-the collecting [process/phase/stage] has finished in the neighbor chunks, as 
-otherwise the queues are still being written. These dependencies must be placed 
-in all the involved chunks, [and they will generate a Task Dependency Graph as 
-depicted in Figure XXX].
-
-The exchange process can now run in parallel, but the task can only run if the 
-collecting process has finished in the neighbour chunks, as otherwise the queues 
-are still being written. The dependencies can be placed in all involved chunks.
+the collecting step has finished in the neighbour chunks, as otherwise the 
+queues are still being written. These dependencies must be placed in all the 
+involved chunks.
 %
 \begin{lstlisting}
 for (i = 0; i < plasma->nchunks; i++)
@@ -217,8 +207,9 @@ particles in the chunk.
 \begin{figure}
 \centering
 \includegraphics[width=\textwidth]{comm-particles.pdf}
-\caption{Graph of task and dependencies of particle communication in 
-Y}
+\caption{Graph of task and dependencies of particle communication in Y: Solid 
+arrows indicate a data dependency, dashed arrows show a creation dependency 
+order.}
 \label{fig:comm_y}
 \end{figure}
 %
@@ -284,7 +275,8 @@ and the edges show which messages were sent.
 \begin{figure}
 \centering
 \includegraphics[width=0.4\textwidth]{deadlock-particles.pdf}
-\caption{Deadlock at particle exchange in Y.}
+\caption{Deadlock at particle exchange in Y, where each message has a different 
+tag.}
 \label{fig:comm_deadlock}
 \end{figure}
 
