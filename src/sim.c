@@ -359,10 +359,12 @@ sim_step(sim_t *sim)
 	if(sim->iter >= sim->cycles)
 		return -1;
 
-	dbg("::::::::::::::::::::::::::::::: iter %d ::::::::::::::::::::::::::::\n", sim->iter);
-
 	if(sim->rank == 0)
-		printf("iter %d/%d\n", sim->iter, sim->cycles);
+	{
+		//printf("iter %d/%d\n", sim->iter, sim->cycles);
+		perf_reset(sim->perf, TIMER_ITERATION);
+		perf_start(sim->perf, TIMER_ITERATION);
+	}
 
 	/* Phase CP:FS. Field solver, calculation of the electric field
 	 * from the current */
@@ -409,7 +411,18 @@ sim_step(sim_t *sim)
 	sim->total_momentum[X] = 0.0;
 	sim->total_momentum[Y] = 0.0;
 #endif
-	dbg("::::::::::::::::::::::::::: iter %d ended ::::::::::::::::::::::::::::\n", sim->iter);
+
+	/* We need to wait for all tasks before continue, otherwise the
+	 * iteration number can change before is used in some tasks */
+	#pragma oss taskwait
+
+	if(sim->rank == 0)
+	{
+		perf_stop(sim->perf, TIMER_ITERATION);
+		printf("iter %d iteration_timer %e\n",
+				sim->iter,
+				perf_measure(sim->perf, TIMER_ITERATION));
+	}
 
 	sim->iter += 1;
 	sim->t = sim->iter * sim->dt;
@@ -459,6 +472,8 @@ sim_run(sim_t *sim)
 {
 	assert(sim->iter == 0);
 	perf_start(sim->perf, TIMER_TOTAL);
+
+	printf("simulation begin\n");
 
 	while(sim->iter < sim->cycles)
 		sim_step(sim);

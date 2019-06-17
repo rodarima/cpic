@@ -46,6 +46,7 @@ main(int argc, char *argv[])
 	char caca[100];
 	int rank;
 
+
 	/* FIXME: Determine if we want to allow MPI to know our argv. By now we
 	 * simply set a NULL argv */
 	//i = 1;
@@ -74,6 +75,8 @@ main(int argc, char *argv[])
 #endif
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	if(rank == 0)
+		printf("Simulation main entered\n");
 	//if(!rank)
 	//{
 	//	printf("Attach to %d\n", getpid());

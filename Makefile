@@ -60,15 +60,17 @@ ifeq ($(HOSTNAME), mio)
  NPROCS?=2
  NCORES?=2
  MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES) --oversubscribe
+ ENV_RANK=PMIX_RANK
 else
  NNODES?=1
- NPROCS?=16
- NCORES?=2
  PROCS_PER_NODE?=8
  CPUS_PER_TASK?=2
- #MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES)
- #MPIRUN=srun -B 1:$(NCORES) -N $(NPROCS)
- MPIRUN=srun -N $(NNODES) --cpus-per-task $(CPUS_PER_TASK) --tasks-per-node $(PROCS_PER_NODE)
+ MPIRUN=mpirun --bind-to core -n $(PROCS_PER_NODE) --map-by NUMA:PE=$(CPUS_PER_TASK)
+ ENV_RANK=PMIX_RANK
+
+ # Doesn't start the simulator main()
+ #MPIRUN=srun -N $(NNODES) --cpu-bind=verbose,cores --cpus-per-task $(CPUS_PER_TASK) --tasks-per-node $(PROCS_PER_NODE)
+ #ENV_RANK=PMI_RANK
 endif
 
 
@@ -141,23 +143,23 @@ trace/cpic.prv: cpic extrae/extrae2.xml extrae/trace.sh extrae/function.list con
 	grep 'User function' trace/cpic.pcf
 
 valgrind:
-	$(MPIRUN) bash -c 'valgrind ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+	$(MPIRUN) bash -c 'valgrind ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
 
 trace: trace/cpic.prv
 
 run: cpic
 	rm -f log/*
-	$(MPIRUN) bash -c '$(NANOS6_HEADER) ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+	$(MPIRUN) bash -c '$(NANOS6_HEADER) ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
 
 debug: cpic
 	rm -f log/*
-	$(MPIRUN) bash -c '$(NANOS6_DEBUG) ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+	$(MPIRUN) bash -c '$(NANOS6_DEBUG) ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
 
 gdb: cpic
-	$(MPIRUN) xterm -e bash -c 'gdb --args ./cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+	$(MPIRUN) xterm -e bash -c 'gdb --args ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
 
 gprof:
-	GMON_OUT_PREFIX=gmon taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> log/$$PMIX_RANK.log'
+	GMON_OUT_PREFIX=gmon taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
 
 .PHONY: run valgrind trace gprof
 

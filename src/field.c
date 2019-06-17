@@ -3,6 +3,8 @@
 #include "interpolate.h"
 #include "comm.h"
 
+/* NOTE: this DEBUG enables a taskwait which may lead to unexpected behavior
+ * when debugging a problem, remove the taskwait if the print is not needed */
 #define DEBUG 0
 #include "log.h"
 #include "mat.h"
@@ -363,26 +365,33 @@ field_rho(sim_t *sim)
 		rho_update(sim, i);
 	}
 
+#if DEBUG
+	/* Only for debugging */
 	#pragma oss taskwait
-
+#endif
+	#pragma oss taskwait
 	mat_print(sim->field.rho, "rho after update");
 
 	//#pragma oss taskwait
-//	#pragma oss task in(plasma->chunks[0:plasma->nchunks-1]) label(comm_send_ghost_rho)
 	/* Send the ghost part of the rho field */
-	comm_send_ghost_rho(sim);
+	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_send_ghost_rho)
+	{
+		comm_send_ghost_rho(sim);
 
-//	#pragma oss task out(plasma->chunks[0:plasma->nchunks-1]) label(rho_destroy_ghost)
-	for (i=0; i<plasma->nchunks; i++)
-		rho_destroy_ghost(sim, i);
+		//#pragma oss task out(plasma->chunks[0:plasma->nchunks-1]) label(rho_destroy_ghost)
+		for (i=0; i<plasma->nchunks; i++)
+			rho_destroy_ghost(sim, i);
 
-	mat_print(sim->field.rho, "rho after ghost destruction");
+		mat_print(sim->field.rho, "rho after ghost destruction");
 
-//	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_recv_ghost_rho)
-	/* Recv the ghost part of the rho field */
-	comm_recv_ghost_rho(sim);
+		//#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_recv_ghost_rho)
+		/* Recv the ghost part of the rho field */
+		comm_recv_ghost_rho(sim);
 
-	perf_stop(sim->perf, TIMER_FIELD_RHO);
+		//#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(field_rho:perf_stop)
+		/* Recv the ghost part of the rho field */
+		perf_stop(sim->perf, TIMER_FIELD_RHO);
+	}
 
 	return 0;
 }
