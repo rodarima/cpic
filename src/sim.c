@@ -160,6 +160,9 @@ sim_prepare(sim_t *s, int quiet)
 	s->chunksize[Y] = s->blocksize[Y];
 	s->chunksize[Z] = s->blocksize[Z];
 
+	/* Create a large process table, so we can reuse it always */
+	s->proc_table = safe_malloc(s->nprocs * sizeof(int));
+
 
 	dbg("Global number of points (%d %d %d)\n",
 			s->ntpoints[X],
@@ -370,7 +373,17 @@ sampling_complete(sim_t *sim, double t)
 	perf_add(sim->perf, TIMER_ITERATION, t);
 	perf_stats(sim->perf, TIMER_ITERATION, &mean, &std, &sem);
 
-	printf("stats mean=%e std=%e sem=%e\n", mean, std, sem);
+	printf("stats iter=%d last=%e mean=%e std=%e sem=%e\n",
+			sim->iter, t, mean, std, sem);
+
+	if(sim->iter < 10)
+		return 0;
+
+	if(t > mean + std * 3.0)
+	{
+		printf("ERROR: Iteration time exeeded 3*std! Go fix your program.\n");
+		return 1;
+	}
 
 	/* Complete the sampling when the error is below 1% with 95% confidence */
 	return 1.96 * sem < sim->stop_SEM && sim->iter > 30;
@@ -445,8 +458,8 @@ sim_step(sim_t *sim)
 	{
 		perf_stop(sim->perf, TIMER_ITERATION);
 		t_iter = perf_measure(sim->perf, TIMER_ITERATION);
-		printf("iter %d iteration_timer %e\n",
-				sim->iter, t_iter);
+		//printf("iter %d iteration_timer %e\n",
+		//		sim->iter, t_iter);
 
 		if(sim->sampling && sampling_complete(sim, t_iter))
 		{
@@ -457,6 +470,9 @@ sim_step(sim_t *sim)
 
 	sim->iter += 1;
 	sim->t = sim->iter * sim->dt;
+
+	MPI_Bcast(&sim->running, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
 	return 0;
 }
 

@@ -515,7 +515,8 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 		case METHOD_LU:
 			return LU_solve(s, phi, rho);
 		case METHOD_MFT:
-			return MFT_solve(sim, s, phi, rho);
+			return 0;
+			//return MFT_solve(sim, s, phi, rho);
 		default:
 			return -1;
 	}

@@ -8,7 +8,7 @@
 #include "plasma.h"
 #include "utils.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 #undef EXTRA_CHECKS
@@ -341,6 +341,8 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 
 	plasma = &sim->plasma;
 
+	dbg("comm_plasma_x begins\n");
+
 	for(i = 0; i < plasma->nchunks; i++)
 	{
 		chunk = &plasma->chunks[i];
@@ -369,6 +371,9 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 		}
 	}
 
+	dbg("comm_plasma_x begins\n");
+
+	return 0;
 }
 
 int
@@ -474,13 +479,14 @@ send_packet_y(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 	/* In order to avoid the deadlock, all tags are equal using plain MPI,
 	 * and the chunk is identified at the reception stage */
 
-	tag = compute_tag(op, sim->iter, 0, 0);
+	tag = compute_tag(op, sim->iter, 0, COMM_TAG_CHUNK_SIZE);
 
 	dbg("Sending packet of size %lu (%d particles) rank=%d tag=%x\n",
-			size, np, dst, tag);
+			size, pkt->nparticles, dst, tag);
 
 	/* Now the packet is ready to be sent */
-	MPI_Isend(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD, &chunk->req[dst]);
+	if(MPI_SUCCESS != MPI_Isend(pkt, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD, &chunk->req[dst]))
+		abort();
 	dbg("SENT size=%lu dst=%d tag=%x\n",
 			size, dst, tag);
 
@@ -508,7 +514,8 @@ send_packet_y(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 			if(left > BUFSIZE_PARTICLE) left = BUFSIZE_PARTICLE;
 			dbg("Sending PARTIAL packet of size %lu (total %d, %d particles) rank=%d tag=%x\n",
 					left, size, pkt->nparticles, dst, tag);
-			MPI_Send(ptr + i, left, MPI_BYTE, dst, tag, MPI_COMM_WORLD);
+			if(MPI_SUCCESS != MPI_Send(ptr + i, left, MPI_BYTE, dst, tag, MPI_COMM_WORLD))
+				abort();
 			dbg("SENT size=%lu dst=%d tag=%x\n",
 					left, dst, tag);
 		}
@@ -589,17 +596,28 @@ unpack_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 
 	ptr = (char *) pkt->s;
 
+	dbg("Unpacking pkt=%p ptr=%p of chunk=%d (%d)\n",
+			pkt, ptr, chunk->ig[X], pkt->dst_chunk[X]);
+
 	for(i=0; i<pkt->nspecies; i++)
 	{
 		sp = (specie_packet_t *) ptr;
 		is = sp->specie_index;
 		set = &chunk->species[is];
 
+		dbg("pkt=%p specie=%d has %d particles\n",
+				pkt, is, sp->nparticles);
+
 		for(ip=0; ip<sp->nparticles; ip++)
 		{
 			p = &sp->buf[ip];
-			if(p->i < 100)
-				dbg("Unpacking particle %d at (%e,%e)\n", p->i, p->x[X], p->x[Y]);
+			if(p->i < 500)
+				dbg("Unpacking particle %d at (%e,%e) for chunk %d\n",
+						p->i, p->x[X], p->x[Y], chunk->ig[X]);
+
+			/* Ensure particle is in the chunk */
+			assert(chunk->x0[X] <= p->x[X] && p->x[X] <= chunk->x1[X]);
+			assert(chunk->x0[Y] <= p->x[Y] && p->x[Y] <= chunk->x1[Y]);
 
 			p2 = safe_malloc(sizeof(*p2));
 			memcpy(p2, p, sizeof(*p));
@@ -625,15 +643,19 @@ recv_particle_packet_MPI(sim_t *sim, comm_packet_t **pkt)
 	op = COMM_TAG_OP_PARTICLES;
 
 	/* Don't filter to avoid deadlock using MPI */
-	tag = compute_tag(op, sim->iter, 0, 0);
+	tag = compute_tag(op, sim->iter, 0, COMM_TAG_CHUNK_SIZE);
 
 	source = MPI_ANY_SOURCE;
 
+	/* This section must be critical, as otherwise a task can race to call
+	 * MPI_Recv before this one, thus getting the message first and leading
+	 * to a mismatch in the size allocated and the size received */
+
 	dbg("Probing from rank=any tag=%x iter=%d\n", tag, sim->iter);
-	MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
+	if(MPI_SUCCESS != MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status)) abort();
 
 	source = status.MPI_SOURCE;
-	MPI_Get_count(&status, MPI_BYTE, &size);
+	if(MPI_SUCCESS != MPI_Get_count(&status, MPI_BYTE, &size)) abort();
 
 	dbg("PROB rank=%d tag=%x size=%d\n", source, tag, size);
 
@@ -643,24 +665,39 @@ recv_particle_packet_MPI(sim_t *sim, comm_packet_t **pkt)
 	MPI_Recv(*pkt, size, MPI_BYTE, source, tag, MPI_COMM_WORLD,
 			MPI_STATUS_IGNORE);
 
+	/* This assert detects race conditions between MPI_Recv */
+	assert(size == (*pkt)->size);
+
 	return 0;
 }
 
 int
-recv_particles_y_MPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs, int *proc_table)
+recv_particles_y_MPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs)
 {
 	int ip;
 
-	/* Notice that we overwrite the chunk, as we don't know the order in
-	 * which they will arrive */
-	chunk = NULL;
-
 	for(ip=0; ip<max_procs; ip++)
 	{
-		#pragma oss task label(recv_particle_packet_MPI)
+		dbg("Creating a new recv_particle_packet_MPI task for chunk %d\n",
+				chunk->ig[X]);
+
+		/* Notice the inout dependency with *chunk: Is only to avoid
+		 * that we run the task first, before the previous stages, as
+		 * the blocking call to MPI_Probe will produce a deadlock, if
+		 * there is only one CPU (or less CPUs than chunks). Once the
+		 * packet arrives we determine the correct chunk and the
+		 * unpacking task launches, releasing the artificial chunk */
+		#pragma oss task inout(*chunk) inout(*sim) label(recv_particle_packet_MPI)
 		{
 			comm_packet_t *pkt;
+
+			/* Notice that we overwrite the chunk, as we don't know
+			 * the order in which they will arrive */
+
+			chunk = NULL;
 			recv_particle_packet_MPI(sim, &pkt);
+			dbg("recv pkt=%p from chunk=%d has a total of %d particles\n",
+					pkt, pkt->dst_chunk[X], pkt->nparticles);
 
 			chunk = &sim->plasma.chunks[pkt->dst_chunk[X]];
 
@@ -746,7 +783,7 @@ recv_particle_packet_TAMPI(sim_t *sim, plasma_chunk_t *chunk, int proc, comm_pac
 		}
 		assert(parts_left == j);
 
-		MPI_Waitall(parts_left, requests, MPI_STATUSES_IGNORE);
+		if(MPI_SUCCESS != MPI_Waitall(parts_left, requests, MPI_STATUSES_IGNORE)) abort();
 		free(requests);
 	}
 
@@ -869,17 +906,15 @@ recv_particles_y(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 	int *proc_table;
 	int max_procs;
 
-	/* Determine from which processes are we going to receive particles */
-	proc_table = safe_malloc(sim->nprocs * sizeof(int));
-	max_procs = build_proc_table(sim, global_exchange, proc_table);
+	max_procs = build_proc_table(sim, global_exchange, sim->proc_table);
 
 #ifdef WITH_TAMPI
 	recv_particles_y_TAMPI(sim, chunk, max_procs, proc_table);
 #else
-	recv_particles_y_MPI(sim, chunk, max_procs, proc_table);
+	recv_particles_y_MPI(sim, chunk, max_procs);
 #endif
 
-	free(proc_table);
+	//#pragma oss taskwait
 
 	return 0;
 }
@@ -1016,7 +1051,7 @@ pack_particles_dst(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 	{
 #ifndef WITH_TAMPI
 		dbg("WAIT before packing comm_packet for proc %d\n", dst);
-		MPI_Wait(&chunk->req[dst], MPI_STATUS_IGNORE);
+		if(MPI_SUCCESS != MPI_Wait(&chunk->req[dst], MPI_STATUS_IGNORE)) abort();
 #endif
 		/* FIXME: Should we wait until here to free() with TAMPI? */
 		dbg("free'ing old packet for chunk %d, proc %d pkt=%p\n",
@@ -1107,7 +1142,7 @@ comm_plasma_y(sim_t *sim, int global_exchange)
 			pack_particles_y(sim, chunk, i, global_exchange);
 
 			/* Finally send the packet */
-			#pragma oss task in(*chunk) label(send_particles_y_y)
+			#pragma oss task in(*chunk) label(send_particles_y)
 			send_particles_y(sim, chunk, i, global_exchange);
 
 			dbg(" --- RECV PHASE REACHED FOR CHUNK %d ---\n", i);
@@ -1155,11 +1190,11 @@ comm_mat_send(sim_t *sim, double *data, int size, int dst, int op, int dir, MPI_
 	tag = compute_tag(op, sim->iter, dir, COMM_TAG_DIR_SIZE);
 
 	if(*req)
-		MPI_Wait(req, MPI_STATUS_IGNORE);
+		if(MPI_SUCCESS != MPI_Wait(req, MPI_STATUS_IGNORE)) abort();
 
 	dbg("SEND mat size=%d rank=%d tag=%x op=%d\n", size, dst, tag, op);
-	//MPI_Send(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD);
-	MPI_Isend(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD, req);
+	//if(MPI_SUCCESS != MPI_Send(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD)) abort();
+	if(MPI_SUCCESS != MPI_Isend(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD, req)) abort();
 
 	return 0;
 }
@@ -1172,7 +1207,7 @@ comm_mat_recv(sim_t *sim, double *data, int size, int dst, int op, int dir)
 	tag = compute_tag(op, sim->iter, dir, COMM_TAG_DIR_SIZE);
 
 	dbg("RECV mat size=%d rank=%d tag=%x op=%d\n", size, dst, tag, op);
-	MPI_Recv(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	if(MPI_SUCCESS != MPI_Recv(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE)) abort();
 
 	return 0;
 }
@@ -1210,7 +1245,7 @@ comm_send_ghost_rho(sim_t *sim)
 	assert(sim->ghostpoints == 1);
 
 	dbg("Sending rho to=%d\n", neigh);
-	//MPI_Send(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD);
+	//if(MPI_SUCCESS != MPI_Send(ptr, size, MPI_DOUBLE, neigh, tag, MPI_COMM_WORLD)) abort();
 	comm_mat_send(sim, ptr, size, neigh, op, SOUTH, &f->req_rho[SOUTH]);
 
 	return 0;

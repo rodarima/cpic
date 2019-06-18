@@ -31,10 +31,12 @@ obj_lib:=$(subst .c,.o,$(src))
 src_cflags:=
 src_ldlibs:=
 
+ifeq ($(USE_TAMPI), 1)
 # Add TAMPI BEFORE MPI
 TAMPI_HOME?=/usr
 #src_ldlibs=-ltampi-c
 src_ldlibs=$(TAMPI_HOME)/lib/libtampi.a
+endif
 
 src_cflags+=$(shell mpicc --showme:compile)
 src_ldlibs+=$(shell mpicc --showme:link)

@@ -4,11 +4,12 @@ MODULES:=src test
 
 #CC=gcc
 #CC=clang
-#CC=mcc
 CC=mcc --ompss-2 --line-markers
+#I_MPI_CC=mcc
+#CC=mpiicc --ompss-2 --line-markers
 #OCC=mcc
 LDLIBS:=
-CFLAGS:=-g -O3 -Wall
+CFLAGS:=-g -Wall
 #CFLAGS:=-g -Wall -Werror
 #LDFLAGS:=-L. -Wl,-rpath,.
 
@@ -22,13 +23,17 @@ CFLAGS:=-g -O3 -Wall
 CFLAGS+=-DGLOBAL_DEBUG
 
 # Use TAMPI
+USE_TAMPI?=0
+
+ifeq ($(USE_TAMPI), 1)
 CFLAGS+=-DWITH_TAMPI
+endif
 
 # Instrument functions so Extrae can get some information
 CFLAGS+=-finstrument-functions
 
 # Debug
-#CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
+CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
 # Avoid optimized instructions, so we can still use Valgrind
 #CFLAGS+=-march=x86-64 -mtune=generic
@@ -63,9 +68,10 @@ ifeq ($(HOSTNAME), mio)
  ENV_RANK=PMIX_RANK
 else
  NNODES?=1
- PROCS_PER_NODE?=8
- CPUS_PER_TASK?=2
- MPIRUN=mpirun --bind-to core -n $(PROCS_PER_NODE) --map-by NUMA:PE=$(CPUS_PER_TASK)
+ PROCS_PER_NODE?=2
+ CPUS_PER_TASK?=4
+# MPIRUN=mpirun --bind-to core -n $(PROCS_PER_NODE) --map-by NUMA:PE=$(CPUS_PER_TASK)
+ MPIRUN=mpirun -n $(PROCS_PER_NODE) --map-by node:pe=$(CPUS_PER_TASK)
  ENV_RANK=PMIX_RANK
 
  # Doesn't start the simulator main()
@@ -156,7 +162,8 @@ debug: cpic
 	$(MPIRUN) bash -c '$(NANOS6_DEBUG) ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
 
 gdb: cpic
-	$(MPIRUN) xterm -e bash -c 'gdb --args ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
+	#$(MPIRUN) xterm -e bash -c 'gdb --args ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
+	$(MPIRUN) xterm -e gdb --args ./cpic conf/mpi.conf
 
 gprof:
 	GMON_OUT_PREFIX=gmon taskset -c 0-15 mpirun --oversubscribe -n 16 bash -c './cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'

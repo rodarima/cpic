@@ -12,6 +12,6 @@
 
 . hard-modules
 
-srun extrae/trace.sh ./cpic conf/mpi.conf
+extrae/trace.sh ./cpic conf/mpi.conf
 
 mpi2prv -f TRACE.mpits -o trace/cpic.prv

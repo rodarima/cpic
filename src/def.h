@@ -332,6 +332,9 @@ struct sim
 	 * */
 	int nneigh_chunks;
 
+	/* The process neighbours depending on the communication mode */
+	int *proc_table;
+
 	/* ------------------------------------------------------- */
 	/* Local information relative to the MPI process */
 	/* ------------------------------------------------------- */

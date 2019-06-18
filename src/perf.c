@@ -2,6 +2,7 @@
 
 #include <time.h>
 #include <assert.h>
+#include <math.h>
 #include "utils.h"
 
 perf_t *

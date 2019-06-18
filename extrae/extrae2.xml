@@ -5,7 +5,7 @@
 	initial-mode="detail"
 	type="paraver">
 
-	<mpi enabled="no">
+	<mpi enabled="yes">
 		<counters enabled="yes" />
 	</mpi>
 
@@ -28,7 +28,7 @@
 		<syscall enabled="no">1-3</syscall>
 	</callers>
 
-	<user-functions enabled="no"
+	<user-functions enabled="yes"
 		list="extrae/function.list"
 		exclude-automatic-functions="yes">
 
@@ -39,7 +39,7 @@
 		<cpu enabled="yes" starting-set-distribution="0">
 			<set enabled="yes" domain="all" changeat-time="0s">
 				PAPI_TOT_INS,PAPI_TOT_CYC
-				<sampling enabled="yes" period="10000000">PAPI_TOT_CYC</sampling>
+				<sampling enabled="no" period="10000000">PAPI_TOT_CYC</sampling>
 			</set>
 		</cpu>
 		<network enabled="no" />

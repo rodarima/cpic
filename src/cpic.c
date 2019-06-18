@@ -23,6 +23,7 @@
 #else
 #include <mpi.h>
 #endif
+#include <mpi.h>
 
 
 int
@@ -58,6 +59,10 @@ main(int argc, char *argv[])
 
 	//printf("ENTRANDO EN MAIN\n");
 
+	/* When an error is produced in MPI, only return, don't kill the program
+	 * */
+
+
 #ifdef WITH_TAMPI
 	MPI_Init_thread(NULL, NULL, MPI_TASK_MULTIPLE, &prov);
 	if(prov != MPI_TASK_MULTIPLE)
@@ -73,6 +78,7 @@ main(int argc, char *argv[])
 		return 1;
 	}
 #endif
+	MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	if(rank == 0)
