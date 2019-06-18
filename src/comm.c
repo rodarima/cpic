@@ -686,7 +686,11 @@ recv_particles_y_MPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs)
 		 * the blocking call to MPI_Probe will produce a deadlock, if
 		 * there is only one CPU (or less CPUs than chunks). Once the
 		 * packet arrives we determine the correct chunk and the
-		 * unpacking task launches, releasing the artificial chunk */
+		 * unpacking task launches, releasing the artificial chunk.
+		 *
+		 * Also, the dependency over sim leads to a critical section
+		 * that only one recv_particle_packet_MPI task can enter, to
+		 * avoid race conditions between MPI_Probe and MPI_Recv. */
 		#pragma oss task inout(*chunk) inout(*sim) label(recv_particle_packet_MPI)
 		{
 			comm_packet_t *pkt;
