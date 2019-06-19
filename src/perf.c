@@ -3,16 +3,13 @@
 #include <time.h>
 #include <assert.h>
 #include <math.h>
+#include <string.h>
 #include "utils.h"
 
-perf_t *
-perf_init()
+void
+perf_init(perf_t *p)
 {
-	perf_t *perf;
-
-	perf = safe_calloc(sizeof(*perf), 1);
-
-	return perf;
+	memset(p, 0, sizeof(*p));
 }
 
 void
@@ -29,22 +26,22 @@ ts_add_diff(ts_t *dst, ts_t *t0, ts_t *t1)
 }
 
 void
-perf_start(perf_t *p, int timer)
+perf_start(perf_t *p)
 {
 	struct timespec *tp;
 
-	tp = &p->begin[timer];
+	tp = &p->begin;
 
 	clock_gettime(CLOCK_MONOTONIC, tp);
 }
 
 void
-perf_stop(perf_t *p, int timer)
+perf_stop(perf_t *p)
 {
 	struct timespec *acc, *begin, now;
 
-	acc = &p->acc[timer];
-	begin = &p->begin[timer];
+	acc = &p->acc;
+	begin = &p->begin;
 
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
@@ -52,60 +49,60 @@ perf_stop(perf_t *p, int timer)
 }
 
 void
-perf_reset(perf_t *p, int timer)
+perf_reset(perf_t *p)
 {
 	struct timespec *acc;
 
-	acc = &p->acc[timer];
+	acc = &p->acc;
 
 	acc->tv_sec = 0;
 	acc->tv_nsec = 0;
 }
 
 double
-perf_measure(perf_t *p, int timer)
+perf_measure(perf_t *p)
 {
 	struct timespec *acc;
 
-	acc = &p->acc[timer];
+	acc = &p->acc;
 
 	return ((double) acc->tv_sec)
 		+ ((double) acc->tv_nsec) / 1e9;
 }
 
 void
-perf_add(perf_t *p, int timer, double t)
+perf_record(perf_t *p, double time)
 {
 	double m0, s0, m1, s1;
 	int n;
 
-	m0 = p->mean[timer];
-	s0 = p->std[timer];
-	n = p->n[timer];
+	m0 = p->mean;
+	s0 = p->std;
+	n = p->n;
 
 	/* TAOCP: Vol 2. Section 4.2.2, page 232: Welford algorithm for
 	 * computing the online mean and variance */
 	n++;
-	m1 = m0 + (t - m0) / n;
-	s1 = s0 + (t - m0) * (t - m1);
+	m1 = m0 + (time - m0) / n;
+	s1 = s0 + (time - m0) * (time - m1);
 
 	if(n==1)
 		assert(s1 == 0.0);
 
-	p->mean[timer] = m1;
-	p->std[timer] = s1;
-	p->n[timer] = n;
+	p->mean = m1;
+	p->std = s1;
+	p->n = n;
 }
 
 void
-perf_stats(perf_t *p, int timer, double *mean, double *std, double *sem)
+perf_stats(perf_t *p, double *mean, double *std, double *sem)
 {
 	double m, s;
 	int n;
 
-	m = p->mean[timer];
-	s = p->std[timer];
-	n = p->n[timer];
+	m = p->mean;
+	s = p->std;
+	n = p->n;
 
 	*mean = m;
 	*std = sqrt(s / (n-1));

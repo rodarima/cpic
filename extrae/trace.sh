@@ -19,7 +19,7 @@ export NANOS6=extrae
 #For heavy debug
 #export NANOS6=verbose-debug
 #export NANOS6_VERBOSE=all
-export NANOS6_EXTRAE_AS_THREADS=1
+export NANOS6_EXTRAE_AS_THREADS=0
 
 ## Run the desired program
 #NANOS6=extrae

@@ -357,7 +357,7 @@ _mat_print_raw(double *A, int rows, int cols, char *title)
 }
 
 int
-_cmat_print_raw(complex *A, int nx, int ny, char *title)
+_cmat_print_raw(complex double *A, int nx, int ny, char *title)
 {
 	int ix, iy;
 

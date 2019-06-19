@@ -8,7 +8,7 @@
 #include "plasma.h"
 #include "utils.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 #undef EXTRA_CHECKS
@@ -507,6 +507,11 @@ send_packet_y(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 
 	#pragma oss task in(*pkt) label(tampi_particle_send)
 	{
+		perf_t timer;
+		double t;
+
+		perf_init(&timer);
+		perf_start(&timer);
 		/* Send by parts */
 		for(ptr=pkt,i=0; i<size; i+=BUFSIZE_PARTICLE)
 		{
@@ -519,6 +524,14 @@ send_packet_y(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 			dbg("SENT size=%lu dst=%d tag=%x\n",
 					left, dst, tag);
 		}
+		perf_stop(&timer);
+		t = perf_measure(&timer);
+
+		/* Ensure we send the packet within 64 ms, otherwise we are in
+		 * trouble */
+		//assert(t < 1.5);
+		//if(t > 0.064)
+		//err("Send took %e\n", t)
 
 		/* We can free the packet now, as we used blocking send */
 		free(pkt);
@@ -634,11 +647,12 @@ unpack_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 	return 0;
 }
 
-int
-recv_particle_packet_MPI(sim_t *sim, comm_packet_t **pkt)
+comm_packet_t *
+recv_particle_packet_MPI(sim_t *sim)
 {
 	int source, tag, size, op;
 	MPI_Status status;
+	comm_packet_t *pkt;
 
 	op = COMM_TAG_OP_PARTICLES;
 
@@ -659,16 +673,16 @@ recv_particle_packet_MPI(sim_t *sim, comm_packet_t **pkt)
 
 	dbg("PROB rank=%d tag=%x size=%d\n", source, tag, size);
 
-	*pkt = safe_malloc(size);
+	pkt = safe_malloc(size);
 
 	dbg("RECVING size=%d rank=%d tag=%x\n", size, source, tag);
-	MPI_Recv(*pkt, size, MPI_BYTE, source, tag, MPI_COMM_WORLD,
+	MPI_Recv(pkt, size, MPI_BYTE, source, tag, MPI_COMM_WORLD,
 			MPI_STATUS_IGNORE);
 
 	/* This assert detects race conditions between MPI_Recv */
-	assert(size == (*pkt)->size);
+	assert(size == pkt->size);
 
-	return 0;
+	return pkt;
 }
 
 int
@@ -699,7 +713,7 @@ recv_particles_y_MPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs)
 			 * the order in which they will arrive */
 
 			chunk = NULL;
-			recv_particle_packet_MPI(sim, &pkt);
+			pkt = recv_particle_packet_MPI(sim);
 			dbg("recv pkt=%p from chunk=%d has a total of %d particles\n",
 					pkt, pkt->dst_chunk[X], pkt->nparticles);
 
@@ -723,8 +737,8 @@ recv_particles_y_MPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs)
 	return 0;
 }
 
-int
-recv_particle_packet_TAMPI(sim_t *sim, plasma_chunk_t *chunk, int proc, comm_packet_t **packet)
+comm_packet_t *
+recv_particle_packet_TAMPI(sim_t *sim, plasma_chunk_t *chunk, int proc)
 {
 	int i, j, ic, tag, size, op, left;
 	comm_packet_t *pkt;
@@ -791,9 +805,7 @@ recv_particle_packet_TAMPI(sim_t *sim, plasma_chunk_t *chunk, int proc, comm_pac
 		free(requests);
 	}
 
-	*packet = pkt;
-
-	return 0;
+	return pkt;
 }
 
 int
@@ -818,12 +830,10 @@ recv_particles_y_TAMPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs, int *pr
 		/* With TAMPI we create a new reception task */
 
 		proc = proc_table[ip];
-		size = BUFSIZE_PARTICLE;
-		pkt = safe_malloc(size);
 
 		#pragma oss task out(*pkt) inout(*chunk) label(recv_particle_packet_TAMPI)
 		{
-			recv_particle_packet_TAMPI(sim, chunk, proc, &pkt);
+			pkt = recv_particle_packet_TAMPI(sim, chunk, proc);
 
 			#pragma oss task in(*pkt) inout(*chunk) label(unpack_comm_packet)
 			{
@@ -907,13 +917,12 @@ end:
 int
 recv_particles_y(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 {
-	int *proc_table;
 	int max_procs;
 
 	max_procs = build_proc_table(sim, global_exchange, sim->proc_table);
 
 #ifdef WITH_TAMPI
-	recv_particles_y_TAMPI(sim, chunk, max_procs, proc_table);
+	recv_particles_y_TAMPI(sim, chunk, max_procs, sim->proc_table);
 #else
 	recv_particles_y_MPI(sim, chunk, max_procs);
 #endif
@@ -1155,7 +1164,7 @@ comm_plasma_y(sim_t *sim, int global_exchange)
 			 * using MPI */
 			recv_particles_y(sim, chunk, global_exchange);
 
-			#pragma oss task inout(*chunk)
+			#pragma oss task inout(*chunk) label(done_particles_y)
 			{
 				dbg("Particle communication for chunk %d done\n", i);
 

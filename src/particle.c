@@ -331,7 +331,7 @@ particle_E(sim_t *sim)
 {
 	int i;
 
-	perf_start(sim->perf, TIMER_PARTICLE_E);
+	perf_start(&sim->timers[TIMER_PARTICLE_E]);
 
 	/* Computation */
 	for(i=0; i<sim->plasma.nchunks; i++)
@@ -341,7 +341,7 @@ particle_E(sim_t *sim)
 
 	/* No communication required, as only p->E is updated */
 
-	perf_stop(sim->perf, TIMER_PARTICLE_E);
+	perf_stop(&sim->timers[TIMER_PARTICLE_E]);
 
 	return 0;
 }
@@ -512,7 +512,7 @@ plasma_x(sim_t *sim)
 {
 	int i;
 
-	perf_start(sim->perf, TIMER_PARTICLE_X);
+	perf_start(&sim->timers[TIMER_PARTICLE_X]);
 
 	/* Computation */
 	for(i=0; i<sim->plasma.nchunks; i+=2)
@@ -526,7 +526,7 @@ plasma_x(sim_t *sim)
 
 	particle_comm(sim);
 
-	perf_stop(sim->perf, TIMER_PARTICLE_X);
+	perf_stop(&sim->timers[TIMER_PARTICLE_X]);
 
 	return 0;
 }

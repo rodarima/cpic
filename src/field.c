@@ -336,7 +336,7 @@ field_rho(sim_t *sim)
 
 	plasma = &sim->plasma;
 
-	perf_start(sim->perf, TIMER_FIELD_RHO);
+	perf_start(&sim->timers[TIMER_FIELD_RHO]);
 
 	/* Reset charge density */
 	for (i=0; i<plasma->nchunks; i++)
@@ -390,7 +390,7 @@ field_rho(sim_t *sim)
 
 		//#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(field_rho:perf_stop)
 		/* Recv the ghost part of the rho field */
-		perf_stop(sim->perf, TIMER_FIELD_RHO);
+		perf_stop(&sim->timers[TIMER_FIELD_RHO]);
 	}
 
 	return 0;
@@ -465,11 +465,11 @@ field_phi_solve(sim_t *sim)
 
 	//mat_print(b->rho, "rho after set sum to 0");
 
-	perf_start(sim->perf, TIMER_SOLVER);
+	perf_start(&sim->timers[TIMER_SOLVER]);
 
 	solve_xy(sim, sim->solver, sim->field.phi, sim->field.rho);
 
-	perf_stop(sim->perf, TIMER_SOLVER);
+	perf_stop(&sim->timers[TIMER_SOLVER]);
 
 	mat_print(sim->field.phi, "phi after solver");
 
@@ -495,7 +495,7 @@ field_E(sim_t *sim)
 
 	mat_print(sim->field.phi, "phi after communication");
 
-	perf_start(sim->perf, TIMER_FIELD_E);
+	perf_start(&sim->timers[TIMER_FIELD_E]);
 
 	for(ic=0; ic<sim->plasma_chunks; ic++)
 	{
@@ -507,7 +507,7 @@ field_E(sim_t *sim)
 	mat_print(sim->field.E[X], "E[X]");
 	mat_print(sim->field.E[Y], "E[Y]");
 
-	perf_stop(sim->perf, TIMER_FIELD_E);
+	perf_stop(&sim->timers[TIMER_FIELD_E]);
 
 	return 0;
 }

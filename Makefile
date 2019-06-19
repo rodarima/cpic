@@ -10,6 +10,9 @@ CC=mcc --ompss-2 --line-markers
 #OCC=mcc
 LDLIBS:=
 CFLAGS:=-g -Wall
+
+# Optimization enabled
+CFLAGS+=-O3
 #CFLAGS:=-g -Wall -Werror
 #LDFLAGS:=-L. -Wl,-rpath,.
 
@@ -60,6 +63,8 @@ HOSTNAME=$(shell hostname)
 #NANOS6_DEBUG=NANOS6=verbose NANOS6_VERBOSE=all
 NANOS6_DEBUG=NANOS6=verbose
 
+#LSAN_OPTIONS=detect_leaks=0
+
 # MPI configuration based on the computing device
 ifeq ($(HOSTNAME), mio)
  NPROCS?=2
@@ -68,7 +73,7 @@ ifeq ($(HOSTNAME), mio)
  ENV_RANK=PMIX_RANK
 else
  NNODES?=1
- PROCS_PER_NODE?=2
+ PROCS_PER_NODE?=4
  CPUS_PER_TASK?=4
 # MPIRUN=mpirun --bind-to core -n $(PROCS_PER_NODE) --map-by NUMA:PE=$(CPUS_PER_TASK)
  MPIRUN=mpirun -n $(PROCS_PER_NODE) --map-by node:pe=$(CPUS_PER_TASK)

@@ -110,7 +110,7 @@ int
 _mat_print_raw(double *A, int rows, int cols, char *title);
 
 int
-_cmat_print_raw(complex *A, int rows, int cols, char *title);
+_cmat_print_raw(complex double *A, int rows, int cols, char *title);
 
 #define MAT_DEBUG 0
 

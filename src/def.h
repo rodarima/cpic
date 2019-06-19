@@ -307,7 +307,7 @@ struct sim
 	const char *solver_method;
 
 	/* Timers */
-	perf_t *perf;
+	perf_t timers[MAX_TIMERS];
 
 	/* Global seed read from the config */
 	int seed;

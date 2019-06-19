@@ -22,6 +22,7 @@
 
 #include <math.h>
 #include <assert.h>
+#include <string.h>
 
 #include <mpi.h>
 #include <unistd.h>
@@ -209,11 +210,7 @@ sim_init(config_t *conf, int quiet)
 		return NULL;
 
 	/* And finally, call all other initialization methods */
-	if((s->perf = perf_init()) == NULL)
-	{
-		err("perf_init failed\n");
-		return NULL;
-	}
+	memset(&s->timers, 0, sizeof(perf_t) * MAX_TIMERS);
 
 	if(species_init(s))
 	{
@@ -233,13 +230,13 @@ sim_init(config_t *conf, int quiet)
 		return NULL;
 	}
 
-	perf_start(s->perf, TIMER_SOLVER);
+	perf_start(&s->timers[TIMER_SOLVER]);
 	if((s->solver = solver_init(s)) == NULL)
 	{
 		err("solver_init failed\n");
 		return NULL;
 	}
-	perf_stop(s->perf, TIMER_SOLVER);
+	perf_stop(&s->timers[TIMER_SOLVER]);
 
 #if PLOT
 	/* We are set now, start the plotter if needed */
@@ -370,8 +367,8 @@ int
 sampling_complete(sim_t *sim, double t)
 {
 	double mean, std, sem;
-	perf_add(sim->perf, TIMER_ITERATION, t);
-	perf_stats(sim->perf, TIMER_ITERATION, &mean, &std, &sem);
+	perf_stats(&sim->timers[TIMER_ITERATION], &mean, &std, &sem);
+	perf_record(&sim->timers[TIMER_ITERATION], t);
 
 	printf("stats iter=%d last=%e mean=%e std=%e sem=%e\n",
 			sim->iter, t, mean, std, sem);
@@ -379,9 +376,9 @@ sampling_complete(sim_t *sim, double t)
 	if(sim->iter < 10)
 		return 0;
 
-	if(t > mean + std * 3.0)
+	if(t > mean + std * 5.0)
 	{
-		printf("ERROR: Iteration time exeeded 3*std! Go fix your program.\n");
+		printf("Iteration time exeeded 5 sigma! Go fix your program.\n");
 		return 1;
 	}
 
@@ -400,8 +397,8 @@ sim_step(sim_t *sim)
 	if(sim->rank == 0)
 	{
 		//printf("iter %d/%d\n", sim->iter, sim->cycles);
-		perf_reset(sim->perf, TIMER_ITERATION);
-		perf_start(sim->perf, TIMER_ITERATION);
+		perf_reset(&sim->timers[TIMER_ITERATION]);
+		perf_start(&sim->timers[TIMER_ITERATION]);
 	}
 
 	/* Phase CP:FS. Field solver, calculation of the electric field
@@ -456,8 +453,8 @@ sim_step(sim_t *sim)
 
 	if(sim->rank == 0)
 	{
-		perf_stop(sim->perf, TIMER_ITERATION);
-		t_iter = perf_measure(sim->perf, TIMER_ITERATION);
+		perf_stop(&sim->timers[TIMER_ITERATION]);
+		t_iter = perf_measure(&sim->timers[TIMER_ITERATION]);
 		//printf("iter %d iteration_timer %e\n",
 		//		sim->iter, t_iter);
 
@@ -481,36 +478,36 @@ sim_stats(sim_t *sim)
 {
 	double t, tot;
 
-	tot = perf_measure(sim->perf, TIMER_TOTAL);
+	tot = perf_measure(&sim->timers[TIMER_TOTAL]);
 	fprintf(stderr, "Total time: %e s\n", tot);
 
 	tot /= 100.0;
 
-	t = perf_measure(sim->perf, TIMER_FIELD_E);
+	t = perf_measure(&sim->timers[TIMER_FIELD_E]);
 	fprintf(stderr, "Total field E update took: %e s (%.1f%%)\n", t, t/tot);
 
-	t = perf_measure(sim->perf, TIMER_SOLVER);
+	t = perf_measure(&sim->timers[TIMER_SOLVER]);
 	fprintf(stderr, "  Solver took: %e s (%.1f%%)\n", t, t/tot);
 
-	t = perf_measure(sim->perf, TIMER_FIELD_SPREAD);
+	t = perf_measure(&sim->timers[TIMER_FIELD_SPREAD]);
 	fprintf(stderr, "  Field E spread took: %e s (%.1f%%)\n", t, t/tot);
 	fprintf(stderr, "    Per cycle: %e s\n", t/sim->cycles);
 	fprintf(stderr, "    Per cycle and node: %e s\n",
 			t/(sim->cycles * sim->ntpoints[X] * sim->ntpoints[Y]));
 
-	t = perf_measure(sim->perf, TIMER_FIELD_COLLECT);
+	t = perf_measure(&sim->timers[TIMER_FIELD_COLLECT]);
 	fprintf(stderr, "  Field phi collect took: %e s (%.1f%%)\n", t, t/tot);
 	fprintf(stderr, "    Per cycle: %e s\n", t/sim->cycles);
 	fprintf(stderr, "    Per cycle and node: %e s\n",
 			t/(sim->cycles * sim->ntpoints[X] * sim->ntpoints[Y]));
 
-	t = perf_measure(sim->perf, TIMER_PARTICLE_X);
+	t = perf_measure(&sim->timers[TIMER_PARTICLE_X]);
 	fprintf(stderr, "Particle mover took: %e s (%.1f%%)\n", t, t/tot);
 
-	t = perf_measure(sim->perf, TIMER_FIELD_RHO);
+	t = perf_measure(&sim->timers[TIMER_FIELD_RHO]);
 	fprintf(stderr, "Rho interpolation took: %e s (%.1f%%)\n", t, t/tot);
 
-	t = perf_measure(sim->perf, TIMER_PARTICLE_E);
+	t = perf_measure(&sim->timers[TIMER_PARTICLE_E]);
 	fprintf(stderr, "Particle E interpolation took: %e s (%.1f%%)\n", t, t/tot);
 }
 
@@ -518,14 +515,14 @@ int
 sim_run(sim_t *sim)
 {
 	assert(sim->iter == 0);
-	perf_start(sim->perf, TIMER_TOTAL);
+	perf_start(&sim->timers[TIMER_TOTAL]);
 
 	printf("simulation begin\n");
 
 	while(sim->running && sim->iter < sim->cycles)
 		sim_step(sim);
 
-	perf_stop(sim->perf, TIMER_TOTAL);
+	perf_stop(&sim->timers[TIMER_TOTAL]);
 
 	//sim_stats(sim);
 
