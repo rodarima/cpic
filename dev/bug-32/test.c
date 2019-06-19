@@ -63,7 +63,13 @@ void buf_recv(int chunk, int rank, int nprocs)
 
 		/* Check integrity of important data */
 		for(j=0; j<BUFSIZE; j++)
-			assert(buf[j] == chunk);
+		{
+			if(buf[j] != chunk)
+			{
+				printf("buffer[%d] == %d, expected %d\n", buf[j], chunk);
+				abort();
+			}
+		}
 	}
 
 	//fprintf(stderr, "P%d: Receiving from proc=%d chunk=%d\n", rank, next, chunk);
@@ -73,7 +79,13 @@ void buf_recv(int chunk, int rank, int nprocs)
 
 		/* Check integrity of important data */
 		for(j=0; j<BUFSIZE; j++)
-			assert(buf[j] == chunk);
+		{
+			if(buf[j] != chunk)
+			{
+				printf("buffer[%d] == %d, expected %d\n", buf[j], chunk);
+				abort();
+			}
+		}
 	}
 
 	free(buf);

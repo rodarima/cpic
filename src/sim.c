@@ -373,7 +373,7 @@ sampling_complete(sim_t *sim, double t)
 	printf("stats iter=%d last=%e mean=%e std=%e sem=%e\n",
 			sim->iter, t, mean, std, sem);
 
-	if(sim->iter < 10)
+	if(sim->iter < 30)
 		return 0;
 
 	if(t > mean + std * 5.0)
@@ -383,7 +383,7 @@ sampling_complete(sim_t *sim, double t)
 	}
 
 	/* Complete the sampling when the error is below 1% with 95% confidence */
-	return 1.96 * sem < sim->stop_SEM && sim->iter > 30;
+	return 1.96 * sem < sim->stop_SEM;
 }
 
 int

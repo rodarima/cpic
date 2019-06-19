@@ -38,8 +38,9 @@ TAMPI_HOME?=/usr
 src_ldlibs=$(TAMPI_HOME)/lib/libtampi.a
 endif
 
-src_cflags+=$(shell mpicc --showme:compile)
-src_ldlibs+=$(shell mpicc --showme:link)
+#src_cflags+=$(shell mpicc --showme:compile)
+#src_ldlibs+=$(shell mpicc --showme:link)
+src_ldlibs+=-lmpi
 
 src_ldlibs+=-lm -lconfig -lgsl -lgslcblas
 src_cflags+=-g -pthread -Wall

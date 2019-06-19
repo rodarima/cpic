@@ -4,9 +4,9 @@ MODULES:=src test
 
 #CC=gcc
 #CC=clang
-CC=mcc --ompss-2 --line-markers
+#CC=mcc --ompss-2 --line-markers
 #I_MPI_CC=mcc
-#CC=mpiicc --ompss-2 --line-markers
+CC=I_MPI_CC=mcc mpiicc --ompss-2 --line-markers
 #OCC=mcc
 LDLIBS:=
 CFLAGS:=-g -Wall
@@ -159,6 +159,7 @@ valgrind:
 trace: trace/cpic.prv
 
 run: cpic
+	ulimit -s $$((64*1024))
 	rm -f log/*
 	$(MPIRUN) bash -c '$(NANOS6_HEADER) ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
 
