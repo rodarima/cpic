@@ -1,6 +1,24 @@
-\chapter{Results}
+\chapter{Analysis of performance}
 
 The execution time is measured and analyzed in detail.
+
+\section{Variables of interest}
+
+A simple test to determine the performance of the simulator is to measured the
+time per iteration (using the wall clock). The time spent in the different
+stages of the simulation can also be of interest.
+
+Consider the sequence of time per iteration (also referred simply as the time)
+$T_0,\ldots,T_n$ as independent random variables from a common distribution with
+an unknown mean $\mu$ and finite standard deviation $\sigma$. The sample mean
+$\overline T$ can be approximated with a certain degree of confidence by a
+process of sampling.
+
+Different parameters of the simulation may affect the time mean $\mu$ and is the
+objective of this chapter to find out what the relation is. The time is at least
+in $O(N_p)$, as we need to iterate over each particle $N_p$. We also know that
+the worst-case complexity of the FFT is in $O(N_g \log N_g)$ for $N_g$ total grid
+points.
 
 \section{Number of particles}
 
@@ -11,3 +29,35 @@ different metrics are compared.
 
 The wall clock is used in the process with rank zero to measure how long takes
 each iteration.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+	width=0.5\textwidth,
+	xlabel=Particles $N_p$,
+	ylabel=Time per iteration (s),
+	grid=major]
+\addplot [only marks,mark=none,error bars/y dir=both, error bars/y explicit] 
+table [
+	x index = {0},
+	y index = {3},
+	y error index={4},
+	col sep=space] {csv/time.csv};
+\end{axis}
+\end{tikzpicture}
+\begin{tikzpicture}
+\begin{axis} [
+	grid=major,
+	xlabel=Grid points $N_g$,
+	ylabel=Time per iteration (s),
+	width=0.5\textwidth]
+\addplot [only marks,mark=none,error bars/y dir=both, error bars/y explicit] 
+table [
+	x index = {0},
+	y index = {3},
+	y error index={4},
+	col sep=space] {csv/solver.csv};
+\end{axis}
+\end{tikzpicture}
+\end{figure}
