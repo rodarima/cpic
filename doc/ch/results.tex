@@ -4,7 +4,7 @@ The execution time is measured and analyzed in detail.
 
 \section{Variables of interest}
 
-A simple test to determine the performance of the simulator is to measured the
+A simple test to determine the performance of the simulator is to measure the
 time per iteration (using the wall clock). The time spent in the different
 stages of the simulation can also be of interest.
 
@@ -20,7 +20,13 @@ in $O(N_p)$, as we need to iterate over each particle $N_p$. We also know that
 the worst-case complexity of the FFT is in $O(N_g \log N_g)$ for $N_g$ total grid
 points.
 
-\section{Number of particles}
+The simulator runs for at least 30 iterations, and then the standard error of 
+the mean (SEM) is computed. Then in each iteration is determined if the SEM is 
+below a threshold to stop the simulation. The threshold is determined so that 
+when the simulation stops, the mean is has an error of at most 0.2\% with 
+probability 95\%.
+
+\subsection{Number of particles}
 
 The number of particles $N_p$ is one of the main parameters that affect the
 running time of each iteration. In order to characterize the scalability of the
@@ -31,33 +37,41 @@ The wall clock is used in the process with rank zero to measure how long takes
 each iteration.
 
 \begin{figure}[h]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-	width=0.5\textwidth,
-	xlabel=Particles $N_p$,
-	ylabel=Time per iteration (s),
-	grid=major]
-\addplot [only marks,mark=none,error bars/y dir=both, error bars/y explicit] 
-table [
-	x index = {0},
-	y index = {3},
-	y error index={4},
-	col sep=space] {csv/time.csv};
-\end{axis}
-\end{tikzpicture}
-\begin{tikzpicture}
-\begin{axis} [
-	grid=major,
-	xlabel=Grid points $N_g$,
-	ylabel=Time per iteration (s),
-	width=0.5\textwidth]
-\addplot [only marks,mark=none,error bars/y dir=both, error bars/y explicit] 
-table [
-	x index = {0},
-	y index = {3},
-	y error index={4},
-	col sep=space] {csv/solver.csv};
-\end{axis}
-\end{tikzpicture}
+	\centering
+	\subfloat[1024 particles, 512x512 grid points]{
+		\begin{tikzpicture}
+		\begin{axis}[
+			width=0.5\textwidth,
+			xlabel=Particles $N_p$,
+			ylabel=Time per iteration (s),
+			grid=major]
+		\addplot [only marks,mark=none,error bars/y dir=both, error bars/y explicit] 
+		table [
+			x index = {0},
+			y index = {3},
+			y error index={4},
+			col sep=space] {csv/particles.csv};
+		\end{axis}
+		\end{tikzpicture}
+	}
+	\subfloat[The number of grid points in incremented]{
+		\begin{tikzpicture}
+		\begin{axis} [
+			grid=major,
+			xlabel=Grid points $N_g$,
+			ylabel=Time per iteration (s),
+			width=0.5\textwidth]
+		\addplot [only marks,mark=none,error bars/y dir=both, error bars/y explicit] 
+		table [
+			x index = {0},
+			y index = {3},
+			y error index={4},
+			col sep=space] {csv/solver.csv};
+		\end{axis}
+		\end{tikzpicture}
+	}
+	\caption{The effect of the variables $N_p$ and $N_g$ to the time per 
+	iteration. Using one MPI process and 32 CPUs with TAMPI enabled.}
 \end{figure}
+
+
