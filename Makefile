@@ -38,6 +38,9 @@ CFLAGS+=-finstrument-functions
 # Debug
 CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
+# Debug race conditions
+#CFLAGS+=-fsanitize=thread
+
 # Avoid optimized instructions, so we can still use Valgrind
 #CFLAGS+=-march=x86-64 -mtune=generic
 
@@ -76,12 +79,12 @@ else
  PROCS_PER_NODE?=4
  CPUS_PER_TASK?=4
 # MPIRUN=mpirun --bind-to core -n $(PROCS_PER_NODE) --map-by NUMA:PE=$(CPUS_PER_TASK)
- MPIRUN=mpirun -n $(PROCS_PER_NODE) --map-by node:pe=$(CPUS_PER_TASK)
- ENV_RANK=PMIX_RANK
+ #MPIRUN=mpirun -n $(PROCS_PER_NODE) --map-by node:pe=$(CPUS_PER_TASK)
+ #ENV_RANK=PMIX_RANK
 
  # Doesn't start the simulator main()
- #MPIRUN=srun -N $(NNODES) --cpu-bind=verbose,cores --cpus-per-task $(CPUS_PER_TASK) --tasks-per-node $(PROCS_PER_NODE)
- #ENV_RANK=PMI_RANK
+ MPIRUN=srun -N $(NNODES) --cpu-bind=verbose,cores --cpus-per-task $(CPUS_PER_TASK) --tasks-per-node $(PROCS_PER_NODE)
+ ENV_RANK=PMI_RANK
 endif
 
 

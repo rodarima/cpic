@@ -1,5 +1,5 @@
-CC=OMPI_CC=mcc mpicc
-#CC=I_MPI_CC=mcc mpiicc
+#CC=OMPI_CC=mcc mpicc
+CC=I_MPI_CC=mcc mpiicc
 
 CFLAGS=-g --ompss-2
 

@@ -212,15 +212,9 @@ plasma_chunk_init(sim_t *sim, int i)
 	chunk->x0[Z] = f->x0[Z];
 	chunk->x1[Z] = f->x1[Z];
 
-	chunk->q = safe_malloc(sizeof(comm_packet_t *) * sim->nprocs);
-	chunk->req = safe_malloc(sizeof(MPI_Request) * sim->nprocs);
+	chunk->q = safe_calloc(sim->nprocs, sizeof(comm_packet_t *));
+	chunk->req = safe_calloc(sim->nprocs, sizeof(MPI_Request));
 	chunk->neigh_rank = safe_malloc(sizeof(int) * sim->nneigh_chunks);
-
-	for(j=0; j<sim->nprocs; j++)
-	{
-		chunk->q[j] = NULL;
-		chunk->req[j] = NULL;
-	}
 
 	neigh_rank(sim, chunk->ig, chunk->neigh_rank);
 

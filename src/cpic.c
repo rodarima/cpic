@@ -40,7 +40,7 @@ main(int argc, char *argv[])
 {
 	sim_t *sim;
 	config_t conf;
-	const char *fn;
+	const char *fn, *fn_dup;
 	char *include_dir;
 	int j,i, opt, prov;
 	int quiet = 0;
@@ -112,7 +112,8 @@ main(int argc, char *argv[])
 	fn = argv[optind];
 	config_init(&conf);
 
-	include_dir = dirname(strdup(fn));
+	fn_dup = strdup(fn);
+	include_dir = dirname(fn_dup);
 
 	config_set_include_dir(&conf, include_dir);
 
@@ -138,7 +139,7 @@ main(int argc, char *argv[])
 		return 1;
 
 
-	free(include_dir);
+	free(fn_dup);
 	//sim_free(sim);
 
 	MPI_Finalize();

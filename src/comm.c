@@ -706,6 +706,7 @@ recv_particles_y_MPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs)
 		 * that only one recv_particle_packet_MPI task can enter, to
 		 * avoid race conditions between MPI_Probe and MPI_Recv. */
 		#pragma oss task inout(*chunk) inout(*sim) label(recv_particle_packet_MPI)
+		//#pragma oss task inout(*chunk) weakinout(chunk[0:sim->plasma_chunks]) commutative(*sim) label(recv_particle_packet_MPI)
 		{
 			comm_packet_t *pkt;
 
@@ -835,7 +836,7 @@ recv_particles_y_TAMPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs, int *pr
 		{
 			pkt = recv_particle_packet_TAMPI(sim, chunk, proc);
 
-			#pragma oss task in(*pkt) inout(*chunk) label(unpack_comm_packet)
+			//#pragma oss task in(*pkt) inout(*chunk) label(unpack_comm_packet)
 			{
 				dbg("Proccessing recv packet %p for chunk %d from proc %d\n",
 						pkt, ic, proc);

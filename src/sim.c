@@ -26,6 +26,8 @@
 
 #include <mpi.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #define ENERGY_CHECK 1
 
@@ -364,14 +366,34 @@ sim_plot(sim_t *sim)
 }
 
 int
+memory_usage(long *kb)
+{
+	struct rusage usage;
+
+	if(getrusage(RUSAGE_SELF, &usage))
+	{
+		perror("getrusage");
+		return -1;
+	}
+
+	*kb = usage.ru_maxrss;
+	return 0;
+}
+
+int
 sampling_complete(sim_t *sim, double t)
 {
 	double mean, std, sem;
+	long mem;
+
 	perf_stats(&sim->timers[TIMER_ITERATION], &mean, &std, &sem);
 	perf_record(&sim->timers[TIMER_ITERATION], t);
 
-	printf("stats iter=%d last=%e mean=%e std=%e sem=%e\n",
-			sim->iter, t, mean, std, sem);
+	if(memory_usage(&mem))
+		return -1;
+
+	printf("stats iter=%d last=%e mean=%e std=%e sem=%e mem=%ld\n",
+			sim->iter, t, mean, std, sem, mem);
 
 	if(sim->iter < 30)
 		return 0;
