@@ -189,6 +189,8 @@ struct field
 
 struct plasma_chunk
 {
+	int locked;
+
 	particle_set_t *species;
 	int nspecies;
 
@@ -305,6 +307,8 @@ struct sim
 	solver_t *solver;
 
 	const char *solver_method;
+
+	int fftw_threads;
 
 	/* Timers */
 	perf_t timers[MAX_TIMERS];

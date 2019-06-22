@@ -191,6 +191,8 @@ plasma_chunk_init(sim_t *sim, int i)
 	chunk->ig[Y] = sim->rank;
 	chunk->ig[Z] = 0;
 
+	chunk->locked = 0;
+
 	for(d=X; d<MAX_DIM; d++)
 	{
 		/* FIXME: This is redundant */

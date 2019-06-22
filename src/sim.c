@@ -51,6 +51,7 @@ sim_read_config(sim_t *s)
 	config_lookup_float(conf, "simulation.stop_SEM", &s->stop_SEM);
 	config_lookup_int(conf, "simulation.realtime_plot", &s->mode);
 	config_lookup_string(conf, "simulation.solver", &s->solver_method);
+	config_lookup_int(conf, "simulation.enable_fftw_threads", &s->fftw_threads);
 	config_lookup_int(conf, "simulation.plasma_chunks", &s->plasma_chunks);
 
 	/* Load all dimension related vectors */
@@ -381,19 +382,32 @@ memory_usage(long *kb)
 }
 
 int
-sampling_complete(sim_t *sim, double t)
+sampling_complete(sim_t *sim)
 {
-	double mean, std, sem;
+	double t, t_solver;
+	double mean, std, sem, rsem;
+	double mean_solver, std_solver, sem_solver;
 	long mem;
+
+	t = perf_measure(&sim->timers[TIMER_ITERATION]);
+	t_solver = perf_measure(&sim->timers[TIMER_SOLVER]);
 
 	perf_stats(&sim->timers[TIMER_ITERATION], &mean, &std, &sem);
 	perf_record(&sim->timers[TIMER_ITERATION], t);
 
+	perf_stats(&sim->timers[TIMER_SOLVER], &mean_solver, &std_solver, &sem_solver);
+	perf_record(&sim->timers[TIMER_SOLVER], t_solver);
+
+	if(mean != 0.0)
+		rsem = sem / mean;
+	else
+		rsem = sem;
+
 	if(memory_usage(&mem))
 		return -1;
 
-	printf("stats iter=%d last=%e mean=%e std=%e sem=%e mem=%ld\n",
-			sim->iter, t, mean, std, sem, mem);
+	printf("stats iter=%d last=%e mean=%e std=%e sem=%e rsem=%e mem=%ld solver=%e\n",
+			sim->iter, t, mean, std, sem, rsem, mem, mean_solver);
 
 	if(sim->iter < 30)
 		return 0;
@@ -401,7 +415,7 @@ sampling_complete(sim_t *sim, double t)
 	if(t > mean + std * 5.0)
 	{
 		printf("Iteration time exeeded 5 sigma! Go fix your program.\n");
-		return 1;
+		//return 1;
 	}
 
 	/* Complete the sampling when the error is below 1% with 95% confidence */
@@ -411,8 +425,6 @@ sampling_complete(sim_t *sim, double t)
 int
 sim_step(sim_t *sim)
 {
-	double t_iter;
-
 	if(sim->iter >= sim->cycles)
 		return -1;
 
@@ -476,11 +488,10 @@ sim_step(sim_t *sim)
 	if(sim->rank == 0)
 	{
 		perf_stop(&sim->timers[TIMER_ITERATION]);
-		t_iter = perf_measure(&sim->timers[TIMER_ITERATION]);
 		//printf("iter %d iteration_timer %e\n",
 		//		sim->iter, t_iter);
 
-		if(sim->sampling && sampling_complete(sim, t_iter))
+		if(sim->sampling && sampling_complete(sim))
 		{
 			printf("sampling complete\n");
 			sim->running = 0;

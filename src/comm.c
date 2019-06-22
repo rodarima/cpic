@@ -384,6 +384,9 @@ collect_particles_y(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchan
 	int j, ix, iy, iy_next, iy_prev;
 	int dst, dst_ig[MAX_DIM];
 
+	assert(chunk->locked == 0);
+	chunk->locked = 1;
+
 	set = &chunk->species[is];
 
 	/* TODO: Ensure the destination received the packet before
@@ -454,6 +457,7 @@ collect_particles_y(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchan
 		queue_particle(set, p, dst);
 	}
 
+	chunk->locked = 0;
 
 	return 0;
 }
@@ -556,6 +560,9 @@ send_particles_y(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_
 
 	int i, is, next, prev, ix;
 
+	assert(chunk->locked == 0);
+	chunk->locked = 3;
+
 	prev = (sim->rank - 1 + sim->nprocs) % sim->nprocs;
 	next = (sim->rank + 1) % sim->nprocs;
 	ix = chunk->ig[X];
@@ -595,6 +602,8 @@ send_particles_y(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_
 
 	}
 
+	chunk->locked = 0;
+
 	return 0;
 }
 
@@ -606,6 +615,14 @@ unpack_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 	particle_t *p, *p2;
 	void *ptr;
 	int i, is, ip;
+
+	if(chunk->locked != 0)
+	{
+		err("CHUNK locked=%d at unpack_comm_packet for chunk=%d\n",
+			chunk->locked, chunk->ig[X]);
+		abort();
+	}
+	chunk->locked = 5;
 
 	ptr = (char *) pkt->s;
 
@@ -643,6 +660,8 @@ unpack_comm_packet(sim_t *sim, plasma_chunk_t *chunk, comm_packet_t *pkt)
 		ptr += sizeof(specie_packet_t);
 		ptr += sizeof(particle_t) * sp->nparticles;
 	}
+
+	chunk->locked = 0;
 
 	return 0;
 }
@@ -690,6 +709,8 @@ recv_particles_y_MPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs)
 {
 	int ip;
 
+	plasma_chunk_t *recv_chunk;
+
 	for(ip=0; ip<max_procs; ip++)
 	{
 		dbg("Creating a new recv_particle_packet_MPI task for chunk %d\n",
@@ -705,31 +726,40 @@ recv_particles_y_MPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs)
 		 * Also, the dependency over sim leads to a critical section
 		 * that only one recv_particle_packet_MPI task can enter, to
 		 * avoid race conditions between MPI_Probe and MPI_Recv. */
-		#pragma oss task inout(*chunk) inout(*sim) label(recv_particle_packet_MPI)
-		//#pragma oss task inout(*chunk) weakinout(chunk[0:sim->plasma_chunks]) commutative(*sim) label(recv_particle_packet_MPI)
+		#pragma oss task inout(*chunk) weakinout(sim->plasma.chunks[0:sim->plasma_chunks-1]) inout(*sim) label(recv_particle_packet_MPI)
+		//#pragma oss task inout(*chunk) weakinout(chunk[0:sim->plasma_chunks-1]) commutative(*sim) label(recv_particle_packet_MPI)
 		{
 			comm_packet_t *pkt;
 
 			/* Notice that we overwrite the chunk, as we don't know
 			 * the order in which they will arrive */
 
-			chunk = NULL;
+			assert(chunk->locked == 0);
+			chunk->locked = 4;
+
 			pkt = recv_particle_packet_MPI(sim);
 			dbg("recv pkt=%p from chunk=%d has a total of %d particles\n",
 					pkt, pkt->dst_chunk[X], pkt->nparticles);
 
-			chunk = &sim->plasma.chunks[pkt->dst_chunk[X]];
+			recv_chunk = &sim->plasma.chunks[pkt->dst_chunk[X]];
+
+			chunk->locked = 0;
 
 			/* We cannot create two independent tasks as we need a
 			 * dependence of pkt which is unknown until
 			 * recv_particle_packet_MPI finishes, and with chunk to
 			 * prevent other tasks writing in the same chunk
 			 * concurrently. */
-			#pragma oss task inout(*pkt) out(*chunk) label(unpack_comm_packet)
+			#pragma oss task inout(*pkt) inout(*recv_chunk) label(unpack_comm_packet)
 			{
-				unpack_comm_packet(sim, chunk, pkt);
+				err("The assigned chunk=%d is at %p for pkt=%p\n",
+						recv_chunk->ig[X], recv_chunk, pkt);
+				unpack_comm_packet(sim, recv_chunk, pkt);
 				free(pkt);
+				err("Finished with chunk=%d at %p for pkt=%p\n",
+						recv_chunk->ig[X], recv_chunk, pkt);
 			}
+
 		}
 	}
 
@@ -1049,6 +1079,9 @@ pack_particles_dst(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 	particle_t *p, *tmp;
 	void *ptr;
 
+	assert(chunk->locked == 0);
+	chunk->locked = 2;
+
 	dbg("Packing comm_packet for process %d from chunk %d\n",
 			dst, chunk_index);
 
@@ -1090,6 +1123,8 @@ pack_particles_dst(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 	comm_packet_build(sim, chunk, chunk_index, dst, pkt);
 
 	chunk->q[dst] = pkt;
+
+	chunk->locked = 0;
 
 	return 0;
 }
@@ -1167,9 +1202,12 @@ comm_plasma_y(sim_t *sim, int global_exchange)
 
 			#pragma oss task inout(*chunk) label(done_particles_y)
 			{
+				assert(chunk->locked == 0);
+				chunk->locked = 1;
 				dbg("Particle communication for chunk %d done\n", i);
 
 				/* Dummy task as dbg() may be set to nop */
+				chunk->locked = 0;
 				chunk = NULL;
 			}
 		}

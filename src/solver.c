@@ -237,11 +237,12 @@ MFT_init(sim_t *sim, solver_t *s)
 	s->G = G;
 	s->g = g;
 
-#ifdef WITH_FFTW3_THREADS
-	/* Initialize the FFTW3 threads subsystem */
-	if(!fftw_init_threads())
-		die("fftw_init_threads failed\n");
-#endif
+	if(sim->fftw_threads)
+	{
+		/* Initialize the FFTW3 threads subsystem */
+		if(!fftw_init_threads())
+			die("fftw_init_threads failed\n");
+	}
 
 
 	/* Initialize the FFTW3 MPI subsystem */
@@ -249,12 +250,16 @@ MFT_init(sim_t *sim, solver_t *s)
 
 	/* In the FFTW example this is placed after mpi_init */
 
-#ifdef WITH_FFTW3_THREADS
-	threads = nanos6_get_num_cpus();
-	threads = 1;
-	err("Using %d threads in FFTW\n", threads);
-	fftw_plan_with_nthreads(threads);
-#endif
+	if(sim->fftw_threads)
+	{
+		if(sim->fftw_threads == -1)
+			threads = nanos6_get_num_cpus();
+		else
+			threads = sim->fftw_threads;
+
+		err("Using %d threads in FFTW\n", threads);
+		fftw_plan_with_nthreads(threads);
+	}
 
 	return 0;
 }
@@ -510,6 +515,9 @@ solver_init(sim_t *sim)
 int
 solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 {
+	perf_reset(&sim->timers[TIMER_SOLVER]);
+	perf_start(&sim->timers[TIMER_SOLVER]);
+
 	switch(s->method)
 	{
 		case METHOD_LU:
@@ -519,4 +527,6 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 		default:
 			return -1;
 	}
+
+	perf_stop(&sim->timers[TIMER_SOLVER]);
 }
