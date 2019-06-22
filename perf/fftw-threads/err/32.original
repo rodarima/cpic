@@ -1,0 +1,30 @@
+Using TAMPI variant for impi/2017 
+unload tampi/1.0 (TAMPI_HOME, LD_LIBRARY_PATH) 
+remove ompss-2/2019.06 (PATH) 
+remove fftw/3.3.6 (FFTW_CFLAGS, FFTW_FFLAGS, FFTW_LDFLAGS, FFTW_INCL,
+FFTW_LIBS, LIBRARY_PATH, LD_LIBRARY_PATH, C_INCLUDE_PATH) 
+remove impi/2017.4 (PATH, MANPATH, LD_LIBRARY_PATH) 
+remove gsl/2.4 (PATH, LD_LIBRARY_PATH, LIBRARY_PATH, MANPATH, INFOPATH,
+C_INCLUDE_PATH, CPLUS_INCLUDE_PATH, PKG_CONFIG_PATH, GSL_DIR) 
+remove mkl/2017.4 (LD_LIBRARY_PATH) 
+Couldn't determine loaded MPI implementation. Using impi_2017_4 as default. 
+remove EXTRAE/latest (PATH, LD_LIBRARY_PATH, C_INCLUDE_PATH) 
+Set GNU compilers as MPI wrappers backend 
+Couldn't determine loaded MPI implementation. Using impi_2017_4 as default. 
+load EXTRAE/latest (PATH, LD_LIBRARY_PATH, C_INCLUDE_PATH) 
+Set INTEL compilers as MPI wrappers backend 
+load mkl/2017.4 (LD_LIBRARY_PATH) 
+load gsl/2.4 (PATH, LD_LIBRARY_PATH, LIBRARY_PATH, MANPATH, INFOPATH,
+C_INCLUDE_PATH, CPLUS_INCLUDE_PATH, PKG_CONFIG_PATH, GSL_DIR) 
+load impi/2017.4 (PATH, MANPATH, LD_LIBRARY_PATH) 
+load fftw/3.3.6 (FFTW_CFLAGS, FFTW_FFLAGS, FFTW_LDFLAGS, FFTW_INCL, FFTW_LIBS,
+LIBRARY_PATH, LD_LIBRARY_PATH, C_INCLUDE_PATH) 
+load ompss-2/2019.06 (PATH): OmpSs-2 2019.06 - nanos6 2.2, mcxx 2.3.0 
+Using TAMPI variant for impi/2017 
+load tampi/1.0 (TAMPI_HOME, LD_LIBRARY_PATH) 
+cpu-bind=MASK - s06r2b31, task  0  0 [357793]: mask 0xffffffff set
+Ssampling enabled
+Using 32 threads in FFTW
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+slurmstepd: error: *** STEP 6289367.0 ON s06r2b31 CANCELLED AT 2019-06-22T21:51:27 ***
+slurmstepd: error: *** JOB 6289367 ON s06r2b31 CANCELLED AT 2019-06-22T21:51:27 ***

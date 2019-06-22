@@ -1,19 +1,12 @@
 #!/bin/bash
 
-if [ $# != 1 ]; then
-	echo "Usage $0 CONFIG-FILE"
-	exit
-fi
-
-FILE=$1
 SEQ=list
 
-rm conf/*
-
-
+rm -f jobs/* conf/*
 
 while read NP ; do
 
-	sed "s/\<points = \[.*\]/points = [$NP, $NP]/g" $FILE > "conf/$NP"
+	sed "s/\<points = \[.*\]/points = [$NP, $NP]/g" base.conf > "conf/$NP"
+	sed "s/@PARAM@/$NP/g" job.sh > "jobs/$NP"
 
 done < $SEQ

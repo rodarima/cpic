@@ -1,13 +1,17 @@
 #!/bin/bash
 
-rm out/* err/*
+SEQ=list
 
-for F in conf/* ; do
+N_LIST=$(cat $SEQ | tr '\n' ' ')
 
-	echo "Running $F"
+rm -f out/* err/*
 
-	N=$(basename $F)
+for N in $N_LIST ; do
 
-	../../cpic $F > out/$N 2>err/$N
+	echo "Running $N"
+
+	#../../cpic $F > out/$N 2>err/$N
+	#srun  --cpu-bind=v,cores -c 32 -n 1 ../../cpic $F > out/$N 2>err/$N
+	sbatch jobs/$N
 
 done
