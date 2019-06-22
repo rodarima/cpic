@@ -23,11 +23,12 @@ reg.score(t, percent)
 #print(reg.intercept_)
 
 t0 = np.min(t)
-tf = 1561326600
 tm = 1560376200
 tmm = 1560894600
+tf = 1561413000
+tF = 1561585800
 
-tt = np.linspace(t0, tf, 100).reshape(-1, 1)
+tt = np.linspace(t0, tF, 100).reshape(-1, 1)
 
 pf = reg.predict(tt)
 
@@ -35,8 +36,9 @@ plt.plot(tt, pf, 'g')
 plt.scatter(t, percent, s=2, color='k')
 plt.axvline(x=tm, color='k', linewidth=1.0)
 plt.axvline(x=tmm, color='brown', linewidth=1.0)
-plt.axvline(x=tf, color='r', linewidth=3.0)
-plt.xlim(np.min(t), tf+3600)
+plt.axvline(x=tf, color='orangered', linewidth=1.0)
+plt.axvline(x=tF, color='r', linewidth=3.0)
+plt.xlim(np.min(t), tF+3600)
 plt.ylim(0, 100)
 plt.grid(True)
 #plt.show()

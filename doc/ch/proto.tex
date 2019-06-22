@@ -39,6 +39,37 @@ numeric library~\cite{gsl}, as the only focus was to obtain valid results, ignor
 performance. All implementations are tested beforehand with some test cases
 designed in \texttt{octave}.
 
+\subsection{Debug mode}
+
+In order to get insight into all the details of the simulation, a mechanism of 
+visualization can be very useful: the different fields can be plotted in 
+real-time for one and two dimensions, while the particles move around. The 
+simulator includes a visualization mode, in which the state of the simulation is 
+plotted at a specific period of iterations (by default each iteration is shown).  
+In this mode (which we will refer to as debug mode) the simulation is slowed 
+down, with a top speed of 60 iterations per second, to follow the visualization 
+in the screen.
+
+With this mode activated, the user can observe and quickly check the overall 
+behavior of the simulation, as is designed to minimize the delay between writing 
+the configuration of the simulation and the execution. Once the simulator is 
+running, the user can see several graphs being updated.
+
+The energy measurements are always shown, including potential, kinetic and total 
+energy---the total energy must be conserved at all times. In the case of 
+one-dimensional simulations, the particles are plotted in the $x$-$v$ phase 
+space, with the fields aligned vertically. However, in two dimensions the 
+particles are plotted by default in the $x$-$y$ plane which corresponds to the 
+physical position in space. The fields now cannot be plotted together, an only 
+the electric potential is shown.
+
+%TODO: Add some pictures of the simulator in debug mode.
+
+Once the simulation is properly tested in the debug mode, there is less chance 
+that a misconfigured setting ruins a large simulation. This mode has also being 
+very helpful when developing the simulator, as several test required to see the 
+immediate result of a new feature, or to change a value in the configuration.
+
 \section{Validation}
 
 A set of different tests were designed to determine the correctness of the
@@ -56,7 +87,8 @@ grows in the $x$ axis.
 \begin{figure}[h]
 	\centering
 	\includegraphics[width=0.4\linewidth]{1d-2particles-energy.png}
-	\caption{Energy conservation in two particle test}
+	\caption{Energy conservation in two particle test as shown in the simulator 
+	(notice the lack of anti-aliasing).}
 	\label{fig:1d-2particles-energy}
 \end{figure}
 
