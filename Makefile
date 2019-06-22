@@ -87,6 +87,9 @@ else
  ENV_RANK=PMI_RANK
 endif
 
+#CPIC_CONF=perf/constant-cpus/base.conf
+CPIC_CONF=conf/mpi.conf
+
 
 all:
 
@@ -162,13 +165,13 @@ valgrind:
 trace: trace/cpic.prv
 
 run: cpic
-	ulimit -s $$((64*1024))
+	ulimit -s $$((8*1024))
 	rm -f log/*
-	$(MPIRUN) bash -c '$(NANOS6_HEADER) ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
+	$(MPIRUN) bash -c '$(NANOS6_HEADER) ./cpic $(CPIC_CONF) 2> log/$$$(ENV_RANK).log'
 
 debug: cpic
 	rm -f log/*
-	$(MPIRUN) bash -c '$(NANOS6_DEBUG) ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
+	$(MPIRUN) bash -c '$(NANOS6_DEBUG) ./cpic $(CPIC_CONF) 2> log/$$$(ENV_RANK).log'
 
 gdb: cpic
 	#$(MPIRUN) xterm -e bash -c 'gdb --args ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
