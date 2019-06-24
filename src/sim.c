@@ -419,7 +419,7 @@ sampling_complete(sim_t *sim)
 	}
 
 	/* Complete the sampling when the error is below 1% with 95% confidence */
-	return 1.96 * sem < sim->stop_SEM;
+	return 1.96 * sem < sim->stop_SEM * mean;
 }
 
 int
