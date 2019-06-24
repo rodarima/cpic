@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SEQ=list
-OUT=time.csv
+OUT=csv/time.csv
 
 rm $OUT
 
@@ -12,3 +12,5 @@ while read NP ; do
 	echo $NP $LINE >> $OUT
 
 done < $SEQ
+
+python regression.py
