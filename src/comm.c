@@ -726,8 +726,8 @@ recv_particles_y_MPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs)
 		 * Also, the dependency over sim leads to a critical section
 		 * that only one recv_particle_packet_MPI task can enter, to
 		 * avoid race conditions between MPI_Probe and MPI_Recv. */
-		#pragma oss task inout(*chunk) weakinout(sim->plasma.chunks[0:sim->plasma_chunks-1]) inout(*sim) label(recv_particle_packet_MPI)
-		//#pragma oss task inout(*chunk) weakinout(chunk[0:sim->plasma_chunks-1]) commutative(*sim) label(recv_particle_packet_MPI)
+		//#pragma oss task inout(*chunk) weakinout(sim->plasma.chunks[0:sim->plasma_chunks-1]) inout(*sim) label(recv_particle_packet_MPI)
+		#pragma oss task inout(*chunk) weakinout(chunk[0:sim->plasma_chunks-1]) commutative(*sim) label(recv_particle_packet_MPI)
 		{
 			comm_packet_t *pkt;
 
@@ -752,11 +752,11 @@ recv_particles_y_MPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs)
 			 * concurrently. */
 			#pragma oss task inout(*pkt) inout(*recv_chunk) label(unpack_comm_packet)
 			{
-				err("The assigned chunk=%d is at %p for pkt=%p\n",
+				dbg("The assigned chunk=%d is at %p for pkt=%p\n",
 						recv_chunk->ig[X], recv_chunk, pkt);
 				unpack_comm_packet(sim, recv_chunk, pkt);
 				free(pkt);
-				err("Finished with chunk=%d at %p for pkt=%p\n",
+				dbg("Finished with chunk=%d at %p for pkt=%p\n",
 						recv_chunk->ig[X], recv_chunk, pkt);
 			}
 
