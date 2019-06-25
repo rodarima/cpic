@@ -5,7 +5,6 @@
 #SBATCH --output=out/@NAME@
 #SBATCH --error=err/@NAME@
 #SBATCH --ntasks=@NPROCS@
-#SBATCH --nodes=@NNODES@
 #SBATCH --cpus-per-task=@NCPUS@
 #SBATCH --exclusive
 #SBATCH --time=00:10:00
@@ -17,5 +16,5 @@ ulimit -s 8192
 
 #export NANOS6_REPORT_PREFIX="#"
 
-#srun --cpu-bind=verbose,cores ../../cpic base.conf
-srun --cpu-bind=verbose,cores ../../cpic conf/@NAME@
+srun --cpu-bind=verbose,cores ../../cpic base.conf
+#srun --cpu-bind=verbose,cores ../../cpic conf/@NAME@

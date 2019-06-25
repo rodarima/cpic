@@ -6,6 +6,4 @@ for F in jobs/* ; do
 	echo "Running $F"
 
 	sbatch $F
-
-	read nop
 done

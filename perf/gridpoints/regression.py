@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
-data = np.genfromtxt('csv/time.csv', delimiter=' ')
+data = np.genfromtxt('time.csv', delimiter=' ')
 
 x = data[:,0].reshape((-1, 1))
 y = data[:,3].reshape((-1, 1))
@@ -20,7 +20,7 @@ print('slope:', model.coef_)
 
 yy = model.coef_ * x + model.intercept_
 
-residuals = y - yy
+residuals = yy - y
 
 reg = np.concatenate([x, yy, residuals, std], axis=1)
 

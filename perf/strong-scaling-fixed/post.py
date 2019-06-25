@@ -5,7 +5,7 @@ from io import StringIO
 BASE_CONF = 'base.conf'
 BASE_JOB = 'base.job'
 
-P_list = [1,2,4,8,16,32]
+P_list = [1,2,4,8,16,32,64]
 NCPUS = 48
 Nc = 128
 
@@ -22,7 +22,7 @@ out = 'csv/time.csv'
 t0 = 0
 with open(out, 'w+') as f:
 
-	f.write("P\tmean\trel-err\tspeedup\tefficiency\tsolver\n")
+	f.write("P\tmean\trel-err\tspeedup\tefficiency\n")
 
 	for P in P_list:
 
@@ -41,7 +41,6 @@ with open(out, 'w+') as f:
 
 		mean = float(get_field(line, "mean"))
 		sem = float(get_field(line, "sem"))
-		ts = float(get_field(line, "solver"))
 		rel_error = sem * 1.96 / mean
 		if P == 1:
 			speedup = 1
@@ -51,5 +50,5 @@ with open(out, 'w+') as f:
 
 		efficiency = speedup / P
 
-		f.write("%d\t%e\t%e\t%e\t%e\t%e\n" %
-				(P, mean, rel_error, speedup, efficiency, ts))
+		f.write("%d\t%e\t%e\t%e\t%e\n" %
+				(P, mean, rel_error, speedup, efficiency))

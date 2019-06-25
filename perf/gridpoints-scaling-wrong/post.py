@@ -6,8 +6,9 @@ BASE_CONF = 'base.conf'
 BASE_JOB = 'base.job'
 
 P_list = [1,2,4,8,16,32]
-CP_list = [1,2,4,8,16,32,48]
-Nc_list = [32,64,128]
+CP_list = [1,16,48]
+Nc = 64
+ng_list = [1024*i for i in [1,2,4,8,16]]
 
 
 def get_field(line, name):
@@ -19,9 +20,9 @@ def get_field(line, name):
 	return None
 
 for CP in CP_list:
-	for Nc in Nc_list:
+	for ng in ng_list:
 
-		out = 'csv/CP%d-Nc%d' % (CP, Nc)
+		out = 'csv/CP%d-ng%d' % (CP, ng)
 
 		t0 = 0
 		with open(out, 'w+') as f:
@@ -33,7 +34,7 @@ for CP in CP_list:
 				C = P*CP
 				N = int(math.ceil(C / 48))
 
-				name = 'P%d-CP%d-Nc%d' % (P, CP, Nc)
+				name = 'P%d-CP%d-ng%d' % (P, CP, ng)
 				out = 'out/' + name
 				print('Reading %s' % out)
 
@@ -45,7 +46,8 @@ for CP in CP_list:
 				except:
 					line = ""
 
-				if line == "": continue
+				if line == "":
+					continue
 
 				mean = float(get_field(line, "mean"))
 				sem = float(get_field(line, "sem"))

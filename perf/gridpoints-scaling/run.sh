@@ -7,5 +7,5 @@ for F in jobs/* ; do
 
 	sbatch $F
 
-	read nop
+	sleep 1
 done

@@ -8,9 +8,8 @@
 #SBATCH --nodes=@NNODES@
 #SBATCH --cpus-per-task=@NCPUS@
 #SBATCH --exclusive
-#SBATCH --time=00:10:00
+#SBATCH --time=00:30:00
 
-#ASSUME IS NOT NEEDED workdir=/home/bsc15/bsc15557/cpic/perf/constant-cpus
 . ../../modules
 
 ulimit -s 8192
