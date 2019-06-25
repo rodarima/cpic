@@ -45,7 +45,7 @@ main(int argc, char *argv[])
 	int j,i, opt, prov;
 	int quiet = 0;
 	char caca[100];
-	int rank;
+	int rank, nprocs;
 
 
 	/* FIXME: Determine if we want to allow MPI to know our argv. By now we
@@ -81,8 +81,18 @@ main(int argc, char *argv[])
 	MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+
 	if(rank == 0)
-		printf("Simulation main entered\n");
+	{
+		/* Report some stats on to ensure we have the settings correct
+		 * */
+#ifdef WITH_TAMPI
+		err("Using TAMPI with %d processors\n", nprocs);
+#else
+		err("Using MPI with %d processors\n", nprocs);
+#endif
+	}
 	//if(!rank)
 	//{
 	//	printf("Attach to %d\n", getpid());
@@ -138,6 +148,7 @@ main(int argc, char *argv[])
 	if(sim_run(sim))
 		return 1;
 
+	printf("Simulation ends\n");
 
 	free(fn_dup);
 	//sim_free(sim);

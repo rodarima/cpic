@@ -117,7 +117,7 @@ sim_prepare(sim_t *s, int quiet)
 
 	if(s->stop_SEM > 0.0)
 	{
-		err("Ssampling enabled\n");
+		err("Sampling enabled with relative error limit %e\n", s->stop_SEM);
 		s->sampling = 1;
 	}
 
@@ -198,6 +198,8 @@ sim_init(config_t *conf, int quiet)
 {
 	sim_t *s;
 
+	printf("Initializing simulation\n");
+
 	s = safe_malloc(sizeof(sim_t));
 
 	s->conf = conf;
@@ -260,6 +262,8 @@ sim_init(config_t *conf, int quiet)
 
 	s->iter++;
 	s->t = s->iter * s->dt;
+
+	printf("Simulation prepared\n");
 
 	return s;
 }
@@ -550,7 +554,7 @@ sim_run(sim_t *sim)
 	assert(sim->iter == 0);
 	perf_start(&sim->timers[TIMER_TOTAL]);
 
-	printf("simulation begin\n");
+	printf("Simulation runs now\n");
 
 	while(sim->running && sim->iter < sim->cycles)
 		sim_step(sim);
