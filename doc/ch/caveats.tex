@@ -1,22 +1,79 @@
-\chapter{Caveats and limitations}
+\chapter{Discussion}
 
-Here is a list of things that are not implemented in the simulator, but may be 
-added in a future work.
+
+\section{Conclusions}
+
+The presented simulator faces some challenges that are common in other real case 
+scenarios, which were the main aim of this work. The parallelization of a 
+complex simulation code cannot be fully optimal, if the programmer doesn't 
+understand the whole process. For example, other solvers are available to find a 
+solution to the field equations, but the spectral methods offer a very good 
+theoretical complexity, which leads to the decision of how the space must be 
+broken in blocks (split only one dimension), then the rest of the simulator 
+design follows.
+
+If the design were already chosen, the decomposition in tasks could only achieve 
+a local optimum, depending on the methods used. Even in that case, the ease of 
+task annotation is a low hanging fruit that can be tested without a big 
+redesign.
+
+Additionally, the TAMPI library was tested and compared with MPI, yielding 
+better results with no big changes in the communication design.
+
+\todo[inline]{Complete this}
+
+\section{Future work}
+
+The main problem to be solved in the simulator is to address the scalability 
+issues presented by the FFT, as the mitigations tested don't provide a good 
+solution. One possibility is the interoperability of the OmpSs-2 runtime, 
+nanos6, with external MPI processes with an additional mechanism of 
+synchronization. In this way, the simulator can be fully parallelized, even at 
+the core level. A step by step scheme for a configuration with $C$ CPUs 
+available per node and $N$ nodes, is outlined as follows:
+%
+\begin{enumerate}
+\item Begin the simulation as usual creating $P=N$ master processes, each with 
+at least $N_c \ge 2C$ plasma chunks, to exploit the local parallelism of the $C$ 
+CPUs.
+\item Place the fields $\rho$, $\phi$ and $\E$ in a shared memory region, 
+accessible by other child processes.
+\item Create $K$ MPI child processes in each master process, with access to the 
+shared memory and let them wait on a condition variable or the reception of a 
+MPI message.  Ensure the number of points $N_g$ in the vertical dimension is 
+divisible by $KP$.
+\item Continue the simulation until it reaches the solver stage.
+\item Ensure all tasks are finished, and wake all the child processes and then 
+wait for them to finish.
+\item In each child process execute the distributed FFTW with $KP$ processes, 
+and use the shared memory to access the fields.
+\item Once the FFT finishes, signal the master and put each child process to 
+sleep again, waiting for a signal.
+\item In the master process, the $\phi$ field is now ready in the shared memory 
+region. If the simulation is not finished, go to step 4.
+\end{enumerate}
+%
+The key concept is that we are moving temporally the threads of the OmpSs-2 
+runtime away from the CPUs to let the MPI processes of the FFTW take control of 
+the full parallelism using all the available CPUs. No change is needed in the 
+FFTW library, and this method may benefit other programs with similar issues.
+
+On the other hand, the physical results must be validated with a direct 
+comparison with other simulators, as is very easy simulate non-realistic 
+behavior without noticing. The different validation techniques provide some 
+ground that the simulation follows the expected behavior, but don't guarantee 
+any correctness.
+
+Additionally, there are a large list of improvements that were planned, but may 
+be improves in a future work:
 
 \begin{itemize}
-\item More than 2 dimensions
-\item Fully electromagnetic simulation
-\item Relativistic particle movement
-\item Heterogeneous architecture (GPU+CPU...)
-\item Energy conserving codes
-\item Visualization of big simulations (paraview)
-\item Replace simulation units, so we avoid factor multiplications
-\item Other interpolation methods (reduce noise at computational cost)
-\end{itemize}
-%
-Caveats that need to be fixed
-%
-\begin{itemize}
-\item Allow to specify plasma frequency
-\item Validation with other simulation codes
+\item Introduce more than 2 dimensions.
+\item Fully electromagnetic simulation.
+\item Relativistic particle movement.
+\item Heterogeneous architecture (GPU+CPU).
+\item Better energy conserving codes.
+\item Test other interpolation methods (reduce noise at computational cost).
+\item Replace simulation units, so we avoid factor multiplications.
+\item Visualization of big simulations (paraview).
 \end{itemize}

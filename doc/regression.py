@@ -25,7 +25,7 @@ reg.score(t, percent)
 t0 = np.min(t)
 tm = 1560376200
 tmm = 1560894600
-tf = 1561413000
+tf = 1561424400 #1561413000
 tF = 1561585800
 
 tt = np.linspace(t0, tF, 100).reshape(-1, 1)

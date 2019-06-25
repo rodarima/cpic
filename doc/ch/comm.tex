@@ -183,6 +183,28 @@ for(color = 0; color < max_color; color++)
 In the figure~\ref{fig:no-chain} it can be observed how the chain has now 
 disappeared, and the gaps are now fully covered by tasks running in parallel.
 
+This technique can be expressed without extra work, by using the directive 
+\texttt{commutative}, which acts similarly as \texttt{inout} but can be executed 
+in any order. Then, once a task begins execution, locking the next chunk, other 
+unordered chunk can be executed in any order, if their neighbour chunks are 
+unlocked.
+%
+\begin{lstlisting}
+for(i = 0; i < plasma->nchunks; i++)
+{
+	chunk = &plasma->chunks[i];
+	...
+
+	#pragma oss task commutative(*chunk, *prev_chunk, *next_chunk) \
+@              label(collect_local_particles)
+	{
+		/* Only the two neighbours are needed */
+		concat_particles(chunk, prev_chunk);
+		concat_particles(chunk, next_chunk);
+	}
+}
+\end{lstlisting}
+%
 Once all exchange tasks are completed, all particles are now placed in the 
 correct chunk in the X dimension, and only the Y movement is left.
 
@@ -284,12 +306,15 @@ In order to palliate the deadlock using only MPI, we can avoid using the tag as
 a filter, so once the sending is complete, the task waits for the reception of 
 particles from any other chunk.  With this method, it is guarantee that no 
 deadlock can occur, as before a task enters the waiting state, after sending the 
-message, another task will be unlocked and can resume the execution.
+message, another task will be unlocked and can resume the execution:
 %
 \begin{lstlisting}
-#pragma oss task label(recv_particle_packet_MPI)
+#pragma oss task inout(*chunk) weakinout(chunk[0:Nc-1]) \
+@    commutative(*sim) label(recv_particle_packet_MPI)
 {
 	comm_packet_t *pkt;
+	...
+
 	MPI_Probe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &status);
 
 	source = status.MPI_SOURCE;
@@ -300,21 +325,25 @@ message, another task will be unlocked and can resume the execution.
 	MPI_Recv(pkt, size, MPI_BYTE, source, tag, MPI_COMM_WORLD,
 			MPI_STATUS_IGNORE);
 
-	chunk = &sim->plasma.chunks[pkt->dst_chunk[X]];
+	recv_chunk = &sim->plasma.chunks[pkt->dst_chunk[X]];
 
-	/* We cannot create two independent tasks as we need a
-	 * dependence of pkt which is unknown until
-	 * recv_particle_packet_MPI finishes, and with chunk to
-	 * prevent other tasks writing in the same chunk
-	 * concurrently. */
-	#pragma oss task inout(*pkt) out(*chunk) label(unpack_comm_packet)
+	#pragma oss task inout(*pkt) inout(*recv_chunk) label(unpack_comm_packet)
 	{
-		unpack_comm_packet(sim, chunk, pkt);
+		unpack_comm_packet(sim, recv_chunk, pkt);
 		free(pkt);
 	}
 }
 \end{lstlisting}
 %
+It must be enforced that the calls to \texttt{MPI\_Recv} and \texttt{MPI\_Probe} 
+are done in mutual exclusion, as otherwise another task could receive the 
+message between the tho calls. The dependency with the sentinel \texttt{*sim} 
+avoids the problem, which is released as soon as the packet is received. Notice 
+that, in order to create a nested task to process the chunk stated in the 
+packet, we must indicate in the \texttt{weakinout} directive all posible chunks 
+that may be selected. Then, only one will be used by the child task to unpack 
+the particles.
+
 The downside of the described mechanism is the implicit complexity and the 
 amount of extra work needed to ensure a deadlock free execution, which can be 
 avoided with TAMPI. The deadlock is mitigated not by removing the tag, which 
@@ -370,7 +399,8 @@ reception of the first message, the whole buffer can be allocated.
 		MPI_Waitall(parts_left, requests, MPI_STATUSES_IGNORE);
 		free(requests);
 	}
-	...
+	unpack_comm_packet(sim, chunk, pkt);
+	free(pkt);
 }
 \end{lstlisting}
 

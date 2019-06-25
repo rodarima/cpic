@@ -90,6 +90,8 @@
 \usepackage{siunitx}
 \usepackage{todonotes}
 
+\usepackage{multicol}
+
 \usepackage{epigraph}
 \setlength{\epigraphwidth}{0.7\textwidth}
 
@@ -114,7 +116,8 @@
 % Norm
 \newcommand\norm[1]{\left\lVert#1\right\rVert}
 
-\title{Particle-in-cell plasma simulation with OmpSs-2}
+\title{Particle-in-cell plasma simulation with OmpSs-2
+\todo[inline]{Place proper cover page}}
 \author{Rodrigo Arias Mallo}
 \date{\today}
 
@@ -144,9 +147,9 @@
 \input{ch/design.tex}
 \input{ch/simulator.tex}
 \input{ch/comm.tex}
-\input{ch/analysis.tex}
+%\input{ch/analysis.tex}
 \input{ch/results.tex}
-\input{ch/config.tex}
+%\input{ch/config.tex}
 \input{ch/caveats.tex}
 
 %
