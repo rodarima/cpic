@@ -350,29 +350,20 @@ field_rho(sim_t *sim)
 	/* -- taskwait? -- */
 
 	/* Computation */
-	for (i=0; i<plasma->nchunks; i+=2)
+	for (i=0; i<plasma->nchunks; i++)
 	{
 		c0 = &plasma->chunks[i];
 		c1 = &plasma->chunks[(i + 1) % plasma->nchunks];
-		#pragma oss task inout(*c0) inout(*c1) label(rho_update_0)
-		rho_update(sim, i);
-	}
-	for (i=1; i<plasma->nchunks; i+=2)
-	{
-		c0 = &plasma->chunks[i];
-		c1 = &plasma->chunks[(i + 1) % plasma->nchunks];
-		#pragma oss task inout(*c0) inout(*c1) label(rho_update_1)
+		#pragma oss task commutative(*c0, *c1) label(rho_update)
 		rho_update(sim, i);
 	}
 
 #if DEBUG
 	/* Only for debugging */
 	#pragma oss taskwait
-#endif
-	#pragma oss taskwait
 	mat_print(sim->field.rho, "rho after update");
+#endif
 
-	//#pragma oss taskwait
 	/* Send the ghost part of the rho field */
 	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_send_ghost_rho)
 	{
@@ -479,28 +470,34 @@ field_phi_solve(sim_t *sim)
 int
 field_E(sim_t *sim)
 {
-	plasma_chunk_t *chunk;
-	int ic;
+	plasma_t *plasma;
+	plasma_chunk_t *chunk, *next, *prev;
+	int ic, Nc;
 
-	#pragma oss task inout(sim->plasma.chunks[0:sim->plasma.nchunks-1]) label(field_phi_solve)
+	plasma = &sim->plasma;
+	Nc = plasma->nchunks;
+
+	#pragma oss task inout(sim->plasma.chunks[0:Nc-1]) label(field_phi_solve)
 	field_phi_solve(sim);
 
 	mat_print(sim->field.phi, "phi before communication");
 
-	#pragma oss task inout(sim->plasma.chunks[0:sim->plasma.nchunks-1]) label(comm_phi_send)
+	#pragma oss task inout(sim->plasma.chunks[0:Nc-1]) label(comm_phi_send)
 	comm_phi_send(sim);
 
-	#pragma oss task inout(sim->plasma.chunks[0:sim->plasma.nchunks-1]) label(comm_phi_recv)
+	#pragma oss task inout(sim->plasma.chunks[0:Nc-1]) label(comm_phi_recv)
 	comm_phi_recv(sim);
 
 	mat_print(sim->field.phi, "phi after communication");
 
 	perf_start(&sim->timers[TIMER_FIELD_E]);
 
-	for(ic=0; ic<sim->plasma_chunks; ic++)
+	for(ic=0; ic<Nc; ic++)
 	{
-		chunk = &sim->plasma.chunks[ic];
-		#pragma oss task inout(*chunk) label(field_E_compute)
+		chunk = &plasma->chunks[ic];
+		next = &plasma->chunks[(ic+1) % Nc];
+		prev = &plasma->chunks[(ic-1+Nc) % Nc];
+		#pragma oss task in(*prev,*next) inout(*chunk) label(field_E_compute)
 		field_E_compute(sim, chunk);
 	}
 
