@@ -1,4 +1,5 @@
 \chapter{Parallelization techniques}
+\label{ch:techniques}
 
 \section{Message Passing Interface}
 
@@ -45,7 +46,7 @@ process can wait until the communication request has finished with
 OmpSs-2 is the next generation of the OmpSs programming model, composed of a set
 of directives and library routines. Mixes from OpenMP the annotation of source
 code to parallelize some sections with the StarSs execution model, based on a
-thread-pool design pattern.
+data-flow execution model.
 
 \subsection{Concepts}
 
@@ -53,7 +54,7 @@ thread-pool design pattern.
 independently by the runtime schedule. A task may have associated dependencies
 which lets the scheduler determine in wich order is allowed to execute the
 tasks. The notation used to describe a task is by the utilization of the
-\texttt{\#pragma} directive, por example:
+\texttt{\#pragma} directive, for example:
 %
 \begin{lstlisting}
 #pragma oss task inout(a[0:N-1]) in(b[0:N-1])
@@ -62,9 +63,9 @@ for(i=0; i < N; i++)
 \end{lstlisting}
 %
 
-\paragraph{Parallelization} Unless there is a unmet dependency, all tasks ready
-to run are executed in parallel, up to the number of CPU cores available to the
-runtime.
+\paragraph{Parallel execution} Unless there is a unmet dependency, all tasks 
+ready to run are executed in parallel, up to the number of CPU cores available 
+to the runtime.
 
 \paragraph{Task syncronization} It may be possible that at some point in the
 execution all pending task are required to finish in order to continue. The

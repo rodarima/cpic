@@ -1,16 +1,19 @@
 \chapter{Discussion}
+\label{ch:discussion}
 
 
 \section{Conclusions}
 
-The presented simulator faces some challenges that are common in other real case 
-scenarios, which were the main aim of this work. The parallelization of a 
-complex simulation code cannot be fully optimal, if the programmer doesn't 
-understand the whole process. For example, other solvers are available to find a 
-solution to the field equations, but the spectral methods offer a very good 
-theoretical complexity, which leads to the decision of how the space must be 
-broken in blocks (split only one dimension), then the rest of the simulator 
-design follows.
+The presented simulator faces challenging computational patterns that are 
+representative in real case scenarios, which were the main aim of this work.  
+
+
+The parallelization of a complex simulation code cannot be fully optimal, if the 
+programmer doesn't understand the whole process. For example, other solvers are 
+available to find a solution to the field equations, but the spectral methods 
+offer a very good theoretical complexity, which leads to the decision of how the 
+space must be broken in blocks (split only one dimension), then the rest of the 
+simulator design follows.
 
 If the design were already chosen, the decomposition in tasks could only achieve 
 a local optimum, depending on the methods used. Even in that case, the ease of 

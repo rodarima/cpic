@@ -1,4 +1,5 @@
 \chapter{Analysis of performance}
+\label{ch:analysis}
 
 \pgfplotsset{
 	every axis/.append style={
@@ -97,7 +98,7 @@ following ones.
 \item $N_g$: Number of total grid points.
 \item $N_c$: Number of plasma chunks.
 \item $P$: Number of total MPI processes.
-\item $C$: Number of total cores.
+\item $C$: Number of total cores (the sum of cores in all processes).
 \item $A$: Whether TAMPI ($A = 1$) or MPI ($A=0$) is being used.
 \end{itemize}
 %
@@ -519,6 +520,9 @@ than one order of magnitude with respect to the mean time per iteration with low
 probability of occurrence, and the causes are yet unknown. The same problem was 
 never observed with Intel MPI, but further investigation is needed to isolate 
 the issue and conclude that is due to OpenMPI.
+
+In the following experiments, we will always enable TAMPI for the 
+communications, unless explicitly stated otherwise.
 
 \section{Scalability}
 

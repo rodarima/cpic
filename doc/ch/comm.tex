@@ -10,11 +10,15 @@ frontier communications.
 When the particles are moved, due to the interaction with the electric field and 
 the magnetic field, their position can exceed the boundaries of the chunk where 
 they reside. After updating the position of each particle, the ones that exceed 
-the chunk must be translated to the correct one. The process of particle 
-communication is done in two stages: first the particles are moved in the X 
-dimension, then in the Y. Several steps are required in each stage.
+the chunk must be translated to the correct one. The time step is lowered to 
+ensure that a particle can only travel at most one chunk per iteration, so we 
+only need local communications, which are done in two stages: first the 
+particles are moved in the X dimension, then in the Y. Several steps are 
+required in each stage.
 
 \subsection{Exchange in X}
+\label{sec:exchange-x}
+
 %TODO Place figure to describe the movement
 All chunks in the X dimension reside in one MPI process, so the exchange of 
 particles can be done by shared memory. Care must be taken to avoid concurrent 
@@ -38,15 +42,13 @@ in the general case involving only the two neighbours, as the initialization
 iteration can be disregarded when comparing the time against the whole 
 simulation.
 
-% TODO:Should we split this details in another section/chapter involving only
-% tasks and TAMPI?
 The execution order and mutual exclusion of these two phases should be 
 guaranteed by means of a synchronization mechanism. Each step can be implemented 
 using OmpSs-2 tasks with dependencies, in order to exploit local parallelism.  
 One task collects the particles out of the chunk in the corresponding queues, so 
 it needs to access only the current chunk.
 %
-\begin{lstlisting}
+\begin{lstlisting}[caption={Collect particles in the X direction.}]%{{{
 for(i = 0; i < plasma->nchunks; i++)
 {
 	chunk = &plasma->chunks[i];
@@ -58,14 +60,14 @@ for(i = 0; i < plasma->nchunks; i++)
 		collect_particles_x(sim, chunk, is, global_exchange);
 	}
 }
-\end{lstlisting}
+\end{lstlisting}%}}}
 %
 The execution of the corresponding exchange particle tasks will start only if 
 the collecting step has finished in the neighbour chunks, as otherwise the 
 queues are still being written. These dependencies must be placed in all the 
 involved chunks.
 %
-\begin{lstlisting}
+\begin{lstlisting}[caption={Exchange of particles in X}]%{{{
 for (i = 0; i < plasma->nchunks; i++)
 {
 	chunk = &plasma->chunks[i];
@@ -80,15 +82,15 @@ for (i = 0; i < plasma->nchunks; i++)
 		concat_particles(chunk, next_chunk);
 	}
 }
-\end{lstlisting}
+\end{lstlisting}%}}}
 %
 Notice that in the first iteration the exchange step must wait for all the 
 collecting tasks to finish, as the particles can be moved to any chunk, and thus 
 we expect to see a slower iteration than the rest of the simulation. In the 
-following steps, only the neighbours at $i-1$, $i$ and $i+1$ are required to 
-finish the exchange process.
+following steps, only the next and previous chunk are required to finish the 
+exchange process.
 
-\begin{figure}[h]
+\begin{figure}[h]%{{{
 	\centering
 	\subfloat[Chain of dependencies observed]{
 		\includegraphics[width=0.7\textwidth]{chain}
@@ -101,7 +103,7 @@ finish the exchange process.
 	}
 	\caption{Comparison of two \texttt{paraver} traces using coloring tasks for 
 	communication.}
-\end{figure}
+\end{figure}%}}}
 %
 However, there is a problem with the previous loop: as we create the 
 dependencies with the next chunk before the next task is created, we are 
@@ -112,7 +114,7 @@ finishes.  One solution to alleviate this problem is the use of a coloring
 technique, where each task is assigned a color.  Then all tasks of the same 
 color are created first, then the ones with the next color and so on.
 %
-\begin{figure}[ht]
+\begin{figure}[ht]%{{{
 \centering
 \begin{tikzpicture}
 \node at (-1,2.5) {Chunks};
@@ -152,13 +154,14 @@ color are created first, then the ones with the next color and so on.
 \caption{The coloring technique shown with 12 chunks were the 12 tasks are 
 created with 3 colors.}
 \label{fig:coloring}
-\end{figure}
+\end{figure}%}}}
 %
 With three colors we ensure that the two tasks of the same color can run in 
 parallel without concurrent access to the same chunk, as can be seen in the 
 figure~\ref{fig:coloring}.
 %
-\begin{lstlisting}
+\begin{lstlisting}[caption={Exchange of particles in X using the coloring %{{{
+technique}]
 max_color = 3;
 
 for(color = 0; color < max_color; color++)
@@ -179,7 +182,7 @@ for(color = 0; color < max_color; color++)
 		}
 	}
 }
-\end{lstlisting}
+\end{lstlisting}%}}}
 %
 In the figure~\ref{fig:no-chain} it can be observed how the chain has now 
 disappeared, and the gaps are now fully covered by tasks running in parallel.
@@ -190,7 +193,8 @@ in any order. Then, once a task begins execution, locking the next chunk, other
 unordered chunk can be executed in any order, if their neighbour chunks are 
 unlocked.
 %
-\begin{lstlisting}
+\begin{lstlisting}[caption={Exchange of particles in X using the %{{{
+\texttt{commutative} directive.}]
 for(i = 0; i < plasma->nchunks; i++)
 {
 	chunk = &plasma->chunks[i];
@@ -204,7 +208,7 @@ for(i = 0; i < plasma->nchunks; i++)
 		concat_particles(chunk, next_chunk);
 	}
 }
-\end{lstlisting}
+\end{lstlisting}%}}}
 %
 Once all exchange tasks are completed, all particles are now placed in the 
 correct chunk in the X dimension, and only the Y movement is left.
@@ -252,7 +256,7 @@ the horizontal direction, and can be fully parallelized. Some constraints must
 be added to coordinate the vertical communications to guarantee that no 
 simultaneous writes occur in the same chunk.
 
-\begin{lstlisting}
+\begin{lstlisting}[caption={Communication of particles in the Y direction.}]
 for(i = 0; i < plasma->nchunks; i++)
 {
 	chunk = &plasma->chunks[i];
@@ -272,20 +276,20 @@ for(i = 0; i < plasma->nchunks; i++)
 	#pragma oss task in(*chunk) label(send_particles_y)
 	send_particles_y(sim, chunk, i, global_exchange);
 
-	/* We cannot create here a task as we don't know the dependencies
-	 * when using MPI */
+	/* The tasks are created inside depending on
+	 * whether we use MPI or TAMPI */
 	recv_particles_y(sim, chunk, global_exchange);
 }
 \end{lstlisting}
 
 \subsection{Mitigation of deadlocks with TAMPI}
 
-Exchanging particles between processes is slightly different when using MPI or 
-TAMPI. With the former, the design must be done with special care to avoid 
-deadlocks: Assume each chunk tags the message with the chunk index, so the 
-receiver can filter messages which are not from the vertical direction. Also, 
-consider that we have multiple chunks, more than the number of CPUs available, 
-so there are some task that cannot run in parallel and must wait.
+When using MPI to exchange particles between processes, the design must be done 
+with special care to avoid deadlocks: Assume each chunk tags the message with 
+the chunk index, so the receiver can filter messages which are not from the 
+vertical direction. Also, consider that we have multiple chunks, more than the 
+number of CPUs available, so there are some task that cannot run in parallel and 
+must wait.
 
 It may happen that some task already sent messages and has reached the reception 
 stage: it is waiting to continue and subsequently blocking the task until a 
@@ -303,13 +307,13 @@ tag.}
 \label{fig:comm_deadlock}
 \end{figure}
 
-In order to palliate the deadlock using only MPI, we can avoid using the tag as 
-a filter, so once the sending is complete, the task waits for the reception of 
-particles from any other chunk.  With this method, it is guarantee that no 
-deadlock can occur, as before a task enters the waiting state, after sending the 
-message, another task will be unlocked and can resume the execution:
+In order to palliate the deadlock, we can avoid using the tag as a filter, so 
+once the sending is complete, the task waits for the reception of particles from 
+any other chunk.  With this method, it is guarantee that no deadlock can occur, 
+as before a task enters the waiting state, after sending the message, another 
+task will be unlocked and can resume the execution:
 %
-\begin{lstlisting}
+\begin{lstlisting}[caption={Reception of particles with MPI}]
 #pragma oss task inout(*chunk) weakinout(chunk[0:Nc-1]) \
 @    commutative(*sim) label(recv_particle_packet_MPI)
 {
@@ -362,7 +366,7 @@ size may be used to hold the parts of the message while is being send. The
 message includes the complete size of the message in the header, so after the 
 reception of the first message, the whole buffer can be allocated.
 
-\begin{lstlisting}
+\begin{lstlisting}[caption={Reception of particles with TAMPI}]
 #pragma oss task out(*pkt) inout(*chunk) label(recv_particle_packet_TAMPI)
 {
 	...

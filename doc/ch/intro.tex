@@ -1,25 +1,42 @@
 \chapter{Introduction}
 \label{ch:intro}
 
-It may be surprising to find out that the most common state of matter is plasma 
-when we look at the universe. A plasma is an ionized gas consisting of ions and
-free electrons distributed over a region in space.
-in which at least one electron 
-of the atom is separated, so it remains positively charged (ionized) 
-\cite{chen}.  Usually this happens in the vacuum
+It may be surprising to find out that the most common state of matter is plasma, 
+when we look at the universe. The simulation of plasma has been increasingly 
+researched since the computers began gaining computation speed, as it is quite 
+complex and expensive to study in a physics laboratory. The particle-in-cell 
+methods are now widely used for the simulation of different plasma phenomena, as 
+they provide a good parallelization that can be exploited with today 
+supercomputers.
 
 \section{Motivation}
 
-% Why?
+The design and implementation of a plasma simulator is a useful way to find out 
+the patterns and complexities of a parallel application used in the real world.  
+Most of the existing PIC codes are highly tied to solve a specific set of 
+simulations to work on some experiments and the documentation is usually poor or 
+inexistent, and the designs are the result of years added features without a 
+clear design.
+
+Using OmpSs-2 from the beginning can lead to a higher performance execution, and 
+at the same time keep a clean and documented design.
 
 \section{Objectives}
 
-\section{Context}
+One of the main objectives of the simulation is the use of the data-flow 
+execution model provided by OmpSs-2 to find the challenging computational 
+patterns that occur in a complete and real application.
+
+Furthermore the Task Aware MPI library (TAMPI), will be compared against MPI to 
+measure the performance in communications on a complex simulation scenario.
+
+The challenges found during the design of the simulator will be used to improve 
+the current solutions provided by the programming model and propose new 
+alternatives.
 
 \section{Structure}
 %
-\begin{figure}[h]
-%\begin{wrapfigure}{O}{0.3\textwidth}
+\begin{figure}[h]%{{{
 \centering
 \scalebox{0.7} {
 \begin{tikzpicture}[>=latex,thick]
@@ -62,17 +79,29 @@ of the atom is separated, so it remains positively charged (ionized)
 		decorate,decoration={brace,amplitude=5pt,raise=10pt},
 	] (m-3-1.north east) -- (m-4-1.south east) node 
 	[black,midway,right,xshift=18pt] {Chapter~\ref{ch:discrete-model}};
+	\draw [
+		decorate,decoration={brace,amplitude=5pt,raise=10pt},
+	] (m-5-1.north east) -- (m-5-1.south east) node 
+	[black,midway,right,xshift=18pt]
+		{Chapters~\ref{ch:parallel-simulator} and~\ref{ch:comm}};
 
 \end{tikzpicture}
 }
-\caption{Principal steps in computer experiment}
+\caption{Principal steps in a computer simulation experiment}
 \label{fig:structure}
-\end{figure}
-%\end{wrapfigure}
+\end{figure}%}}}
 %
 The structure of the document follows the diagram shown in the 
-figure~\ref{fig:structure}. In chapter~\ref{ch:intro}, plasma is described as a 
-physical phenomenon and we focus on the relevant properties that we want to 
-study, from which we derive a mathematical model.  In 
-chapter~\ref{ch:plasma-sim}. The discretization of the mathematical model allows 
-the computer simulation by using numerical algorithms.
+figure~\ref{fig:structure}. In the chapter~\ref{ch:plasma-intro}, plasma is 
+described as a physical phenomenon and we focus on the relevant properties that 
+we want to study, from which we derive a mathematical model in the 
+chapter~\ref{ch:plasma-sim}. The discretization of the model allows the computer 
+simulation by using numerical algorithms, and is discussed in the 
+chapter~\ref{ch:discrete-model}. A sequential prototype is designed to test the 
+proposed model in chapter~\ref{ch:sequential}.  Then, following the techniques 
+described in the chapter~\ref{ch:techniques} a parallel simulator is build in 
+chapters~\ref{ch:parallel-simulator} and~\ref{ch:comm}.
+
+Finally, the performance of the simulator is addressed in the 
+chapter~\ref{ch:analysis}, leading to the conclusions and future work in the 
+chapter~\ref{ch:discussion}.
