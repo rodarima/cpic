@@ -120,13 +120,8 @@ field_init(sim_t *sim, field_t *f)
 
 	/* MPI requests */
 
-	f->req_phi = safe_malloc(sizeof(MPI_Request) * MAX_DIR);
-	f->req_rho = safe_malloc(sizeof(MPI_Request) * MAX_DIR);
-	for(d=0; d<MAX_DIR; d++)
-	{
-		f->req_phi[d] = NULL;
-		f->req_rho[d] = NULL;
-	}
+	f->req_phi = safe_calloc(MAX_DIR, sizeof(MPI_Request));
+	f->req_rho = safe_calloc(MAX_DIR, sizeof(MPI_Request));
 
 	/* Also the frontier buffer */
 	fshape[X] = f->shape[X];
