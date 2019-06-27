@@ -4,7 +4,32 @@
 % Write about how plasma can be simulated with a computer. The methods regarding 
 % *only* on numerical methods to simulate plasma, not the specific to HPC ones.
 
+
+\section{Everyday plasmas}
+
+It may be surprising to find out that when we look at the universe, the most
+common state of matter is plasma, which is a ionized gas formed by free
+electrons and ions at a region in space--often known as the fourth state of
+matter.
+
+Most common forms of plasma only occur in vacuum, as otherwise the air cools the
+plasma and returns to a gas. However, is quite common to find plasma in the 
+space: The sun, our closest star, is a giant ball of plasma.
+
+In our planet, we can see forms of plasma almost every day. A storm day the
+lightnings. The spark a piezoelectric lighters, which is the very same
+principle that occurs in gasoline engines, and in the lightning of a storm.
+The Aurora Borealis, of the lightning of a fluorescent tube are common examples.
+
+A precise definition of a plasma is given by Chen~\cite{chen} as \textit{``a
+quasineutral gas of charged and neutral particles which exhibits collective
+behavior''}.
+
+
 \section{The particle-in-cell method}
+
+The plasmas we are interested in study are modeled by the Vlasov equation, which 
+describes the time evolution of a distribution function of plasma $f$.
 
 %TODO: Show the main equation
 Solving the Vaslov equation requires a large amount of numerical resources. The 
@@ -23,7 +48,7 @@ interpolated back to the particle positions.
 the particle position and the particle is moved accordingly.
 \end{itemize}
 %
-\todo[inline]{Complete the description of the method}
+%\todo[inline]{Complete the description of the method}
 
 
 %\section{1D electrostatic simulation}
@@ -40,7 +65,6 @@ the particle position and the particle is moved accordingly.
 %
 %$$ $$
 
-\section{Particle mover}
 
 In order to move the particles, the equations of motion need to be solved:
 %
@@ -51,14 +75,9 @@ m \frac{d\v}{dt} = q (\E + \v \times \B)
 \frac{d\v}{dt}=\v
 \end{equation}
 %
-Several methods are available, but we will focus on the Boris integrator.
-
-\section{Charge accumulation}
-
-The charge density $\rho$ is a scalar field
-
-\section{Field equations}
-
+The charge density $\rho$ is a scalar field which describes the charge 
+accumulated by the particles, and needs to be updated when the particles move.
+%
 Once we have the charge density $\rho$ we can compute the electric field $\E$ by 
 the integration of the field equations
 %
@@ -78,4 +97,3 @@ Which can be combined into the Poisson equation
 %
 Different methods can be used to obtain the electric field, but we will focus on 
 matrix and spectral methods.
-

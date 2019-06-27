@@ -26,13 +26,12 @@ Only one dimension was implemented for the first tests, but soon extended to two
 dimensions.  The fields were allocated in contiguous arrays, with the $x$ 
 dimension aligned with the cache line, also called row-major storage.
 
-The configuration of the simulation is specified in plain configuration files,
-with the syntax defined by the \texttt{libconfig} library. Is important to allow
-the user to specify comments in the configuration files, as well as scientific
-notation in different values. Additionally, the specification of multiple species
-benefits from the sub-configuration block feature, which leads to a more
-intuitive representation. The detailed configuration is described in the
-chapter~\ref{ch:config}.
+The configuration of the simulation is specified in plain configuration files, 
+with the syntax defined by the \texttt{libconfig} library. It is important to 
+allow the user to specify comments in the configuration files, as well as 
+scientific notation in different values. Additionally, the specification of 
+multiple species benefits from the sub-configuration block feature, which leads 
+to a more intuitive representation.
 
 The solver used was initially the $LU$ decomposition, used from the $GSL$
 numeric library~\cite{gsl}, as the only focus was to obtain valid results, ignoring the
@@ -50,10 +49,20 @@ In this mode (which we will refer to as debug mode) the simulation is slowed
 down, with a top speed of 60 iterations per second, to follow the visualization 
 in the screen.
 
+
+%
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=0.95\linewidth]{sim.png}
+	\label{fig:debug-mode}
+	\caption{Example run in 2D of the simulator in debug mode.}
+\end{figure}
+
 With this mode activated, the user can observe and quickly check the overall 
 behavior of the simulation, as is designed to minimize the delay between writing 
 the configuration of the simulation and the execution. Once the simulator is 
-running, the user can see several graphs being updated.
+running, the user can see several graphs being updated as shown in the 
+figure~\ref{fig:debug-mode}.
 
 The energy measurements are always shown, including potential, kinetic and total 
 energy---the total energy must be conserved at all times. In the case of 
@@ -62,8 +71,6 @@ space, with the fields aligned vertically. However, in two dimensions the
 particles are plotted by default in the $x$-$y$ plane which corresponds to the 
 physical position in space. The fields now cannot be plotted together, an only 
 the electric potential is shown.
-
-\missingfigure{Add some pictures of the simulator in debug mode.}
 
 Once the simulation is properly tested in the debug mode, there is less chance 
 that a misconfigured setting ruins a large simulation. This mode has also being 

@@ -5,25 +5,24 @@
 \section{Conclusions}
 
 The presented simulator faces challenging computational patterns that are 
-representative in real case scenarios, which were the main aim of this work.  
+representative in real case scenarios, which were the main aim of this work. 
 
+Firstly, when using dependencies in the neighbour chunks a chain of dependencies 
+disallows the parallel execution and has been solved by the use of two different 
+techniques: the coloring of the chunks and the \texttt{commutative} directive.
 
-The parallelization of a complex simulation code cannot be fully optimal, if the 
-programmer doesn't understand the whole process. For example, other solvers are 
-available to find a solution to the field equations, but the spectral methods 
-offer a very good theoretical complexity, which leads to the decision of how the 
-space must be broken in blocks (split only one dimension), then the rest of the 
-simulator design follows.
+The model of communications used with MPI, consisting in the use of probe and 
+receive can be proposed to the inclusion into TAMPI, as the current solution 
+requires minor modifications.
 
-If the design were already chosen, the decomposition in tasks could only achieve 
-a local optimum, depending on the methods used. Even in that case, the ease of 
-task annotation is a low hanging fruit that can be tested without a big 
-redesign.
+The use of TAMPI leads to a more efficient execution and improved performance, 
+as the runtime can fully optimize the time by doing other tasks, and avoiding 
+the waiting time between MPI calls.
 
-Additionally, the TAMPI library was tested and compared with MPI, yielding 
-better results with no big changes in the communication design.
-
-\todo[inline]{Complete this}
+Using the model provided by OmpSs-2 based on tasks, the parallelization of the 
+different stages of the simulation was possible. The only step which continues 
+to be sequential is the solver, for which a proposed solution is described for 
+the future work.
 
 \section{Future work}
 
@@ -67,8 +66,8 @@ behavior without noticing. The different validation techniques provide some
 ground that the simulation follows the expected behavior, but don't guarantee 
 any correctness.
 
-Additionally, there are a large list of improvements that were planned, but may 
-be improves in a future work:
+Additionally, there are a large list of improvements that were planned and may 
+be tested in a future work:
 
 \begin{itemize}
 \item Introduce more than 2 dimensions.
@@ -79,4 +78,5 @@ be improves in a future work:
 \item Test other interpolation methods (reduce noise at computational cost).
 \item Replace simulation units, so we avoid factor multiplications.
 \item Visualization of big simulations (paraview).
+\item Introduction of probe+receive operations in TAMPI.
 \end{itemize}

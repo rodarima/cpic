@@ -68,7 +68,7 @@ The process of simulation will run for at least a minimum of 30 iterations. Then
 it will continue until the relative error is below 1\%, or the simulation time 
 exceeds 30 minutes.
 %
-All experiments were run in Mare Nostrum 4, using Intel MPI and the Intel 
+All experiments were run in MareNostrum 4, using Intel MPI and the Intel 
 \texttt{icc} compiler with the following modules:
 %\setlength{\columnsep}{-2.1in}
 \begin{multicols}{3}
@@ -83,8 +83,8 @@ All experiments were run in Mare Nostrum 4, using Intel MPI and the Intel
 \end{multicols}
 
 %
-\vspace{1em}
-\todo[inline]{Use error bars to denote CI at 95\% not std?}
+%\vspace{1em}
+%\todo[inline]{Use error bars to denote CI at 95\% not std?}
 
 \section{Performance model}
 
@@ -226,17 +226,18 @@ $8192^2$ is designed to observe the grow in time.
 \end{figure}%}}}
 %
 In the figure~\ref{fig:gridpoints-32cpus} it can be seen how the time grows with 
-the number of grid points, but the variance is much bigger than with the number 
-of particles. Notice that the dispersion is not due to random variations in the 
-execution time, as the standard deviation for each point is lower than its 
-dispersion from the common distribution. The FFTW uses an algorithm which 
-benefits from sizes that can be decomposed into the product of small multiples 
-($2^a \cdot 3^b\cdot 5^c\cdot 7^d\,\ldots$).  However the number of points in 
-the X axis must be divisible by the number of plasma chunks, and some of the 
-sizes tested had large primes in their decomposition.
+the number of grid points following the complexity $O(N_g \log N_g)$, but the 
+variance is much bigger than with the number of particles. Notice that the 
+dispersion is not due to random variations in the execution time, as the 
+standard deviation for each point is lower than its dispersion from the common 
+distribution. The FFTW uses an algorithm which benefits from sizes that can be 
+decomposed into the product of small multiples ($2^a \cdot 3^b\cdot 5^c\cdot 
+7^d\,\ldots$).  However the number of points in the X axis must be divisible by 
+the number of plasma chunks, and some of the sizes tested had large primes in 
+their decomposition.
 %
-\todo[inline]{Regenerate figure with appropriate sizes and check the dispersion 
-decreases.}
+%\todo[inline]{Regenerate figure with appropriate sizes and check the dispersion 
+%decreases.}
 %
 
 \section{Solver multithreading scalability}
@@ -680,7 +681,7 @@ strong scalability, the number of nodes is tested from 1 to 32, in powers of 2.
 In the figure~\ref{fig:weak-scaling} the simulator shows a steady efficiency, 
 which slowly decreases after the 8 nodes.
 
-\todo[inline]{Test weak scaling with constant $N_g$ per CPU.}
+%\todo[inline]{Test weak scaling with constant $N_g$ per CPU.}
 
 \section{Extended scalability}
 
@@ -691,7 +692,12 @@ varying the ratio of CPUs per process, with the drawback of increasing the
 overhead in the other phases of the computation that benefit from shared memory 
 communication, as identified in the figure~\ref{fig:fftw-u}.
 
-\todo[inline]{Complete this}
+A set of experiments with varying number of grid points were run, where the 
+number of CPUs per process is set to 1, 16 or 32. The number of total CPUs is 
+incremented to obtain the efficiency, and is shown in the 
+figure~\ref{fig:extended-scalability}.
+
+%\todo[inline]{Complete this}
 
 %\begin{figure}%{{{
 %\centering
@@ -811,5 +817,9 @@ communication, as identified in the figure~\ref{fig:fftw-u}.
 	}
 	\end{groupplot}
 \end{tikzpicture}
+\caption{Extended scalability with increasing number of total CPUs, while the 
+number of grid points is incremented. Three cases are analyzed with a number of 
+CPUs per process of 1, 16 and 32.}
+\label{fig:extended-scalability}
 
 \end{figure}%}}}
