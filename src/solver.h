@@ -10,7 +10,8 @@ typedef struct solver solver_t;
 
 enum solver_method {
 	METHOD_LU=1,
-	METHOD_MFT
+	METHOD_MFT,
+	METHOD_MFT_TAP,
 };
 
 struct solver
@@ -26,6 +27,9 @@ struct solver
 	mat_t *G;
 	fftw_complex *g;
 	fftw_plan plan;
+
+	/* Custom data for the specific solver */
+	void *data;
 };
 
 typedef struct solver solver_t;

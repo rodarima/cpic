@@ -40,8 +40,8 @@ main(int argc, char *argv[])
 {
 	sim_t *sim;
 	config_t conf;
-	const char *fn, *fn_dup;
-	char *include_dir;
+	const char *fn, *include_dir;
+	char *fn_dup;
 	int j,i, opt, prov;
 	int quiet = 0;
 	char caca[100];

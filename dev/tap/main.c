@@ -5,6 +5,9 @@
 #include <mpi.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <assert.h>
+
+#include "tap.h"
 
 #define MAX_CPUS 48
 
@@ -81,51 +84,25 @@ main(int argc, char *argv[])
 
 	n = atoi(argv[1]);
 
-	print_mask(-1);
-
-	//MPI_Barrier(MPI_COMM_WORLD);
-//	if(rank == 0)
-		printf("All parents synced\n");
-
-	launch_workers(n*size, &intercomm);
-
-	MPI_Intercomm_merge(intercomm, 0, &universe);
-	MPI_Comm_rank(universe, &key);
-
-	printf("Splitting\n");
-	MPI_Comm_split_type(universe, MPI_COMM_TYPE_SHARED, 0,
-			MPI_INFO_NULL, &node_comm);
-	printf("Split done\n");
-
-	MPI_Comm_size(node_comm, &node_size);
-	printf("The number of processes in the node_comm is %d, expecting %d\n",
-			node_size, n+1);
-
-	if(node_size != n + 1)
-	{
-		abort();
-	}
+	tap_spawn(n, "./worker", &node_comm);
 
 	bufsize = sizeof(int);
 
-	MPI_Win_allocate_shared(bufsize, sizeof(int), MPI_INFO_NULL, node_comm, &buf, &win);
+	buf = tap_shared_alloc(bufsize, node_comm);
 
 	buf[0] = 666 + rank;
 
 	printf("Parent %d sets buf[%d] = %d, buf=%p\n", rank, 0, buf[0], buf);
 
 	printf("All workers can start now\n");
-	sleep(3);
-	MPI_Barrier(universe);
+	MPI_Barrier(node_comm);
 
-	MPI_Barrier(universe);
+	MPI_Barrier(node_comm);
 	printf("All parents done\n");
 
 	printf("Main process %d finishes now\n", rank);
-	fflush(stdout);
 	MPI_Finalize();
 	printf("Main process %d finished\n", rank);
-	fflush(stdout);
 
 	return 0;
 }

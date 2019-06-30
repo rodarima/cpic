@@ -1,11 +1,12 @@
 module:=src
 
-bin:=cpic cpic.a
+bin:=cpic mft_worker cpic.a
 
 src:=$(wildcard $(module)/*.c)
 src:=$(filter-out $(wildcard $(module)/*.mcc.c),$(src))
 src:=$(filter-out $(module)/plot.c,$(src))
 src:=$(filter-out $(module)/video.c,$(src))
+src:=$(filter-out $(module)/mft_worker.c,$(src))
 
 USE_MCC?=0
 obj:=
@@ -75,6 +76,12 @@ MCC_CFLAGS:=--line-markers
 
 cpic: $(obj)
 	mcxx --ompss-2 --line-markers $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
+
+src/mft_worker.o: src/mft_worker.c
+	gcc -c -o $@ $^
+
+mft_worker: src/mft_worker.o src/tap.o src/utils.o
+	I_MPI_CC=gcc mpiicc $(CFLAGS) -o $@ $^
 
 cpic.a: $(obj_lib)
 	ar rcs $@ $^

@@ -17,6 +17,8 @@
 #include <sched.h>
 #include <nanos6/debug.h>
 
+#include "mft_tap.h"
+
 /* Where is this header? */
 //#include <fftw3_threads.h>
 
@@ -458,6 +460,9 @@ solver_init_2d(solver_t *solver, sim_t *sim)
 		case METHOD_MFT:
 			ret = MFT_init(sim, solver);
 			break;
+		case METHOD_MFT_TAP:
+			ret = MFT_TAP_init(sim, solver);
+			break;
 		default:
 			abort();
 			break;
@@ -489,6 +494,8 @@ solver_init(sim_t *sim)
 		solver->method = METHOD_LU;
 	else if(strcmp(sim->solver_method, "MFT") == 0)
 		solver->method = METHOD_MFT;
+	else if(strcmp(sim->solver_method, "MFT_TAP") == 0)
+		solver->method = METHOD_MFT_TAP;
 	else
 	{
 		err("Unknown solver method \"%s\"\n", sim->solver_method);
@@ -524,6 +531,8 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 			return LU_solve(s, phi, rho);
 		case METHOD_MFT:
 			return MFT_solve(sim, s, phi, rho);
+		case METHOD_MFT_TAP:
+			return MFT_TAP_solve(s);
 		default:
 			return -1;
 	}

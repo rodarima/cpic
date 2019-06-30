@@ -9,23 +9,33 @@
 
 
 mat_t *
-mat_alloc(int dim, int *shape)
+mat_size(int dim, int *shape)
 {
-	mat_t *m;
 	int i, size;
 
 	if(dim > MAX_DIM)
-		return NULL;
-
-	m = safe_malloc(sizeof(mat_t));
-	m->dim = dim;
+		return -1;
 
 	size = 1;
+	for(i = 0; i < dim; i++)
+		size *= shape[i];
+
+	return sizeof(mat_t) + sizeof(double) * size;
+}
+
+void
+mat_init(mat_t *m, int dim, int *shape)
+{
+	int i, size;
+
+	m->dim = dim;
+
+	size = mat_size(dim, shape);
+
 	for(i = 0; i < dim; i++)
 	{
 		m->shape[i] = shape[i];
 		m->real_shape[i] = shape[i];
-		size *= shape[i];
 		m->delta[i] = 0;
 	}
 	for(i=dim; i<MAX_DIM; i++)
@@ -39,8 +49,24 @@ mat_alloc(int dim, int *shape)
 	m->size = size;
 	m->real_size = size;
 
-	m->data = safe_malloc(sizeof(double) * size);
+	m->data = m->buf;
 	m->real_data = m->data;
+}
+
+mat_t *
+mat_alloc(int dim, int *shape)
+{
+	mat_t *m;
+	int i, size;
+
+	if(dim > MAX_DIM)
+		return NULL;
+
+	size = mat_size(dim, shape);
+
+	m = safe_malloc(sizeof(mat_t) + sizeof(double) * size);
+
+	mat_init(m, dim, shape);
 
 	return m;
 }
@@ -57,20 +83,6 @@ mat_alloc_square(int dim, int shape)
 }
 
 mat_t *
-mat_init(int dim, int *shape, double v)
-{
-	mat_t *m;
-	int i;
-
-	m = mat_alloc(dim, shape);
-
-	for(i = 0; i < m->size; i++)
-		m->data[i] = v;
-
-	return m;
-}
-
-mat_t *
 mat_view(mat_t *m, int dx, int dy, int *shape)
 {
 	mat_t *v;
@@ -80,6 +92,45 @@ mat_view(mat_t *m, int dx, int dy, int *shape)
 	assert(m->size > 0);
 
 	v = safe_malloc(sizeof(mat_t));
+	offset = dy * m->real_shape[X] + dx;
+
+	v->dim = m->dim;
+	v->data = &m->data[offset];
+	v->real_data = m->real_data;
+	v->size = -1;
+	v->real_size = m->real_size;
+
+	dbg("view dx=%d dy=%d offset=%d\n", dx, dy, offset);
+	dbg("mat at %p, view at %p\n", m->data, v->data);
+
+	v->delta[X] = m->delta[X] + dx;
+	v->delta[Y] = m->delta[Y] + dy;
+
+	for(i=0; i<v->dim; i++)
+	{
+		v->shape[i] = shape[i];
+		v->real_shape[i] = m->real_shape[i];
+	}
+	for(i=v->dim; i<MAX_DIM; i++)
+	{
+		v->shape[i] = 1;
+		v->real_shape[i] = 1;
+		v->delta[i] = m->delta[i];
+	}
+
+	return v;
+}
+
+mat_t *
+mat_view_init(mat_t *view, mat_t *m, int dx, int dy, int *shape)
+{
+	mat_t *v;
+	int i, offset;
+
+	assert(m->dim == 2);
+	assert(m->size > 0);
+
+	v = view;
 	offset = dy * m->real_shape[X] + dx;
 
 	v->dim = m->dim;

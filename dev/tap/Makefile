@@ -22,7 +22,9 @@ BIN=main worker
 
 all: $(BIN)
 
-main: main.c
+worker: tap.o
+
+main: main.c tap.o
 	$(MCC) $(CFLAGS) -o $@ $^
 
 #run: test

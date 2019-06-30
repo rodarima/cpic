@@ -12,7 +12,7 @@ LDLIBS:=
 CFLAGS:=-g -Wall
 
 # Optimization enabled
-CFLAGS+=-O3
+#CFLAGS+=-O3
 #CFLAGS:=-g -Wall -Werror
 #LDFLAGS:=-L. -Wl,-rpath,.
 

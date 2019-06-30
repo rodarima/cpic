@@ -447,7 +447,8 @@ field_phi_solve(sim_t *sim)
 {
 
 	/* We don't need the sum of the charge sum 0 if we use the MFT solver */
-	assert(sim->solver->method == METHOD_MFT);
+	assert(sim->solver->method == METHOD_MFT ||
+			sim->solver->method == METHOD_MFT_TAP);
 
 	//mat_print(b->rho, "rho after set sum to 0");
 
