@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include "mat.h"
 
@@ -536,6 +536,8 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 		default:
 			return -1;
 	}
+
+	mat_print(phi, "phi after solver");
 
 	perf_stop(&sim->timers[TIMER_SOLVER]);
 }

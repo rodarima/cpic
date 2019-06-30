@@ -105,6 +105,7 @@ field_init(sim_t *sim, field_t *f)
 
 	MAT_FILL(f->_phi, NAN);
 
+
 	/* E vector field */
 
 	E_shape[X] = sim->blocksize[X];

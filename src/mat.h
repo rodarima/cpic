@@ -32,7 +32,6 @@ typedef struct
 	int dim;
 	int real_size;
 	int size;
-	double buf[];
 } mat_t;
 
 #define mat_set(m, pos, type, v)			\
@@ -82,6 +81,8 @@ do {							\
 } while(0)
 
 
+size_t
+mat_size(int dim, int *shape);
 
 mat_t *
 mat_alloc(int dim, int *shape);

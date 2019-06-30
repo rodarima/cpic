@@ -19,4 +19,4 @@ int
 tap_child(MPI_Comm *comm);
 
 int
-tap_sort_ranks(int nmasters, MPI_Comm *new_comm);
+tap_sort_ranks(int nmasters, int nworkers, MPI_Comm *new_comm);

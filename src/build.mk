@@ -77,11 +77,14 @@ MCC_CFLAGS:=--line-markers
 cpic: $(obj)
 	mcxx --ompss-2 --line-markers $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
-src/mft_worker.o: src/mft_worker.c
-	gcc -c -o $@ $^
+WORKERS_CFLAGS=-O0 -fsanitize=address -fno-omit-frame-pointer
+#WORKERS_CFLAGS+=-DGLOBAL_DEBUG
 
-mft_worker: src/mft_worker.o src/tap.o src/utils.o
-	I_MPI_CC=gcc mpiicc $(CFLAGS) -o $@ $^
+src/mft_worker.o: src/mft_worker.c
+	gcc $(WORKERS_CFLAGS) -c -o $@ $^
+
+mft_worker: src/mft_worker.o src/tap.o src/utils.o src/mat.o
+	I_MPI_CC=gcc mpiicc $(WORKERS_CFLAGS) -lm -lfftw3_mpi -lfftw3 $(CFLAGS) -o $@ $^
 
 cpic.a: $(obj_lib)
 	ar rcs $@ $^

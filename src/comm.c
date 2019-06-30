@@ -1106,7 +1106,7 @@ pack_particles_dst(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int dst)
 		free(pkt);
 		pkt = NULL;
 		chunk->q[dst] = NULL;
-		chunk->req[dst] = NULL;
+		memset(&chunk->req[dst], 0, sizeof(MPI_Request));
 	}
 	else
 	{

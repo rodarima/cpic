@@ -23,7 +23,7 @@ CFLAGS:=-g -Wall
 #CFLAGS+=-pg
 
 # Use debug messages
-CFLAGS+=-DGLOBAL_DEBUG
+#CFLAGS+=-DGLOBAL_DEBUG
 
 # Use TAMPI
 USE_TAMPI?=1
@@ -36,7 +36,7 @@ endif
 CFLAGS+=-finstrument-functions
 
 # Debug
-#CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
+CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
 # Debug race conditions
 #CFLAGS+=-fsanitize=thread

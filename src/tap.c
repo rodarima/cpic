@@ -129,12 +129,12 @@ tap_child(MPI_Comm *comm)
 //}
 
 int
-tap_sort_ranks(int nmasters, MPI_Comm *new_comm)
+tap_sort_ranks(int nmasters, int nworkers, MPI_Comm *new_comm)
 {
 	/* FIXME: We assume the order in MPI_COMM_WORLD of a worker i of n
 	 * workers per master, of the master j of m masters, to be (i*m + j).
 	 *
-	 * Unfortunately, we want (j*m + i) */
+	 * Unfortunately, we want (j*n + i) */
 
 	int i, j, k, size, rank;
 	int *ranks;
@@ -151,9 +151,9 @@ tap_sort_ranks(int nmasters, MPI_Comm *new_comm)
 	{
 		j = k % nmasters;
 		i = k / nmasters;
-		ranks[k] = j * nmasters + i;
+		ranks[k] = j * nworkers + i;
 		if(rank == 0)
-			dbg("ranks[k=%d] = %d, i=%d, j=%d\n", k, ranks[k], i, j);
+			err("ranks[k=%d] = %d, i=%d, j=%d\n", k, ranks[k], i, j);
 	}
 
 	MPI_Comm_group(MPI_COMM_WORLD, &old);

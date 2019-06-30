@@ -8,7 +8,7 @@
 #include <assert.h>
 
 
-mat_t *
+size_t
 mat_size(int dim, int *shape)
 {
 	int i, size;
@@ -20,7 +20,7 @@ mat_size(int dim, int *shape)
 	for(i = 0; i < dim; i++)
 		size *= shape[i];
 
-	return sizeof(mat_t) + sizeof(double) * size;
+	return sizeof(double) * size;
 }
 
 void
@@ -49,7 +49,7 @@ mat_init(mat_t *m, int dim, int *shape)
 	m->size = size;
 	m->real_size = size;
 
-	m->data = m->buf;
+	//m->data = m->buf;
 	m->real_data = m->data;
 }
 
@@ -64,7 +64,8 @@ mat_alloc(int dim, int *shape)
 
 	size = mat_size(dim, shape);
 
-	m = safe_malloc(sizeof(mat_t) + sizeof(double) * size);
+	m = safe_malloc(sizeof(mat_t));
+	m->data = safe_malloc(size);
 
 	mat_init(m, dim, shape);
 
