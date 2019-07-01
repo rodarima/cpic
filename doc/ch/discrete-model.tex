@@ -148,7 +148,8 @@ Tridiagonal algorithm, Conjugate-Gradient, LU or Incomplete Decomposition.
 
 \paragraph{Spectral methods} Also known as Rapid Elliptic Solvers (RES) are a 
 family of methods that use the fast Fourier transform (FFT). Are know for being 
-usually faster than the previous ones, with a complexity in $O(N_g \log_2 N_g)$
+usually faster than the previous ones \cite{recipes}, with a complexity in 
+$O(N_g \log_2 N_g)$
 
 \vspace{1em}
 \noindent
@@ -390,7 +391,8 @@ equations can be written as
 m\frac{\v^{n+1/2} - \v^{n-1/2}}{\Delta \x} = \F(x^n)
 \end{equation}
 %
-Several methods are available, but we will focus on the Boris integrator.
+Several methods are available, but we will focus on the Boris integrator 
+\cite{boris}.
 
 \subsection{Boris integrator}
 \label{sec:boris}

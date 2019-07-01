@@ -83,7 +83,9 @@
 	morecomment=[l][\color{purple}]{\#},
 	moredelim=[il][\color{purple}]{@},
 %	abovecaptionskip=-15pt
+%	belowcaptionskip=-15pt
 }
+
 
 \usepackage{csquotes}
 
@@ -123,14 +125,71 @@
 
 \begin{document}
 
+\frontmatter
+
+%\pagenumbering{roman}
 
 \input{ch/title.tex}
+
+%\newpage
+\cleardoublepage
+
+\chapter*{Abstract}
+%\vspace*{\fill}
+%Context
+% HPC is key for scientific research
+With the increasing numerical power of supercomputing facilities, High 
+Performance Computing (HPC) has become key for scientific research.
+% The increasing complexity makes writing programs hard
+Consequently, the heterogeneous computer architectures are more complex and 
+present a challenge in order to write efficient and scalable programs.
+% OmpSs-2 tries to handle the complexity by offering a simple mechanism of tasks 
+% annotation
+The programming model provided by OmpSs-2 based in annotations in the code to 
+define tasks and dependencies, unleash a new way to develop complex applications 
+hiding the complications away from the programmer.
+%Problem
+However, it is not until a specific problem is addressed when the limitations 
+and unforeseen difficulties are observed and only then new solutions can be 
+proposed.
+
+In this project, a plasma simulator is designed and parallelized using the 
+task-flow model, while the different challenges found are used to propose 
+improvements in the programming model.
+%
+As a result, a fully functional 2D electrostatic with background magnetic field 
+plasma simulator is designed, based on the particle-in-cell method. A fast 
+spectral and parallelized solver is included with a real-time visualization 
+software.
+%
+The scalability is evaluated with various benchmarks and our results suggest 
+that the FFT leads to a bottleneck in the simulation, from which a new proposed 
+method is left to future work.
+
+
+
+% In order to improve the methodology, a close relation with real case scenario 
+% is needed
+
+%Solution
+
+% A plasma simulator offers the complexity needed to stress all areas of the
+% computation in a scientific program.
+
+%\vfill\cleardoublepage
+
+
+
 
 
 \tableofcontents
 
+%\pagenumbering{arabic}
+
+\mainmatter
+
 \input{ch/intro.tex}
-\input{ch/related-work.tex}
+%\input{ch/related-work.tex}
 
 %\part{Theory}%\\ \small \textit{No C code here}}
 

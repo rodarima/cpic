@@ -120,11 +120,11 @@ space in the Y dimension, as shown in the figure~\ref{fig:domain-decomposition},
 and each block is assigned to an MPI process. As the simulation evolves, 
 communications are needed to exchange information between processes. The 
 particles enclosed within a block also are assigned to the same process in order 
-to speed up the interpolation process. Furthermore, a second hierarchy splits 
-the particles of a process into plasma chunks, which can be processed in 
-parallel. In this case communications within the chunks of a process are not 
-needed as we can use shared memory to exchange information. Notice that the 
-number of chunks can vary to fit the number of CPUs.
+to speed up the interpolation process. Furthermore, a second level of 
+decomposition splits the particles of a process into plasma chunks, which can be 
+processed in parallel. In this case communications within the chunks of a 
+process are not needed as we can use shared memory to exchange information.  
+Notice that the number of chunks can vary to fit the number of CPUs.
 
 We will refer to a block to denote the region of space assigned to a process and 
 the grid points contained in that region. On the other hand a chunk has also a 
@@ -177,8 +177,8 @@ $-2$ to account for the extra steps.
 
 \subsection{Allocation step}
 
-After the creation of the $P$ MPI processes, the different structures to hold 
-the data are allocated. Each process is assigned a block, with the corresponding 
+After the creation of all MPI processes, the different structures to hold the 
+data are allocated. Each process is assigned a block, with the corresponding 
 fields and particles.
 
 The fields are zeroed to begin the computation and the particles must be 
@@ -535,8 +535,8 @@ interpolated in the particles, as shown in the listing~\ref{lst:particle-mover}.
 %
 \begin{figure}[ht]%{{{
 \begin{lstlisting}[
-label={lst:interpolate-E},
-caption={Interpolation of the electric field $\E$ at particle position.}]
+label={lst:particle-mover},
+caption={Movement of particles based on the interpolated field $\E$.}]
 for(i=0; i<sim->plasma.nchunks; i++)
 {
 	chunk = &sim->plasma.chunks[i];

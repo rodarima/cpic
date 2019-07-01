@@ -9,26 +9,43 @@ methods are now widely used for the simulation of different plasma phenomena, as
 they provide a good parallelization that can be exploited with today 
 supercomputers.
 
+A second big revolution began with the race for nuclear fusion, where 
+lightweight atoms are heated until they are fused together into bigger atoms and 
+subatomic particles, with the subsequent release of large amounts of energy.  
+Currently diverse research groups focus on the confinement of plasma in order to 
+heat it efficiently, so that more energy can be produced that the used to heat 
+the plasma.
+
+The turbulences and instabilities that occur in the plasma in magnetic 
+confinement are one of the points of interest to be studied by the use of 
+computer simulation, in order to obtain a successful geometry and configuration 
+to avoid the loss of energy.
+
 \section{Motivation}
 
 The design and implementation of a plasma simulator is a useful way to find out 
 the patterns and complexities of a parallel application used in the real world.  
 Most of the existing PIC codes are highly tied to solve a specific set of 
-simulations to work on some experiments and the documentation is usually poor or 
-inexistent, and the designs are the result of years added features without a 
-clear design.
+simulations to work on some experiments and the documentation is usually not 
+available or poor and the designs are the result of years added features without 
+a clear design, which hardens the task of improving the performance.
 
-Using OmpSs-2 from the beginning can lead to a higher performance execution, and 
-at the same time keep a clean and documented design.
+The introduction of a programming model based on tasks and dependencies, as is 
+the case of OmpSs-2, can free the programmer from the complexities of concurrent 
+applications. But by building a complete simulation program, the difficulties 
+and problems can be observed and addressed, benefiting other users in the 
+future. At the same time, the structure and decisions are completely documented 
+to facilitate the solution of similar problems in the future.
 
 \section{Objectives}
 
 One of the main objectives of the simulation is the use of the data-flow 
 execution model provided by OmpSs-2 to find the challenging computational 
-patterns that occur in a complete and real application.
-
+patterns that occur in a complete and real application, and to exploit at 
+maximum the available parallelism provided by the HPC clusters.
+%
 Furthermore the Task Aware MPI library (TAMPI), will be compared against MPI to 
-measure the performance in communications on a complex simulation scenario.
+measure the performance in communications in a complex simulation scenario.
 
 The challenges found during the design of the simulator will be used to improve 
 the current solutions provided by the programming model and propose new 
@@ -36,7 +53,20 @@ alternatives.
 
 \section{Structure}
 %
-\begin{figure}[h]%{{{
+The structure of the document follows the diagram shown in the 
+figure~\ref{fig:structure}. In the chapter~\ref{ch:plasma-sim}, plasma is 
+described as a physical phenomenon and we focus on the relevant properties that 
+we want to study, from which we derive a mathematical model.  The discretization 
+of the model allows the computer simulation by using numerical algorithms, and 
+is discussed in the chapter~\ref{ch:discrete-model}. A sequential prototype is 
+designed to test the proposed model in chapter~\ref{ch:sequential}.  Then, 
+following the techniques described in the chapter~\ref{ch:techniques} a parallel 
+simulator is build in chapters~\ref{ch:parallel-simulator} and~\ref{ch:comm}.
+Finally, the performance of the simulator is addressed in the 
+chapter~\ref{ch:analysis}, leading to the conclusions and future work in the 
+chapter~\ref{ch:discussion}.
+%
+\begin{figure}[ht]%{{{
 \centering
 \scalebox{0.7} {
 \begin{tikzpicture}[>=latex,thick]
@@ -80,23 +110,30 @@ alternatives.
 	] (m-5-1.north east) -- (m-5-1.south east) node 
 	[black,midway,right,xshift=18pt]
 		{Chapters~\ref{ch:parallel-simulator} and~\ref{ch:comm}};
-
 \end{tikzpicture}
 }
-\caption{Principal steps in a computer simulation experiment}
+\caption{Principal steps in a computer simulation experiment: This project 
+focuses on the parallelization step.}
 \label{fig:structure}
 \end{figure}%}}}
 %
-The structure of the document follows the diagram shown in the 
-figure~\ref{fig:structure}. In the chapter~\ref{ch:plasma-sim}, plasma is 
-described as a physical phenomenon and we focus on the relevant properties that 
-we want to study, from which we derive a mathematical model.  The discretization 
-of the model allows the computer simulation by using numerical algorithms, and 
-is discussed in the chapter~\ref{ch:discrete-model}. A sequential prototype is 
-designed to test the proposed model in chapter~\ref{ch:sequential}.  Then, 
-following the techniques described in the chapter~\ref{ch:techniques} a parallel 
-simulator is build in chapters~\ref{ch:parallel-simulator} and~\ref{ch:comm}.
 
-Finally, the performance of the simulator is addressed in the 
-chapter~\ref{ch:analysis}, leading to the conclusions and future work in the 
-chapter~\ref{ch:discussion}.
+
+\section{Related work}
+
+The simulation of plasma began with the first simulations in the 1950s with the
+John Dawson codes for 1D simulation. In 1965 Hockney and Buneman introduced the
+direct Poisson solver, which allowed the first useful electrostatic simulations.
+In the 1970s, the theory of electrostatic PIC was developed by Langdon, leading
+to the first electromagnetic codes.
+
+Finally, from 1980 to the 90s the two main bibles of particle-in-cell codes were
+produced  by B. Langdon and C. Birdsall in 1975 \cite{birdsall} and by Hockney
+and Eastwood in 1988 \cite{hockney}.
+
+At the Plasma Theory and Simulation Group of the University of California,
+Berkeley the XOOPIC \cite{xoopic} family of well known codes were released in
+the 1990s. There are a lot of specific PIC codes which are currently used for 
+the simulation of various phenomena, mostly centered in fusion reactors: 
+ELMFIRE, GENE, GTC, ORB5, PAR-T and EUTERPE \cite{euterpe}.
+

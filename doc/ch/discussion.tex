@@ -5,19 +5,20 @@
 \section{Conclusions}
 
 The presented simulator faces challenging computational patterns that are 
-representative in real case scenarios, which were the main aim of this work. 
+representative in real case scenarios, which were the main aim of this work.
 
 Firstly, when using dependencies in the neighbour chunks a chain of dependencies 
-disallows the parallel execution and has been solved by the use of two different 
-techniques: the coloring of the chunks and the \texttt{commutative} directive.
-
+prevents their parallel execution and has been solved by the use of two 
+different techniques: the coloring of the chunks and the \texttt{commutative} 
+directive.
+%
 The model of communications used with MPI, consisting in the use of probe and 
-receive can be proposed to the inclusion into TAMPI, as the current solution 
+receive can be proposed for the inclusion into TAMPI, as the current solution 
 requires minor modifications.
-
-The use of TAMPI leads to a more efficient execution and improved performance, 
-as the runtime can fully optimize the time by doing other tasks, and avoiding 
-the waiting time between MPI calls.
+%
+However, the use of TAMPI leads to a more efficient execution and improved 
+performance, as the runtime can fully optimize the time by doing other tasks and 
+avoiding the waiting time between MPI calls.
 
 Using the model provided by OmpSs-2 based on tasks, the parallelization of the 
 different stages of the simulation was possible. The only step which continues 
@@ -31,23 +32,23 @@ issues presented by the FFT, as the mitigations tested don't provide a good
 solution. One possibility is the interoperability of the OmpSs-2 runtime, 
 nanos6, with external MPI processes with an additional mechanism of 
 synchronization. In this way, the simulator can be fully parallelized, even at 
-the core level. A step by step scheme for a configuration with $C$ CPUs 
+the core level. A step by step scheme for a configuration with $c$ CPUs 
 available per node and $N$ nodes, is outlined as follows:
 %
 \begin{enumerate}
-\item Begin the simulation as usual creating $P=N$ master processes, each with 
-at least $N_c \ge 2C$ plasma chunks, to exploit the local parallelism of the $C$ 
+\item Begin the simulation as usual creating $P = N$ master processes, each with 
+at least $N_c \ge 2c$ plasma chunks, to exploit the local parallelism of the $n$ 
 CPUs.
 \item Place the fields $\rho$, $\phi$ and $\E$ in a shared memory region, 
 accessible by other child processes.
-\item Create $K$ MPI child processes in each master process, with access to the 
+\item Create $c$ MPI child processes in each master process, with access to the 
 shared memory and let them wait on a condition variable or the reception of a 
 MPI message.  Ensure the number of points $N_g$ in the vertical dimension is 
-divisible by $KP$.
+divisible by $cP$.
 \item Continue the simulation until it reaches the solver stage.
 \item Ensure all tasks are finished, and wake all the child processes and then 
 wait for them to finish.
-\item In each child process execute the distributed FFTW with $KP$ processes, 
+\item In each child process execute the distributed FFTW with $cP$ processes, 
 and use the shared memory to access the fields.
 \item Once the FFT finishes, signal the master and put each child process to 
 sleep again, waiting for a signal.

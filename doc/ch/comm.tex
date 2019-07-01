@@ -151,7 +151,7 @@ color are created first, then the ones with the next color and so on.
 %\node (ggr) [white,right of=gghost, xshift=0.2cm] {Ghost};
 %\draw[white,->] (ggr) -- (gghost);
 \end{tikzpicture}
-\caption{The coloring technique shown with 12 chunks were the 12 tasks are 
+\caption{The coloring technique shown with 12 chunks where the 12 tasks are 
 created with 3 colors.}
 \label{fig:coloring}
 \end{figure}%}}}
@@ -217,7 +217,7 @@ correct chunk in the X dimension, and only the Y movement is left.
 %TODO Place figure to describe the movement
 Once the particles are placed in the correct chunk in the X dimension, the 
 displacement to the correct chunk in the Y dimension involves sending the 
-particles to another MPI process. The steps can be resumed as
+particles to another MPI process. The steps can be resumed as:
 %
 \begin{enumerate}
 \item \texttt{collect\_particles\_y}: Place each particle out of the chunk 

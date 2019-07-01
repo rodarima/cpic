@@ -32,7 +32,7 @@ $\hat t$ and finite standard deviation $\sigma$. The sample mean $\overline T$
 can be approximated with a certain degree of confidence by a process of 
 sampling. The standard error of the mean (SEM) will be used to get a confidence 
 interval in which we can ensure the true mean is located. The standard error of 
-the mean (SEM) is defined as
+the mean is defined as:
 %
 \begin{equation}
 \epsilon = \frac{\sigma}{\sqrt{n}}
@@ -49,9 +49,10 @@ the standard error using the standard deviation of the sample $s$
 With a significance level $\alpha=0.05$ we get from the t-student distribution 
 the value $Z=1.96$, and we can obtain the confidence interval $\overline T \pm 
 \epsilon$ where we can ensure the true mean is located with a probability of 
-95\%. By setting the relative error $\delta = \epsilon / \overline T$ to be 
-lower than 1\%, we obtain the limit error $\epsilon_0$ to be $\epsilon_0 = 0.01 
-\overline T$.
+95\% \cite{ross}. By setting the relative error $\delta = \epsilon / \overline 
+T$ to be lower than 1\%, we obtain the limit error $\epsilon_0$ to be 
+$\epsilon_0 = 
+0.01 \overline T$.
 %
 Then, if we stop the simulation process when the standard error of the mean is 
 below $\epsilon_0$
@@ -68,8 +69,8 @@ The process of simulation will run for at least a minimum of 30 iterations. Then
 it will continue until the relative error is below 1\%, or the simulation time 
 exceeds 30 minutes.
 %
-All experiments were run in MareNostrum 4, using Intel MPI and the Intel 
-\texttt{icc} compiler with the following modules:
+All experiments were run in the MareNostrum 4 supercomputer \cite{mn4}, using 
+Intel MPI and the Intel \texttt{icc} compiler with the following modules:
 %\setlength{\columnsep}{-2.1in}
 \begin{multicols}{3}
 \begin{itemize}
@@ -296,19 +297,19 @@ The FFTW documentation warns about this problem, claiming that it can only
 improve the time with large enough matrices:
 %
 \begin{displayquote}
-A shared-memory machine is one in which all CPUs can directly access the same 
-main memory, and such machines are now common due to the ubiquity of multi-core 
-CPUs. FFTW’s multi-threading support allows you to utilize these additional CPUs 
-transparently from a single program. However, this does not necessarily 
-translate into performance gains---when multiple threads/CPUs are employed, 
-there is an overhead required for synchronization that may outweigh the 
-computational parallelism. Therefore, you can only benefit from threads if your 
-problem is sufficiently large.
+{\sl ``A shared-memory machine is one in which all CPUs can directly access the 
+same main memory, and such machines are now common due to the ubiquity of 
+multi-core CPUs. FFTW’s multi-threading support allows you to utilize these 
+additional CPUs transparently from a single program. However, this does not 
+necessarily translate into performance gains---when multiple threads/CPUs are 
+employed, there is an overhead required for synchronization that may outweigh 
+the computational parallelism. Therefore, you can only benefit from threads if 
+your problem is sufficiently large.''}---FFTW Online manual \cite{FFTW-manual}.
 \end{displayquote}
 %
-However, larger matrices are not useful to get more precise results, as we 
-rather prefer an increase the number of particles than grid points.
-
+However, larger matrices are not useful to get more precise results, as usually 
+is the increase in the number of particles what provides more information of the 
+behavior of plasma in complex simulations.
 
 \begin{figure}[h]%{{{
 	\centering
@@ -318,18 +319,13 @@ rather prefer an increase the number of particles than grid points.
 	\label{fig:fftw-ompss2}
 \end{figure}%}}}
 
-In order to avoid a scalability problem, another approach was tested: Add 
+In order to avoid a scalability problem, another approach was tested: Adding 
 support for OmpSs-2~in the FFTW to enable multithreading, following the same 
 structure as OpenMP. The results obtained were similar as with the pthread case, 
-but more insight was gained in how the task were being created. It shown that 
-the overhead added by the large amount of created and destructed quick tasks 
-outweight any benefit that could be gained by multithreading.
-
-We can mitigate the effect of the scaling by increasing the number of processes.  
-In order to evaluate which ratio of processes and CPUs yields the best 
-performance several configurations are tested. With a fixed number of maximum 
-CPUs available set to 32, we increase the number of processes while we reduce 
-the CPUs per process.
+but more insight was gained in how the task were being created. In the 
+figure~\ref{fig:fftw-ompss2} it can be shown that the overhead added by the 
+large amount of created tasks outweight any benefit that could be gained by 
+multithreading.
 
 \begin{figure}[h]%{{{
 	\centering
@@ -370,6 +366,18 @@ the CPUs per process.
 	characteristic U shape.}
 	\label{fig:fftw-u}
 \end{figure}%}}}
+
+We can mitigate the problem by increasing the number of MPI processes. In order 
+to evaluate which ratio of processes and CPUs yields the best performance 
+several configurations are tested. With a fixed number of maximum CPUs available 
+set to 32, we increase the number of processes while we reduce the CPUs per 
+process as shown in the figure~\ref{fig:fftw-u}.
+
+As the ratio of CPUs per process in incremented, while decreasing the number of 
+processes, the solver begins to increase the execution time. Meanwhile, the part 
+of the simulation involving the particles, which can be fully parallelized shows 
+a decrease in time. The optimal ratio for the chosen configuration seems to be 
+around 4 CPUs per process.
 
 %\begin{figure}[h]{{{
 %	\centering
