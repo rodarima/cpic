@@ -17,6 +17,14 @@
 \usetikzlibrary{matrix, arrows.meta}
 \usetikzlibrary{decorations.pathreplacing}
 
+\newcommand{\backupbegin}{
+   \newcounter{finalframe}
+   \setcounter{finalframe}{\value{framenumber}}
+}
+\newcommand{\backupend}{
+   \setcounter{framenumber}{\value{finalframe}}
+}
+
 % Scale all pgf plots, not only coordinates
 \usepackage{adjustbox}
 
@@ -85,10 +93,10 @@
   keywordstyle=\color{blue},          % keyword style
 	commentstyle=\color{gray},       % comment style
 	stringstyle=\color{brown},         % string literal style
-  escapeinside={\%*}{*)},            % if you want to add LaTeX within your code
+	escapeinside={|*}{*|},            % if you want to add LaTeX within your code
 	morecomment=[l][\color{purple}]{\#},
 	moredelim=[il][\color{purple}]{@},
-%	abovecaptionskip=-15pt
+	abovecaptionskip=-15pt
 %	belowcaptionskip=-15pt
 }
 
@@ -123,8 +131,12 @@
 % Norm
 \newcommand\norm[1]{\left\lVert#1\right\rVert}
 
-\title{Particle-in-cell plasma simulation with OmpSs-2}
-\author{Rodrigo Arias Mallo}
+\title{Particle-in-cell plasma simulation\\with OmpSs-2}
+\author{Rodrigo Arias Mallo\\
+\vspace{1em}
+{\footnotesize Director: Vicenç Beltran Querol \\
+Tutor: Jordi Torres Viñals}}
+\institute{Universitat Politècnica de Catalunya (UPC)}
 \date{\today}
 
 \begin{document}
@@ -139,24 +151,29 @@
 \section{Introduction}
 
 \begin{frame}{Introduction}
-What exactly is a plasma?
-
-Talk about 2D only.
-
-Introduce species.
-
-Plasma must be neutral.
-
-\end{frame}
-
-\begin{frame}{Introduction}
 A plasma is an almost neutral gas of charged and neutral particles which 
 exhibits collective behavior.
 
-\vspace{1em}
+\begin{center}
+\includegraphics[width=0.4\textwidth]{plasma.jpg}
+\end{center}
+
 Simulation can provide insight in the behavior of plasma without expensive 
 laboratory equipment.
 \end{frame}
+
+\begin{frame}{Motivation}
+Simulation of plasma is a real case scenario where we can test the 
+\textbf{OmpSs-2} programming model as well as the \textbf{TAMPI} library and 
+measure the performance.
+
+\vspace{1em}
+The challenges found during the development can be used to improve the current 
+solutions of the programming model and to propose new alternatives.
+\end{frame}
+
+
+
 
 \section{Model}
 
@@ -170,8 +187,9 @@ iteration between particles.
 	\frac {\partial f_j}{\partial \V v}
 =0
 \end{equation}%}}}
-Where $f_j(\x,\v,t)$ is the distribution function of the specie $j$, and the 
-fields electric $\E$ and magnetic $\B$ are determined by Maxwell equations.
+Where $f_j(\x,\v,t)$ is the distribution function of the specie $j$ (particles 
+with same mass and charge), and the fields electric $\E$ and magnetic $\B$ are 
+determined by Maxwell equations.
 \end{frame}
 
 \begin{frame}{Maxwell equations}{}
@@ -238,19 +256,6 @@ This method is known as \textbf{particle-in-cell} (PIC).
 \end{frame}
 
 \begin{frame}{The particle-in-cell method}{}
-The space of length $\V L$ is discretized into grid points with a separation 
-$\Delta \x$.
-
-\vspace{1em}
-The scalar fields $\rho$ and $\phi$ are now matrices of size $\V G = (G_x, G_y)$
-
-\vspace{1em}
-The vector field $\E$ is decomposed into $E_x$ and $E_y$, which are now matrices 
-of the same size.
-
-\end{frame}
-
-\begin{frame}{The particle-in-cell method}{}
 
 The PIC method has four main steps
 
@@ -268,26 +273,6 @@ interpolated back to the particle positions.
 \item \textbf{Particle motion}: The force is computed from the electric field at 
 the particle position and the particle is moved accordingly.
 \end{itemize}
-\end{frame}
-
-\begin{frame}{Charge accumulation}{}
-
-At each grid point $g$ at $\x$, the charge of each particle $p$ at $\x_p$ is 
-accumulated using an interpolation function $W$.
-\begin{equation}%{{{
-\rho(\x) = \sum_p q\,W(\x - \x_p) + \rho_0
-\label{eq:charge-accumulation}
-\end{equation}%}}}
-Using linear interpolation, we can define $W$ for two dimensions as
-\begin{equation}%{{{
-W(\x) =
-\begin{cases}
-			\displaystyle\left(1 - \frac{|x|}{\Delta x}\right)
-				\left(1 - \frac{|y|}{\Delta y}\right) & \text{if}\ -\Delta\x < \x < 
-				\Delta \x\\
-			0 & \text{otherwise}
-\end{cases}
-\end{equation}%}}}
 \end{frame}
 
 
@@ -396,58 +381,6 @@ We will only focus on two methods: The LU decomposition used as debug, and MFT,
 a spectral method with complexity $O(N_g \log N_g)$.
 \end{frame}
 
-\begin{frame}{LU solver}
-The Poisson equation is transformed in a linear system of $N_g$ equations (one 
-for each grid point).
-\begin{equation}
-\label{eq:eq-system}
-\nabla^2 \phi = - \frac{\rho}{\epsilon_0}
-\quad \rightarrow \quad
-A\frac{\phi}{\Delta x ^2 \Delta y^2} = -\frac{\rho}{\epsilon_0}
-\quad \rightarrow \quad
-Ax = b
-\end{equation}
-The coefficient matrix $A$ has non-zero coefficients only at $a_{ii} = 4$ and 
-$a_{ij} = -1$ with $j \in \{i+1, i-1, i+N_x, i-N_x\} \mod N_x$, for all $0 \le i 
-\le Ng$.
-
-\vspace{1em}
-The decomposition $A = LU$ is used to form two systems of equations $Ux = u$ and 
-$Ly=b$, with a computational cost of $O(N_g^3)$ (but only at the beginning), 
-which are solved in each iteration with cost $O(N_g^2)$.
-\end{frame}
-
-\begin{frame}{MFT solver}
-Let $g = $
-\begin{center}%{{{
-\begin{tikzpicture}[>=latex,thick,ampersand replacement=\&]
-	\matrix (m) [
-		matrix of nodes,
-		column sep=20mm,
-		nodes={
-			%line width=1pt,
-			anchor=center,
-			text centered,
-			%minimum width=1cm,
-			minimum height=8mm,
-		},
-%		txt/.style={text width=1.5cm,anchor=center},
-	]
-	{
-		$g$ \& $\hat g$ \& $\hat \phi$ \& $\phi$ \\
-	};
-	\foreach \i [evaluate={\j=int(\i+1)}] in {1,...,3}{
-		\draw[->] (m-1-\i) -- (m-1-\j);
-	}
-	\draw[draw=none] (m-1-1) -- (m-1-2) node[midway,above] {FFT};
-	\draw[draw=none] (m-1-2) -- (m-1-3) node[midway,above] {$\hat G$};
-	\draw[draw=none] (m-1-3) -- (m-1-4) node[midway,above] {IFFT};
-%	\draw[draw=none] (m-1-4) -- (m-1-5) node[midway,above]
-%	{Eq.~\ref{eq:phi-to-E}};
-\end{tikzpicture}
-\end{center}%}}}
-\end{frame}
-
 \section{Sequential simulator}
 
 
@@ -477,6 +410,8 @@ Both simulations in 1D and 2D are supported.
 \end{frame}
 
 \section{Parallel simulator}
+
+% Talk about the different version of the simulator (MPI pure/ hybrid)
 
 \begin{frame}{Parallelization}
 \begin{figure}[ht]%{{{
@@ -570,11 +505,233 @@ directions and the fields into blocks in the Y dimension only}
 \end{figure}%}}}
 \end{frame}
 
+%\subsection{Communications}
+
+\begin{frame}{Communication}
+
+In order to exchange data (particles and fields) we use:
+
+\begin{itemize}
+\item MPI between processes in Y.
+\item Shared memory between chunks in X.
+\end{itemize}
+
+The communication of particles is done first in X and then in Y.
+
+\end{frame}
+
+\begin{frame}[fragile]{Communication: Particles in X}
+The particles are moved in the X direction for each chunk.
+
+\begin{itemize}
+\item A dependency over both neighbour chunks is needed
+\item If we use \texttt{inout} we create a \textbf{chain of dependencies}.
+\begin{lstlisting}
+#pragma oss task |*\bf{inout}*|(*chunk, *prev_chunk, \
+@      *next_chunk) label(exchange_particles_x)
+\end{lstlisting}
+\pause
+\item We can use inout with coloring (advance the chunks by 3)
+\begin{lstlisting}
+for(color = 0; color < 3; color++) {
+	for(i = color; i < nchunks; i+=3) {
+		...
+\end{lstlisting}
+\pause
+\item Or \texttt{commutative} to avoid the chain.
+\begin{lstlisting}
+#pragma oss task |*\bf{commutative}*|(*chunk, *prev_chunk, \
+@     *next_chunk) label(collect_local_particles)
+\end{lstlisting}
+\end{itemize}
+
+% Focus on the techniques we have tested for comm in X DONE
+% Also show MPI/TAMPI techniques DONE
+
+\end{frame}
+
+\begin{frame}[fragile]{Chain of dependencies}
+% Add comparison commutative/coloring/inout(chain): DONE
+\begin{figure}[h]%{{{
+	\centering
+	\subfloat[Chain of dependencies observed with inout]{
+		\includegraphics[width=0.7\textwidth]{chain}
+		\label{fig:chain}
+	}
+	\\
+	\subfloat[Coloring+inout]{
+		\includegraphics[width=0.4\textwidth]{no-chain}
+		\label{fig:no-chain}
+	}
+	\subfloat[Commutative]{
+		\includegraphics[width=0.4\textwidth]{no-chain-commutative}
+		\label{fig:no-chain}
+	}
+	\caption{Comparison of three \texttt{paraver} traces using: inout, coloring 
+	and commutative.}
+\end{figure}%}}}
+\end{frame}
+
+\begin{frame}{Communication: Fields and particles in Y}
+Additionally to sending particles that are outside our block, we need to send 
+the ghost frontiers.
+\begin{figure}[ht]%{{{
+\centering
+\begin{adjustbox}{max totalsize={.7\textwidth}{.5\textheight},center}
+\begin{tikzpicture}
+\fill[red!20](0,4) rectangle (8,4.5);
+\draw[dashed,step=0.5] (0,4) grid (8,4.5);
+\fill[blue!20](0,3) rectangle (8,4);
+\fill[blue!20](0,0) rectangle (8,0.5);
+\draw[step=0.5] (0,0) grid (8,4);
+\fill[red!20](0,0) rectangle (8,-1);
+\draw[dashed,step=0.5] (0,0) grid (8,-1);
+\fill[green!20](8,0) rectangle (9,4);
+\draw[dashed,step=0.5] (8,-1) grid (9,4.5);
+\draw[thick](0,0) rectangle (8,4);
+
+\fill[white, radius=0.8](4,2) circle;
+\node (center) at (4,2) {\huge $\phi$};
+
+\coordinate (first) at (-0.1, 3.75);
+\node (fr) [left of=first, xshift=-0.2cm] {$\phi_0$};
+\draw[->] (fr) -- (first);
+
+\coordinate (second) at (-0.1, 3.25);
+\node (sr) [left of=second, xshift=-0.2cm] {$\phi_1$};
+\draw[->] (sr) -- (second);
+
+\coordinate (last) at (-0.1, 0.25);
+\node (sr) [left of=last, xshift=-0.2cm] {$\phi_{n_y - 1}$};
+\draw[->] (sr) -- (last);
+
+\coordinate (ghost-1) at (-0.1, 4.25);
+\node (g-1r) [left of=ghost-1, xshift=-0.2cm] {$\varphi_{-1}$};
+\draw[->] (g-1r) -- (ghost-1);
+\coordinate (ghost0) at (-0.1, -0.25);
+\node (g0r) [left of=ghost0, xshift=-0.2cm] {$\varphi_{n_y}$};
+\draw[->] (g0r) -- (ghost0);
+\coordinate (ghost1) at (-0.1, -0.75);
+\node (g1r) [left of=ghost1, xshift=-0.2cm] {$\varphi_{n_y + 1}$};
+\draw[->] (g1r) -- (ghost1);
+
+\coordinate (fft) at (9.1, 2);
+\node (fft-label) [right of=fft, xshift=0.5cm] {Padding};
+\draw[->] (fft-label) -- (fft);
+
+\coordinate (gfft) at (-1.1, 2);
+\node (gfft-label) [white,left of=gfft, xshift=-0.5cm] {Padding};
+\draw[white,->] (gfft-label) -- (gfft);
+
+\end{tikzpicture}
+\end{adjustbox}
+\caption{The electric potential $\phi$ with the ghost rows (red) and padding 
+(green)}
+\label{fig:field_phi}
+\end{figure}%}}}
+\pause
+For the vertical communication we tested MPI and TAMPI.
+\begin{itemize}
+\item MPI requires special care to avoid deadlocks: Same tag for each chunk, 
+receive the first message and process it.
+\item With TAMPI we can use a tag per chunk, but we need buffering for particles 
+as cannot use \texttt{MPI\_Probe}.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Comparison: MPI and TAMPI}
+\begin{figure}%{{{
+\centering
+	\begin{adjustbox}{max totalsize={.9\textwidth}{.7\textheight},center}
+\begin{tikzpicture}
+	\begin{groupplot}[
+		group style={
+			columns=2,
+%			rows=2,
+			horizontal sep=0.5cm,
+			ylabels at=edge left,
+			yticklabels at=edge left,
+		},
+		xmode=log,
+		log basis x=2,
+		xticklabels={0,1,2,4,8,16},
+		grid=major,
+		xmin=0,
+		ymin=0,
+		xlabel=Number of processes,
+		ylabel=Time per iteration (s),
+		height=10cm,
+		width=7cm,
+		/tikz/font=\small]
+	\nextgroupplot[
+		ymax=6,
+		title={MPI},
+%		error bars/y dir=both,
+%		error bars/y explicit
+	]
+	\foreach \Nc in {32,64,128,256,512} {
+		\edef\temp{\noexpand\addlegendentry{$N_c = \Nc$}}
+		\addplot+ table [
+			x = P,
+			y = mean,
+			y error = {rel-err},
+			col sep=tab] {perf/mpi-scaling/csv/Nc\Nc};
+		%\temp
+	}
+% Using inout is slightly slower than commutative
+%	\nextgroupplot[ymax=6,title={MPI with inout}]
+%	\foreach \Nc in {32,64,128,256,512} {
+%		\edef\temp{\noexpand\addlegendentry{$N_c = \Nc$}}
+%		\addplot+ table [
+%			x = P,
+%			y = mean,
+%			y error = {rel-err},
+%			col sep=tab] {csv/mpi-inout-scaling/Nc\Nc};
+%		%\temp
+%	}
+	\nextgroupplot[
+		ymax=6,
+		title={TAMPI},
+%		error bars/y dir=both,
+%		error bars/y explicit
+	]
+	\foreach \Nc in {32,64,128,256,512} {
+		\edef\temp{\noexpand\addlegendentry{$N_c = \Nc$}}
+		\addplot+ table [
+			x = P,
+			y = mean,
+			y error = {rel-err},
+			col sep=tab] {perf/tampi-scaling/csv/Nc\Nc};
+		\temp
+	}
+	\end{groupplot}
+\end{tikzpicture}
+	\end{adjustbox}
+\caption{Comparison of MPI and TAMPI: Using one process per node.}
+\label{fig:TAMPI}
+\end{figure}%}}}
+\end{frame}
+
+%\subsection{Solver}
+
+\begin{frame}{Solving the fields}
+\begin{itemize}
+\item In order to compute the electric field, the MFT method is used to solve 
+the Poisson equation in each iteration.
+\begin{equation}%{{{
+\nabla^2 \phi = - \frac{\rho}{\epsilon_0}
+\end{equation}%}}}
+
+\item The FFT needs to be computed and the FFTW library provides distributed and 
+multithreading support.
+
+\item However we found a very bad performance using threads.
+\end{itemize}
+\end{frame}
 
 
-\section{Results}
 
-\begin{frame}{Multithread FFT}
+\begin{frame}{Multithread FFTW}
 
 The FFTW library has a very bad performance with threads.
 
@@ -610,10 +767,26 @@ The FFTW library has a very bad performance with threads.
 		\end{adjustbox}
 	\caption{The number of CPUs is increased with only one process: the solver 
 	cannot scale and the time per iteration increases. Configuration used: $N_p = 
-	\num{5e5}$, $N_g=8192\times8192$.}
+	\num{5e5}$, $N_g=8192^2$.}
 	\label{fig:fftw-time}
 \end{figure}%}}}
 \end{frame}
+
+
+
+\begin{frame}{FFTW scalability problem}
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.7\textwidth]{fftw-1node.png}
+\caption{Trace with the solver shown in red, with 32 CPUs: The FFTW doesn't 
+scale with the number of CPUs}
+\end{figure}
+\end{frame}
+
+
+
+
+% TODO MPI vs TAMPI
 
 \begin{frame}{Strong scaling with $N_g=2048^2$}
 \begin{figure}[ht]%{{{
@@ -663,10 +836,195 @@ The FFTW library has a very bad performance with threads.
 	\label{fig:strong-scaling}
 \end{figure}%}}}
 \end{frame}
-\section{Discussion}
+
+\begin{frame}{Weak scaling with $N_g=2048^2$}
+\begin{figure}%{{{
+\centering
+\begin{adjustbox}{max totalsize={.7\textwidth}{.7\textheight},center}
+\begin{tikzpicture}
+	\begin{axis}[
+		xmode=log,
+		log basis x=2,
+		xticklabels={0,1,2,4,8,16,32},
+		grid=major,
+		xmin=0,
+		ymin=0,
+		xlabel=Number of nodes,
+		ylabel=Efficiency,
+		%height=10cm,
+		width=1.0\textwidth,
+		/tikz/font=\small]
+		\addplot+ table [
+			x = P,
+			y = speedup, %TODO: Fix the column name
+			col sep=tab] {perf/weak-scaling/csv/time.csv};
+	\end{axis}
+\end{tikzpicture}
+\end{adjustbox}
+\caption{Weak scaling with \num{1e7} particles per CPU.}
+\label{fig:weak-scaling}
+\end{figure}%}}}
+\end{frame}
+
+\begin{frame}{FFTW scaling solution}
+A solution to this problem consists in the use of additional worker processes 
+with shared memory to access the fields.
+\begin{center}
+\includegraphics[width=\textwidth]{tap.png}
+\end{center}
+Preliminary results seem to indicate an improvement in scaling, but a more 
+exhaustive evaluation is required.
+\end{frame}
+
+\section{Conclusions}
+
+\begin{frame}{Conclusions}
+By using a real case scenario as plasma simulation we found several challenges 
+to the programming model and FFTW.
+\begin{itemize}
+\item Several solutions to solve a chain of dependences between tasks were 
+provided.
+\item The performance of MPI and TAMPI was compared.
+\item The scaling problem of the FFTW library was found and a solution is being 
+developed.
+\end{itemize}
+\end{frame}
+
+\section{Future work}
+
+\begin{frame}{Future work}
+The first priority is to fix the scalability issue of the FFTW. Other future 
+ideas:
+\begin{itemize}
+\item Fully electromagnetic simulation.
+\item Better energy conserving codes / interpolation methods.
+\item Introduce more than 2 dimensions.
+\item Visualization of big simulations with \texttt{paraview}.
+\item Introduction of probe+receive operations in TAMPI.
+\end{itemize}
+\end{frame}
 
 \begin{frame}{End}
+\centering
 Thanks for your attention.
 \end{frame}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\backupbegin
+
+\begin{frame}{The particle-in-cell method}{}
+The space of length $\V L$ is discretized into grid points with a separation 
+$\Delta \x$.
+
+\vspace{1em}
+The scalar fields $\rho$ and $\phi$ are now matrices of size $\V G = (G_x, G_y)$
+
+\vspace{1em}
+The vector field $\E$ is decomposed into $E_x$ and $E_y$, which are now matrices 
+of the same size.
+
+\end{frame}
+
+\begin{frame}{Charge accumulation}{}
+
+At each grid point $g$ at $\x$, the charge of each particle $p$ at $\x_p$ is 
+accumulated using an interpolation function $W$.
+\begin{equation}%{{{
+\rho(\x) = \sum_p q\,W(\x - \x_p) + \rho_0
+\label{eq:charge-accumulation}
+\end{equation}%}}}
+Using linear interpolation, we can define $W$ for two dimensions as
+\begin{equation}%{{{
+W(\x) =
+\begin{cases}
+			\displaystyle\left(1 - \frac{|x|}{\Delta x}\right)
+				\left(1 - \frac{|y|}{\Delta y}\right) & \text{if}\ -\Delta\x < \x < 
+				\Delta \x\\
+			0 & \text{otherwise}
+\end{cases}
+\end{equation}%}}}
+\end{frame}
+
+\begin{frame}{LU solver}
+The Poisson equation is transformed in a linear system of $N_g$ equations (one 
+for each grid point).
+\begin{equation}
+\label{eq:eq-system}
+\nabla^2 \phi = - \frac{\rho}{\epsilon_0}
+\quad \rightarrow \quad
+A\frac{\phi}{\Delta x ^2 \Delta y^2} = -\frac{\rho}{\epsilon_0}
+\quad \rightarrow \quad
+Ax = b
+\end{equation}
+The coefficient matrix $A$ has non-zero coefficients only at $a_{ii} = 4$ and 
+$a_{ij} = -1$ with $j \in \{i+1, i-1, i+N_x, i-N_x\} \mod N_x$, for all $0 \le i 
+\le Ng$.
+
+\vspace{1em}
+The decomposition $A = LU$ is used to form two systems of equations $Ux = u$ and 
+$Ly=b$, with a computational cost of $O(N_g^3)$ (but only at the beginning), 
+which are solved in each iteration with cost $O(N_g^2)$.
+\end{frame}
+
+\begin{frame}{MFT solver}
+%Let $g = $
+\begin{center}%{{{
+\begin{tikzpicture}[>=latex,thick,ampersand replacement=\&]
+	\matrix (m) [
+		matrix of nodes,
+		column sep=20mm,
+		nodes={
+			%line width=1pt,
+			anchor=center,
+			text centered,
+			%minimum width=1cm,
+			minimum height=8mm,
+		},
+%		txt/.style={text width=1.5cm,anchor=center},
+	]
+	{
+		$g$ \& $\hat g$ \& $\hat \phi$ \& $\phi$ \\
+	};
+	\foreach \i [evaluate={\j=int(\i+1)}] in {1,...,3}{
+		\draw[->] (m-1-\i) -- (m-1-\j);
+	}
+	\draw[draw=none] (m-1-1) -- (m-1-2) node[midway,above] {FFT};
+	\draw[draw=none] (m-1-2) -- (m-1-3) node[midway,above] {$\hat G$};
+	\draw[draw=none] (m-1-3) -- (m-1-4) node[midway,above] {IFFT};
+%	\draw[draw=none] (m-1-4) -- (m-1-5) node[midway,above]
+%	{Eq.~\ref{eq:phi-to-E}};
+\end{tikzpicture}
+\end{center}%}}}
+\end{frame}
+
+\backupend
 
 \end{document}
