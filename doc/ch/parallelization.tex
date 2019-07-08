@@ -1,0 +1,101 @@
+\chapter{Parallelization techniques}
+\label{ch:techniques}
+
+\section{Message Passing Interface}
+
+From the need of standarize communications in a distributed computing
+environment, the first draft was proposed in 1992 at the Workshop on Standards
+for Message Passing in a Distributed Memory Environment, and has now become one
+of the most used communication protocol in HPC. The Message Passing Interface
+(MPI) provides a simple to use set of routines to allow processes distributed
+among different nodes to comunicate efficiently.
+
+\subsection{Concepts}
+
+
+\paragraph{Communicator} A communicator refers to a group of processes, in which
+each has assigned a unique identifier called the \textit{rank}.
+
+\paragraph{Point-to-point communication} In order for a process to exchange
+information with another process, the MPI standard defines what are called
+point-to-point communication routines. The most common examples are
+\texttt{MPI\_Send} to send data, and \texttt{MPI\_Recv} for the reception.
+Both routines need the rank of the process to stablish the connection.
+Additionally a tag is used to label each message, which can be specified in the
+reception to filter other messages.
+
+\paragraph{Blocking communication} The standard defines various types of
+communication methods for sending and receiving data. The so called blocking
+routines are designed such that the call does not return until the communication
+has been done. In the \texttt{MPI\_Send} case, the call returns when the sending
+data can be safely modified, as has been sent or buffered. In the case of
+\texttt{MPI\_Recv} the routine only returns when the data has been received.
+
+\paragraph{Non-blocking communication} Similarly as with the blocking
+communication, the routines \texttt{MPI\_Isend} and \texttt{MPI\_Irecv} don't
+wait until the message is sent or received to return. They return inmediately,
+and the communication status can be checked with \texttt{MPI\_Test} or the
+process can wait until the communication request has finished with
+\texttt{MPI\_Wait}.
+
+\section{OmpSs-2}
+
+OmpSs-2 is the next generation of the OmpSs programming model, composed of a set
+of directives and library routines. It combines the OpenMP-like incremental 
+parallelization approach, by means of source code annotations, with the StarSs 
+execution model, based on a thread-pool design pattern.
+
+\subsection{Concepts}
+
+\paragraph{Task} In OmpSs-2 a task is a section of code that can be executed
+independently by the runtime scheduler. Tasks may have associated dependencies
+which lets the scheduler determine in which order they must be executed.  The 
+notation used to describe a task is by the utilization of the
+\texttt{\#pragma oss} directive, for example:
+%
+\begin{lstlisting}
+#pragma oss task out(a[0:N-1]) label(Task 1)
+for(i=0; i < N; i++)
+	a[i] = 3.0 * i;
+
+#pragma oss task inout(a[0:N-1]) in(b[0:N-1]) label(Task 2)
+for(i=0; i < N; i++)
+	a[i] += b[i];
+\end{lstlisting}
+%
+The task 1 writes to the vector \texttt{a} and is stated explicitly by the 
+\texttt{out} directive. Then, the task 2 will need the values of the vector 
+\texttt{a}, so the execution must wait until the task 1 finishes.
+
+\paragraph{Parallel execution} Unless there is a unmet dependency, all tasks 
+ready to run are executed in parallel, up to the number of CPU cores available 
+to the runtime.
+
+\paragraph{Task syncronization} It may be possible that at some point in the
+execution all pending tasks are required to finish in order to continue. The
+directive \texttt{taskwait} allows the programmer to specify that the current 
+task must wait for completion of all the previously created tasks.
+
+\section{TAMPI}
+
+The Task-Aware MPI or TAMPI library provides interoperability between OmpSs-2 
+and the MPI message passing library, in order to avoid deadlocks and improve 
+performance. Two modes of operations are available: blocking and non-blocking 
+mode.
+
+\subsection{Blocking mode}
+
+When a call to a MPI function cannot be complete immediately, the task is paused 
+and other task can begin the execution. As soon as the operation completes, the 
+task is resumed to continue the execution. The main functions \texttt{MPI\_Recv} 
+and \texttt{MPI\_Send} support this mode, from the many more available in TAMPI.  
+
+\subsection{Non-blocking mode}
+
+This mode is focused on the family of non-blocking MPI operations, which return 
+immediately. The two functions \texttt{TAMPI\_Iwait} and 
+\texttt{TAMPI\_Iwaitall} are introduced with a special behaviour: once called, 
+they return immediately and the task continues the execution until the end. But 
+the completion of the task is delayed until all the communications are 
+completed.
+

@@ -1,0 +1,106 @@
+\chapter{Plasma simulation}
+\label{ch:plasma-sim}
+
+% Write about how plasma can be simulated with a computer. The methods regarding 
+% *only* on numerical methods to simulate plasma, not the specific to HPC ones.
+
+
+\section{Everyday plasmas}
+
+It may be surprising to find out that when we look at the universe, the most
+common state of matter is plasma, which is a ionized gas formed by free
+electrons and ions at a region in space--often known as the fourth state of
+matter.
+
+Most common forms of plasma only occur in vacuum, as otherwise the air cools the
+plasma and returns to a gas. However, is quite common to find plasma in the 
+space: The sun, our closest star, is a giant ball of plasma.
+
+In our planet, we can see forms of plasma almost every day. A storm day the
+lightnings. The spark a piezoelectric lighters, which is the very same
+principle that occurs in gasoline engines, and in the lightning of a storm.
+The Aurora Borealis, of the lightning of a fluorescent tube are common examples.
+
+A precise definition of a plasma is given by Chen~\cite{chen} as \textit{``a
+quasineutral gas of charged and neutral particles which exhibits collective
+behavior''}.
+
+
+\section{The particle-in-cell method}
+
+The plasmas we are interested in study are modeled by the Vlasov equation, which 
+describes the time evolution of a distribution function of plasma $f$.
+
+\begin{equation}
+{\frac {\partial f}{\partial t}}+{\frac {\operatorname {d} \mathbf {r} 
+}{\operatorname {d} t}}\cdot {\frac {\partial f}{\partial \mathbf {r} }}+{\frac 
+{\operatorname {d} \mathbf {p} }{\operatorname {d} t}}\cdot {\frac {\partial 
+f}{\partial \mathbf {p} }}=0
+\end{equation}
+
+%TODO: Show the main equation
+Solving the Vaslov equation requires a large amount of numerical resources. The 
+particle in cell method, approximates the solution by discretization of the 
+fields and by interpolation of the grid to the particles. The method is divided 
+in four main phases
+%
+\begin{itemize}
+\item \textbf{Charge accumulation}: The charge density is interpolated in the 
+grid from the particle positions.
+\item \textbf{Solve field equation}: From the charge density $\rho$ the electric 
+potential is obtained $\phi$ and then the electric field $\E$.
+\item \textbf{Interpolation of electric field}: The electric field is  
+interpolated back to the particle positions.
+\item \textbf{Particle motion}: The force is computed from the electric field at 
+the particle position and the particle is moved accordingly.
+\end{itemize}
+%
+%\todo[inline]{Complete the description of the method}
+
+
+%\section{1D electrostatic simulation}
+%The magnetic field is ignored.
+%
+%\section{2D simulation}
+%The magnetic field is not ignored.
+%
+%\section{Electromagnetism}
+%
+%\subsection{Background magnetic field}
+%
+%To introduce the magnetic field, the equations are:
+%
+%$$ $$
+
+
+In order to move the particles, the equations of motion need to be solved:
+%
+\begin{equation}
+m \frac{d\v}{dt} = q (\E + \v \times \B)
+\end{equation}
+\begin{equation}
+\frac{d\v}{dt}=\v
+\end{equation}
+%
+The charge density $\rho$ is a scalar field which describes the charge 
+accumulated by the particles, and needs to be updated when the particles move.
+%
+Once we have the charge density $\rho$ we can compute the electric field $\E$ by 
+the integration of the field equations
+%
+\begin{equation}
+\E = -\nabla \phi
+\end{equation}
+\begin{equation}
+\nabla \cdot \E = \frac{\rho}{\epsilon_0}
+\end{equation}
+%
+Which can be combined into the Poisson equation
+%
+\begin{equation}
+\label{eq:poisson}
+\nabla^2\phi = - \frac{\rho}{\epsilon_0}
+\end{equation}
+%
+Different methods can be used to obtain the electric field, but we will focus on 
+matrix and spectral methods.

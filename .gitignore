@@ -24,9 +24,15 @@ vgcore.*
 *.fls
 *.log
 *.toc
+*.bbl
+*.blg
+*.out
 log/
 extrae/function.*
 *.pcf
 *.prv
 *.row
 TRACE.sym
+doc/*.nav
+doc/*.snm
+doc/*.vrb

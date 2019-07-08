@@ -1,0 +1,466 @@
+\chapter{Discrete model}
+\label{ch:discrete-model}
+
+\epigraph{... all models are approximations. Essentially, all models are wrong, but some
+are useful. However, the approximate nature of the model must always be borne in
+mind....}{Empirical Model-Building and Response Surfaces, 1987---George E. P.  
+Box}
+
+The mathematical model is discretized in algebraic operations, in order to be 
+computable.
+
+\section{Charge assignment}
+At each grid point $g$ at $\x$ we accumulate the charge of each particle $p$ in 
+$\x_p$ as
+%
+\begin{equation}%{{{
+\rho(\x) = \sum_p q\,W(\x - \x_p) + \rho_0
+\label{eq:charge-accumulation}
+\end{equation}%}}}
+%
+The background charge density $\rho_0$ is used to neutralize the total charge 
+when is non-zero. The weighting function $W$ determines the shape of the 
+particle charge. Different schemes can be used to approximate the charge density 
+from the particles. We will focus on bilinear interpolation for it's simplicity 
+and low computation requirements. The corresponding weighting function can be 
+written as
+%
+\begin{equation}%{{{
+W(\x) =
+\begin{cases}
+			\displaystyle\left(1 - \frac{|x|}{\Delta x}\right)
+				\left(1 - \frac{|y|}{\Delta y}\right) & \text{if}\ -\Delta\x < \x < 
+				\Delta \x\\
+			0 & \text{otherwise}
+\end{cases}
+\end{equation}%}}}
+%
+Notice that a particle $p$ always affects the four enclosing grid points in the 
+neighbourhood $\neigh{p}$, but more complex interpolation methods may extend the 
+update region even further. It may be noted that the increase in smoothing, at 
+computation expense, can gain from the reduced number of particles needed to 
+obtain a similar result, avoiding nonphysical effects.
+%
+\begin{figure}[]%{{{
+\centering
+\begin{tikzpicture}[
+		>=latex,
+		effect/.style={dashed,-{Latex[length=3mm, width=1mm]}},
+		particle/.style={fill=black,radius=3pt},
+	]
+	\draw [step=2cm,dotted] (1,1) grid (5,5);
+	\coordinate (p) at (2.5,3.2);
+	\coordinate (center) at (3,3);
+	\coordinate (A) at ($(center)+(-1,1)$);
+	\coordinate (B) at ($(center)+(1,1)$);
+	\coordinate (C) at ($(center)+(1,-1)$);
+	\coordinate (D) at ($(center)+(-1,-1)$);
+	\draw[effect] (p) -- (A);
+	\draw[effect] (p) -- (B);
+	\draw[effect] (p) -- (C);
+	\draw[effect] (p) -- (D);
+	\node[above left]  at (A) {$A$};
+	\node[above right] at (B) {$B$};
+	\node[below right] at (C) {$C$};
+	\node[below left]  at (D) {$D$};
+	\draw[particle] (p) circle;
+	\node[left] at (p) {$p$};
+\end{tikzpicture}
+\hspace{0.5cm}
+\begin{tikzpicture}[
+		>=latex,
+		box/.style={black},
+		particle/.style={fill=black,radius=3pt},
+		div/.style={dashed},
+	]
+	\draw [step=2cm,dotted] (1,1) grid (5,5);
+	\coordinate (p) at (2.5,3.2);
+	\coordinate (center) at (3,3);
+	\coordinate (A) at ($(p)+(-1,1)$);
+	\coordinate (B) at ($(p)+(1,1)$);
+	\coordinate (C) at ($(p)+(1,-1)$);
+	\coordinate (D) at ($(p)+(-1,-1)$);
+	\draw[box] (A) -- (B) -- (C) -- (D) -- (A);
+	\draw[div] ($(A)!(center)!(B)$) -- (center);
+	\draw[div] ($(B)!(center)!(C)$) -- (center);
+	\draw[div] ($(C)!(center)!(D)$) -- (center);
+	\draw[div] ($(D)!(center)!(A)$) -- (center);
+	\node at ($(center)!0.5!(A)$) {$a$};
+	\node at ($(center)!0.5!(B)$) {$b$};
+	\node at ($(center)!0.5!(C)$) {$c$};
+	\node at ($(center)!0.5!(D)$) {$d$};
+	\draw[particle] (p) circle;
+\end{tikzpicture}
+\hspace{0.5cm}
+\begin{tikzpicture}[
+		>=latex,
+		box/.style={black},
+		particle/.style={fill=black,radius=3pt},
+		div/.style={dashed},
+	]
+	\draw [step=2cm,dotted] (1,1) grid (5,5);
+	\coordinate (p) at (2.5,3.2);
+	\coordinate (center) at (3,3);
+	\coordinate (A) at ($(center)+(-1,1)$);
+	\coordinate (B) at ($(center)+(1,1)$);
+	\coordinate (C) at ($(center)+(1,-1)$);
+	\coordinate (D) at ($(center)+(-1,-1)$);
+	\draw[box] (A) -- (B) -- (C) -- (D) -- (A);
+	\draw[div] ($(A)!(p)!(B)$) -- (p);
+	\draw[div] ($(B)!(p)!(C)$) -- (p);
+	\draw[div] ($(C)!(p)!(D)$) -- (p);
+	\draw[div] ($(D)!(p)!(A)$) -- (p);
+	\node at ($(p)!0.5!(A)$) {$c$};
+	\node at ($(p)!0.5!(B)$) {$d$};
+	\node at ($(p)!0.5!(C)$) {$a$};
+	\node at ($(p)!0.5!(D)$) {$b$};
+	\draw[particle] (p) circle;
+\end{tikzpicture}
+\caption{Interpolation of particle $p$ charge into the four grid points A to D.}
+\label{fig:interpolation}
+\end{figure}%}}}
+%
+The particle $p$ has a uniform charge area, centered at the particle position 
+$\x_p$, with size $\Delta \x$, as shown in the figure~\ref{fig:interpolation}.  
+Each grid point $A,B,C$ and $D$ receives the amount of charge weighed by the 
+area $a,b,c$ and $d$. It can be observed that the area is equal to the opposite 
+region, when the particle $p$ is used to divide the grid cell.
+%
+The particle shape can be altered later in the Fourier space, without large 
+computation effort, in case the solver already computes the FFT.
+%
+\section{Field equations}
+
+In order to compute the electric field $\E$, the electric potential $\phi$ is 
+generally needed, which can be obtained from the charge density $\rho$.
+
+\subsection{Electric potential}
+Several methods are available to solve the Poisson equation 
+(Eq.~\ref{eq:poisson}).
+
+\paragraph{Iterative  methods} such as Jacobi, Gauss-Seidel, Successive Over 
+Relaxation (SOR), Chebyshev acceleration are some of the most familiar methods 
+to solve the Poisson equation.
+
+\paragraph{Matrix methods} The equations from finite differencing the mesh are 
+considered a large system of equations. We can find in this methods the Thomas 
+Tridiagonal algorithm, Conjugate-Gradient, LU or Incomplete Decomposition.
+
+\paragraph{Spectral methods} Also known as Rapid Elliptic Solvers (RES) are a 
+family of methods that use the fast Fourier transform (FFT). Are know for being 
+usually faster than the previous ones \cite{recipes}, with a complexity in 
+$O(N_g \log_2 N_g)$
+
+\vspace{1em}
+\noindent
+%
+We will only focus on the LU for small problems and for testing, and spectral 
+methods, more specific on the Multiple Fourier Transform (MTF) method, as it is 
+the main method implemented in the simulator, due to its relative simplicity and 
+low computational complexity.
+
+\subsection{LU decomposition}
+%
+% TODO: Check the error bound
+For two dimensions, we can approximate the solution using the second order 
+centered finite differences (with an error proportional to $\Delta x ^2 \Delta 
+y^2$), as
+%
+\begin{equation}%{{{
+\label{eq:discrete-poisson}
+\frac{\phi(x-1, y) + \phi(x, y-1) - 4\phi(x,y) + \phi(x+1,y)+\phi(x,y+1)}{\Delta 
+x ^2 \Delta y^2} = - \frac{\rho(x,y)}{\epsilon_0}
+\end{equation}%}}}
+%
+which leads to a system of $N_g$ linear equations and can be also written in 
+matrix form
+%
+\begin{equation}
+\label{eq:eq-system}
+A\phi = -\frac{\Delta x ^2 \Delta y^2\,\rho}{\epsilon_0}
+\end{equation}
+%
+The $N_g \times N_g$ coefficient matrix $A$ has non-zero coefficients only at 
+$a_{ii} = 4$ and $a_{ij} = -1$ with $j \in \{i+1, i-1, i+N_x, i-N_x\} \mod N_x$, 
+for all $0 \le i \le Ng$.
+%
+However, the matrix $A$ is singular, so the system of equations has infinite 
+solutions. Boundary conditions can be added to get a unique solution. The extra 
+equation $\phi(0,0) = 0$ leads to a system with only one solution, but with one 
+extra equation. In order to keep the matrix $A$ square, the following steps may 
+be taken:
+
+\begin{enumerate}
+\item Subtract  the extra equation $\phi(0,0) = 0$ to the first row of $A$, with 
+the only change in the coefficient to $a_{11} = 3$.
+
+\item Add all first $N_g$ equations: Each equation has one coefficient of $4$ 
+and four of $-1$ except the first equation. Also we assume the total charge 
+density is zero, obtaining $\phi(0,0) = 0$.
+
+\item Subtract it from the last equation, which leads to a zero coefficient that 
+can be removed.
+\end{enumerate}
+%
+The only change that remains is at the coefficient $a_{11} = 3$. Now the matrix 
+$A$ is squared and non-singular and has only one solution and can now be solved 
+with the $LU$ method.
+
+The $LU$ decomposition, with a complexity in $O(2/3N_g^3)$, can be used to form 
+two systems of equations that can be solved faster. If we rewrite the system of 
+equations~\ref{eq:eq-system} as the usual form $Ax=b$ with
+\begin{equation}
+x = \phi,\quad b = -\frac{\Delta x ^2 \Delta y^2\,\rho}{\epsilon_0}
+\end{equation}
+%
+Then we can use the decomposition $A=LU$ to form two systems of equations
+%
+\begin{equation}
+\label{eq:LU-systems}
+Ux=y, \quad Ly=b
+\end{equation}
+%
+which can be solved in complexity $O(2N_g^2)$.
+
+
+\subsection{Multiple Fourier Transform (MFT)}
+
+The general second-order PDE with constant coefficients and periodic boundary 
+conditions
+%
+\begin{equation}%{{{
+\label{eq:gen-fd}
+a \frac{\partial^2 \phi}{\partial x^2}+b\frac{\partial \phi}{\partial x}+c\phi +
+d \frac{\partial^2 \phi}{\partial y^2}+e\frac{\partial \phi}{\partial y}+f\phi = 
+g(x,y)
+\end{equation}%}}}
+%
+can be solved by using the FFT. If we expand $\phi$ and $g$ in a finite double 
+Fourier series, we obtain
+%
+\begin{equation}%{{{
+\phi(x,y) = \sum_{k,l} \hat \phi(k, l) \exp\left({\frac{2\pi i (xk + 
+yl)}{n}}\right)
+\end{equation}%}}}
+%
+and
+%
+\begin{equation}%{{{
+g(x,y) = \sum_{k,l} \hat g(k, l) \exp\left({\frac{2\pi i (xk + yl)}{n}}\right)
+\end{equation}%}}}
+%
+which now can be substituted in the Eq.~\ref{eq:gen-fd}, to obtain
+%
+\begin{equation}%{{{
+\hat \phi(k,l) = \hat G(k,l) \, \hat g(k,l),\quad 0<k<N_x,\,0<l<N_y
+\end{equation}%}}}
+%
+with for a unit mesh
+%
+\begin{equation}%{{{
+\begin{split}
+\hat G(k,l) = \Bigg[
+& 2a \left( \cos \frac{2\pi k}{n} - 1 \right) +
+ib \sin \frac{2\pi k}{n} + c \,+ \\
+& 2d \left( \cos \frac{2\pi l}{n} - 1 \right) +
+ie \sin \frac{2\pi l}{n} + f
+\Bigg]^{-1}
+\end{split}
+\end{equation}%}}}
+%
+To solve the Poisson equation, discretized as Eq.~\ref{eq:discrete-poisson}, we 
+have $a=d=1$ and $b=c=e=f=0$ so we can simplify $\hat G(k,l)$ as
+%
+\begin{equation}%{{{
+\hat G(k,l) = \frac{1}{2}\left[
+\cos \frac{2\pi k}{n} +
+\cos \frac{2\pi l}{n} -
+2 \right]^{-1}
+\end{equation}%}}}
+%
+Let $g = -{\Delta x ^2 \Delta y^2\,\rho}/{\epsilon_0}$, then the steps to 
+compute the electric potential can be summarized as follows:
+%
+\begin{center}%{{{
+\begin{tikzpicture}[>=latex,thick]
+	\matrix (m) [
+		matrix of nodes,
+		column sep=20mm,
+		nodes={
+			%line width=1pt,
+			anchor=center,
+			text centered,
+			%minimum width=1cm,
+			minimum height=8mm,
+		},
+%		txt/.style={text width=1.5cm,anchor=center},
+	]
+	{
+		$g$ & $\hat g$ & $\hat \phi$ & $\phi$ \\%& $\E$\\
+	};
+	\foreach \i [evaluate={\j=int(\i+1)}] in {1,...,3}{
+		\draw[->] (m-1-\i) -- (m-1-\j);
+	}
+	\draw[draw=none] (m-1-1) -- (m-1-2) node[midway,above] {FFT};
+	\draw[draw=none] (m-1-2) -- (m-1-3) node[midway,above] {$\hat G$};
+	\draw[draw=none] (m-1-3) -- (m-1-4) node[midway,above] {IFFT};
+%	\draw[draw=none] (m-1-4) -- (m-1-5) node[midway,above]
+%	{Eq.~\ref{eq:phi-to-E}};
+\end{tikzpicture}
+\end{center}%}}}
+%
+\begin{enumerate}
+\item Compute the complex FFT $\hat g$ of $g$
+\item Multiply each element of $\hat g$ by the corresponding complex coefficient 
+$\hat G$, to obtain $\hat \phi$
+\item Compute the inverse FFT of $\hat \phi$ to get $\phi$
+\end{enumerate}
+%
+The complexity in the worst case is in $O(N_g \log_2 N_g)$ with the number of 
+total points in the grid $N_g$.
+
+\subsection{Electric field}
+The electric field $\E$ can then be obtained by centered first order finite 
+differences in each dimension
+%
+\begin{equation}%{{{
+\begin{split}
+\label{eq:phi-to-E}
+\E_x(x,y) &= \frac{\phi(x-1,y) - \phi(x+1,y)}{2\,\Delta x} \\
+\E_y(x,y) &= \frac{\phi(x,y-1) - \phi(x,y+1)}{2\,\Delta y}
+\end{split}
+\end{equation}%}}}
+%
+
+\section{Force interpolation}
+
+The force acting on a particle $p$ can be decomposed in two main parts, the 
+electric and magnetic force
+\begin{equation}
+\label{eq:force}
+\F=\F_E + \F_B
+\end{equation}
+
+The electric force $\F_E$ is computed similarly as the charge deposition, but in 
+the reverse order. The force $\F_E$ is interpolated from the electric field $\E$ 
+of the neighbour grid points $\neigh{p}$, using the same interpolation function 
+$W$.
+\begin{equation}%{{{
+\begin{split}
+\F_E &= q \sum_{g \in \neigh{p}} W(\x_p - \x_g)\ \E(\x_g) \\
+\end{split}
+\end{equation}%}}}
+Notice that a particle $p$ only needs the values of the electric field in the 
+neighbourhood $\neigh{p}$.
+
+The magnetic force $\F_B$ is constant in the simulator, as we only consider a 
+fixed background magnetic field $\B_0$. For a particle $p$ with velocity $\v$  
+can be written as
+%
+\begin{equation}%{{{
+\F_B = q (\v \times \B_0)
+\end{equation}%}}}
+
+
+\section{Equations of motion}
+\label{sec:motion}
+
+In order to move the particles, the equations of motion need to be solved:
+%
+\begin{equation}
+\frac{d\x}{dt}=\v
+\end{equation}
+\begin{equation}
+m \frac{d\v}{dt} = \F
+\end{equation}
+%
+The \textit{leap-frog} method is a common integration scheme with second-order 
+accuracy and an error proportional to $\Delta t^2$. The name describes de 
+behavior of the position and velocity, which are updated at interleaved time 
+steps, similarly to the trajectory of a frog. The method is time reversible with 
+an stability far superior of other higher-order integration methods, such as 
+fourth order Runge-Kutta. A more in depth stability analysis can be found in 
+Chapter 4 of Hockney and Eastwood book~\cite{hockney}.  The discretized 
+equations can be written as
+%
+\begin{equation}
+\frac{\x^{n+1} - \x^{n}}{\Delta \x} = \v^{n + 1/2}
+\end{equation}
+%
+\begin{equation}
+m\frac{\v^{n+1/2} - \v^{n-1/2}}{\Delta \x} = \F(x^n)
+\end{equation}
+%
+Several methods are available, but we will focus on the Boris integrator 
+\cite{boris}.
+
+\subsection{Boris integrator}
+\label{sec:boris}
+
+Consists of three steps:
+%
+\begin{enumerate}
+\item Add half of the electric impulse
+\item Rotate
+\item Add the remaining half electric impulse
+\end{enumerate}
+%
+The Boris integrator computes the velocity of a particle in a constant electric 
+field $\E$ and a constant magnetic field $\B$. We have the velocity 
+$\v_{t-\Delta t/2}$ of the particle at $t-\Delta t/2$ as we use the leapfrog 
+integrator.
+%
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+	scale=2,
+	>=latex]
+
+	\def\centerarc[#1](#2)(#3:#4:#5)% Syntax: [draw options] (center) (initial angle:final angle:radius)
+		{\draw[#1] ($(#2)+({#5*cos(#3)},{#5*sin(#3)})$) arc (#3:#4:#5); }
+
+	\def\startangle{-25}
+	\def\midangle{0}
+	\def\endangle{25}
+	\def\radius{2.0}
+	\pgfmathsetmacro{\vlen}{\radius*tan(\startangle)}%
+
+	\coordinate (O) at (0,0);
+	\coordinate (S) at (\startangle:\radius);
+	\coordinate (E) at (\endangle:\radius);
+
+%	\centerarc[dashed](O)(\startangle:\endangle:\radius);
+	\centerarc[->](O)(\startangle:\endangle:0.2*\radius);
+
+	\draw (O)+(0.4,0.1) node [right] {$\theta$};
+
+	\draw [thick,->] (O) -- (E) node [midway, above] {$\V{v^+}$};
+	\draw [thick,->] (O) -- (S) node [midway, below] {$\V{v^-}$};
+
+	\path (S) +(\startangle-90:\vlen) coordinate (V1E);
+%	\path (E) +(\endangle-90:\vlen) coordinate (V3E);
+
+%	%\draw [->] (E) -- (V3E);
+	\draw [->] (S) -- (V1E) node [midway, right] {$\V{v'} \times \V t$};
+%
+	\draw [->] (O) -- (V1E) node [midway, above] {$\V{v'}$};
+	\draw [->] (S) -- (E) node [near end, right] {$\V{v'} \times \V s$};
+
+%	\draw [fill=white] (O) circle (0.02);
+
+\end{tikzpicture}
+\caption{Velocity space rotation from $\v-$ to $\v+$}
+\end{figure}
+%
+\paragraph{Add half electric impulse} We define $\V{v^-}$ as the velocity after 
+half a electric impulse:
+$$\v^- = \v_{t-\dt/2} + \frac{q \E}{m} \frac{\dt}{2}$$
+
+\paragraph{Rotate for the magnetic field} The rotation is done in two steps, 
+first the half rotation is computed, with an angle of $\theta/2$:
+$$\v' = \v^- + \v^- \times \V t $$
+
+Then the rotation is completed by symmetry, using the $\V s$ vector
+$$ \V s = \frac{2 \V t}{1 + \V t^2} $$
+as
+$$ \V{v^+} = \V{v^-} + \V{v}' \times \V{s} $$

@@ -1,0 +1,83 @@
+\chapter{Discussion}
+\label{ch:discussion}
+
+
+\section{Conclusions}
+
+The presented simulator faces challenging computational patterns that are 
+representative in real case scenarios, which were the main aim of this work.
+
+Firstly, when using dependencies in the neighbour chunks a chain of dependencies 
+prevents their parallel execution and has been solved by the use of two 
+different techniques: the coloring of the chunks and the \texttt{commutative} 
+directive.
+%
+The model of communications used with MPI, consisting in the use of probe and 
+receive can be proposed for the inclusion into TAMPI, as the current solution 
+requires minor modifications.
+%
+However, the use of TAMPI leads to a more efficient execution and improved 
+performance, as the runtime can fully optimize the time by doing other tasks and 
+avoiding the waiting time between MPI calls.
+
+Using the model provided by OmpSs-2 based on tasks, the parallelization of the 
+different stages of the simulation was possible. The only step which continues 
+to be sequential is the solver, for which a proposed solution is described for 
+the future work.
+
+\section{Future work}
+
+The main problem to be solved in the simulator is to address the scalability 
+issues presented by the FFT, as the mitigations tested don't provide a good 
+solution. One possibility is the interoperability of the OmpSs-2 runtime, 
+nanos6, with external MPI processes with an additional mechanism of 
+synchronization. In this way, the simulator can be fully parallelized, even at 
+the core level. A step by step scheme for a configuration with $c$ CPUs 
+available per node and $N$ nodes, is outlined as follows:
+%
+\begin{enumerate}
+\item Begin the simulation as usual creating $P = N$ master processes, each with 
+at least $N_c \ge 2c$ plasma chunks, to exploit the local parallelism of the $n$ 
+CPUs.
+\item Place the fields $\rho$, $\phi$ and $\E$ in a shared memory region, 
+accessible by other child processes.
+\item Create $c$ MPI child processes in each master process, with access to the 
+shared memory and let them wait on a condition variable or the reception of a 
+MPI message.  Ensure the number of points $N_g$ in the vertical dimension is 
+divisible by $cP$.
+\item Continue the simulation until it reaches the solver stage.
+\item Ensure all tasks are finished, and wake all the child processes and then 
+wait for them to finish.
+\item In each child process execute the distributed FFTW with $cP$ processes, 
+and use the shared memory to access the fields.
+\item Once the FFT finishes, signal the master and put each child process to 
+sleep again, waiting for a signal.
+\item In the master process, the $\phi$ field is now ready in the shared memory 
+region. If the simulation is not finished, go to step 4.
+\end{enumerate}
+%
+The key concept is that we are moving temporally the threads of the OmpSs-2 
+runtime away from the CPUs to let the MPI processes of the FFTW take control of 
+the full parallelism using all the available CPUs. No change is needed in the 
+FFTW library, and this method may benefit other programs with similar issues.
+
+On the other hand, the physical results must be validated with a direct 
+comparison with other simulators, as is very easy simulate non-realistic 
+behavior without noticing. The different validation techniques provide some 
+ground that the simulation follows the expected behavior, but don't guarantee 
+any correctness.
+
+Additionally, there are a large list of improvements that were planned and may 
+be tested in a future work:
+
+\begin{itemize}
+\item Introduce more than 2 dimensions.
+\item Fully electromagnetic simulation.
+\item Relativistic particle movement.
+\item Heterogeneous architecture (GPU+CPU).
+\item Better energy conserving codes.
+\item Test other interpolation methods (reduce noise at computational cost).
+\item Replace simulation units, so we avoid factor multiplications.
+\item Visualization of big simulations (paraview).
+\item Introduction of probe+receive operations in TAMPI.
+\end{itemize}
