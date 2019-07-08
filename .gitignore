@@ -28,3 +28,6 @@ vgcore.*
 *.blg
 *.out
 log/
+doc/*.nav
+doc/*.snm
+doc/*.vrb
