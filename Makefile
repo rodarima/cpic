@@ -2,7 +2,7 @@ MODULES:=src test
 #MODULES+=test user
 
 
-#CC=gcc
+GCC=gcc
 #CC=clang
 #CC=mcc --ompss-2 --line-markers
 #I_MPI_CC=mcc
@@ -12,7 +12,7 @@ LDLIBS:=
 CFLAGS:=-g -Wall
 
 # Optimization enabled
-#CFLAGS+=-O3
+CFLAGS+=-O3
 #CFLAGS:=-g -Wall -Werror
 #LDFLAGS:=-L. -Wl,-rpath,.
 
@@ -23,7 +23,7 @@ CFLAGS:=-g -Wall
 #CFLAGS+=-pg
 
 # Use debug messages
-#CFLAGS+=-DGLOBAL_DEBUG
+CFLAGS+=-DGLOBAL_DEBUG
 
 # Use TAMPI
 USE_TAMPI?=1
@@ -36,7 +36,7 @@ endif
 CFLAGS+=-finstrument-functions
 
 # Debug
-CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
+#CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
 # Debug race conditions
 #CFLAGS+=-fsanitize=thread
@@ -76,8 +76,8 @@ ifeq ($(HOSTNAME), mio)
  ENV_RANK=PMIX_RANK
 else
  NNODES?=1
- PROCS_PER_NODE?=4
- CPUS_PER_TASK?=4
+ PROCS_PER_NODE?=1
+ CPUS_PER_TASK?=32
 # MPIRUN=mpirun --bind-to core -n $(PROCS_PER_NODE) --map-by NUMA:PE=$(CPUS_PER_TASK)
  #MPIRUN=mpirun -n $(PROCS_PER_NODE) --map-by node:pe=$(CPUS_PER_TASK)
  #ENV_RANK=PMIX_RANK
@@ -108,9 +108,9 @@ DEP:=$(patsubst %.c,%.d, $(filter %.c,$(SRC)))
 include $(DEP)
 
 # determine the object files
-OBJ += \
-$(patsubst %.c,%.o, $(filter %.c,$(SRC))) \
-$(patsubst %.y,%.o, $(filter %.y,$(SRC)))
+#OBJ += \
+#$(patsubst %.c,%.o, $(filter %.c,$(SRC))) \
+#$(patsubst %.y,%.o, $(filter %.y,$(SRC)))
 #
 #$(info $$SRC is [${SRC}])
 #$(info $$OBJ is [${OBJ}])

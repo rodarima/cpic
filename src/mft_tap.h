@@ -54,3 +54,6 @@ MFT_TAP_init(sim_t *sim, solver_t *solver);
 
 int
 MFT_TAP_solve(solver_t *s);
+
+int
+MFT_TAP_end(solver_t *s);

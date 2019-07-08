@@ -69,9 +69,9 @@ tap_spawn(int n, char *cmd, MPI_Comm *comm)
 
 	MPI_Comm_size(*comm, &node_size);
 
-	assert(node_size == n + 1);
-
 	dbg("Communicator with workers has %d processes\n", node_size);
+
+	assert(node_size == n + 1);
 
 	return 0;
 }
@@ -152,14 +152,15 @@ tap_sort_ranks(int nmasters, int nworkers, MPI_Comm *new_comm)
 		j = k % nmasters;
 		i = k / nmasters;
 		ranks[k] = j * nworkers + i;
-		if(rank == 0)
-			err("ranks[k=%d] = %d, i=%d, j=%d\n", k, ranks[k], i, j);
+		//if(rank == 0)
+		//	err("ranks[k=%d] = %d, i=%d, j=%d\n", k, ranks[k], i, j);
 	}
 
 	MPI_Comm_group(MPI_COMM_WORLD, &old);
 
 	MPI_Group_incl(old, size, ranks, &new);
 	MPI_Comm_create(MPI_COMM_WORLD, new, new_comm);
+	dbg("Reorder complete for %d\n", rank);
 
 	free(ranks);
 

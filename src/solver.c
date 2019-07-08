@@ -3,11 +3,14 @@
 #include "log.h"
 #include "mat.h"
 
+
 #include "solver.h"
 #include "utils.h"
 #include <stdio.h>
 #include <math.h>
-#include <gsl/gsl_linalg.h>
+#ifdef WITH_LU
+ #include <gsl/gsl_linalg.h>
+#endif
 #include <assert.h>
 #include <string.h>
 
@@ -30,6 +33,7 @@ void fftw_plan_with_nthreads(int nthreads);
 #define WITH_FFTW3_THREADS
 
 
+#ifdef WITH_LU
 int
 LU_init(solver_t *s)
 {
@@ -160,6 +164,7 @@ LU_solve(solver_t *s, mat_t *phi, mat_t *rho)
 
 	return 0;
 }
+#endif /* WITH_LU */
 
 int
 MFT_init(sim_t *sim, solver_t *s)
@@ -454,9 +459,11 @@ solver_init_2d(solver_t *solver, sim_t *sim)
 
 	switch(solver->method)
 	{
+#ifdef WITH_LU
 		case METHOD_LU:
 			ret = LU_init(solver);
 			break;
+#endif
 		case METHOD_MFT:
 			ret = MFT_init(sim, solver);
 			break;
@@ -527,8 +534,10 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 
 	switch(s->method)
 	{
+#ifdef WITH_LU
 		case METHOD_LU:
 			return LU_solve(s, phi, rho);
+#endif
 		case METHOD_MFT:
 			return MFT_solve(sim, s, phi, rho);
 		case METHOD_MFT_TAP:
@@ -540,4 +549,15 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 	mat_print(phi, "phi after solver");
 
 	perf_stop(&sim->timers[TIMER_SOLVER]);
+}
+
+int
+solver_end(sim_t *sim, solver_t *solver)
+{
+	if(solver->method == METHOD_MFT_TAP)
+	{
+		MFT_TAP_end(solver);
+	}
+
+	return 0;
 }

@@ -3,6 +3,9 @@
 struct solver;
 typedef struct solver solver_t;
 
+/* Wheter we implement LU or not (requires GSL) */
+//#define WITH_LU
+
 #include "sim.h"
 #include "mat.h"
 #include <gsl/gsl_linalg.h>
@@ -20,8 +23,10 @@ struct solver
 
 	int dim;
 	int nx, ny;
+#ifdef WITH_LU
 	gsl_permutation *P;
 	gsl_matrix *LU;
+#endif
 
 	/* For MFT */
 	mat_t *G;
@@ -45,3 +50,6 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho);
 
 int
 solver_rho_size(sim_t *sim, int *cnx, int *cny);
+
+int
+solver_end(sim_t *sim, solver_t *solver);

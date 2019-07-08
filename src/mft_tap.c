@@ -208,16 +208,21 @@ MFT_TAP_init(sim_t *sim, solver_t *solver)
 	m = safe_malloc(sizeof(*m));
 
 	/* We set the number of workers to 32 by now */
-	n = 16;
+	n = 32;
+	if(config_lookup_int(sim->conf, "simulation.mft_tap_workers", &n) != CONFIG_TRUE)
+	{
+		err("Parameter simulation.mft_tap_workers unset, using %d as default\n", n);
+	}
 
 	MPI_Comm_size(MPI_COMM_WORLD, &np);
 
 	gethostname(hostname, 20);
 	hostname[19] = '\0';
 
-	dbg("Spawning %d workers in %s\n", n, hostname);
 
 	/* TODO: Allow changing the mft binary */
+	sleep(sim->nprocs - sim->rank);
+	dbg("Spawning %d workers in %s\n", n, hostname);
 	tap_spawn(n, "./mft_worker", &m->comm);
 
 	MPI_Comm_rank(m->comm, &m->rank);
@@ -283,3 +288,15 @@ MFT_TAP_solve(solver_t *s)
 }
 
 
+int
+MFT_TAP_end(solver_t *s)
+{
+	mft_t *m;
+
+	m = s->data;
+
+	dbg("Sending end event to solvers\n");
+	event_send(m, MFT_FINISH);
+
+	return 0;
+}

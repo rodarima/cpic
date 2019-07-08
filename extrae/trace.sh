@@ -6,8 +6,8 @@ source ${EXTRAE_HOME}/etc/extrae.sh
 
 export EXTRAE_CONFIG_FILE=extrae/extrae2.xml
 #export LD_PRELOAD=${EXTRAE_HOME}/lib/libmpitrace.so # For C apps
-export LD_PRELOAD=${EXTRAE_HOME}/lib/libnanosmpitrace.so
-#export LD_PRELOAD=${EXTRAE_HOME}/lib/libnanostrace.so
+#export LD_PRELOAD=${EXTRAE_HOME}/lib/libnanosmpitrace.so
+export LD_PRELOAD=${EXTRAE_HOME}/lib/libnanostrace.so
 
 export EXTRAE_ON=1
 #export NANOS6_REPORT_PREFIX="@@@"

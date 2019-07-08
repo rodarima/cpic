@@ -189,6 +189,16 @@ event_wait(mft_worker_t *w, enum mft_event e)
 }
 
 static int
+event_wait_any(mft_worker_t *w)
+{
+	int ev;
+
+	MPI_Recv(&ev, 1, MPI_INT, w->master_rank, MPI_ANY_TAG, w->comm, MPI_STATUS_IGNORE);
+
+	return ev;
+}
+
+static int
 init(mft_worker_t *w)
 {
 	int dx, dy, ix, iy, nx, ny;
@@ -312,7 +322,7 @@ main(int argc, char *argv[])
 	int new_rank;
 	sim_t *sim;
 	char hostname[1024];
-	int flag;
+	int flag, ev;
 
 	MPI_Init(&argc, &argv);
 
@@ -382,9 +392,14 @@ main(int argc, char *argv[])
 	//print_mask(rank);
 	event_send(&w, MFT_WORKER_READY);
 
-	while(1)
+	while(sim->running)
 	{
-		event_wait(&w, MFT_COMPUTE_BEGIN);
+		ev = event_wait_any(&w);
+		dbg("Worker got event %d\n", ev);
+
+		if(ev == MFT_FINISH) break;
+
+		if(ev != MFT_COMPUTE_BEGIN) continue;
 
 		dbg("Worker %d@%s is 'working'\n", node_rank, hostname);
 		solve(&w);

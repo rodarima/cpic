@@ -5,7 +5,7 @@
 	initial-mode="detail"
 	type="paraver">
 
-	<mpi enabled="yes">
+	<mpi enabled="no">
 		<counters enabled="yes" />
 	</mpi>
 

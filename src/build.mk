@@ -2,11 +2,11 @@ module:=src
 
 bin:=cpic mft_worker cpic.a
 
-src:=$(wildcard $(module)/*.c)
-src:=$(filter-out $(wildcard $(module)/*.mcc.c),$(src))
-src:=$(filter-out $(module)/plot.c,$(src))
-src:=$(filter-out $(module)/video.c,$(src))
-src:=$(filter-out $(module)/mft_worker.c,$(src))
+all_src:=$(wildcard $(module)/*.c)
+all_src:=$(filter-out $(wildcard $(module)/*.mcc.c),$(all_src))
+all_src:=$(filter-out $(module)/plot.c,$(all_src))
+all_src:=$(filter-out $(module)/video.c,$(all_src))
+src:=$(filter-out $(module)/mft_worker.c,$(all_src))
 
 USE_MCC?=0
 obj:=
@@ -23,7 +23,8 @@ GEN+=$(src)
 endif
 
 
-obj+=$(subst .c,.o,$(src))
+obj_cpic=$(subst .c,.o,$(src))
+obj_worker=src/mft_worker.o src/tap.o src/utils.o src/mat.o
 
 
 src_lib:=$(filter-out $(module)/cpic.c,$(src))
@@ -43,7 +44,8 @@ endif
 #src_ldlibs+=$(shell mpicc --showme:link)
 src_ldlibs+=-lmpi
 
-src_ldlibs+=-lm -lconfig -lgsl -lgslcblas
+src_ldlibs+=-lm -lconfig
+#src_ldlibs+=-lgsl -lgslcblas
 src_cflags+=-g -pthread -Wall
 
 #src_ldlibs+=-lfftw3_omp
@@ -69,26 +71,29 @@ MCC_CFLAGS:=--line-markers
 	mcc $(MCC_CFLAGS) -y $^ -o $@
 
 %.mcc.o: %.mcc.c
-	$(COMPILE.c) $(OUTPUT_OPTION) $<
+	$(COMPILE.c) $(OUTPUT_OPTION) $^
 
 .PRECIOUS: %.mcc.c
 
 
-cpic: $(obj)
+cpic: $(obj_cpic)
 	mcxx --ompss-2 --line-markers $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
-WORKERS_CFLAGS=-O0 -fsanitize=address -fno-omit-frame-pointer
+#WORKERS_CFLAGS=-O0 -fsanitize=address -fno-omit-frame-pointer
 #WORKERS_CFLAGS+=-DGLOBAL_DEBUG
+WORKERS_CFLAGS=
 
 src/mft_worker.o: src/mft_worker.c
 	gcc $(WORKERS_CFLAGS) -c -o $@ $^
 
-mft_worker: src/mft_worker.o src/tap.o src/utils.o src/mat.o
-	I_MPI_CC=gcc mpiicc $(WORKERS_CFLAGS) -lm -lfftw3_mpi -lfftw3 $(CFLAGS) -o $@ $^
+mft_worker: $(obj_worker)
+	#I_MPI_CC=gcc mpiicc $(WORKERS_CFLAGS) -lm -lfftw3_mpi -lfftw3 $(CFLAGS) -o $@ $^
+	$(GCC) $(CFLAGS) $(src_cflags) $(WORKERS_CFLAGS) $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@ $^
 
 cpic.a: $(obj_lib)
 	ar rcs $@ $^
 
 # Add to main rules
 SRC += $(src)
+OBJ += $(obj_cpic) $(obj_worker)
 BIN += $(bin)

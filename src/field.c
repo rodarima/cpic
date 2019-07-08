@@ -494,7 +494,7 @@ field_E(sim_t *sim)
 		chunk = &plasma->chunks[ic];
 		next = &plasma->chunks[(ic+1) % Nc];
 		prev = &plasma->chunks[(ic-1+Nc) % Nc];
-		#pragma oss task in(*prev,*next) inout(*chunk) label(field_E_compute)
+		#pragma oss task commutative(*prev,*next,*chunk) label(field_E_compute)
 		field_E_compute(sim, chunk);
 	}
 

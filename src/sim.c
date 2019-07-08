@@ -268,6 +268,14 @@ sim_init(config_t *conf, int quiet)
 	return s;
 }
 
+int
+sim_end(sim_t *sim)
+{
+	/* We only implement the solver gracefully exit, as all other work is
+	 * realted with freeing memory */
+	solver_end(sim, sim->solver);
+}
+
 #if 0
 static int
 conservation_energy(sim_t *sim)
@@ -560,6 +568,8 @@ sim_run(sim_t *sim)
 		sim_step(sim);
 
 	perf_stop(&sim->timers[TIMER_TOTAL]);
+
+	sim_end(sim);
 
 	//sim_stats(sim);
 
