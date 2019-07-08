@@ -1,0 +1,26 @@
+#!/bin/bash
+
+#SBATCH --qos=bsc_cs
+#SBATCH --job-name=cpic.@NAME@
+#SBATCH --output=out/@NAME@
+#SBATCH --error=err/@NAME@
+#SBATCH --ntasks=@NPROCS@
+#SBATCH --nodes=@NPROCS@
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=@NCPUS@
+#SBATCH --exclusive
+#SBATCH --time=00:10:00
+
+#ASSUME IS NOT NEEDED workdir=/home/bsc15/bsc15557/cpic/perf/constant-cpus
+. ../../modules
+
+ulimit -s 8192
+
+#export NANOS6_REPORT_PREFIX="#"
+
+DIR=$(pwd)
+cd ../../
+
+#srun --cpu-bind=verbose,cores ../../cpic base.conf
+#srun ./cpic "$DIR"/conf/@NAME@
+mpiexec.hydra -n @NPROCS@ ./cpic "$DIR"/conf/@NAME@
