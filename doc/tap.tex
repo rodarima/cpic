@@ -1,0 +1,276 @@
+\documentclass{article}
+
+\usepackage[margin=1cm]{geometry}
+
+%\beamertemplatenavigationsymbolsempty
+%\setbeamerfont{page number in head/foot}{size=\small}
+%\setbeamertemplate{footline}[frame number]
+%\usefonttheme[onlymath]{serif}
+
+\usepackage[utf8]{inputenc}
+
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+%\usepackage[utf8]{inputenc}
+
+\usepackage{tikz}
+\usetikzlibrary{calc}
+\usetikzlibrary{arrows, backgrounds}
+\usetikzlibrary{matrix, arrows.meta}
+\usetikzlibrary{decorations.pathreplacing}
+\usetikzlibrary{positioning, fit, shapes}
+\usetikzlibrary{external}
+
+\tikzexternalize[prefix=tikz/]
+
+\newcommand{\backupbegin}{
+   \newcounter{finalframe}
+   \setcounter{finalframe}{\value{framenumber}}
+}
+\newcommand{\backupend}{
+   \setcounter{framenumber}{\value{finalframe}}
+}
+
+% Scale all pgf plots, not only coordinates
+\usepackage{adjustbox}
+
+%\usepackage{amsfonts}
+%\usepackage{amsmath}
+%\usepackage{amsthm}
+\usepackage{bm}
+
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.16}
+\usepgfplotslibrary{groupplots}
+
+% Used for split environment
+\usepackage{amsmath}
+% Separate rows in align environment by this amount
+\addtolength{\jot}{1em}
+
+\usepackage{graphicx}
+\graphicspath{{../fig/} {fig/}}
+\usepackage{subfig}
+\usepackage{wrapfig}
+
+% Clickable links
+\usepackage{hyperref}
+\hypersetup{
+	colorlinks,
+	citecolor=black,
+	filecolor=black,
+	linkcolor=black,
+	urlcolor=black
+}
+
+\usepackage[pdf]{graphviz}
+
+%\usepackage[dvipsnames]{xcolor}
+\usepackage{listings}
+
+\lstset{
+	language=c,
+  basicstyle=\small\ttfamily,  % the size of the fonts that are used for the code
+	numbers=none,                   % where to put the line-numbers
+  inputencoding=latin1,
+  numberstyle=\tiny,  % the style that is used for the line-numbers
+  stepnumber=1,                   % the step between two line-numbers. If it's
+				    %1, each line 
+                                  % will be numbered
+  %numbersep=5pt,                  % how far the line-numbers are from the code
+  backgroundcolor=\color{white},      % choose the background color.
+  showspaces=false,               % show spaces adding particular underscores
+  showstringspaces=false,         % underline spaces within strings
+  showtabs=false,      % show tabs within strings adding particular underscores
+	frame=none,                   % adds a frame around the code
+  rulecolor=\color{black},        % if not set, the frame-color may be changed
+				   % on line-breaks within not-black text (e.g.
+				   % comments (green here))
+	tabsize=6,                      % sets default tabsize to 2 spaces
+  columns=fullflexible,
+  extendedchars=true,
+  captionpos=b,                   % sets the caption-position to bottom
+  breaklines=true,                % sets automatic line breaking
+  breakatwhitespace=false,        % sets if automatic breaks should only happen
+				    %at whitespace
+  title=\lstname,                   % show the filename of files included with
+				    %\lstinputlisting;
+                                  % also try caption instead of title
+  keywordstyle=\color{blue},          % keyword style
+	commentstyle=\color{gray},       % comment style
+	stringstyle=\color{brown},         % string literal style
+	escapeinside={|*}{*|},            % if you want to add LaTeX within your code
+	morecomment=[l][\color{purple}]{\#},
+	moredelim=[il][\color{purple}]{@},
+	abovecaptionskip=-15pt
+%	belowcaptionskip=-15pt
+}
+
+
+\usepackage{csquotes}
+
+\usepackage{siunitx}
+
+\usepackage{multicol}
+
+\usepackage{epigraph}
+\setlength{\epigraphwidth}{0.7\textwidth}
+
+\usepackage{caption}
+\captionsetup{font=footnotesize}
+
+% Macros para ayudar a la redacción
+% Vector
+\newcommand*\mat[1]{ \begin{pmatrix} #1 \end{pmatrix}}
+\newcommand*\arr[1]{ \begin{bmatrix} #1 \end{bmatrix}}
+\newcommand*\V[1]{\bm{#1}}
+\newcommand{\E}{\V{E}}
+\newcommand{\rhog}{\rho_\text{ghost}}
+\newcommand{\F}{\V{F}}
+\newcommand{\B}{\V{B}}
+\renewcommand*{\v}{\V{v}}
+\newcommand{\x}{\V{x}}
+\newcommand{\dt}{\Delta t}
+\newcommand{\dx}{\Delta x}
+\newcommand*\neigh[1]{\mathcal{N}(#1)}
+
+% Norm
+\newcommand\norm[1]{\left\lVert#1\right\rVert}
+
+%\title{Particle-in-cell plasma simulation\\with OmpSs-2}
+%\author{Rodrigo Arias Mallo\\
+%\vspace{1em}
+%{\footnotesize Director: Vicenç Beltran Querol \\
+%Tutor: Jordi Torres Viñals}}
+%\institute{Universitat Politècnica de Catalunya (UPC)}
+%\date{\today}
+
+\begin{document}
+
+%\begin{figure}[h]
+\begin{tikzpicture}[
+		>=latex,
+	]
+	\matrix[
+		nodes={draw,circle,inner sep=0mm,minimum size=8mm},
+		column sep=5mm] (t)
+	{
+		\node (t0) {$t_0$}; &
+		\node (t1) {$t_1$}; &
+		\node (t2) {$t_2$}; &
+		\node (t3) {$t_3$}; \\
+	};
+
+	\node[draw,fit=(t0) (t3),inner sep=1mm,rounded corners=4mm] (master) {};
+	%\node[draw,fit=(t0) (t3),inner sep=0.5mm,ellipse] (master) {};
+
+	\node[left=1mm of master] {Master process};
+
+	% Draw the workers
+
+	\matrix[
+		nodes={
+			double,
+			double distance=1mm,
+			draw,
+			circle,
+			inner sep=0mm,
+			minimum size=8mm
+		},
+		column sep=5mm,
+		right=2cm of t] (w) {
+		\node (w0) {$w_0$}; &
+		\node (w1) {$w_1$}; &
+		\node (w2) {$w_2$}; &
+		\node (w3) {$w_3$}; \\
+	};
+
+	\node[right=1mm of w] {Workers};
+
+	\coordinate (mid) at ($(t)!0.5!(w)$);
+
+	\matrix[
+		matrix of nodes,
+		nodes={
+			draw,
+			rectangle,
+			inner sep=0mm,
+			minimum size=6mm
+		},
+		above=4cm of mid,
+		column sep=5mm
+	] (c)
+	{
+		\node (c0) {$c_0$}; &
+		\node (c1) {$c_1$}; &
+		\node (c2) {$c_2$}; &
+		\node (c3) {$c_3$}; \\
+	};
+
+	\node[above=1mm of c] {CPUs};
+
+	% Draw arrows from threads to cpus
+
+	\foreach \i in {0,...,3}
+	{
+		%\draw[->,dashed] (t\i) to[out=90,in=-90] (c\i);
+		\draw[->,dashed] (t\i) -- (c\i);
+	}
+
+	% Draw shared memory
+
+	\matrix[
+		nodes={
+			anchor=center,
+			draw,
+			rectangle,
+			minimum width=4cm,
+			minimum height=1cm,
+		},
+		row sep =-\pgflinewidth,
+		column sep = -\pgflinewidth,
+		below=3cm of mid,
+		column sep=0mm
+	] (m)
+	{
+		\node (m0) {$m_0$}; \\
+		\node (m1) {$m_1$}; \\
+		\node (m2) {$m_2$}; \\
+		\node (m3) {$m_3$}; \\
+	};
+
+	\node[below=1mm of m] {Shared memory};
+
+	% Draw shared memory lines
+
+	\foreach \i in {0,...,3}
+	{
+		\draw[dashed] (m\i) to[out=0,in=-90] (w\i);
+	}
+
+	% Brace fo memory for the master
+
+	\draw [decorate,decoration={brace,mirror,amplitude=5mm},yshift=0pt]
+	(m0.north west) -- (m3.south west) node[black,midway,xshift=-5mm] (mem-brace) 
+	{};
+
+	\draw[dashed] (mem-brace) to[out=180,in=-90] (t.south);
+
+	% Label processes
+
+	\node[above=1cm of w0] (process) {Processes};
+
+	\draw[->,shorten >=1.5mm] (process) -- (t3);
+	\draw[->,shorten >=0.5mm] (process) -- (w0);
+	\draw[->,shorten >=0.5mm] (process) -- (w1);
+
+	% Label threads
+	\node[below=2cm of mid] (thread) {Threads};
+	\draw[->,shorten >=-0.5mm] (thread) -- (w0);
+	\draw[->,shorten >=-0.5mm] (thread) -- (t2);
+	\draw[->,shorten >=-0.5mm] (thread) -- (t3);
+
+\end{tikzpicture}
+%\end{figure}
+
+\end{document}
