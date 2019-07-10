@@ -1,0 +1,144 @@
+\begin{figure}[h]
+\begin{adjustbox}{max totalsize={\textwidth}{\textheight},center}
+\begin{tikzpicture}[
+		>=latex,
+	]
+
+	% Draw a process with multiple threads
+	\tikzset{
+		master/.pic = {
+			\matrix[
+				nodes={draw,circle,inner sep=0mm,minimum size=8mm},
+				column sep=5mm,
+%				left=1cm of O,
+			] (t)
+			{
+				\node (t0) {$t_0$}; &
+				\node (t1) {$t_1$}; &
+				\node (t2) {$t_2$}; &
+				\node (t3) {$t_3$}; \\
+			};
+
+			\node[draw,fit=(t0) (t3),inner sep=1mm,rounded corners=4mm] (master) {};
+			%\node[draw,fit=(t0) (t3),inner sep=0.5mm,ellipse] (master) {};
+
+			\node[left=1mm of master] {Master process};
+		}
+	}
+
+	% The center will be the origin
+	\coordinate (O) at (0,0);
+
+	% Draw the canvas
+	\draw[white] (-9,-8.5) rectangle (9,6);
+
+	\pic[left=1cm of O] {master};
+
+
+	% Draw the workers
+
+	\matrix[
+		nodes={
+			double,
+			double distance=1mm,
+			draw,
+			circle,
+			inner sep=0mm,
+			minimum size=8mm
+		},
+		column sep=5mm,
+		right=1cm of O] (w) {
+		\node (w0) {$w_0$}; &
+		\node (w1) {$w_1$}; &
+		\node (w2) {$w_2$}; &
+		\node (w3) {$w_3$}; \\
+	};
+
+	\node[right=1mm of w] {Workers};
+
+	\coordinate (mid) at ($(t)!0.5!(w)$);
+
+	\matrix[
+		matrix of nodes,
+		nodes={
+			draw,
+			rectangle,
+			inner sep=0mm,
+			minimum size=6mm
+		},
+		above=4cm of mid,
+		column sep=5mm
+	] (c)
+	{
+		\node (c0) {$c_0$}; &
+		\node (c1) {$c_1$}; &
+		\node (c2) {$c_2$}; &
+		\node (c3) {$c_3$}; \\
+	};
+
+	\node[above=1mm of c] {CPUs};
+
+	% Draw arrows from threads to cpus
+
+	\foreach \i in {0,...,3}
+	{
+		%\draw[->,dashed] (t\i) to[out=90,in=-90] (c\i);
+		\draw[->,dashed] (t\i) -- (c\i);
+	}
+
+	% Draw shared memory
+
+	\matrix[
+		nodes={
+			anchor=center,
+			draw,
+			rectangle,
+			minimum width=4cm,
+			minimum height=1cm,
+		},
+		row sep =-\pgflinewidth,
+		column sep = -\pgflinewidth,
+		below=3cm of mid,
+		column sep=0mm
+	] (m)
+	{
+		\node (m0) {$m_0$}; \\
+		\node (m1) {$m_1$}; \\
+		\node (m2) {$m_2$}; \\
+		\node (m3) {$m_3$}; \\
+	};
+
+	\node[below=1mm of m] {Shared memory};
+
+	% Draw shared memory lines
+
+	\foreach \i in {0,...,3}
+	{
+		\draw[dashed] (m\i) to[out=0,in=-90] (w\i);
+	}
+
+	% Brace fo memory for the master
+
+	\draw [decorate,decoration={brace,mirror,amplitude=5mm},yshift=0pt]
+	(m0.north west) -- (m3.south west) node[black,midway,xshift=-5mm] (mem-brace)
+	{};
+
+	\draw[dashed] (mem-brace) to[out=180,in=-90] (t.south);
+
+	% Label processes
+
+	\node[above=1cm of w0] (process) {Processes};
+
+	\draw[->,shorten >=1.5mm] (process) -- (t3);
+	\draw[->,shorten >=0.5mm] (process) -- (w0);
+	\draw[->,shorten >=0.5mm] (process) -- (w1);
+
+	% Label threads
+	\node[below=2cm of mid] (thread) {Threads};
+	\draw[->,shorten >=-0.5mm] (thread) -- (w0);
+	\draw[->,shorten >=-0.5mm] (thread) -- (t2);
+	\draw[->,shorten >=-0.5mm] (thread) -- (t3);
+
+\end{tikzpicture}
+\end{adjustbox}
+\end{figure}
