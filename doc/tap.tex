@@ -1,9 +1,9 @@
 \documentclass{beamer}
 
-%\beamertemplatenavigationsymbolsempty
-%\setbeamerfont{page number in head/foot}{size=\small}
-%\setbeamertemplate{footline}[frame number]
-%\usefonttheme[onlymath]{serif}
+\beamertemplatenavigationsymbolsempty
+\setbeamerfont{page number in head/foot}{size=\small}
+\setbeamertemplate{footline}[frame number]
+\usefonttheme[onlymath]{serif}
 
 \usepackage[utf8]{inputenc}
 
@@ -135,13 +135,10 @@
 % Norm
 \newcommand\norm[1]{\left\lVert#1\right\rVert}
 
-%\title{Particle-in-cell plasma simulation\\with OmpSs-2}
-%\author{Rodrigo Arias Mallo\\
-%\vspace{1em}
-%{\footnotesize Director: Vicenç Beltran Querol \\
-%Tutor: Jordi Torres Viñals}}
-%\institute{Universitat Politècnica de Catalunya (UPC)}
-%\date{\today}
+\title{How TAP works\\{\small Example with the FFT in cpic.}}
+\author{Rodrigo Arias Mallo}
+\institute{Barcelona Supercomputing Center (BSC)}
+\date{\today}
 
 
 
@@ -150,6 +147,9 @@
 
 
 
+\tikzset{
+	red-frame/.style={white}
+}
 
 % Running style for the nodes
 \tikzset{
@@ -160,6 +160,9 @@
 	stopped/.style={fill=red!30}
 }
 
+% The threads are defined in a matrix called t, where each thread is labeled
+% from t0 to t3, so we can reference them later.
+
 \tikzset{
 %	master/.pic = {
 	pics/master/.style args={#1}{
@@ -184,31 +187,8 @@
 		}
 	}
 }
-\tikzset{
-%	master/.pic = {
-	pics/master/.style args={#1}{
-		code={
-			\matrix[
-				ampersand replacement=\&,
-				nodes={#1,draw,circle,inner sep=0mm,minimum size=8mm},
-				column sep=5mm,
-	%				left=1cm of O,
-			] (t)
-			{
-				\node (t0) {$t_0$}; \&
-				\node (t1) {$t_1$}; \&
-				\node (t2) {$t_2$}; \&
-				\node (t3) {$t_3$}; \\
-			};
 
-			\node[draw,fit=(t0) (t3),inner sep=1mm,rounded corners=4mm] (master) {};
-			%\node[draw,fit=(t0) (t3),inner sep=0.5mm,ellipse] (master) {};
-
-			\node[left=1mm of master] {Master process};
-		}
-	}
-}
-
+% Same for the workers, we have w for all of them, and w0 to w3 for each one.
 \tikzset{
 %	workers/.pic = {
 	pics/workers/.style args={#1}{
@@ -236,6 +216,7 @@
 	}
 }
 
+% Same for CPUs, with c for all and c0 to c3 for each one.
 \tikzset{
 	cpus/.pic = {
 		\matrix[
@@ -260,7 +241,7 @@
 	}
 }
 
-
+% Same for shared memory, with m for all rows and m0 to m3 for each one.
 \tikzset{
 	mem/.pic = {
 		\matrix[
@@ -286,12 +267,9 @@
 	}
 }
 
-
-
-
-
-
 \begin{document}
+
+\frame{\titlepage}
 
 \begin{frame}[fragile]
 \begin{figure}[h]
@@ -304,19 +282,13 @@
 	\coordinate (O) at (0,0);
 
 	% Draw the canvas
-	\draw[red] (-10,-8.5) rectangle (10,6);
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
 
 	% Draw the CPUs
 	\pic[above=4cm of O] {cpus};
 
 	\node (text) [fill=gray!20,below=1cm of c,text width=5cm]
 		{Four CPUs are available at each node in this example.};
-
-%	\draw[->] (text) -- (c);
-%	\draw[->] (text) -- (c0);
-%	\draw[->] (text) -- (c1);
-%	\draw[->] (text) -- (c2);
-%	\draw[->] (text) -- (c3);
 
 \end{tikzpicture}
 \end{adjustbox}
@@ -334,7 +306,7 @@
 	\coordinate (O) at (0,0);
 
 	% Draw the canvas
-	\draw[red] (-10,-8.5) rectangle (10,6);
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
 
 	% Master process with 4 threads
 	\pic[left=2cm of O] {master={running}};
@@ -361,7 +333,7 @@
 	\coordinate (O) at (0,0);
 
 	% Draw the canvas
-	\draw[red] (-10,-8.5) rectangle (10,6);
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
 
 	% Master process with 4 threads
 	\pic[left=2cm of O] {master={running}};
@@ -393,7 +365,7 @@
 	\coordinate (O) at (0,0);
 
 	% Draw the canvas
-	\draw[red] (-10,-8.5) rectangle (10,6);
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
 
 	% Master process with 4 threads
 	\pic[left=2cm of O] {master={running}};
@@ -437,7 +409,7 @@
 	\coordinate (O) at (0,0);
 
 	% Draw the canvas
-	\draw[red] (-10,-8.5) rectangle (10,6);
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
 
 	% Master process with 4 threads
 	\pic[left=2cm of O] {master={running}};
@@ -452,7 +424,8 @@
 	\pic[below=3cm of O] {mem};
 
 	\node (text) [fill=gray!20,left=1cm of m,text width=5cm]
-		{The memory is divided in slices and assigned to each worker.};
+		{The memory is divided in slices and assigned to each worker as required by 
+		the FFT.};
 
 	% Draw shared memory lines
 	\foreach \i in {0,...,3}
@@ -478,7 +451,7 @@
 	\coordinate (O) at (0,0);
 
 	% Draw the canvas
-	\draw[red] (-10,-8.5) rectangle (10,6);
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
 
 	% Master process with 4 threads
 	\pic[left=2cm of O] {master={running}};
@@ -519,7 +492,7 @@
 	\coordinate (O) at (0,0);
 
 	% Draw the canvas
-	\draw[red] (-10,-8.5) rectangle (10,6);
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
 
 	% Master process with 4 threads
 	\pic[left=2cm of O] {master={fill=green!30}};
@@ -528,7 +501,7 @@
 	\pic[above=4cm of O] {cpus};
 
 	% Draw the workers
-	\pic[right=2cm of O] {workers};
+	\pic[right=2cm of O] {workers={stopped}};
 
 	% Draw shared memory
 	\pic[below=3cm of O] {mem};
@@ -558,16 +531,16 @@
 	\coordinate (O) at (0,0);
 
 	% Draw the canvas
-	\draw[red] (-10,-8.5) rectangle (10,6);
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
 
 	% Master process with 4 threads
-	\pic[left=2cm of O] {master={fill=green!30}};
+	\pic[left=2cm of O] {master={running}};
 
 	% Draw the CPUs
 	\pic[above=4cm of O] {cpus};
 
 	% Draw the workers
-	\pic[right=2cm of O] {workers};
+	\pic[right=2cm of O] {workers={stopped}};
 
 	% Draw shared memory
 	\pic[below=3cm of O] {mem};
@@ -596,55 +569,142 @@
 	\coordinate (O) at (0,0);
 
 	% Draw the canvas
-	\draw[red] (-10,-8.5) rectangle (10,6);
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
 
 	% Master process with 4 threads
-	\pic[left=2cm of O] {master};
-
-	% Draw the workers
-	\pic[right=2cm of O] {workers};
+	\pic[left=2cm of O] {master={stopped}};
 
 	% Draw the CPUs
 	\pic[above=4cm of O] {cpus};
 
-	% Draw arrows from threads to cpus
-	\foreach \i in {0,...,3}
-		\draw[->,dashed] (t\i) -- (c\i);
+	% Draw the workers
+	\pic[right=2cm of O] {workers={running}};
 
 	% Draw shared memory
 	\pic[below=3cm of O] {mem};
 
-	% Draw shared memory lines
+	% Draw lines from master to the workers
 	\foreach \i in {0,...,3}
-		\draw[dashed] (m\i) to[out=0,in=-90] (w\i);
+		\draw[->] (t) to[out=20,in=180-45] (w\i);
 
-	% Brace from memory to the master
-	\draw [
-		decorate,
-		decoration={
-			brace,
-			mirror,
-			amplitude=5mm
-		},
-		yshift=0pt
+	\node (text) [fill=gray!20,below=1cm of O,text width=8cm]
+		{The master wakes all the workers and is put to sleep, waiting for them to 
+		finish.};
+
+\end{tikzpicture}
+\end{adjustbox}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{figure}[h]
+\begin{adjustbox}{max totalsize={\textwidth}{\textheight},center}
+\begin{tikzpicture}[
+		>=latex,
 	]
-	(m0.north west) -- (m3.south west)
-		node[black,midway,xshift=-5mm] (mem-brace) {};
 
-	\draw[dashed] (mem-brace) to[out=180,in=-90] (t.south);
+	% The center will be the origin
+	\coordinate (O) at (0,0);
 
-	% Label processes
-	\node[above=1cm of w0] (process) {Processes};
+	% Draw the canvas
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
 
-	\draw[->,shorten >=1.5mm] (process) -- (t3);
-	\draw[->,shorten >=0.5mm] (process) -- (w0);
-	\draw[->,shorten >=0.5mm] (process) -- (w1);
+	% Master process with 4 threads
+	\pic[left=2cm of O] {master={stopped}};
 
-	% Label threads
-	\node[below=2cm of O] (thread) {Threads};
-	\draw[->,shorten >=-0.5mm] (thread) -- (w0);
-	\draw[->,shorten >=-0.5mm] (thread) -- (t2);
-	\draw[->,shorten >=-0.5mm] (thread) -- (t3);
+	% Draw the CPUs
+	\pic[above=4cm of O] {cpus};
+
+	% Draw the workers
+	\pic[right=2cm of O] {workers={running}};
+
+	% Draw shared memory
+	\pic[below=3cm of O] {mem};
+
+	% Draw lines from the workers to mem
+	\foreach \i in {0,...,3}
+		\draw (w\i) to[out=-90,in=0] (m\i.east);
+
+	\foreach \i in {0,...,3}
+		\draw[dashed] (w\i) -- (c\i);
+
+	\node (text) [fill=gray!20,above=0.5cm of w,text width=6cm]
+		{The workers compute the FFT using all CPUs and store the results in the 
+		shared memory.};
+
+\end{tikzpicture}
+\end{adjustbox}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{figure}[h]
+\begin{adjustbox}{max totalsize={\textwidth}{\textheight},center}
+\begin{tikzpicture}[
+		>=latex,
+	]
+
+	% The center will be the origin
+	\coordinate (O) at (0,0);
+
+	% Draw the canvas
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
+
+	% Master process with 4 threads
+	\pic[left=2cm of O] {master={running}};
+
+	% Draw the CPUs
+	\pic[above=4cm of O] {cpus};
+
+	% Draw the workers
+	\pic[right=2cm of O] {workers={stopped}};
+
+	% Draw shared memory
+	\pic[below=3cm of O] {mem};
+
+	% Draw lines from the workers to mem
+	\foreach \i in {0,...,3}
+		\draw[->] (w\i) to[out=180-45,in=45] (t.north);
+
+	\node (text) [fill=gray!20,below=1cm of O,text width=8cm]
+		{The workers wake the master in order to resume the simulation and are put 
+		to sleep.};
+
+\end{tikzpicture}
+\end{adjustbox}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{figure}[h]
+\begin{adjustbox}{max totalsize={\textwidth}{\textheight},center}
+\begin{tikzpicture}[
+		>=latex,
+	]
+
+	% The center will be the origin
+	\coordinate (O) at (0,0);
+
+	% Draw the canvas
+	\draw[red-frame] (-10,-8.5) rectangle (10,6);
+
+	% Master process with 4 threads
+	\pic[left=2cm of O] {master={running}};
+
+	% Draw the CPUs
+	\pic[above=4cm of O] {cpus};
+
+	% Draw the workers
+	\pic[right=2cm of O] {workers={stopped}};
+
+	% Draw shared memory
+	\pic[below=3cm of O] {mem};
+
+	\draw[<-] (t.south) to[out=-90,in=90] (m.north);
+
+	\node (text) [fill=gray!20,above=1cm of t,text width=8cm]
+		{The simulation is resumed using the result from the shared memory and 
+		continues until the next iteration, where the cycle is repeated.};
 
 \end{tikzpicture}
 \end{adjustbox}
