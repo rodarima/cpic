@@ -335,7 +335,7 @@ main(int argc, char *argv[])
 
 	dbg("MFT-TAP worker %d getting communicator to node\n",
 			rank);
-	tap_child(&w.comm);
+	tap_child(&w.comm, &w.world);
 	MPI_Comm_size(w.comm, &w.size);
 	MPI_Comm_rank(w.comm, &w.rank);
 
@@ -343,7 +343,7 @@ main(int argc, char *argv[])
 
 	//assert(w.size == 33);
 
-	err("MFT-TAP worker %d [%d@%s] looking for shared memory\n",
+	dbg("MFT-TAP worker %d [%d@%s] looking for shared memory\n",
 			rank, node_rank, hostname);
 
 	shared = tap_shared_query(&size, w.comm);
@@ -366,7 +366,7 @@ main(int argc, char *argv[])
 	w.nmasters = sim->nprocs;
 	fflush(stdout);
 
-	tap_sort_ranks(w.nmasters, w.nworkers, &w.world);
+	//tap_sort_ranks(w.nmasters, w.nworkers, &w.world);
 	MPI_Comm_rank(w.world, &new_rank);
 	dbg("Worker was at rank %d, is now at rank %d@%s\n",
 			rank, new_rank, hostname);

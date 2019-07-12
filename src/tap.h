@@ -16,7 +16,7 @@ int
 tap_spawn(int n, char *cmd, MPI_Comm *comm);
 
 int
-tap_child(MPI_Comm *comm);
+tap_child(MPI_Comm *node_comm, MPI_Comm *worker_comm);
 
 int
 tap_sort_ranks(int nmasters, int nworkers, MPI_Comm *new_comm);
