@@ -318,7 +318,7 @@ main(int argc, char *argv[])
 	mft_worker_t w;
 	mft_shared_t *shared;
 	size_t size;
-	int rank, node_rank, node_size;
+	int rank, node_rank, node_size, master_rank;
 	int new_rank;
 	sim_t *sim;
 	char hostname[1024];
@@ -335,9 +335,13 @@ main(int argc, char *argv[])
 
 	dbg("MFT-TAP worker %d getting communicator to node\n",
 			rank);
-	tap_child(&w.comm, &w.world);
+	tap_child(&w.comm, &w.world, &master_rank);
+
+
 	MPI_Comm_size(w.comm, &w.size);
 	MPI_Comm_rank(w.comm, &w.rank);
+
+	dbg("Assigned master rank %d to worker %d\n", master_rank, w.rank);
 
 	w.nworkers = w.size - 1;
 
@@ -350,8 +354,7 @@ main(int argc, char *argv[])
 
 	w.shared = shared;
 
-	/* TODO: This is a race condition. Protect master_rank somehow */
-	w.master_rank = shared->master_rank;
+	w.master_rank = w.size - 1;
 
 	/* Wait for the master to be ready */
 	event_wait(&w, MFT_MASTER_READY);

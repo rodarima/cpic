@@ -254,11 +254,11 @@ reorder_workers(MPI_Comm old, struct worker_info *info, int nworkers, MPI_Comm *
 }
 
 int
-tap_child(MPI_Comm *node_comm, MPI_Comm *worker_comm)
+tap_child(MPI_Comm *node_comm, MPI_Comm *worker_comm, int *master_rank)
 {
 	int i;
 	int size, rank, worker_rank, total_workers;
-	int nworkers, master_rank, master_node_rank;
+	int nworkers, master_node_rank;
 	struct worker_info *info;
 	struct worker_info myinfo;
 	MPI_Comm parent, universe, old_node_comm;
@@ -286,9 +286,9 @@ tap_child(MPI_Comm *node_comm, MPI_Comm *worker_comm)
 
 	master_node_rank = size - 1;
 
-	MPI_Recv(&master_rank, 1, MPI_INT, master_node_rank, 988, *node_comm, MPI_STATUS_IGNORE);
+	MPI_Recv(master_rank, 1, MPI_INT, master_node_rank, 988, *node_comm, MPI_STATUS_IGNORE);
 	MPI_Recv(&nworkers, 1, MPI_INT, master_node_rank, 989, *node_comm, MPI_STATUS_IGNORE);
-	dbg("Worker %d master is %d, computed rank is %d\n", rank, master_rank, (master_rank*nworkers)+rank);
+	dbg("Worker %d master is %d, computed rank is %d\n", rank, *master_rank, ((*master_rank)*nworkers)+rank);
 
 	MPI_Comm_size(MPI_COMM_WORLD, &total_workers);
 	MPI_Comm_rank(MPI_COMM_WORLD, &worker_rank);
@@ -297,7 +297,7 @@ tap_child(MPI_Comm *node_comm, MPI_Comm *worker_comm)
 
 	info = safe_malloc(sizeof(*info) * total_workers);
 
-	myinfo.master_rank = master_rank;
+	myinfo.master_rank = *master_rank;
 	myinfo.node_rank = rank;
 	myinfo.worker_rank = worker_rank;
 
