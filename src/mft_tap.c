@@ -221,9 +221,9 @@ MFT_TAP_init(sim_t *sim, solver_t *solver)
 
 
 	/* TODO: Allow changing the mft binary */
-	sleep(sim->nprocs - sim->rank);
+	//sleep(sim->nprocs - sim->rank);
 	dbg("Spawning %d workers in %s\n", n, hostname);
-	tap_spawn(n, "./mft_worker", &m->comm);
+	tap_spawn(n, "./mft_worker.sh", &m->comm);
 
 	MPI_Comm_rank(m->comm, &m->rank);
 	MPI_Comm_size(m->comm, &m->size);
@@ -249,7 +249,13 @@ MFT_TAP_init(sim_t *sim, solver_t *solver)
 	dbg("The %d workers of master %d are ready\n", n, sim->rank);
 
 	/* Sync with all master processes */
-	MPI_Barrier(MPI_COMM_WORLD);
+	//MPI_Barrier(MPI_COMM_WORLD);
+	int flag = 0;
+	MPI_Comm_test_inter(MPI_COMM_WORLD, &flag);
+	assert(flag == 0);
+
+	int dummy = 0;
+	MPI_Bcast(&dummy, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
 	dbg("All masters are ready too\n");
 

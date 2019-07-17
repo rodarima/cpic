@@ -127,7 +127,7 @@ solve(mft_worker_t *w)
 
 	/* TODO: We can do the fft inplace, and save storage here */
 	//direct = fftw_mpi_plan_dft_r2c_2d(s->ny, s->nx,
-	//		tmp, g, MPI_COMM_WORLD,
+	//		tmp, g, w->world,
 	//		FFTW_ESTIMATE);
 
 	dbg("direct in=%p out=%p nx=%d ny=%d\n",
@@ -255,7 +255,7 @@ init(mft_worker_t *w)
 
 	G = mat_alloc(sim->dim, shape);
 
-	local_size = fftw_mpi_local_size_2d(ny, nx/2+1, MPI_COMM_WORLD,
+	local_size = fftw_mpi_local_size_2d(ny, nx/2+1, w->world,
 			&local_n0, &local_n0_start);
 
 	//assert(sim->field.shape[Y] < local_size);
@@ -324,7 +324,10 @@ main(int argc, char *argv[])
 	char hostname[1024];
 	int flag, ev;
 
+	dbg("Worker reached main(), calling MPI_Init()\n");
+
 	MPI_Init(&argc, &argv);
+
 
 	gethostname(hostname, 1024);
 	hostname[1023] = '\0';
@@ -332,6 +335,8 @@ main(int argc, char *argv[])
 	dbg("WORKER INIT\n");
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	//print_mask(rank);
 
 	dbg("MFT-TAP worker %d getting communicator to node\n",
 			rank);

@@ -57,7 +57,7 @@ main(int argc, char *argv[])
 	//	while(i) j++;
 	//}
 
-	//printf("ENTRANDO EN MAIN\n");
+	printf("ENTRANDO EN MAIN\n");
 
 	/* When an error is produced in MPI, only return, don't kill the program
 	 * */

@@ -7,6 +7,10 @@ GCC=gcc
 #CC=mcc --ompss-2 --line-markers
 #I_MPI_CC=mcc
 CC=I_MPI_CC=mcc mpiicc --ompss-2 --line-markers
+
+#CC=I_MPI_CC=mcc mpiicc --cc=clang --ompss-2 --line-markers
+
+
 #OCC=mcc
 LDLIBS:=
 CFLAGS:=-g -Wall
