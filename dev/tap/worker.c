@@ -38,17 +38,30 @@ main(int argc, char *argv[])
 	int *buf;
 	size_t bufsize;
 	int rank;
+	char hostname[100];
+	int c = 0;
 
 	MPI_Init(&argc, &argv);
 
+
+	gethostname(hostname, 99);
+	printf("WORKER REACHED main %s %d\n", hostname, getpid());
+	print_mask(getpid());
+
+	while(c) sleep(1);
+
 	tap_child(&node_comm);
+
 	buf = tap_shared_query(&bufsize, node_comm);
 
 	MPI_Barrier(node_comm);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	printf("Worker [%d] reads buf[0] = %d\n", rank, buf[0]);
+
 	print_mask(rank);
 	MPI_Barrier(node_comm);
+
+	printf("WORKER ends\n");
 
 	MPI_Finalize();
 	return 0;

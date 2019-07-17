@@ -11,25 +11,6 @@
 
 #define MAX_CPUS 48
 
-int
-launch_workers(int n, MPI_Comm *intercomm)
-{
-	MPI_Info info;
-	printf("Launching %d total workers\n", n);
-
-	MPI_Info_create(&info);
-	//MPI_Info_set(info, "bind_to", "core");
-	//MPI_Info_set(info, "map_by", "core:OVERSUBSCRIBE");
-
-	MPI_Comm_spawn("./worker", MPI_ARGV_NULL, n,
-		info, 0, MPI_COMM_WORLD,
-		intercomm, MPI_ERRCODES_IGNORE);
-
-
-
-	return 0;
-}
-
 void
 print_mask(int who)
 {
@@ -44,7 +25,7 @@ print_mask(int who)
 		abort();
 	}
 
-	printf("%d: CPUS assigned %d, mask ", who, CPU_COUNT(&set));
+	printf("Master [%d]: CPUS assigned %d, mask ", who, CPU_COUNT(&set));
 	for(i=0; i<MAX_CPUS; i++)
 		putchar(CPU_ISSET(i, &set) ? '1' : '0');
 
@@ -64,6 +45,8 @@ main(int argc, char *argv[])
 	MPI_Aint bufsize;
 	int disp = sizeof(int);
 	int key, node_size, node_rank;
+	int c = 1;
+	char hostname[100];
 
 	MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &provided);
 
@@ -79,6 +62,11 @@ main(int argc, char *argv[])
 		abort();
 	}
 
+	//while(c) sleep(1);
+
+	gethostname(hostname, 99);
+	printf("MASTER at %s %d\n", hostname, getpid());
+	print_mask(getpid());
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 

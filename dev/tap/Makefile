@@ -1,7 +1,9 @@
 #CC=OMPI_CC=mcc mpicc
 #MCC=I_MPI_CC="mcc -k" mpiicc
-MCC=mpiicc
-CC=mpiicc
+MPICC=mpiicc
+MCC=$(MPICC)
+#OMPI_CC=clang
+CC=$(MPICC)
 
 CFLAGS=-g -O0
 #CFLAGS+=--ompss-2
