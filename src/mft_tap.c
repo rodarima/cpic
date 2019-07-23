@@ -20,7 +20,7 @@ event_send(mft_t *m, enum mft_event e)
 		if(i == m->rank)
 			continue;
 
-		MPI_Send(&ev, 1, MPI_INT, i, ev, m->comm);
+		PMPI_Send(&ev, 1, MPI_INT, i, ev, m->comm);
 		//printf("Event %d sent to worker %d\n", ev, i);
 	}
 	return 0;
@@ -38,7 +38,7 @@ event_wait(mft_t *m, enum mft_event e)
 		if(i == m->rank)
 			continue;
 
-		MPI_Recv(&ev, 1, MPI_INT, i, ev, m->comm, MPI_STATUS_IGNORE);
+		PMPI_Recv(&ev, 1, MPI_INT, i, ev, m->comm, MPI_STATUS_IGNORE);
 		//printf("Event %d received from worker %d\n", ev, i);
 	}
 
@@ -214,7 +214,7 @@ MFT_TAP_init(sim_t *sim, solver_t *solver)
 		err("Parameter simulation.mft_tap_workers unset, using %d as default\n", n);
 	}
 
-	MPI_Comm_size(MPI_COMM_WORLD, &np);
+	PMPI_Comm_size(MPI_COMM_WORLD, &np);
 
 	gethostname(hostname, 20);
 	hostname[19] = '\0';
@@ -223,10 +223,10 @@ MFT_TAP_init(sim_t *sim, solver_t *solver)
 	/* TODO: Allow changing the mft binary */
 	//sleep(sim->nprocs - sim->rank);
 	dbg("Spawning %d workers in %s\n", n, hostname);
-	tap_spawn(n, "./mft_worker.sh", &m->comm);
+	tap_spawn(n, "./mft_worker", &m->comm);
 
-	MPI_Comm_rank(m->comm, &m->rank);
-	MPI_Comm_size(m->comm, &m->size);
+	PMPI_Comm_rank(m->comm, &m->rank);
+	PMPI_Comm_size(m->comm, &m->size);
 	dbg("Communicator has %d processes\n", m->size);
 
 	dbg("Allocating shared memory [%d@%s]\n", m->rank, hostname);
@@ -236,7 +236,7 @@ MFT_TAP_init(sim_t *sim, solver_t *solver)
 	/* Wait for the workers for comfirmation that they are sucessfully
 	 * initialized, before continue */
 
-	MPI_Comm_size(MPI_COMM_WORLD, &np2);
+	PMPI_Comm_size(MPI_COMM_WORLD, &np2);
 
 	/* Ensure the new processes don't show in MPI_COMM_WORLD */
 	assert(np == np2);
@@ -249,13 +249,13 @@ MFT_TAP_init(sim_t *sim, solver_t *solver)
 	dbg("The %d workers of master %d are ready\n", n, sim->rank);
 
 	/* Sync with all master processes */
-	//MPI_Barrier(MPI_COMM_WORLD);
+	//PMPI_Barrier(MPI_COMM_WORLD);
 	int flag = 0;
-	MPI_Comm_test_inter(MPI_COMM_WORLD, &flag);
+	PMPI_Comm_test_inter(MPI_COMM_WORLD, &flag);
 	assert(flag == 0);
 
 	int dummy = 0;
-	MPI_Bcast(&dummy, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	PMPI_Bcast(&dummy, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
 	dbg("All masters are ready too\n");
 
@@ -287,7 +287,7 @@ MFT_TAP_solve(solver_t *s)
 	dbg("Master is waiting for all masters to finish\n");
 
 	/* Sync with all master processes */
-	MPI_Barrier(MPI_COMM_WORLD);
+	PMPI_Barrier(MPI_COMM_WORLD);
 	dbg("Solver ends\n");
 
 	return 0;

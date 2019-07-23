@@ -23,7 +23,7 @@ tap_shared_alloc(size_t size, MPI_Comm comm)
 
 	asize = (MPI_Aint) size;
 
-	MPI_Win_allocate_shared(size, 1, MPI_INFO_NULL, comm, &buf, &win);
+	PMPI_Win_allocate_shared(size, 1, MPI_INFO_NULL, comm, &buf, &win);
 
 	return buf;
 }
@@ -41,8 +41,8 @@ tap_shared_query(size_t *size, MPI_Comm comm)
 
 	disp = 1;
 
-	MPI_Win_allocate_shared(0, disp, MPI_INFO_NULL, comm, &buf, &win);
-	MPI_Win_shared_query(win, MPI_PROC_NULL, &asize, &disp, &buf);
+	PMPI_Win_allocate_shared(0, disp, MPI_INFO_NULL, comm, &buf, &win);
+	PMPI_Win_shared_query(win, MPI_PROC_NULL, &asize, &disp, &buf);
 
 	*size = (size_t) asize;
 
@@ -59,7 +59,7 @@ reorder_node_comm(MPI_Comm comm, int master_rank, int size, MPI_Comm *new_comm)
 
 	order = safe_malloc(sizeof(int) * size);
 
-	MPI_Comm_group(comm, &group);
+	PMPI_Comm_group(comm, &group);
 
 	/* All ranks are kept the same */
 	for(i=0; i<size; i++)
@@ -71,10 +71,10 @@ reorder_node_comm(MPI_Comm comm, int master_rank, int size, MPI_Comm *new_comm)
 	order[master_rank] = size - 1;
 	order[size - 1] = master_rank;
 
-	MPI_Group_incl(group, size, order, &new_group);
+	PMPI_Group_incl(group, size, order, &new_group);
 	free(order);
 
-	return MPI_Comm_create(comm, new_group, new_comm);
+	return PMPI_Comm_create(comm, new_group, new_comm);
 }
 
 /* This should be the good version, but ENOTIME, let's go with the quick and
@@ -88,10 +88,10 @@ reorder_node_comm(MPI_Comm comm, int master_rank, int size, MPI_Comm *new_comm)
 //
 //	tag = 959;
 //
-//	MPI_Comm_group(node_comm, &node_group);
-//	MPI_Comm_rank(node_comm, &node_rank);
+//	PMPI_Comm_group(node_comm, &node_group);
+//	PMPI_Comm_rank(node_comm, &node_rank);
 //
-//	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+//	PMPI_Comm_rank(MPI_COMM_WORLD, &rank);
 //
 //	if(master_rank >= 0)
 //	{
@@ -104,7 +104,7 @@ reorder_node_comm(MPI_Comm comm, int master_rank, int size, MPI_Comm *new_comm)
 //		buf[INDEX_GLOBAL] = rank;
 //	}
 //
-//	MPI_Send(buf, 2, MPI_INT, master_rank, tag, node_comm);
+//	PMPI_Send(buf, 2, MPI_INT, master_rank, tag, node_comm);
 //
 //	return 0;
 //}
@@ -120,9 +120,9 @@ reorder_node_comm(MPI_Comm comm, int master_rank, int size, MPI_Comm *new_comm)
 //
 //	tag = 959;
 //
-//	MPI_Comm_group(node_comm, &node_group);
-//	MPI_Comm_rank(node_comm, &node_rank);
-//	MPI_Comm_size(node_comm, &node_size);
+//	PMPI_Comm_group(node_comm, &node_group);
+//	PMPI_Comm_rank(node_comm, &node_rank);
+//	PMPI_Comm_size(node_comm, &node_size);
 //
 //	order = safe_malloc(sizeof(int) * node_size);
 //
@@ -137,16 +137,16 @@ reorder_node_comm(MPI_Comm comm, int master_rank, int size, MPI_Comm *new_comm)
 //	order[node_size - 1] = rank;
 //
 //	/* Now we propagate the new order to the workers */
-//	MPI_Bcast(order, node_size, MPI_INT, rank, );
+//	PMPI_Bcast(order, node_size, MPI_INT, rank, );
 //
-//	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+//	PMPI_Comm_rank(MPI_COMM_WORLD, &rank);
 //
 //	for(i=0; i<node_size; i++)
 //	{
 //		if(i == node_rank)
 //			continue;
 //
-//		MPI_Recv(buf, 2, MPI_INT, i, tag, node_comm, MPI_STATUS_IGNORE);
+//		PMPI_Recv(buf, 2, MPI_INT, i, tag, node_comm, MPI_STATUS_IGNORE);
 //		new_order[buf[INDEX_LOCAL]] = buf[INDEX_GLOBAL];
 //	}
 //
@@ -161,7 +161,7 @@ reorder_node_comm(MPI_Comm comm, int master_rank, int size, MPI_Comm *new_comm)
 //		buf[INDEX_GLOBAL] = rank;
 //	}
 //
-//	MPI_Send(buf, 2, MPI_INT, master_rank, tag, node_comm);
+//	PMPI_Send(buf, 2, MPI_INT, master_rank, tag, node_comm);
 //
 //	return 0;
 //}
@@ -178,41 +178,41 @@ tap_spawn(int n, char *cmd, MPI_Comm *comm)
 	int total_workers;
 	MPI_Group node_group;
 
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	PMPI_Comm_size(MPI_COMM_WORLD, &size);
 
 	total_workers = n * size;
 	dbg("Spawning a total of %d workers\n", total_workers);
-	MPI_Comm_spawn(cmd, MPI_ARGV_NULL, total_workers,
+	PMPI_Comm_spawn(cmd, MPI_ARGV_NULL, total_workers,
 		MPI_INFO_NULL, 0, MPI_COMM_WORLD,
 		&intercomm, MPI_ERRCODES_IGNORE);
 
-	MPI_Comm_size(intercomm, &k);
+	PMPI_Comm_size(intercomm, &k);
 	dbg("Intercommunicator local size %d\n", k);
 	assert(k == size);
 
-	MPI_Comm_remote_size(intercomm, &k);
+	PMPI_Comm_remote_size(intercomm, &k);
 	dbg("Intercommunicator remote size %d\n", k);
 	assert(k == total_workers);
 
 	dbg("Merging intercommunicator\n");
-	MPI_Intercomm_merge(intercomm, 0, &universe);
+	PMPI_Intercomm_merge(intercomm, 0, &universe);
 
-	MPI_Comm_size(universe, &universe_size);
+	PMPI_Comm_size(universe, &universe_size);
 	assert(universe_size == n*size + size);
 
 	dbg("Splitting\n");
-	MPI_Comm_split_type(universe, MPI_COMM_TYPE_SHARED, 0,
+	PMPI_Comm_split_type(universe, MPI_COMM_TYPE_SHARED, 0,
 			MPI_INFO_NULL, &node_comm);
 
-	MPI_Comm_size(node_comm, &node_size);
-	MPI_Comm_rank(node_comm, &node_rank);
+	PMPI_Comm_size(node_comm, &node_size);
+	PMPI_Comm_rank(node_comm, &node_rank);
 	assert(node_size == n + 1);
 
 	dbg("Sending master rank to workers\n");
 	for(i=0; i<node_size; i++)
 	{
 		if(i==node_rank) continue;
-		MPI_Send(&node_rank, 1, MPI_INT, i, 987, node_comm);
+		PMPI_Send(&node_rank, 1, MPI_INT, i, 987, node_comm);
 	}
 
 	dbg("Communicator with workers has %d processes\n", node_size);
@@ -220,19 +220,19 @@ tap_spawn(int n, char *cmd, MPI_Comm *comm)
 	dbg("Reordering master node communicator\n");
 	reorder_node_comm(node_comm, node_rank, node_size, comm);
 
-	MPI_Comm_rank(*comm, &node_rank);
+	PMPI_Comm_rank(*comm, &node_rank);
 	dbg("After reordering, master is at %d\n", node_rank);
 	assert(node_rank == node_size-1);
 
 	/* The workers need to know which rank is the master in master_comm */
-	MPI_Comm_rank(MPI_COMM_WORLD, &master_rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &master_size);
+	PMPI_Comm_rank(MPI_COMM_WORLD, &master_rank);
+	PMPI_Comm_size(MPI_COMM_WORLD, &master_size);
 
 	for(i=0; i<node_size; i++)
 	{
 		if(i==node_rank) continue;
-		MPI_Send(&master_rank, 1, MPI_INT, i, 988, *comm);
-		MPI_Send(&n, 1, MPI_INT, i, 989, *comm);
+		PMPI_Send(&master_rank, 1, MPI_INT, i, 988, *comm);
+		PMPI_Send(&n, 1, MPI_INT, i, 989, *comm);
 	}
 
 	return 0;
@@ -252,7 +252,7 @@ reorder_workers(MPI_Comm old, struct worker_info *info, int nworkers, MPI_Comm *
 	int *order;
 	MPI_Group old_group, new_group;
 
-	MPI_Comm_size(old, &n);
+	PMPI_Comm_size(old, &n);
 
 	order = safe_malloc(sizeof(int) * n);
 
@@ -261,12 +261,12 @@ reorder_workers(MPI_Comm old, struct worker_info *info, int nworkers, MPI_Comm *
 		order[i] = info[i].master_rank * nworkers + info[i].node_rank;
 	}
 
-	MPI_Comm_group(old, &old_group);
-	MPI_Group_incl(old_group, n, order, &new_group);
+	PMPI_Comm_group(old, &old_group);
+	PMPI_Group_incl(old_group, n, order, &new_group);
 
 	free(order);
 
-	return MPI_Comm_create(old, new_group, new_comm);
+	return PMPI_Comm_create(old, new_group, new_comm);
 }
 
 int
@@ -280,35 +280,35 @@ tap_child(MPI_Comm *node_comm, MPI_Comm *worker_comm, int *master_rank)
 	struct worker_info myinfo;
 	MPI_Comm parent, universe, old_node_comm;
 
-	MPI_Comm_get_parent(&parent);
+	PMPI_Comm_get_parent(&parent);
 
 	assert(parent != MPI_COMM_NULL);
 
 
-	MPI_Intercomm_merge(parent, 0, &universe);
+	PMPI_Intercomm_merge(parent, 0, &universe);
 
-	MPI_Comm_split_type(universe, MPI_COMM_TYPE_SHARED, 0,
+	PMPI_Comm_split_type(universe, MPI_COMM_TYPE_SHARED, 0,
 			MPI_INFO_NULL, &old_node_comm);
 
-	MPI_Comm_rank(old_node_comm, &rank);
-	MPI_Comm_size(old_node_comm, &size);
+	PMPI_Comm_rank(old_node_comm, &rank);
+	PMPI_Comm_size(old_node_comm, &size);
 
-	MPI_Recv(&master_node_rank, 1, MPI_INT, MPI_ANY_SOURCE, 987, old_node_comm, MPI_STATUS_IGNORE);
+	PMPI_Recv(&master_node_rank, 1, MPI_INT, MPI_ANY_SOURCE, 987, old_node_comm, MPI_STATUS_IGNORE);
 
 	dbg("Worker is at %d/%d master at %d\n", rank, size, master_node_rank);
 	reorder_node_comm(old_node_comm, master_node_rank, size, node_comm);
 
-	MPI_Comm_rank(*node_comm, &rank);
+	PMPI_Comm_rank(*node_comm, &rank);
 	dbg("After reordering, worker is at %d\n", rank);
 
 	master_node_rank = size - 1;
 
-	MPI_Recv(master_rank, 1, MPI_INT, master_node_rank, 988, *node_comm, MPI_STATUS_IGNORE);
-	MPI_Recv(&nworkers, 1, MPI_INT, master_node_rank, 989, *node_comm, MPI_STATUS_IGNORE);
+	PMPI_Recv(master_rank, 1, MPI_INT, master_node_rank, 988, *node_comm, MPI_STATUS_IGNORE);
+	PMPI_Recv(&nworkers, 1, MPI_INT, master_node_rank, 989, *node_comm, MPI_STATUS_IGNORE);
 	dbg("Worker %d master is %d, computed rank is %d\n", rank, *master_rank, ((*master_rank)*nworkers)+rank);
 
-	MPI_Comm_size(MPI_COMM_WORLD, &total_workers);
-	MPI_Comm_rank(MPI_COMM_WORLD, &worker_rank);
+	PMPI_Comm_size(MPI_COMM_WORLD, &total_workers);
+	PMPI_Comm_rank(MPI_COMM_WORLD, &worker_rank);
 
 	dbg("Worker %d has total_workers = %d\n", rank, total_workers);
 
@@ -323,7 +323,7 @@ tap_child(MPI_Comm *node_comm, MPI_Comm *worker_comm, int *master_rank)
 	myinfo.node_rank = rank;
 	myinfo.worker_rank = worker_rank;
 
-	MPI_Allgather(&myinfo, sizeof(struct worker_info), MPI_BYTE,
+	PMPI_Allgather(&myinfo, sizeof(struct worker_info), MPI_BYTE,
 			info, sizeof(struct worker_info), MPI_BYTE,
 			MPI_COMM_WORLD);
 

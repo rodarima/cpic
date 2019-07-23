@@ -22,7 +22,7 @@ out = 'csv/time.csv'
 t0 = 0
 with open(out, 'w+') as f:
 
-	f.write("P\tmean\trel-err\tspeedup\tefficiency\tsolver\n")
+	f.write("P\tmean\tstd\tspeedup\tefficiency\tsolver\n")
 
 	for P in P_list:
 
@@ -40,16 +40,24 @@ with open(out, 'w+') as f:
 		if line == "": continue
 
 		mean = float(get_field(line, "mean"))
+		std = float(get_field(line, "std"))
 		sem = float(get_field(line, "sem"))
 		ts = float(get_field(line, "solver"))
-		rel_error = sem * 1.96 / mean
+		if mean != 0:
+			rel_error = sem * 1.96 / mean
+		else:
+			rel_error = 0
+
 		if P == 1:
 			speedup = 1
 			t0 = mean
 		else:
-			speedup = t0 / mean
+			if mean != 0:
+				speedup = t0 / mean
+			else:
+				speedup = 0
 
 		efficiency = speedup / P
 
 		f.write("%d\t%e\t%e\t%e\t%e\t%e\n" %
-				(P, mean, rel_error, speedup, efficiency, ts))
+				(P, mean, std, speedup, efficiency, ts))

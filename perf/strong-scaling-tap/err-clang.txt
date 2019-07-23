@@ -1,0 +1,23 @@
+bsc15557@s04r2b28:~/cpic> mpiexec.hydra -n 4 extrae/trace.sh ./cpic
+perf/strong-scaling/conf/P4
+==243246==ASan runtime does not come first in initial library list; you should
+either link runtime to your application or manually preload it with LD_PRELOAD.
+[mpiexec@s04r2b28] HYDU_sock_write (../../utils/sock/sock.c:418): write error
+(Bad file descriptor)
+[mpiexec@s04r2b28] HYD_pmcd_pmiserv_send_signal
+(../../pm/pmiserv/pmiserv_cb.c:252): unable to write data to proxy
+[mpiexec@s04r2b28] HYDU_sock_write (../../utils/sock/sock.c:418): write error
+(Bad file descriptor)
+[mpiexec@s04r2b28] HYD_pmcd_pmiserv_send_signal
+(../../pm/pmiserv/pmiserv_cb.c:252): unable to write data to proxy
+[mpiexec@s04r2b28] HYDU_sock_write (../../utils/sock/sock.c:418): write error
+(Bad file descriptor)
+[mpiexec@s04r2b28] HYD_pmcd_pmiserv_send_signal
+(../../pm/pmiserv/pmiserv_cb.c:252): unable to write data to proxy
+==409885==ASan runtime does not come first in initial library list; you should
+either link runtime to your application or manually preload it with LD_PRELOAD.
+==356745==ASan runtime does not come first in initial library list; you should
+either link runtime to your application or manually preload it with LD_PRELOAD.
+==412311==ASan runtime does not come first in initial library list; you should
+either link runtime to your application or manually preload it with LD_PRELOAD.
+

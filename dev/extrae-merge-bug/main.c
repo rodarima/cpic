@@ -27,24 +27,26 @@ main(int argc, char *argv[])
 		MPI_INFO_NULL, 0, MPI_COMM_WORLD,
 		&intercomm, MPI_ERRCODES_IGNORE);
 
-	PMPI_Intercomm_merge(intercomm, 0, &universe);
+	MPI_Intercomm_merge(intercomm, 0, &universe);
 	printf("Intercomm merged!\n");
-	MPI_Comm_size(universe, &k);
-	assert(k == 2);
+	fflush(stdout);
+	//sleep(3);
+	//MPI_Comm_size(universe, &k);
+	//assert(k == 2);
 
-	bufsize = sizeof(int);
+	//bufsize = sizeof(int);
 
-	MPI_Win_allocate_shared(bufsize, 1, MPI_INFO_NULL, universe, &buf, &win);
+	//MPI_Win_allocate_shared(bufsize, 1, MPI_INFO_NULL, universe, &buf, &win);
 
-	buf[0] = 666;
+	//buf[0] = 666;
 
-	MPI_Barrier(universe);
+	//MPI_Barrier(universe);
 
-	/* Worker runs now */
+	///* Worker runs now */
 
-	MPI_Barrier(universe);
+	//MPI_Barrier(universe);
 
-	assert(buf[0] == 555);
+	//assert(buf[0] == 555);
 	MPI_Finalize();
 
 	return 0;
