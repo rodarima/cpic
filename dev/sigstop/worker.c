@@ -42,6 +42,7 @@ main(int argc, char *argv[])
 	int rank, node_rank;
 	char hostname[100];
 	int c = 0;
+	MPI_Comm test_comm;
 
 	MPI_Init(&argc, &argv);
 
@@ -80,6 +81,9 @@ main(int argc, char *argv[])
 		printf("WORKER: Testing communications\n");
 		MPI_Recv(&c, 1, MPI_INT, sh->master_rank, 666, node_comm, MPI_STATUS_IGNORE);
 		printf("WORKER: Received c=%d\n", c);
+		printf("WORKER: Testing comm dup\n");
+		MPI_Comm_dup(MPI_COMM_WORLD, &test_comm);
+		printf("WORKER: Done\n");
 		sleep(3);
 		printf("WORKER: Finishes work, waking up master\n");
 		kill(sh->master_pid, SIGCONT);

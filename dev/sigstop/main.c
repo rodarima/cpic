@@ -98,19 +98,24 @@ main(int argc, char *argv[])
 	MPI_Barrier(node_comm);
 	printf("MASTER: All parents done\n");
 
-	while(1)
+	#pragma oss task
 	{
-		sleep(6);
-		printf("MASTER: Waking the worker\n");
-		kill(sh->worker_pid, SIGCONT);
-		printf("MASTER: Testing communications\n");
-		c = 12345;
-		MPI_Send(&c, 1, MPI_INT, sh->worker_rank, 666, node_comm);
-		printf("MASTER: Message sent\n");
-		printf("MASTER: Goes to sleep\n");
-		kill(sh->master_pid, SIGSTOP);
-		printf("MASTER: Is alive\n");
+		while(1)
+		{
+			sleep(6);
+			printf("MASTER: Waking the worker\n");
+			kill(sh->worker_pid, SIGCONT);
+			printf("MASTER: Testing communications\n");
+			c = 12345;
+			MPI_Send(&c, 1, MPI_INT, sh->worker_rank, 666, node_comm);
+			printf("MASTER: Message sent\n");
+			printf("MASTER: Goes to sleep\n");
+			kill(sh->master_pid, SIGSTOP);
+			printf("MASTER: Is alive\n");
+		}
 	}
+
+	#pragma oss taskwait
 
 	printf("MASTER: Main process %d finishes now\n", rank);
 	MPI_Finalize();
