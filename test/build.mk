@@ -27,4 +27,5 @@ test: $(tests)
 
 # Add to main rules
 SRC += $(test_src)
+OBJ += $(test_obj)
 BIN += $(tests)
