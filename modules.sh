@@ -3,6 +3,7 @@
 USE_INTEL=1
 USE_OPENMPI_4=0
 USE_PATCHED_OPENMPI=0
+USE_NEW_SCHEDULER=1
 
 module purge
 
@@ -54,3 +55,11 @@ else
 	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$TAMPI_HOME/lib:$HOME/root/usr/lib
 
 fi
+
+
+if [ $USE_NEW_SCHEDULER == 1 ]; then
+	echo LOADING NEW SCHEDULER!
+	export LD_LIBRARY_PATH=$HOME/apps/nanos6-scheduling-refactor/lib:$LD_LIBRARY_PATH
+fi
+
+
