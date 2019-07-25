@@ -31,3 +31,46 @@ Cores	Nodes	Threads	Time FFTW
 16	2	16	3829 ms
 16	2	1	2658 ms
 
+Tue, 23 Jul 2019 17:10:37 +0200
+
+With the new scheduler, the workers are wasting CPU time in the turn of the
+master, and the master is wasting CPU time in the turn of the workers:
+
+$ ps a -o comm,pcpu --sort=-pcpu
+COMMAND         %CPU
+cpic            3794
+mft_worker      33.4
+mft_worker      33.1
+mft_worker      33.0
+mft_worker      32.9
+mft_worker      32.9
+mft_worker      32.9
+mft_worker      32.8
+mft_worker      32.8
+mft_worker      32.7
+mft_worker      32.7
+mft_worker      32.7
+mft_worker      32.7
+mft_worker      32.8
+mft_worker      32.8
+mft_worker      32.8
+mft_worker      32.7
+mft_worker      32.7
+mft_worker      32.7
+mft_worker      32.8
+mft_worker      32.7
+mft_worker      32.7
+mft_worker      32.6
+mft_worker      32.6
+mft_worker      32.6
+mft_worker      32.6
+mft_worker      32.5
+mft_worker      32.6
+mft_worker      32.6
+mft_worker      32.5
+mft_worker      32.5
+mft_worker      32.5
+mft_worker      32.4
+pmi_proxy        0.3
+mpiexec.hydra    0.1
+
