@@ -1,4 +1,4 @@
-BIN=tap.pdf
+BIN=tap.pdf slides.pdf
 #BIN=thesis.pdf slides.pdf
 
 CHAPTERS=$(wildcard ch/*.tex)

@@ -405,6 +405,58 @@
 
 \frame{\titlepage}
 
+\begin{frame}{TAP}
+
+
+\begin{figure}
+\centering
+\includegraphics[width=0.5\textwidth]{tap-tool.jpg}
+\end{figure}
+
+The name TAP comes from the tap tool used to cut threads into parts. The idea is 
+to take a application and force it to support ``threading'' by creating one 
+process for each CPU.
+
+\end{frame}
+
+\begin{frame}{Use case: Plasma simulation}
+
+The technique comes from a problem observed in the spectral solver used in 
+plasma simulation, where the FFTW library is used. The performance when using 
+the threads implementation is very bad.
+
+\vspace{1em}
+
+The solver becomes the bottleneck of the simulation. However by creating more 
+processes, the FFTW can improve the performance, but the rest of the simulation 
+doesn't benefit.
+
+\end{frame}
+
+\begin{frame}{Problem observed}
+
+\begin{figure}
+\centering
+\includegraphics[width=\textwidth]{tap/notap}
+\caption{A trace of the simulation with two iterations is shown, focused only in 
+one node with 48 CPUs.}
+\end{figure}
+
+
+\end{frame}
+
+\begin{frame}{Proposed solution: TAP}
+
+The idea is to create more processes only for the solver, while the main 
+simulation continues with one process per node.
+
+\vspace{1em}
+
+An in depth example with 2 nodes is shown, where the hybrid part of the 
+simulation runs in the master process, and the solver in the workers.
+
+\end{frame}
+
 \begin{frame}[fragile]
 \begin{figure}[h]
 \begin{adjustbox}{max totalsize={\textwidth}{\textheight},center}
@@ -435,7 +487,8 @@
 	\pic[left=7cm of n2] {master={2/running}};
 
 	\node (text) [fill=gray!20,left=1cm of n1-c,text width=5cm]
-		{A master process is created in each node, with one thread for each CPU.};
+		{A master process is created in each node, with one thread for each CPU, and 
+		runs the hybrid part of the simulation.};
 
 \end{tikzpicture}
 \end{adjustbox}
@@ -492,7 +545,8 @@
 
 	\node (text) [fill=gray!20,left=1cm of n1-c,text width=5cm]
 		{Additionally, a total of four worker processes are spawn from each master 
-		with \texttt{MPI\_Comm\_spawn(3)}.};
+		with \texttt{MPI\_Comm\_spawn(3)}. The pure MPI part will run in the 
+		workers.};
 
 
 \end{tikzpicture}
@@ -580,9 +634,9 @@
 
 	\pic {full={running/running}};
 
-	\node (text) [fill=gray!20,left=1cm of n1-c,text width=5cm]
+	\node (text) [fill=gray!20,left=1cm of n1-c,text width=5.4cm]
 		{The shared memory is divided in slices and assigned to each worker as 
-		required by the FFT.};
+		required by the FFTW.};
 
 	% Draw shared memory lines
 	\foreach \n in {1,2}
@@ -747,6 +801,157 @@
 \end{tikzpicture}
 \end{adjustbox}
 \end{figure}
+\end{frame}
+
+
+\begin{frame}{Comments}
+
+Notice that at all times there are always as many active threads or processes as 
+CPUs available---we have no oversubscription (except at the initialization).
+
+\vspace{1em}
+
+The current mechanism to stop and resume the processes is implemented using the 
+signals SIGSTOP and SIGCONT.
+
+\end{frame}
+
+
+
+\begin{frame}{Results: Time per iteration}
+\begin{figure}[ht]%{{{
+\centering
+\begin{adjustbox}{max totalsize={.9\textwidth}{.7\textheight},center}
+\begin{tikzpicture}
+	\begin{axis}[
+		xmode=log,
+		ymode=log,
+		log basis x=2,
+		log basis y=2,
+		%xticklabels={0,1,2,4,8,16,32},
+		xticklabel style={
+			/pgf/number format/fixed,
+			/pgf/number format/precision=5
+		},
+		scaled x ticks=false,
+		log ticks with fixed point,
+		grid=major,
+		xmin=0,
+		ymin=0,
+		xlabel=Number of nodes,
+		ylabel=Time per iteration (s),
+		height=8cm,
+		width=1\textwidth,
+		legend pos=outer north east,
+		/tikz/font=\small]
+		\addplot+ table [
+			x = P,
+			y = mean,
+			col sep=tab,
+		] {perf/notap/csv/time.csv};
+		\addplot+ table [
+			x = P,
+			y = mean,
+			col sep=tab] {perf/tap/csv/time.csv};
+		\legend{TAP disabled,TAP enabled}
+	\end{axis}
+\end{tikzpicture}
+\end{adjustbox}
+\caption{Time per iteration with 32K$\times$32K gridpoints, 2M particles.  Each 
+node has 48 CPUs, using 48 CPUs/node for the main simulation, 32 CPUs/node for 
+the solver.}
+\label{fig:time}
+\end{figure}%}}}
+\end{frame}
+
+\begin{frame}{Results: Strong scaling}
+\begin{figure}[ht]%{{{
+\centering
+\begin{adjustbox}{max totalsize={.9\textwidth}{.7\textheight},center}
+\begin{tikzpicture}
+	\begin{axis}[
+		xmode=log,
+		ymode=log,
+		log basis x=2,
+		log basis y=2,
+		log ticks with fixed point,
+		xticklabels={0,1,2,4,8,16,32},
+		grid=major,
+		xmin=0,
+		ymin=0,
+		xlabel=Number of nodes,
+		ylabel=Speedup,
+		height=8cm,
+		width=0.7\textwidth,
+		/tikz/font=\small]
+		\addplot+ table [
+			x = P,
+			y = speedup,
+			col sep=tab] {perf/notap/csv/time.csv};
+		\addplot+ table [
+			x = P,
+			y = speedup,
+			col sep=tab] {perf/tap/csv/time.csv};
+	\end{axis}
+\end{tikzpicture}
+\begin{tikzpicture}
+	\begin{axis}[
+		xmode=log,
+		log basis x=2,
+		xticklabels={0,1,2,4,8,16,32},
+		grid=major,
+		xmin=0,
+		ymin=0,
+		xlabel=Number of nodes,
+		ylabel=Efficiency,
+		height=8cm,
+		width=0.7\textwidth,
+		legend pos=outer north east,
+		/tikz/font=\small]
+		\addplot+ table [
+			x = P,
+			y = efficiency,
+			col sep=tab] {perf/notap/csv/time.csv};
+		\addplot+ table [
+			x = P,
+			y = efficiency,
+			col sep=tab] {perf/tap/csv/time.csv};
+		\legend{TAP disabled,TAP enabled}
+	\end{axis}
+\end{tikzpicture}
+\end{adjustbox}
+\caption{Strong scaling with 32K$\times$32K gridpoints, 2M particles.  Each node 
+has 48 CPUs, using 48 CPUs/node for the main simulation, 32 CPUs/node for the 
+solver.}
+\label{fig:strong-scaling}
+\end{figure}%}}}
+\end{frame}
+
+
+\begin{frame}{Trace comparison}
+\begin{figure}
+\centering
+\includegraphics[width=.95\textwidth]{tap/trace-comp}
+\end{figure}
+Notice the traces have the same time scale in the X axis.
+\end{frame}
+
+\begin{frame}{Requirements for using TAP}
+
+To determine if you could benefit from using TAP, divide your application in two 
+parts: The hybrid parallelization uses all CPUs in all nodes, and scales 
+properly. And the pure part, which uses only MPI parallelization and thus only 
+one CPU is used per process.  Then, ensure that:
+\vspace{1em}
+
+\begin{itemize}
+\item The pure MPI part is the bottleneck.
+\item There would be an increase in performance if more MPI processes run the 
+pure part.
+\item A shared region can be used to communicate the hybrid and pure parts.
+\item You don't want or can't introduce hybrid parallelization in the pure part.
+\end{itemize}
+
 \end{frame}
 
 \end{document}
