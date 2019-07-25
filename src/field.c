@@ -74,6 +74,7 @@ field_init(sim_t *sim, field_t *f)
 	MAT_FILL(f->_rho, NAN);
 	//MAT_FILL(f->_rho, 0.0);
 	assert(rho_alloc_size <= f->_rho->size);
+	assert(isnan(f->_rho->data[0]));
 
 	/* PHI field */
 

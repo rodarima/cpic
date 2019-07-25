@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "solver.h"
 #include "utils.h"
@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
 
 static int
 event_send(mft_t *m, enum mft_event e)
@@ -168,12 +169,18 @@ create_shared(sim_t *sim, mft_t *m)
 
 	shared = tap_shared_alloc(size, m->comm);
 
+	shared->magic = 0xdeadbeef;
+	shared->running = 1;
+
 	/* Copy the data to be shared */
+	shared->master_pid = getpid();
 	shared->master_rank = m->rank;
 	shared->phi_offset = rho_size;
 	memcpy(&shared->sim, sim, sizeof(*sim));
 	memcpy(&shared->rho, _rho, sizeof(*_rho));
 	memcpy(&shared->phi, _phi, sizeof(*_phi));
+
+	assert(isnan(shared->rho.data[0]));
 
 	/* Now set the fields data to the new location. This is the ugliest hack
 	 * ever */
@@ -213,6 +220,8 @@ MFT_TAP_init(sim_t *sim, solver_t *solver)
 	{
 		err("Parameter simulation.mft_tap_workers unset, using %d as default\n", n);
 	}
+
+	m->nworkers = n;
 
 	PMPI_Comm_size(MPI_COMM_WORLD, &np);
 
@@ -267,6 +276,7 @@ MFT_TAP_init(sim_t *sim, solver_t *solver)
 int
 MFT_TAP_solve(solver_t *s)
 {
+	int i;
 	mft_t *m;
 
 	m = s->data;
@@ -274,15 +284,27 @@ MFT_TAP_solve(solver_t *s)
 	dbg("Solver begins\n");
 	/* Using barrier as signal */
 	//MPI_Barrier(mft->comm);
-	event_send(m, MFT_COMPUTE_BEGIN);
+	//event_send(m, MFT_COMPUTE_BEGIN);
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	dbg("Waking the workers\n");
+	for(i=0; i<m->nworkers; i++)
+	{
+		dbg("Waking worker with pid %d\n", m->shared->worker_pid[i]);
+		kill(m->shared->worker_pid[i], SIGCONT);
+	}
+
+	//usleep(300);
 
 	/* Workers are working now... */
-
-	dbg("Master is waiting for the workers to finish\n");
+	dbg("Master goes to sleep, while workers compute the FFT\n");
+	fflush(stderr);
+	kill(getpid(), SIGTSTP /*SIGSTOP*/);
 
 	/* All my workers have finished */
 
-	event_wait(m, MFT_COMPUTE_END);
+	//event_wait(m, MFT_COMPUTE_END);
 
 	dbg("Master is waiting for all masters to finish\n");
 
@@ -297,12 +319,25 @@ MFT_TAP_solve(solver_t *s)
 int
 MFT_TAP_end(solver_t *s)
 {
+	int i;
 	mft_t *m;
 
 	m = s->data;
 
 	dbg("Sending end event to solvers\n");
-	event_send(m, MFT_FINISH);
+	//event_send(m, MFT_FINISH);
+
+	m->shared->running = 0;
+
+	PMPI_Barrier(MPI_COMM_WORLD);
+	/* We only need to wake them, as the sim->running flag will make them
+	 * call MPI_Finish */
+	for(i=0; i<m->nworkers; i++)
+	{
+		dbg("Ending worker with pid %d\n", m->shared->worker_pid[i]);
+		kill(m->shared->worker_pid[i], SIGCONT);
+	}
+	//usleep(300);
 
 	return 0;
 }

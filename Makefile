@@ -41,7 +41,7 @@ CFLAGS+=-finstrument-functions
 
 # Debug
 #CFLAGS+=-fsanitize=address
-CFLAGS+=-fno-omit-frame-pointer
+#CFLAGS+=-fno-omit-frame-pointer
 
 # Debug race conditions
 #CFLAGS+=-fsanitize=thread

@@ -30,8 +30,8 @@ typedef struct
 	int shape[MAX_DIM];
 	int real_shape[MAX_DIM];
 	int dim;
-	int real_size;
-	int size;
+	size_t real_size;
+	size_t size;
 } mat_t;
 
 #define mat_set(m, pos, type, v)			\
@@ -66,11 +66,11 @@ do {							\
 
 #define MAT_FILL(m, v)					\
 do {							\
-	int __ix, __iy, __iz;				\
+	size_t __ix, __iy, __iz;			\
 	for(__iz=0; __iz<m->shape[Z]; __iz++)		\
 	for(__iy=0; __iy<m->shape[Y]; __iy++)		\
 	for(__ix=0; __ix<m->shape[X]; __ix++)		\
-		MAT_XYZ(m, __ix, __iy, __iz) = v;		\
+		MAT_XYZ(m, __ix, __iy, __iz) = v;	\
 } while(0)
 
 #define VMAT_FILL(m, dim, v)				\

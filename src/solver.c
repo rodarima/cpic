@@ -391,7 +391,7 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 
 	assert(local_n0 == sim->blocksize[Y]);
 
-	dbg("Rho needed size is %ld, allocated real size %d\n", rho_size, b->real_size);
+	dbg("Rho needed size is %ld, allocated real size %ld\n", rho_size, b->real_size);
 
 	/* Ensure we have extra room to store the extra data FFTW needs */
 	assert(b->real_size >= rho_size);

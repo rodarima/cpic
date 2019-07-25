@@ -11,7 +11,8 @@
 size_t
 mat_size(int dim, int *shape)
 {
-	int i, size;
+	int i;
+	size_t size;
 
 	if(dim > MAX_DIM)
 		return -1;
@@ -26,7 +27,8 @@ mat_size(int dim, int *shape)
 void
 mat_init(mat_t *m, int dim, int *shape)
 {
-	int i, size;
+	int i;
+	size_t size;
 
 	m->dim = dim;
 
@@ -57,7 +59,8 @@ mat_t *
 mat_alloc(int dim, int *shape)
 {
 	mat_t *m;
-	int i, size;
+	int i;
+	size_t size;
 
 	if(dim > MAX_DIM)
 		return NULL;

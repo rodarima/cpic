@@ -10,6 +10,8 @@ typedef struct mft_shared mft_shared_t;
 #include "solver.h"
 #include <mpi.h>
 
+#define MAX_CPUS 48
+
 enum mft_event {
 	MFT_MASTER_READY = 100,
 	MFT_WORKER_READY,
@@ -23,6 +25,9 @@ struct mft
 	int rank;
 	int size;
 
+	/* Workers per node */
+	int nworkers;
+
 	/* Shared memory with all workers of this node */
 	mft_shared_t *shared;
 
@@ -31,8 +36,16 @@ struct mft
 
 struct mft_shared
 {
+	int magic;
+
 	/* The rank of the master in the node communicator */
 	int master_rank;
+
+	/* The pids of the master and worker 0 processes */
+	int master_pid;
+	int worker_pid[MAX_CPUS];
+
+	int running;
 
 	/* We need to read some parameters from the solver and simulation. Note
 	 * that we cannot follow any pointer */

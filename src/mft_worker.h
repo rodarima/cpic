@@ -24,10 +24,10 @@ struct mft_worker
 	int nworkers, nmasters;
 
 	/* Node communicator */
-	MPI_Comm comm;
+	MPI_Comm node_comm;
 
 	/* World communicator for use in the FFT */
-	MPI_Comm world;
+	MPI_Comm worker_comm;
 
 	/* Shared memory with all members in the node */
 	mft_shared_t *shared;

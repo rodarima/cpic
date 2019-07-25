@@ -567,6 +567,13 @@ sim_run(sim_t *sim)
 	while(sim->running && sim->iter < sim->cycles)
 		sim_step(sim);
 
+	if(sim->rank == 0)
+		sim->running = 0;
+
+	MPI_Bcast(&sim->running, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+	assert(sim->running == 0);
+
 	perf_stop(&sim->timers[TIMER_TOTAL]);
 
 	sim_end(sim);
