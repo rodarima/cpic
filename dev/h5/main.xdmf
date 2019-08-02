@@ -1,0 +1,32 @@
+<?xml version="1.0" ?>
+<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>
+<Xdmf Version="2.0">
+	<Domain>
+		<Topology TopologyType="2DSMesh" NumberOfElements="100 100"/>
+<!--
+		<Geometry name="geo" GeometryType="X_Y">
+			<DataItem Name="X" Dimensions="100 100" NumberType="Float" Precision="8" Format="HDF">
+					dset.h5:/x
+			</DataItem>
+			<DataItem Name="Y" Dimensions="100 100" NumberType="Float" Precision="8" Format="HDF">
+					dset.h5:/y
+			</DataItem>
+-->
+		<Geometry name="geo" Type="ORIGIN_DXDYDZ">
+			<DataItem Format="XML" Dimensions="3">
+					0.0 0.0 0.0
+			</DataItem>
+			<!-- DxDyDz -->
+			<DataItem Format="XML" Dimensions="3">
+					1.0 1.0 1.0
+			</DataItem>
+		</Geometry>
+		<Grid Name="mesh1" GridType="Uniform">
+			<Attribute Name="TEMP" AttributeType="Scalar" Center="Node">
+				<DataItem Dimensions="100 100" NumberType="Float" Precision="8" Format="HDF">
+						dset.h5:/temp
+				</DataItem>
+			</Attribute>
+		</Grid>
+	</Domain>
+</Xdmf>

@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "mat.h"
 

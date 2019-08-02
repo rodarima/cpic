@@ -63,3 +63,4 @@ if [ $USE_NEW_SCHEDULER == 1 ]; then
 fi
 
 
+module load hdf5

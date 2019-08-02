@@ -37,3 +37,4 @@ doc/*.nav
 doc/*.snm
 doc/*.vrb
 .gdb_history
+*.h5

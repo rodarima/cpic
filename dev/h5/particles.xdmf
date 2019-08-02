@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Xdmf xmlns:xi="http://www.w3.org/2001/XInclude" Version="3.0">
+	<Domain>
+		<Grid Name="particles">
+			<Topology TopologyType="Polyvertex"/>
+			<Geometry Origin="" Type="XY">
+				<DataItem Dimensions="200 2" DataType="Float" Precision="8" Format="HDF">dset.h5:/xy</DataItem>
+			</Geometry>
+			<Attribute Center="Node" Name="TEMP" Type="Scalar">
+				<DataItem Dimensions="200" DataType="Float" Precision="8" Format="HDF">dset.h5:/temp</DataItem>
+			</Attribute>
+		</Grid>
+	</Domain>
+</Xdmf>
+

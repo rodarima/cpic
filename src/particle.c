@@ -295,10 +295,10 @@ particle_set_E(sim_t *sim, plasma_chunk_t *chunk, int i)
 
 	for(p=set->particles; p; p=p->next)
 	{
-		p->E[X] = 0.0;
-		p->E[Y] = 0.0;
 		if(p->i < 100)
 			dbg("p-%d old E=(%f %f)\n", p->i, p->E[X], p->E[Y]);
+		p->E[X] = 0.0;
+		p->E[Y] = 0.0;
 		interpolate_field_to_particle_xy(sim, p, &p->E[X], f->E[X]);
 		interpolate_field_to_particle_xy(sim, p, &p->E[Y], f->E[Y]);
 		if(p->i < 100)
@@ -389,9 +389,9 @@ particle_x_update(sim_t *sim, plasma_chunk_t *chunk, int i)
 		u[Z] = p->u[Z];
 		E = p->E;
 
-		E[X] = 0.0;
-		E[Y] = 0.0;
-		E[Z] = 0.0;
+		//E[X] = 0.0;
+		//E[Y] = 0.0;
+		//E[Z] = 0.0;
 
 		if(sim->iter == 0)
 		{
@@ -456,6 +456,7 @@ particle_x_update(sim_t *sim, plasma_chunk_t *chunk, int i)
 			exit(1);
 		}
 
+		/*
 		if(fabs(dx[X]) > sim->dx[X] || fabs(dx[Y]) > sim->dx[Y])
 		{
 			err("Particle %d at x=(%.3e,%.3e)+(%.3e,%.3e) has exceeded sim dx=(%.3e,%.3e)\n",
@@ -466,6 +467,7 @@ particle_x_update(sim_t *sim, plasma_chunk_t *chunk, int i)
 					sim->dt);
 			exit(1);
 		}
+		*/
 
 
 		p->x[X] += dx[X];

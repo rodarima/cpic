@@ -52,6 +52,9 @@ src_cflags+=-g -pthread -Wall
 src_ldlibs+=-lfftw3_threads
 src_ldlibs+=-lfftw3_mpi -lfftw3
 
+# HDF5
+src_ldlibs+=-lhdf5
+
 # Extrae API (not needed anymore)
 #src_ldlibs+=-lmpitrace
 

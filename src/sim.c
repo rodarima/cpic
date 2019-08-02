@@ -19,6 +19,7 @@
 #include "comm.h"
 #include "plasma.h"
 #include "utils.h"
+#include "pv.h"
 
 #include <math.h>
 #include <assert.h>
@@ -274,6 +275,8 @@ sim_end(sim_t *sim)
 	/* We only implement the solver gracefully exit, as all other work is
 	 * realted with freeing memory */
 	solver_end(sim, sim->solver);
+
+	return 0;
 }
 
 #if 0
@@ -447,11 +450,15 @@ sim_step(sim_t *sim)
 		perf_start(&sim->timers[TIMER_ITERATION]);
 	}
 
+	printf("iteration %d/%d\n", sim->iter, sim->cycles);
+
 	/* Phase CP:FS. Field solver, calculation of the electric field
 	 * from the current */
 
 	/* Line 6: Update E on the grid from rho */
 	field_E(sim);
+
+	pv_dump_fields(sim);
 
 	/* Phase IP:FI. Field interpolation, projection of the electric
 	 * field from the grid nodes to the particle positions. */
@@ -466,6 +473,10 @@ sim_step(sim_t *sim)
 	/* Line 8: Update the speed on each particle, eq 6 */
 	/* Line 9: Update the position on each particle, eq 7 */
 	plasma_x(sim);
+
+	//if((sim->iter % 100) == 0)
+		pv_dump_particles(sim);
+
 
 	/* Phase IP:MG. Moment gathering, assembling of the electric
 	 * current from the values of the particle positions and
@@ -512,6 +523,7 @@ sim_step(sim_t *sim)
 
 	sim->iter += 1;
 	sim->t = sim->iter * sim->dt;
+
 
 	MPI_Bcast(&sim->running, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
