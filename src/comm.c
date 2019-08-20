@@ -1287,7 +1287,7 @@ comm_send_ghost_rho(sim_t *sim)
 	/* We already have the ghost row of the lower part in contiguous memory
 	 * */
 
-	ptr = &MAT_XY(rho, 0, sim->blocksize[Y] - sim->ghostpoints);
+	ptr = &MAT_XY(rho, 0, sim->blocksize[Y]);
 
 	/* We only send 1 row of ghost elements, so we truncate rho to avoid
 	 * sending the VARIABLE padding added by the FFTW */
