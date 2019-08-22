@@ -99,7 +99,7 @@ relative_position_grid(double x0, double x, double dx, int *i0)
 	grid_delta = fmod(block_delta, dx);
 	rel = grid_delta / dx;
 
-	dbg("grid_delta = %f, rel = %f\n", grid_delta, rel);
+	dbg("grid_delta = %f, rel = %f, i0 = %d\n", grid_delta, rel, *i0);
 
 	assert(rel <= 1.0);
 	assert(rel >= 0.0);
@@ -128,8 +128,8 @@ interpolate_weights_xy(double x[2], double dx[2], double x0[2],
 	delta_grid[Y] = relative_position_grid(
 			x0[Y], x[Y], dx[Y], &i0[Y]);
 
-	dbg("delta_grid[X] = %f\n", delta_grid[X]);
-	dbg("delta_grid[Y] = %f\n", delta_grid[Y]);
+	dbg("delta_grid = (%f %f)\n", delta_grid[X], delta_grid[Y]);
+	dbg("i0 = (%d %d)\n", i0[X], i0[Y]);
 
 	linear_interpolation_xy(delta_grid, w);
 	assert(fabs(w[0][0] + w[0][1] + w[1][0] + w[1][1] - 1.0) < MAX_ERR);
@@ -170,6 +170,8 @@ interpolate_field_to_particle_xy(sim_t *sim, particle_t *p, double *val, mat_t *
 
 	assert(i1[X] < sim->blocksize[X]);
 	assert(i1[Y] < sim->ghostsize[Y]);
+
+	dbg("i0 = (%d %d) i1 = (%d %d)\n", i0[X], i0[Y], i1[X], i1[Y]);
 
 	assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
 	assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);

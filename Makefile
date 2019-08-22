@@ -6,7 +6,10 @@ GCC=gcc
 #CC=clang
 #CC=mcc --ompss-2 --line-markers
 #I_MPI_CC=mcc
-CC=I_MPI_CC=mcc mpiicc --ompss-2 --line-markers
+#CC=I_MPI_CC=mcc mpiicc --ompss-2 --line-markers
+MPICC=mpicc
+#CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
+CC=OMPI_CC=mcc $(MPICC) --line-markers
 
 #CC=I_MPI_CC=mcc mpiicc --cc=clang --ompss-2 --line-markers
 
@@ -26,11 +29,14 @@ CFLAGS+=-O3
 # Enable profiling with gprof
 #CFLAGS+=-pg
 
+# Ignore pragma warnings
+CFLAGS+=-Wno-unknown-pragmas
+
 # Use debug messages
 CFLAGS+=-DGLOBAL_DEBUG
 
 # Use TAMPI
-USE_TAMPI?=1
+USE_TAMPI?=0
 
 ifeq ($(USE_TAMPI), 1)
 CFLAGS+=-DWITH_TAMPI

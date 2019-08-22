@@ -200,6 +200,7 @@ plasma_chunk_init(sim_t *sim, int i)
 
 		chunk->ib0[d] = chunk->i[d] * sim->chunksize[d];
 		chunk->ib1[d] = chunk->ib0[d] + sim->chunksize[d];
+		chunk->igp0[d] = chunk->ig[d] * sim->chunksize[d];
 
 		dbg("shape[%c]=%d ib0[%c]=%d ib1[%c]=%d\n",
 				"XYZ"[d], chunk->shape[d],

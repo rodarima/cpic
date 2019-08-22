@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stddef.h>
+
 /* Lets keep the simulation reasonable */
 #define MAX_DIM 3
 

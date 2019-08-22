@@ -215,10 +215,26 @@ rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 		/* And also may be in Y */
 		assert(_rho->shape[Y] >= sim->ghostsize[Y]);
 
+		dbg("p-%d affects x=(%d %d) y=(%d %d) old rho=(%e %e %e %e)\n",
+				p->i, i0[X], i1[X], i0[Y], i1[Y],
+				MAT_XY(_rho, i0[X], i0[Y]),
+				MAT_XY(_rho, i1[X], i0[Y]),
+				MAT_XY(_rho, i0[X], i1[Y]),
+				MAT_XY(_rho, i1[X], i1[Y])
+			);
+
 		MAT_XY(_rho, i0[X], i0[Y]) += w[0][0] * q;
 		MAT_XY(_rho, i0[X], i1[Y]) += w[0][1] * q;
 		MAT_XY(_rho, i1[X], i0[Y]) += w[1][0] * q;
 		MAT_XY(_rho, i1[X], i1[Y]) += w[1][1] * q;
+
+		dbg("p-%d affect x=(%d %d) y=(%d %d) new rho=(%e %e %e %e)\n",
+				p->i, i0[X], i1[X], i0[Y], i1[Y],
+				MAT_XY(_rho, i0[X], i0[Y]),
+				MAT_XY(_rho, i1[X], i0[Y]),
+				MAT_XY(_rho, i0[X], i1[Y]),
+				MAT_XY(_rho, i1[X], i1[Y])
+			);
 
 		assert(MAT_XY(_rho, i0[X], i0[Y]) != 0.0);
 		dbg("p-%d _rho(%d,%d)=%e\n",
@@ -366,15 +382,19 @@ field_rho(sim_t *sim)
 	{
 		comm_send_ghost_rho(sim);
 
+		/* FIXME: We cannot destroy the ghost while the ghost is still
+		 * being sent */
 		//#pragma oss task out(plasma->chunks[0:plasma->nchunks-1]) label(rho_destroy_ghost)
-		for (i=0; i<plasma->nchunks; i++)
-			rho_destroy_ghost(sim, i);
+		//for (i=0; i<plasma->nchunks; i++)
+		//	rho_destroy_ghost(sim, i);
 
 		mat_print(sim->field.rho, "rho after ghost destruction");
 
 		//#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_recv_ghost_rho)
 		/* Recv the ghost part of the rho field */
 		comm_recv_ghost_rho(sim);
+
+		mat_print(sim->field.rho, "rho after ghost reception");
 
 		//#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(field_rho:perf_stop)
 		/* Recv the ghost part of the rho field */
@@ -447,20 +467,30 @@ field_E_compute(sim_t *sim, plasma_chunk_t *chunk)
 int
 field_phi_solve(sim_t *sim)
 {
+	mat_t *rho, *phi;
+	field_t *f;
+
+	f = &sim->field;
+	rho = f->rho;
+	phi = f->phi;
 
 	/* We don't need the sum of the charge sum 0 if we use the MFT solver */
 	assert(sim->solver->method == METHOD_MFT ||
 			sim->solver->method == METHOD_MFT_TAP);
 
-	//mat_print(b->rho, "rho after set sum to 0");
+	mat_print(rho, "rho after set sum to 0");
+
+	assert(!isnan(MAT_XY(rho, 0, 0)));
 
 	perf_start(&sim->timers[TIMER_SOLVER]);
 
-	solve_xy(sim, sim->solver, sim->field.phi, sim->field.rho);
+	solve_xy(sim, sim->solver, phi, rho);
 
 	perf_stop(&sim->timers[TIMER_SOLVER]);
 
-	mat_print(sim->field.phi, "phi after solver");
+	assert(!isnan(MAT_XY(phi, 0, 0)));
+
+	mat_print(phi, "phi after solver");
 
 	return 0;
 }

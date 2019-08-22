@@ -15,9 +15,14 @@
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
+/* Use MPI rank as colors */
+//#define DEBUG_USE_MPI_RANK
+
 #ifdef GLOBAL_DEBUG
 
 #if DEBUG
+
+#ifdef DEBUG_USE_MPI_RANK
 #define dbg(...) do {						\
 	int __rank; 						\
 	MPI_Comm_rank(MPI_COMM_WORLD, &__rank);			\
@@ -28,6 +33,16 @@
 	fprintf(stderr, "\x1b[0m");				\
 	funlockfile(stderr);					\
 } while(0)
+#else
+#define dbg(...) do {						\
+	flockfile(stderr);					\
+	fprintf(stderr, "%s:%-4d: ",				\
+		__FILE__, __LINE__);				\
+	fprintf(stderr, __VA_ARGS__);				\
+	funlockfile(stderr);					\
+} while(0)
+#endif
+
 #define dbgr(...) do {						\
 	fprintf(stderr, __VA_ARGS__);				\
 } while(0)

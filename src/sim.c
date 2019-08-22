@@ -1,3 +1,6 @@
+#define _GNU_SOURCE
+#include <fenv.h>
+
 #include <libconfig.h>
 #include "sim.h"
 
@@ -200,6 +203,12 @@ sim_init(config_t *conf, int quiet)
 	sim_t *s;
 
 	printf("Initializing simulation\n");
+
+	feenableexcept(
+			FE_INVALID	|
+			FE_DIVBYZERO	|
+			FE_OVERFLOW	|
+			FE_UNDERFLOW);
 
 	s = safe_malloc(sizeof(sim_t));
 
@@ -450,7 +459,7 @@ sim_step(sim_t *sim)
 		perf_start(&sim->timers[TIMER_ITERATION]);
 	}
 
-	printf("iteration %d/%d\n", sim->iter, sim->cycles);
+	fprintf(stderr, "iteration %d/%d\n", sim->iter, sim->cycles);
 
 	/* Phase CP:FS. Field solver, calculation of the electric field
 	 * from the current */

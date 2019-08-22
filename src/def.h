@@ -201,6 +201,9 @@ struct plasma_chunk
 	double x1[MAX_DIM];
 	double L[MAX_DIM];
 
+	/* Global position of the first grid point at x=0 y=0 of the chunk */
+	int igp0[MAX_DIM];
+
 	/* Local shape of the corresponding block */
 	int shape[MAX_DIM];
 	/* Local block index range */

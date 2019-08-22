@@ -259,9 +259,10 @@ MFT_init(sim_t *sim, solver_t *s)
 
 	if(sim->fftw_threads)
 	{
-		if(sim->fftw_threads == -1)
-			threads = nanos6_get_num_cpus();
-		else
+		printf("FIXME: Uncomment fftw threads \n");
+		//if(sim->fftw_threads == -1)
+		//	threads = nanos6_get_num_cpus();
+		//else
 			threads = sim->fftw_threads;
 
 		err("Using %d threads in FFTW\n", threads);

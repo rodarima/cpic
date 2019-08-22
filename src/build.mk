@@ -40,8 +40,8 @@ TAMPI_HOME?=/usr
 src_ldlibs=$(TAMPI_HOME)/lib/libtampi.a
 endif
 
-#src_cflags+=$(shell mpicc --showme:compile)
-#src_ldlibs+=$(shell mpicc --showme:link)
+src_cflags+=$(shell mpicc --showme:compile)
+src_ldlibs+=$(shell mpicc --showme:link)
 src_ldlibs+=-lmpi
 
 src_ldlibs+=-lm -lconfig
@@ -91,7 +91,7 @@ src/mft_worker.o: src/mft_worker.c
 	gcc $(WORKERS_CFLAGS) -c -o $@ $^
 
 mft_worker: $(obj_worker)
-	I_MPI_CC=gcc mpiicc $(WORKERS_CFLAGS) -lm -lfftw3_mpi -lfftw3 $(CFLAGS) -o $@ $^
+	I_MPI_CC=gcc $(MPICC) $(WORKERS_CFLAGS) -lm -lfftw3_mpi -lfftw3 $(CFLAGS) -o $@ $^
 	#$(GCC) $(CFLAGS) $(src_cflags) $(WORKERS_CFLAGS) $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@ $^
 
 cpic.a: $(obj_lib)

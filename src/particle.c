@@ -205,7 +205,7 @@ boris_rotation(double q, double m, double *u, double *v, double *E, double *B, d
 	double s[MAX_DIM], s_denom;
 	double dtqm2;
 
-	dtqm2 = 0.5 * dt * q / m;
+	dtqm2 = - 0.5 * dt * q / m;
 	s_denom = 1.0;
 
 	for(d=X; d<MAX_DIM; d++)
@@ -303,6 +303,7 @@ particle_set_E(sim_t *sim, plasma_chunk_t *chunk, int i)
 		interpolate_field_to_particle_xy(sim, p, &p->E[Y], f->E[Y]);
 		if(p->i < 100)
 			dbg("p-%d new E=(%f %f)\n", p->i, p->E[X], p->E[Y]);
+		assert(!isnan(p->E[X]) && !isnan(p->E[Y]));
 	}
 	return 0;
 }
