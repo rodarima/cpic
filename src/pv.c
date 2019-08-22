@@ -182,22 +182,6 @@ write_xdmf_fields(sim_t *sim)
 	fprintf(f, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
 	fprintf(f, "<Xdmf xmlns:xi=\"http://www.w3.org/2001/XInclude\" Version=\"3.0\">\n");
 	fprintf(f, "  <Domain>\n");
-//	fprintf(f, "    <Grid Name=\"fields\">\n");
-//	fprintf(f, "      <Topology TopologyType=\"3DCoRectMesh\" NumberOfElements=\"%d %d %d\"/>\n",
-//			1, rho->shape[Y], rho->real_shape[X]);
-//	fprintf(f, "      <Geometry Origin=\"\" Type=\"ORIGIN_DXDYDZ\">\n");
-//	fprintf(f, "        <DataItem Format=\"XML\" Dimensions=\"3\">\n");
-//	fprintf(f, "            0.0 0.0 0.0\n");
-//	fprintf(f, "        </DataItem>\n");
-//	fprintf(f, "        <DataItem Format=\"XML\" Dimensions=\"3\">\n");
-//	fprintf(f, "            %f %f %f\n", sim->dx[Z], sim->dx[Y], sim->dx[X]);
-//	fprintf(f, "        </DataItem>\n");
-//	fprintf(f, "      </Geometry>\n");
-//	fprintf(f, "      <Attribute Center=\"Node\" Name=\"PHI\" DataType=\"Scalar\">\n");
-//	fprintf(f, "        <DataItem Dimensions=\"%d %d %d\" DataType=\"Float\" Precision=\"8\" Format=\"HDF\">%s:/phi</DataItem>\n",
-//			1, phi->shape[Y], phi->real_shape[X], dataset);
-//	fprintf(f, "      </Attribute>\n");
-//	fprintf(f, "    </Grid>\n");
 	fprintf(f, "    <Grid Name=\"fields\">\n");
 	fprintf(f, "      <Topology TopologyType=\"3DCoRectMesh\" NumberOfElements=\"%d %d %d\"/>\n",
 			1, rho->shape[Y], rho->shape[X]);
@@ -212,6 +196,10 @@ write_xdmf_fields(sim_t *sim)
 	fprintf(f, "      <Attribute Center=\"Node\" Name=\"RHO\" DataType=\"Scalar\">\n");
 	fprintf(f, "        <DataItem Dimensions=\"%d %d %d\" DataType=\"Float\" Precision=\"8\" Format=\"HDF\">%s:/rho</DataItem>\n",
 			1, rho->shape[Y], rho->shape[X], dataset);
+	fprintf(f, "      </Attribute>\n");
+	fprintf(f, "      <Attribute Center=\"Node\" Name=\"PHI\" DataType=\"Scalar\">\n");
+	fprintf(f, "        <DataItem Dimensions=\"%d %d %d\" DataType=\"Float\" Precision=\"8\" Format=\"HDF\">%s:/phi</DataItem>\n",
+			1, phi->shape[Y], phi->shape[X], dataset);
 	fprintf(f, "      </Attribute>\n");
 	fprintf(f, "    </Grid>\n");
 	fprintf(f, "  </Domain>\n");
@@ -233,6 +221,7 @@ pv_dump_fields(sim_t *sim)
 	herr_t status;
 	hsize_t dims[2];
 	hsize_t rho_dim[2];
+	hsize_t phi_dim[2];
 	hsize_t offset[2];
 	hsize_t count[2];
 	hsize_t size[2];
@@ -269,7 +258,6 @@ pv_dump_fields(sim_t *sim)
 	/* Then a memspace referring to the memory chunk */
 	rho_dim[H5X] = rho->real_shape[X];
 	rho_dim[H5Y] = rho->shape[Y];
-	printf("rho dim (%d %d)\n", rho_dim[X], rho_dim[Y]);
 	memspace = H5Screate_simple(2, rho_dim, NULL);
 
 	/* size and offset go unchanged */
@@ -279,6 +267,8 @@ pv_dump_fields(sim_t *sim)
 	 * skipped */
 	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, memspace, dataspace, H5P_DEFAULT, rho->data);
 	status = H5Dclose(dataset);
+
+	/* ------------------ PHI ------------------- */
 
 	phi = sim->field.phi;
 	_phi = sim->field._phi;
@@ -291,12 +281,35 @@ pv_dump_fields(sim_t *sim)
 		MAT_XY(_phi, ix+1, iy) = NAN;
 	}
 
-	dims[X] = phi->real_shape[X];
-	dims[Y] = phi->shape[Y];
+	/* We assume the rows start at 0 */
+	dims[H5X] = phi->shape[X];
+	dims[H5Y] = phi->shape[Y];
+
 	dataspace = H5Screate_simple(2, dims, NULL);
 	dataset = H5Dcreate1(file_id, "/phi", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT);
-	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, phi->data);
+
+	offset[H5X] = 0;
+	offset[H5Y] = 0;
+	count[H5X] = 1;
+	count[H5Y] = 1;
+	size[H5X] = phi->shape[X];
+	size[H5Y] = phi->shape[Y];
+
+	status = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL, count, size);
+
+	/* Then a memspace referring to the memory chunk */
+	phi_dim[H5X] = phi->real_shape[X];
+	phi_dim[H5Y] = phi->shape[Y];
+	memspace = H5Screate_simple(2, phi_dim, NULL);
+
+	/* size and offset go unchanged */
+	status = H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offset, NULL, count, size);
+
+	/* Notice that the padding for the FFT in the +X side of rho should be
+	 * skipped */
+	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, memspace, dataspace, H5P_DEFAULT, phi->data);
 	status = H5Dclose(dataset);
+
 
 	/* Close the file. */
 	status = H5Fclose(file_id);
