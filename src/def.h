@@ -11,6 +11,7 @@
 
 
 #include "mat.h"
+#include <linux/limits.h>
 #include <libconfig.h>
 #include <pthread.h>
 #include <mpi.h>
@@ -46,6 +47,9 @@ typedef struct plasma plasma_t;
 
 struct sim;
 typedef struct sim sim_t;
+
+struct output;
+typedef struct output output_t;
 
 #include "solver.h"
 #include "perf.h"
@@ -228,6 +232,15 @@ struct plasma
 	int nchunks;
 };
 
+/* Output parameters */
+struct output
+{
+	int enabled;
+	char path[PATH_MAX];
+	int period_field;
+	int period_particle;
+};
+
 enum sim_mode {
 	SIM_MODE_NORMAL,
 	SIM_MODE_DEBUG,
@@ -341,6 +354,8 @@ struct sim
 
 	/* The process neighbours depending on the communication mode */
 	int *proc_table;
+
+	output_t *output;
 
 	/* ------------------------------------------------------- */
 	/* Local information relative to the MPI process */

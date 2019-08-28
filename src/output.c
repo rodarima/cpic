@@ -1,3 +1,5 @@
+#include "output.h"
+
 #include <linux/limits.h>
 #include <hdf5.h>
 #define DEBUG 0
@@ -7,6 +9,40 @@
 
 #define H5X 1
 #define H5Y 0
+
+int
+output_init(sim_t *sim, output_t *out)
+{
+	char *path;
+
+	if(config_lookup_string(sim->conf, "output.path", &path) != CONFIG_TRUE)
+	{
+		err("No output path specified, output will not be saved\n");
+		out->enabled = 0;
+		return 0;
+	}
+
+	strncpy(out->path, path, PATH_MAX-1);
+	out->path[PATH_MAX-1] = '\0';
+
+	out->enabled = 1;
+
+	if(config_lookup_int(sim->conf, "output.period.field",
+				&out->period_field) != CONFIG_TRUE)
+	{
+		err("Using default period for fields of 1 sample/iteration\n");
+		out->period_field = 1;
+	}
+
+	if(config_lookup_int(sim->conf, "output.period.particle",
+				&out->period_particle) != CONFIG_TRUE)
+	{
+		err("Using default period for particles of 1 sample/iteration\n");
+		out->period_field = 1;
+	}
+
+	return 0;
+}
 
 int
 write_xdmf_chunk(sim_t *sim, int ic)
@@ -25,8 +61,8 @@ write_xdmf_chunk(sim_t *sim, int ic)
 
 	np = set->nparticles;
 
-	snprintf(file, PATH_MAX-1, "data/specie0-chunk%d-iter%d.xdmf",
-			ic, sim->iter);
+	snprintf(file, PATH_MAX-1, "%s/specie0-chunk%d-iter%d.xdmf",
+			sim->output->path, ic, sim->iter);
 
 	snprintf(dataset, PATH_MAX-1, "specie0-chunk%d-iter%d.h5",
 			ic, sim->iter);
@@ -64,7 +100,7 @@ write_xdmf_chunk(sim_t *sim, int ic)
 	return 0;
 }
 int
-pv_dump_chunk(sim_t *sim, int ic)
+output_chunk(sim_t *sim, int ic)
 {
 	int ip;
 	char file[PATH_MAX];
@@ -83,8 +119,8 @@ pv_dump_chunk(sim_t *sim, int ic)
 
 	write_xdmf_chunk(sim, ic);
 
-	snprintf(file, PATH_MAX-1, "data/specie0-chunk%d-iter%d.h5",
-			ic, sim->iter);
+	snprintf(file, PATH_MAX-1, "%s/specie0-chunk%d-iter%d.h5",
+			sim->output->path, ic, sim->iter);
 
 	/* Create a new file using default properties. */
 	file_id = H5Fcreate(file, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
@@ -117,23 +153,31 @@ pv_dump_chunk(sim_t *sim, int ic)
 	dims[1] = 2;
 
 	dataspace = H5Screate_simple(2, dims, NULL);
-	dataset = H5Dcreate1(file_id, "/xy", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT);
-	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, position);
+	dataset = H5Dcreate1(file_id, "/xy", H5T_NATIVE_DOUBLE, dataspace,
+			H5P_DEFAULT);
+	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL,
+			H5P_DEFAULT, position);
 	status = H5Dclose(dataset);
 
 	dataspace = H5Screate_simple(2, dims, NULL);
-	dataset = H5Dcreate1(file_id, "/u", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT);
-	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, u);
+	dataset = H5Dcreate1(file_id, "/u", H5T_NATIVE_DOUBLE, dataspace,
+			H5P_DEFAULT);
+	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL,
+			H5P_DEFAULT, u);
 	status = H5Dclose(dataset);
 
 	dataspace = H5Screate_simple(1, dims, NULL);
-	dataset = H5Dcreate1(file_id, "/u_mag", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT);
-	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, u_mag);
+	dataset = H5Dcreate1(file_id, "/u_mag", H5T_NATIVE_DOUBLE, dataspace,
+			H5P_DEFAULT);
+	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL,
+			H5P_DEFAULT, u_mag);
 	status = H5Dclose(dataset);
 
 	dataspace = H5Screate_simple(1, dims, NULL);
-	dataset = H5Dcreate1(file_id, "/id", H5T_NATIVE_INT, dataspace, H5P_DEFAULT);
-	status = H5Dwrite(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, id);
+	dataset = H5Dcreate1(file_id, "/id", H5T_NATIVE_INT, dataspace,
+			H5P_DEFAULT);
+	status = H5Dwrite(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL,
+			H5P_DEFAULT, id);
 	status = H5Dclose(dataset);
 
 	/* Close the file. */
@@ -147,13 +191,13 @@ pv_dump_chunk(sim_t *sim, int ic)
 }
 
 int
-pv_dump_particles(sim_t *sim)
+output_particles(sim_t *sim)
 {
 	int ic;
 
 	for(ic=0; ic<sim->plasma.nchunks; ic++)
 	{
-		pv_dump_chunk(sim, ic);
+		output_chunk(sim, ic);
 	}
 
 
@@ -171,8 +215,8 @@ write_xdmf_fields(sim_t *sim)
 	rho = sim->field.rho;
 	phi = sim->field.phi;
 
-	snprintf(file, PATH_MAX-1, "data/fields-iter%d.xdmf",
-			sim->iter);
+	snprintf(file, PATH_MAX-1, "%s/fields-iter%d.xdmf",
+			sim->output->path, sim->iter);
 
 	snprintf(dataset, PATH_MAX-1, "fields-iter%d.h5",
 			sim->iter);
@@ -211,7 +255,7 @@ write_xdmf_fields(sim_t *sim)
 }
 
 int
-pv_dump_fields(sim_t *sim)
+output_fields(sim_t *sim)
 {
 	char file[PATH_MAX];
 	mat_t *rho, *_rho, *phi, *_phi;
@@ -228,8 +272,8 @@ pv_dump_fields(sim_t *sim)
 
 	write_xdmf_fields(sim);
 
-	snprintf(file, PATH_MAX-1, "data/fields-iter%d.h5",
-			sim->iter);
+	snprintf(file, PATH_MAX-1, "%s/fields-iter%d.h5",
+			sim->output->path, sim->iter);
 
 	rho = sim->field.rho;
 	_rho = sim->field._rho;
@@ -241,7 +285,8 @@ pv_dump_fields(sim_t *sim)
 	dims[H5Y] = rho->shape[Y];
 
 	dataspace = H5Screate_simple(2, dims, NULL);
-	dataset = H5Dcreate1(file_id, "/rho", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT);
+	dataset = H5Dcreate1(file_id, "/rho", H5T_NATIVE_DOUBLE, dataspace,
+			H5P_DEFAULT);
 
 	offset[H5X] = 0;
 	offset[H5Y] = 0;
@@ -253,7 +298,8 @@ pv_dump_fields(sim_t *sim)
 	dbg("Dataspace offset (%d %d) size (%d %d)\n",
 			offset[X], offset[Y], size[X], size[Y]);
 
-	status = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL, count, size);
+	status = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL,
+			count, size);
 
 	/* Then a memspace referring to the memory chunk */
 	rho_dim[H5X] = rho->real_shape[X];
@@ -261,11 +307,13 @@ pv_dump_fields(sim_t *sim)
 	memspace = H5Screate_simple(2, rho_dim, NULL);
 
 	/* size and offset go unchanged */
-	status = H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offset, NULL, count, size);
+	status = H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offset, NULL,
+			count, size);
 
 	/* Notice that the padding for the FFT in the +X side of rho should be
 	 * skipped */
-	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, memspace, dataspace, H5P_DEFAULT, rho->data);
+	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, memspace, dataspace,
+			H5P_DEFAULT, rho->data);
 	status = H5Dclose(dataset);
 
 	/* ------------------ PHI ------------------- */
@@ -286,7 +334,8 @@ pv_dump_fields(sim_t *sim)
 	dims[H5Y] = phi->shape[Y];
 
 	dataspace = H5Screate_simple(2, dims, NULL);
-	dataset = H5Dcreate1(file_id, "/phi", H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT);
+	dataset = H5Dcreate1(file_id, "/phi", H5T_NATIVE_DOUBLE, dataspace,
+			H5P_DEFAULT);
 
 	offset[H5X] = 0;
 	offset[H5Y] = 0;
@@ -295,7 +344,8 @@ pv_dump_fields(sim_t *sim)
 	size[H5X] = phi->shape[X];
 	size[H5Y] = phi->shape[Y];
 
-	status = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL, count, size);
+	status = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL,
+			count, size);
 
 	/* Then a memspace referring to the memory chunk */
 	phi_dim[H5X] = phi->real_shape[X];
@@ -303,11 +353,13 @@ pv_dump_fields(sim_t *sim)
 	memspace = H5Screate_simple(2, phi_dim, NULL);
 
 	/* size and offset go unchanged */
-	status = H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offset, NULL, count, size);
+	status = H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offset, NULL,
+			count, size);
 
 	/* Notice that the padding for the FFT in the +X side of rho should be
 	 * skipped */
-	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, memspace, dataspace, H5P_DEFAULT, phi->data);
+	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, memspace, dataspace,
+			H5P_DEFAULT, phi->data);
 	status = H5Dclose(dataset);
 
 

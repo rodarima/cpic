@@ -22,7 +22,7 @@
 #include "comm.h"
 #include "plasma.h"
 #include "utils.h"
-#include "pv.h"
+#include "output.h"
 
 #include <math.h>
 #include <assert.h>
@@ -253,6 +253,9 @@ sim_init(config_t *conf, int quiet)
 	}
 	perf_stop(&s->timers[TIMER_SOLVER]);
 
+	s->output = safe_malloc(sizeof(*s->output));
+	output_init(s, s->output);
+
 #if PLOT
 	/* We are set now, start the plotter if needed */
 	if(s->mode == SIM_MODE_DEBUG)
@@ -467,7 +470,7 @@ sim_step(sim_t *sim)
 	/* Line 6: Update E on the grid from rho */
 	field_E(sim);
 
-	pv_dump_fields(sim);
+	output_fields(sim);
 
 	/* Phase IP:FI. Field interpolation, projection of the electric
 	 * field from the grid nodes to the particle positions. */
@@ -484,7 +487,7 @@ sim_step(sim_t *sim)
 	plasma_x(sim);
 
 	//if((sim->iter % 100) == 0)
-		pv_dump_particles(sim);
+		output_particles(sim);
 
 
 	/* Phase IP:MG. Moment gathering, assembling of the electric
