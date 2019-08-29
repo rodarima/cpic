@@ -2,6 +2,7 @@
 
 #include <linux/limits.h>
 #include <hdf5.h>
+#include <string.h>
 #define DEBUG 0
 #include "log.h"
 #include "def.h"
@@ -45,27 +46,19 @@ output_init(sim_t *sim, output_t *out)
 }
 
 int
-write_xdmf_chunk(sim_t *sim, int ic)
+write_xdmf_specie(sim_t *sim, int np)
 {
 	FILE *f;
 	char file[PATH_MAX];
 	char dataset[PATH_MAX];
-	int np;
-	plasma_chunk_t *chunk;
-	particle_set_t *set;
-
-	chunk = &sim->plasma.chunks[ic];
 
 	/* TODO: Multiple species */
-	set = &chunk->species[0];
 
-	np = set->nparticles;
+	snprintf(file, PATH_MAX-1, "%s/specie0-iter%d.xdmf",
+			sim->output->path, sim->iter);
 
-	snprintf(file, PATH_MAX-1, "%s/specie0-chunk%d-iter%d.xdmf",
-			sim->output->path, ic, sim->iter);
-
-	snprintf(dataset, PATH_MAX-1, "specie0-chunk%d-iter%d.h5",
-			ic, sim->iter);
+	snprintf(dataset, PATH_MAX-1, "specie0-iter%d.h5",
+			sim->iter);
 
 
 	f = fopen(file, "w");
@@ -100,7 +93,7 @@ write_xdmf_chunk(sim_t *sim, int ic)
 	return 0;
 }
 int
-output_chunk(sim_t *sim, int ic)
+output_chunk(sim_t *sim, int ic, int *acc_np, hid_t file_id)
 {
 	int ip;
 	char file[PATH_MAX];
@@ -111,19 +104,11 @@ output_chunk(sim_t *sim, int ic)
 	int *id;
 	int np;
 
-	hid_t file_id, dataset, dataspace;
+	hid_t dataset, dataspace;
 	herr_t status;
 	hsize_t dims[2];
 
 	chunk = &sim->plasma.chunks[ic];
-
-	write_xdmf_chunk(sim, ic);
-
-	snprintf(file, PATH_MAX-1, "%s/specie0-chunk%d-iter%d.h5",
-			sim->output->path, ic, sim->iter);
-
-	/* Create a new file using default properties. */
-	file_id = H5Fcreate(file, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
 	/* TODO: Multiple species */
 	set = &chunk->species[0];
@@ -135,6 +120,7 @@ output_chunk(sim_t *sim, int ic)
 	u_mag = safe_malloc(np*sizeof(double));
 	id = safe_malloc(np*sizeof(int));
 
+	/* TODO: We need to ensure this serialization is not a bottle-neck */
 	for(ip = 0, p=set->particles; ip < np; ip++, p=p->next)
 	{
 		position[ip*2 + X] = p->x[X];
@@ -149,43 +135,116 @@ output_chunk(sim_t *sim, int ic)
 		id[ip] = p->i;
 	}
 
-	dims[0] = np;
-	dims[1] = 2;
+	err("Writing %d particles for chunk %d\n", np, ic);
 
-	dataspace = H5Screate_simple(2, dims, NULL);
-	dataset = H5Dcreate1(file_id, "/xy", H5T_NATIVE_DOUBLE, dataspace,
-			H5P_DEFAULT);
-	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL,
+	/* We need to write the particles after the previous ones */
+
+	hsize_t dim[2];
+	hsize_t chunk_dim[2];
+	hsize_t offset[2];
+	hsize_t count[2];
+
+	hid_t disk_ds1d, disk_ds2d;
+	hid_t mem_ds1d, mem_ds2d;
+
+	/* The dimensions of the complete dataset, with all chunks */
+	dim[0] = sim->species[0].nparticles;
+	dim[1] = 2;
+
+	/* Dimensions of the chunk */
+	chunk_dim[0] = np;
+	chunk_dim[1] = dim[1];
+
+	/* Create dataspaces */
+	disk_ds1d = H5Screate_simple(1, dim, NULL);
+	disk_ds2d = H5Screate_simple(2, dim, NULL);
+	mem_ds1d = H5Screate_simple(1, chunk_dim, NULL);
+	mem_ds2d = H5Screate_simple(2, chunk_dim, NULL);
+
+	/* Advance to pass the previous chunks */
+	offset[0] = *acc_np;
+	offset[1] = 0;
+
+	/* Select the proper chunk place in the target dataset */
+	status = H5Sselect_hyperslab(disk_ds2d, H5S_SELECT_SET, offset, NULL, chunk_dim, NULL);
+	status = H5Sselect_hyperslab(disk_ds1d, H5S_SELECT_SET, offset, NULL, chunk_dim, NULL);
+
+
+	/* The same in memory, without offset */
+	offset[0] = 0;
+	status = H5Sselect_hyperslab(mem_ds2d, H5S_SELECT_SET, offset, NULL, chunk_dim, NULL);
+	status = H5Sselect_hyperslab(mem_ds1d, H5S_SELECT_SET, offset, NULL, chunk_dim, NULL);
+
+	/* Now we are ready to write */
+
+	dataset = H5Dopen1(file_id, "/xy");
+	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, mem_ds2d, disk_ds2d,
 			H5P_DEFAULT, position);
 	status = H5Dclose(dataset);
 
-	dataspace = H5Screate_simple(2, dims, NULL);
-	dataset = H5Dcreate1(file_id, "/u", H5T_NATIVE_DOUBLE, dataspace,
-			H5P_DEFAULT);
-	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL,
+	dataset = H5Dopen1(file_id, "/u");
+	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, mem_ds2d, disk_ds2d,
 			H5P_DEFAULT, u);
 	status = H5Dclose(dataset);
 
-	dataspace = H5Screate_simple(1, dims, NULL);
-	dataset = H5Dcreate1(file_id, "/u_mag", H5T_NATIVE_DOUBLE, dataspace,
-			H5P_DEFAULT);
-	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL,
+	dataset = H5Dopen1(file_id, "/u_mag");
+	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, mem_ds1d, disk_ds1d,
 			H5P_DEFAULT, u_mag);
 	status = H5Dclose(dataset);
 
-	dataspace = H5Screate_simple(1, dims, NULL);
-	dataset = H5Dcreate1(file_id, "/id", H5T_NATIVE_INT, dataspace,
-			H5P_DEFAULT);
-	status = H5Dwrite(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL,
+	dataset = H5Dopen1(file_id, "/id");
+	status = H5Dwrite(dataset, H5T_NATIVE_INT, mem_ds1d, disk_ds1d,
 			H5P_DEFAULT, id);
 	status = H5Dclose(dataset);
 
-	/* Close the file. */
-	status = H5Fclose(file_id);
+	*acc_np += np;
 
 	free(position);
 	free(u);
 	free(id);
+
+	H5Sclose(disk_ds1d);
+	H5Sclose(disk_ds2d);
+	H5Sclose(mem_ds1d);
+	H5Sclose(mem_ds2d);
+
+	return 0;
+}
+
+int
+specie_create_datasets(sim_t *sim, hid_t fid)
+{
+	hsize_t dim[2];
+	int np;
+	hid_t dataset, ds1d, ds2d;
+	herr_t status;
+	hid_t ND = H5T_NATIVE_DOUBLE;
+	hid_t NI = H5T_NATIVE_INT;
+
+	/* TODO: Support multiple species */
+
+	/* Create datasets with proper sizes */
+	np = sim->species[0].nparticles;
+	dim[0] = np;
+	dim[1] = 2;
+
+	ds1d = H5Screate_simple(1, dim, NULL);
+	ds2d = H5Screate_simple(2, dim, NULL);
+
+	dataset = H5Dcreate1(fid, "/id", NI, ds1d, H5P_DEFAULT);
+	status = H5Dclose(dataset);
+
+	dataset = H5Dcreate1(fid, "/xy", ND, ds2d, H5P_DEFAULT);
+	status = H5Dclose(dataset);
+
+	dataset = H5Dcreate1(fid, "/u", ND, ds2d, H5P_DEFAULT);
+	status = H5Dclose(dataset);
+
+	dataset = H5Dcreate1(fid, "/u_mag", ND, ds1d, H5P_DEFAULT);
+	status = H5Dclose(dataset);
+
+	H5Sclose(ds1d);
+	H5Sclose(ds2d);
 
 	return 0;
 }
@@ -193,13 +252,35 @@ output_chunk(sim_t *sim, int ic)
 int
 output_particles(sim_t *sim)
 {
+	char file[PATH_MAX];
 	int ic;
+	int acc_np;
+	int all_np;
+	hid_t file_id;
+	herr_t status;
 
+	/* Count total number of particles */
+
+	snprintf(file, PATH_MAX-1, "%s/specie0-iter%d.h5",
+			sim->output->path, sim->iter);
+
+	all_np = sim->species[0].nparticles;
+	write_xdmf_specie(sim, all_np);
+
+
+	/* Create a new file using default properties. */
+	file_id = H5Fcreate(file, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+	specie_create_datasets(sim, file_id);
+
+	acc_np = 0;
 	for(ic=0; ic<sim->plasma.nchunks; ic++)
 	{
-		output_chunk(sim, ic);
+		output_chunk(sim, ic, &acc_np, file_id);
 	}
 
+	/* Close the file. */
+	status = H5Fclose(file_id);
 
 	return 0;
 }
