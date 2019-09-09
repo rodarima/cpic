@@ -42,6 +42,21 @@ output_init(sim_t *sim, output_t *out)
 		out->period_field = 1;
 	}
 
+	if(config_lookup_int(sim->conf, "output.slices",
+				&out->max_slices) != CONFIG_TRUE)
+	{
+		err("Using one slice for field output\n");
+		out->max_slices = 1;
+	}
+
+	if(sim->blocksize[Y] % out->max_slices)
+	{
+		err("The number of slices %d doesn't divide the blocksize in Y of %d\n",
+				out->max_slices, sim->blocksize[Y]);
+		return 1;
+
+	}
+
 	return 0;
 }
 
@@ -135,6 +150,7 @@ output_chunk(sim_t *sim, int ic, int *acc_np, hid_t file_id)
 		id[ip] = p->i;
 	}
 
+	usleep(10000 + (rand() % 50000));
 	err("Writing %d particles for chunk %d\n", np, ic);
 
 	/* We need to write the particles after the previous ones */
@@ -259,6 +275,8 @@ output_particles(sim_t *sim)
 	hid_t file_id;
 	herr_t status;
 
+	perf_start(&sim->timers[TIMER_OUTPUT_PARTICLES]);
+
 	/* Count total number of particles */
 
 	snprintf(file, PATH_MAX-1, "%s/specie0-iter%d.h5",
@@ -274,14 +292,21 @@ output_particles(sim_t *sim)
 	specie_create_datasets(sim, file_id);
 
 	acc_np = 0;
-	for(ic=0; ic<sim->plasma.nchunks; ic++)
+	for(ic=0; ic<32; ic++)
 	{
+		//#pragma oss task firstprivate(ic)
+		//{
+		//	sleep(100000 + (rand() % 1000000));
+		//	printf("ic=%d\n", ic);
+		//}
 		output_chunk(sim, ic, &acc_np, file_id);
 	}
 
 	/* Close the file. */
+	#pragma oss taskwait
 	status = H5Fclose(file_id);
 
+	perf_stop(&sim->timers[TIMER_OUTPUT_PARTICLES]);
 	return 0;
 }
 
@@ -335,12 +360,54 @@ write_xdmf_fields(sim_t *sim)
 	return 0;
 }
 
+//int
+//output_slice(sim_t *sim, mat_t *slice, int slice_i, hid_t src, hid_t dst)
+//{
+//	count[H5X] = 1;
+//	count[H5Y] = 1;
+//	size[H5X] = slice->shape[X];
+//	size[H5Y] = slice->shape[Y];
+//
+//	/* Otherwise we must offset the field by the current process rank */
+//	assert(sim->nprocs == 1);
+//
+//	/* First select the target region of the disk to be written */
+//
+//	offset[H5X] = 0;
+//	offset[H5Y] = slice->shape[Y] * slice_i;
+//
+//	dbg("Diskspace offset (%d %d) size (%d %d)\n",
+//			offset[X], offset[Y], size[X], size[Y]);
+//
+//	status = H5Sselect_hyperslab(dst, H5S_SELECT_SET, offset, NULL,
+//			count, size);
+//
+//	/* Then a memspace referring to the memory chunk */
+//	rho_dim[H5X] = slice->real_shape[X];
+//	rho_dim[H5Y] = slice->shape[Y];
+//	offset[H5X] = 0;
+//	offset[H5Y] = 0;
+//
+//	/* size and offset go unchanged */
+//	status = H5Sselect_hyperslab(src, H5S_SELECT_SET, offset, NULL,
+//			count, size);
+//
+//	/* Notice that the padding for the FFT in the +X side of rho should be
+//	 * skipped */
+//	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, src, dst,
+//			H5P_DEFAULT, rho->data);
+//
+//	return 0;
+//}
+
 int
 output_fields(sim_t *sim)
 {
 	char file[PATH_MAX];
-	mat_t *rho, *_rho, *phi, *_phi;
-	int ix, iy;
+	mat_t *rho, *_rho, *phi, *_phi, *slice;
+	int i, ix, iy;
+	int slice_shape[MAX_DIM];
+	output_t *out;
 
 	hid_t file_id, dataset, dataspace, memspace;
 	herr_t status;
@@ -351,6 +418,10 @@ output_fields(sim_t *sim)
 	hsize_t count[2];
 	hsize_t size[2];
 
+	perf_start(&sim->timers[TIMER_OUTPUT_FIELDS]);
+
+	out = sim->output;
+
 	write_xdmf_fields(sim);
 
 	snprintf(file, PATH_MAX-1, "%s/fields-iter%d.h5",
@@ -358,6 +429,18 @@ output_fields(sim_t *sim)
 
 	rho = sim->field.rho;
 	_rho = sim->field._rho;
+
+	slice_shape[X] = sim->blocksize[X];
+	slice_shape[Y] = sim->blocksize[Y] / out->max_slices;
+	slice_shape[Z] = sim->blocksize[Z];
+
+	//for(i=0; i<out->max_slices; i++)
+	//{
+	//	slice = mat_view(rho, 0, slice_shape[Y] * i, slice_shape);
+	//	output_slice(sim, slice, i);
+	//	free(slice);
+	//}
+
 	/* Create a new file using default properties. */
 	file_id = H5Fcreate(file, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
@@ -446,6 +529,8 @@ output_fields(sim_t *sim)
 
 	/* Close the file. */
 	status = H5Fclose(file_id);
+
+	perf_stop(&sim->timers[TIMER_OUTPUT_FIELDS]);
 
 	return 0;
 }

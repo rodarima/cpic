@@ -237,6 +237,7 @@ struct output
 {
 	int enabled;
 	char path[PATH_MAX];
+	int max_slices;
 	int period_field;
 	int period_particle;
 };

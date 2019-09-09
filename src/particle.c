@@ -315,7 +315,8 @@ chunk_E(sim_t *sim, int i)
 
 	chunk = &sim->plasma.chunks[i];
 
-	#pragma oss task inout(*chunk) label(chunk_E)
+	#pragma oss task concurrent(sim->timers[TIMER_PARTICLE_E]) \
+		inout(*chunk) label(chunk_E)
 	{
 		dbg("Running task chunk_E with chunk %d\n", i);
 		for(i=0; i<chunk->nspecies; i++)
@@ -342,6 +343,8 @@ particle_E(sim_t *sim)
 
 	/* No communication required, as only p->E is updated */
 
+	#pragma oss task inout(sim->timers[TIMER_PARTICLE_E]) \
+		label(perf_stop.particle_E)
 	perf_stop(&sim->timers[TIMER_PARTICLE_E]);
 
 	return 0;
@@ -496,7 +499,8 @@ chunk_x_update(sim_t *sim, int ic)
 
 	chunk = &sim->plasma.chunks[ic];
 
-	#pragma oss task inout(*chunk) label(chunk_x_update)
+	#pragma oss task concurrent(sim->timers[TIMER_PARTICLE_X]) \
+		inout(*chunk) label(chunk_x_update)
 	{
 		dbg("Running task x update on chunk %d\n", ic);
 		for(is=0; is<chunk->nspecies; is++)
@@ -523,6 +527,8 @@ plasma_x(sim_t *sim)
 
 	particle_comm(sim);
 
+	#pragma oss task inout(sim->timers[TIMER_PARTICLE_X]) \
+		label(perf_stop.particle_x)
 	perf_stop(&sim->timers[TIMER_PARTICLE_X]);
 
 	return 0;

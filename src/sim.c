@@ -254,7 +254,11 @@ sim_init(config_t *conf, int quiet)
 	perf_stop(&s->timers[TIMER_SOLVER]);
 
 	s->output = safe_malloc(sizeof(*s->output));
-	output_init(s, s->output);
+	if(output_init(s, s->output))
+	{
+		err("output_init failed\n");
+		return NULL;
+	}
 
 #if PLOT
 	/* We are set now, start the plotter if needed */
@@ -470,7 +474,8 @@ sim_step(sim_t *sim)
 	/* Line 6: Update E on the grid from rho */
 	field_E(sim);
 
-	output_fields(sim);
+	//#pragma oss task in(sim->plasma.chunks[sim->plasma.nchunks]) label(output_fields)
+	//output_fields(sim);
 
 	/* Phase IP:FI. Field interpolation, projection of the electric
 	 * field from the grid nodes to the particle positions. */
@@ -487,7 +492,7 @@ sim_step(sim_t *sim)
 	plasma_x(sim);
 
 	//if((sim->iter % 100) == 0)
-		output_particles(sim);
+	//output_particles(sim);
 
 
 	/* Phase IP:MG. Moment gathering, assembling of the electric
@@ -546,38 +551,35 @@ void
 sim_stats(sim_t *sim)
 {
 	double t, tot;
+	FILE *f;
+
+	f = stdout;
 
 	tot = perf_measure(&sim->timers[TIMER_TOTAL]);
-	fprintf(stderr, "Total time: %e s\n", tot);
+	fprintf(f, "Total time: %e s\n", tot);
 
 	tot /= 100.0;
 
 	t = perf_measure(&sim->timers[TIMER_FIELD_E]);
-	fprintf(stderr, "Total field E update took: %e s (%.1f%%)\n", t, t/tot);
+	fprintf(f, "%e %4.1f%% field_E\n", t, t/tot);
 
-	t = perf_measure(&sim->timers[TIMER_SOLVER]);
-	fprintf(stderr, "  Solver took: %e s (%.1f%%)\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_FIELD_SPREAD]);
-	fprintf(stderr, "  Field E spread took: %e s (%.1f%%)\n", t, t/tot);
-	fprintf(stderr, "    Per cycle: %e s\n", t/sim->cycles);
-	fprintf(stderr, "    Per cycle and node: %e s\n",
-			t/(sim->cycles * sim->ntpoints[X] * sim->ntpoints[Y]));
-
-	t = perf_measure(&sim->timers[TIMER_FIELD_COLLECT]);
-	fprintf(stderr, "  Field phi collect took: %e s (%.1f%%)\n", t, t/tot);
-	fprintf(stderr, "    Per cycle: %e s\n", t/sim->cycles);
-	fprintf(stderr, "    Per cycle and node: %e s\n",
-			t/(sim->cycles * sim->ntpoints[X] * sim->ntpoints[Y]));
+	//t = perf_measure(&sim->timers[TIMER_SOLVER]);
+	//fprintf(f, "%e %.1f%%   solver\n", t, t/tot);
 
 	t = perf_measure(&sim->timers[TIMER_PARTICLE_X]);
-	fprintf(stderr, "Particle mover took: %e s (%.1f%%)\n", t, t/tot);
+	fprintf(f, "%e %4.1f%% particle_x\n", t, t/tot);
 
 	t = perf_measure(&sim->timers[TIMER_FIELD_RHO]);
-	fprintf(stderr, "Rho interpolation took: %e s (%.1f%%)\n", t, t/tot);
+	fprintf(f, "%e %4.1f%% field_rho\n", t, t/tot);
 
 	t = perf_measure(&sim->timers[TIMER_PARTICLE_E]);
-	fprintf(stderr, "Particle E interpolation took: %e s (%.1f%%)\n", t, t/tot);
+	fprintf(f, "%e %4.1f%% particle_E\n", t, t/tot);
+
+	t = perf_measure(&sim->timers[TIMER_OUTPUT_PARTICLES]);
+	fprintf(f, "%e %4.1f%% output_particles\n", t, t/tot);
+
+	t = perf_measure(&sim->timers[TIMER_OUTPUT_FIELDS]);
+	fprintf(f, "%e %4.1f%% output_fields\n", t, t/tot);
 }
 
 int
@@ -602,7 +604,7 @@ sim_run(sim_t *sim)
 
 	sim_end(sim);
 
-	//sim_stats(sim);
+	sim_stats(sim);
 
 	return 0;
 }

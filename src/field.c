@@ -502,6 +502,8 @@ field_E(sim_t *sim)
 	plasma_chunk_t *chunk, *next, *prev;
 	int ic, Nc;
 
+	perf_start(&sim->timers[TIMER_FIELD_E]);
+
 	plasma = &sim->plasma;
 	Nc = plasma->nchunks;
 
@@ -518,20 +520,20 @@ field_E(sim_t *sim)
 
 	mat_print(sim->field.phi, "phi after communication");
 
-	perf_start(&sim->timers[TIMER_FIELD_E]);
 
 	for(ic=0; ic<Nc; ic++)
 	{
 		chunk = &plasma->chunks[ic];
 		next = &plasma->chunks[(ic+1) % Nc];
 		prev = &plasma->chunks[(ic-1+Nc) % Nc];
-		#pragma oss task commutative(*prev,*next,*chunk) label(field_E_compute)
+		#pragma oss task concurrent(sim->timers[TIMER_FIELD_E]) commutative(*prev,*next,*chunk) label(field_E_compute)
 		field_E_compute(sim, chunk);
 	}
 
 	mat_print(sim->field.E[X], "E[X]");
 	mat_print(sim->field.E[Y], "E[Y]");
 
+	#pragma oss task inout(sim->timers[TIMER_FIELD_E]) label(perf_stop.field_E)
 	perf_stop(&sim->timers[TIMER_FIELD_E]);
 
 	return 0;

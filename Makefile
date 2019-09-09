@@ -8,14 +8,18 @@ GCC=gcc
 #I_MPI_CC=mcc
 #CC=I_MPI_CC=mcc mpiicc --ompss-2 --line-markers
 MPICC=mpicc
-#CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
-CC=OMPI_CC=mcc $(MPICC) --line-markers
+CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
+#CC=OMPI_CC=mcc $(MPICC) --line-markers
 
 #CC=I_MPI_CC=mcc mpiicc --cc=clang --ompss-2 --line-markers
 
 
 #OCC=mcc
 LDLIBS:=
+
+# Add libtasio
+#LDLIBS+=-ltasio
+
 CFLAGS:=-g -Wall
 
 # Optimization enabled
@@ -47,7 +51,7 @@ CFLAGS+=-finstrument-functions
 
 # Debug
 #CFLAGS+=-fsanitize=address
-#CFLAGS+=-fno-omit-frame-pointer
+CFLAGS+=-fno-omit-frame-pointer
 
 # Debug race conditions
 #CFLAGS+=-fsanitize=thread

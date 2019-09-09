@@ -47,6 +47,10 @@ main(int argc, char *argv[])
 	char caca[100];
 	int rank, nprocs;
 
+	perf_t timer;
+
+	perf_init(&timer);
+	perf_start(&timer);
 
 	/* FIXME: Determine if we want to allow MPI to know our argv. By now we
 	 * simply set a NULL argv */
@@ -144,6 +148,9 @@ main(int argc, char *argv[])
 		err("sim_init failed\n");
 		return 1;
 	}
+
+	perf_stop(&timer);
+	printf("%e init-time\n", perf_measure(&timer));
 
 	if(sim_run(sim))
 		return 1;
