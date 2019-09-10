@@ -14,7 +14,8 @@ user_cflags+=`mpicc --showme:compile`
 user_ldlibs+=`mpicc --showme:link`
 
 %.bin: %.o cpic.a
-	$(CC) $(CFLAGS) $(user_cflags) $(LDLIBS) $(user_ldlibs) $^ -o $@
+	@echo "LD $@"
+	@$(CC) $(CFLAGS) $(user_cflags) $(LDLIBS) $(user_ldlibs) $^ -o $@
 
 .PHONY: user
 

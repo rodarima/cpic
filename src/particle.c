@@ -493,10 +493,9 @@ int
 chunk_x_update(sim_t *sim, int ic)
 {
 	plasma_chunk_t *chunk;
-	int is, n;
+	int is;
 
-	n = sim->plasma.nchunks;
-
+	is = 0;
 	chunk = &sim->plasma.chunks[ic];
 
 	#pragma oss task concurrent(sim->timers[TIMER_PARTICLE_X]) \

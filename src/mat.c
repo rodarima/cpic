@@ -4,8 +4,10 @@
 #include "utils.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <complex.h>
 #include <assert.h>
+#include <string.h>
 
 
 size_t
@@ -71,6 +73,51 @@ mat_alloc(int dim, int *shape)
 	m->data = safe_malloc(size);
 
 	mat_init(m, dim, shape);
+
+	return m;
+}
+
+mat_t *
+mat_alloc_align(int dim, int *shape, size_t alignment)
+{
+	mat_t *m;
+	int i;
+	size_t size, aligned_size, pad_size;
+	//int *ptr;
+
+	if(dim > MAX_DIM)
+		return NULL;
+
+	size = mat_size(dim, shape);
+
+	/* We need to ensure the size is aligned too, even if we have some
+	 * unused padding at the end */
+
+	aligned_size = (size + (alignment-1)) / alignment;
+	aligned_size *= alignment;
+
+	assert(aligned_size >= size);
+	assert((aligned_size % alignment) == 0);
+
+	pad_size = aligned_size - size;
+
+	m = safe_malloc(sizeof(mat_t));
+	if(posix_memalign((void **) &m->data, alignment, aligned_size))
+		abort();
+
+	mat_init(m, dim, shape);
+
+	m->aligned_size = aligned_size;
+
+	/* As we have some memory extra which will never be used, we init it
+	 * here, to avoid any memcheck errors */
+
+	memset(((char *) m->data)+size, 0xca, pad_size);
+	//ptr = (int *) (((char *) m->data) + size);
+	//for(i=0; i<pad_size/sizeof(int); i++)
+	//{
+	//	ptr[i] = 0xdeadbeef;
+	//}
 
 	return m;
 }

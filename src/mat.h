@@ -34,6 +34,7 @@ typedef struct
 	int dim;
 	size_t real_size;
 	size_t size;
+	size_t aligned_size;
 } mat_t;
 
 #define mat_set(m, pos, type, v)			\
@@ -88,6 +89,9 @@ mat_size(int dim, int *shape);
 
 mat_t *
 mat_alloc(int dim, int *shape);
+
+mat_t *
+mat_alloc_align(int dim, int *shape, size_t alignment);
 
 void
 mat_init(mat_t *m, int dim, int *shape);

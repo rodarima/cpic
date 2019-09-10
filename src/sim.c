@@ -233,6 +233,14 @@ sim_init(config_t *conf, int quiet)
 		return NULL;
 	}
 
+	/* Output alignment must me read before field_init */
+	s->output = safe_malloc(sizeof(*s->output));
+	if(output_init(s, s->output))
+	{
+		err("output_init failed\n");
+		return NULL;
+	}
+
 	if(field_init(s, &s->field))
 	{
 		err("field_init failed\n");
@@ -252,13 +260,6 @@ sim_init(config_t *conf, int quiet)
 		return NULL;
 	}
 	perf_stop(&s->timers[TIMER_SOLVER]);
-
-	s->output = safe_malloc(sizeof(*s->output));
-	if(output_init(s, s->output))
-	{
-		err("output_init failed\n");
-		return NULL;
-	}
 
 #if PLOT
 	/* We are set now, start the plotter if needed */
@@ -475,7 +476,11 @@ sim_step(sim_t *sim)
 	field_E(sim);
 
 	//#pragma oss task in(sim->plasma.chunks[sim->plasma.nchunks]) label(output_fields)
-	//output_fields(sim);
+	if(output_fields(sim))
+	{
+		err("output_fields failed\n");
+		return -1;
+	}
 
 	/* Phase IP:FI. Field interpolation, projection of the electric
 	 * field from the grid nodes to the particle positions. */
@@ -591,7 +596,13 @@ sim_run(sim_t *sim)
 	printf("Simulation runs now\n");
 
 	while(sim->running && sim->iter < sim->cycles)
-		sim_step(sim);
+	{
+		if(sim_step(sim))
+		{
+			err("sim_step failed\n");
+			return -1;
+		}
+	}
 
 	if(sim->rank == 0)
 		sim->running = 0;

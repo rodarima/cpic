@@ -8,6 +8,7 @@ GCC=gcc
 #I_MPI_CC=mcc
 #CC=I_MPI_CC=mcc mpiicc --ompss-2 --line-markers
 MPICC=mpicc
+#CC=OMPI_CC=mcc $(MPICC) -k --ompss-2
 CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
 #CC=OMPI_CC=mcc $(MPICC) --line-markers
 
@@ -21,6 +22,9 @@ LDLIBS:=
 #LDLIBS+=-ltasio
 
 CFLAGS:=-g -Wall
+
+#Extra warnings
+#CFLAGS+=-Wstrict-prototypes -Wshadow -Wconversion
 
 # Optimization enabled
 CFLAGS+=-O3
@@ -142,8 +146,15 @@ include $(DEP)
 #	$(CPP) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
 %.d: %.c
-	@$(CPP) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
+	@$(GCC) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
+
+#%.o: %.c
+#	@echo CC $@
+#	$(COMPILE.c) $(OUTPUT_OPTION) $^
+%.o: %.c
+	@echo "CC $<"
+	@$(CC) $(CFLAGS) -c -o $@ $<
 
 all: $(BIN)
 

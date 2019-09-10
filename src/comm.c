@@ -105,10 +105,10 @@ queue_local_particle(particle_set_t *set, particle_t *p, int chunk_index)
 }
 
 int
-compute_tag(int op, int iter, int value, int value_size)
+compute_tag(unsigned int op, unsigned int iter, unsigned int value, unsigned int value_size)
 {
-	int tag;
-	int value_mask;
+	unsigned int tag;
+	unsigned int value_mask;
 
 	value_mask = ~((~0U)<<value_size);
 
@@ -123,7 +123,7 @@ compute_tag(int op, int iter, int value, int value_size)
 	tag <<= value_size;
 	tag |= value & value_mask;
 
-	return tag;
+	return (int) tag;
 }
 
 void
@@ -140,8 +140,8 @@ particle_chunk_index(sim_t *sim, plasma_chunk_t *chunk, particle_t *p, int *dst)
 	dx = chunk->L[X];
 	dy = chunk->L[Y];
 
-	dst[X] = p->x[X] / dx;
-	dst[Y] = p->x[Y] / dy;
+	dst[X] = (int)(p->x[X] / dx);
+	dst[Y] = (int)(p->x[Y] / dy);
 }
 
 /* Check ONLY in the X dimension, if any particle has exceeded the chunk size in
@@ -151,7 +151,7 @@ collect_particles_x(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchan
 {
 	particle_t *p, *tmp;
 	particle_set_t *set;
-	int j, ix, iy, ix_next, ix_prev;
+	int j, ix, ix_next, ix_prev;
 	int dst, dst_ig[MAX_DIM];
 
 	set = &chunk->species[is];
@@ -164,7 +164,7 @@ collect_particles_x(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchan
 	}
 
 	ix = chunk->ig[X];
-	iy = chunk->ig[Y];
+	//iy = chunk->ig[Y];
 
 	dbg("Collecting local particles for chunk %d for specie %d\n", ix, is);
 
@@ -261,7 +261,7 @@ concat_particles(plasma_chunk_t *dst, plasma_chunk_t *src)
 int
 exchange_particles_x(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 {
-	int is, ic, nc, chunk_ix;
+	int is, ic, nc;
 	int ic_prev, ic_next;
 	particle_set_t *set, *dst_set;
 	plasma_t *plasma;
@@ -270,7 +270,12 @@ exchange_particles_x(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 	plasma = &sim->plasma;
 	nc = sim->plasma_chunks;
 	dst_chunk = chunk;
-	chunk_ix = chunk->ig[X];
+	src_chunk = NULL;
+	ic = 0;
+
+#ifdef EXTRA_CHECKS
+	int chunk_ix = chunk->ig[X];
+#endif
 
 	if(global_exchange)
 	{
@@ -339,6 +344,7 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 	plasma_t *plasma;
 	plasma_chunk_t *chunk;
 
+	is = 0;
 	plasma = &sim->plasma;
 
 	dbg("comm_plasma_x begins\n");
@@ -406,7 +412,7 @@ collect_particles_y(sim_t *sim, plasma_chunk_t *chunk, int is, int global_exchan
 	iy_next = (iy + 1) % sim->nprocs;
 	iy_prev = (iy - 1 + sim->nprocs) % sim->nprocs;
 
-#if GLOBAL_DEBUG
+#if DEBUG
 	double x0, x1, y0, y1;
 	x0 = chunk->x0[X];
 	y0 = chunk->x0[Y];
@@ -711,6 +717,8 @@ recv_particles_y_MPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs)
 
 	plasma_chunk_t *recv_chunk;
 
+	recv_chunk = NULL;
+
 	for(ip=0; ip<max_procs; ip++)
 	{
 		dbg("Creating a new recv_particle_packet_MPI task for chunk %d\n",
@@ -842,19 +850,12 @@ recv_particle_packet_TAMPI(sim_t *sim, plasma_chunk_t *chunk, int proc)
 int
 recv_particles_y_TAMPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs, int *proc_table)
 {
-	int proc, ip, ic, i, j, left, done, count;
-	int tag, size, neigh, op, chunk_ix;
+	int proc, ip, i, j, left, done, count;
+	int tag, size, neigh, chunk_ix;
 	MPI_Status status;
 	comm_packet_t *pkt;
 	int *recv_from;
 	void *ptr;
-
-	//recv_from = safe_calloc(sim->nprocs, sizeof(int));
-
-	op = COMM_TAG_OP_PARTICLES;
-
-	ic = chunk->ig[X];
-
 
 	for(ip=0; ip<max_procs; ip++)
 	{
@@ -862,6 +863,7 @@ recv_particles_y_TAMPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs, int *pr
 
 		proc = proc_table[ip];
 
+		pkt = NULL;
 		#pragma oss task out(*pkt) inout(*chunk) label(recv_particle_packet_TAMPI)
 		{
 			pkt = recv_particle_packet_TAMPI(sim, chunk, proc);
@@ -869,15 +871,15 @@ recv_particles_y_TAMPI(sim_t *sim, plasma_chunk_t *chunk, int max_procs, int *pr
 			//#pragma oss task in(*pkt) inout(*chunk) label(unpack_comm_packet)
 			{
 				dbg("Proccessing recv packet %p for chunk %d from proc %d\n",
-						pkt, ic, proc);
+						pkt, chunk->ig[X], proc);
 				unpack_comm_packet(sim, chunk, pkt);
 				free(pkt);
 				dbg("Proccessing done for packet %p for chunk %d from proc %d\n",
-						pkt, ic, proc);
+						pkt, chunk->ig[X], proc);
 			}
 
 			dbg("Completed task for tampi recv inout(chunk=%p (%d)) out(pkt=%p)\n",
-					chunk, ic, pkt);
+					chunk, chunk->ig[X], pkt);
 		}
 	}
 
@@ -1160,6 +1162,8 @@ pack_particles_y(sim_t *sim, plasma_chunk_t *chunk, int chunk_index, int global_
 		pack_particles_dst(sim, chunk, chunk_index, proc);
 
 	}
+
+	return 0;
 }
 
 int
@@ -1170,6 +1174,7 @@ comm_plasma_y(sim_t *sim, int global_exchange)
 	plasma_chunk_t *chunk;
 
 	plasma = &sim->plasma;
+	is = 0;
 
 	/* FIXME: Ensure coloring is needed to Y also */
 	max_color = 1;
@@ -1213,6 +1218,7 @@ comm_plasma_y(sim_t *sim, int global_exchange)
 		}
 	}
 
+	return 0;
 }
 
 int

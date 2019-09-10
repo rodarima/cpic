@@ -23,6 +23,9 @@ field_init(sim_t *sim, field_t *f)
 	int rho_shape[MAX_DIM];
 	int phi_shape[MAX_DIM];
 	int E_shape[MAX_DIM];
+	size_t alignment;
+
+	alignment = sim->output->alignment;
 
 	f->shape[X] = sim->blocksize[X];
 	f->shape[Y] = sim->blocksize[Y];
@@ -69,7 +72,8 @@ field_init(sim_t *sim, field_t *f)
 			rho_shape[X],
 			rho_shape[Y],
 			rho_shape[Z]);
-	f->_rho = mat_alloc(sim->dim, rho_shape);
+
+	f->_rho = mat_alloc_align(sim->dim, rho_shape, alignment);
 	f->rho = mat_view(f->_rho, 0, 0, sim->blocksize);
 	MAT_FILL(f->_rho, NAN);
 	//MAT_FILL(f->_rho, 0.0);
@@ -82,7 +86,7 @@ field_init(sim_t *sim, field_t *f)
 	phi_shape[Y] = sim->blocksize[Y] + PHI_NG_NORTH + PHI_NG_SOUTH;
 	phi_shape[Z] = sim->blocksize[Z];
 
-	f->_phi = mat_alloc(sim->dim, phi_shape);
+	f->_phi = mat_alloc_align(sim->dim, phi_shape, alignment);
 
 	phi_shape[X] = sim->blocksize[X];
 	phi_shape[Y] = sim->blocksize[Y];
@@ -115,7 +119,7 @@ field_init(sim_t *sim, field_t *f)
 
 	for(d=0; d<sim->dim; d++)
 	{
-		f->_E[d] = mat_alloc(sim->dim, E_shape);
+		f->_E[d] = mat_alloc_align(sim->dim, E_shape, alignment);
 		f->E[d] = mat_view(f->_E[d], 0, E_NG_NORTH, sim->blocksize);
 		MAT_FILL(f->_E[d], NAN);
 	}

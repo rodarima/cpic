@@ -19,9 +19,6 @@ tap_shared_alloc(size_t size, MPI_Comm comm)
 {
 	MPI_Win win;
 	void *buf;
-	MPI_Aint asize;
-
-	asize = (MPI_Aint) size;
 
 	PMPI_Win_allocate_shared(size, 1, MPI_INFO_NULL, comm, &buf, &win);
 
@@ -314,8 +311,8 @@ tap_child(MPI_Comm *node_comm, MPI_Comm *worker_comm, int *master_rank)
 
 	info_size = sizeof(struct worker_info) * (total_workers);
 
-	dbg("Worker %d allocates a buffer of %d bytes\n", rank, info_size);
-	dbg("Worker %d myinfo size: %d bytes\n", rank, sizeof(myinfo));
+	dbg("Worker %d allocates a buffer of %lu bytes\n", rank, info_size);
+	dbg("Worker %d myinfo size: %lu bytes\n", rank, sizeof(myinfo));
 
 	info = safe_malloc(info_size);
 

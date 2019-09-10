@@ -1,4 +1,6 @@
 #pragma once
+//#ifndef __DEF_H__
+//#define __DEF_H__
 
 #define MAX_CHUNK_NEIGH 27
 
@@ -114,18 +116,24 @@ struct specie
 };
 
 
+/* FIXME: The mercurium compiler mcc ignores the pragma pack, but keeps the
+ * __attribute untouched.
 #pragma pack(push,1)
+*/
+
 /* We need the network structures to be packed, as otherwise, ununused regions
  * are left uninitialized (also we reduce some space in the transmission) */
 
-struct specie_packet
+/* Let's skip the packing by now */
+
+struct /*__attribute__((__packed__))*/ specie_packet
 {
 	int specie_index;
 	int nparticles;
 	particle_t buf[];
 };
 
-struct comm_packet
+struct /*__attribute__((__packed__))*/ comm_packet
 {
 	/* Size of the full packet in bytes */
 	int size;
@@ -136,7 +144,8 @@ struct comm_packet
 	int dst_chunk[MAX_DIM];
 	specie_packet_t s[];
 };
-#pragma pack(pop)
+/* Ignored by mcc:
+ * #pragma pack(pop)*/
 
 enum {
 	NORTH = 0,
@@ -240,6 +249,7 @@ struct output
 	int max_slices;
 	int period_field;
 	int period_particle;
+	long long alignment;
 };
 
 enum sim_mode {
@@ -375,3 +385,5 @@ struct sim
 	int rank;
 
 };
+
+//#endif /* __DEF_H__ */
