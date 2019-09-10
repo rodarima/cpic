@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <assert.h>
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "def.h"
 #include "utils.h"
@@ -547,8 +547,11 @@ write_field(sim_t *sim, output_t *out, mat_t *m, const char *name)
 			abort();
 		}
 
+		#pragma oss task
 		if((ret = write_vector(fd, offset, (double *) (data+offset), n, bsize)))
-			goto err;
+			abort();
+			/* Goto is not working with tasks */
+			//goto err;
 
 		offset += n;
 	}
@@ -563,7 +566,9 @@ write_field(sim_t *sim, output_t *out, mat_t *m, const char *name)
 
 	//assert(offset_elem + left == total);
 
-err:
+	#pragma oss taskwait
+
+//err:
 	close(fd);
 	return ret;
 
