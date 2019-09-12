@@ -449,6 +449,8 @@ write_xdmf_fields(sim_t *sim)
 	fprintf(f, "      </Geometry>\n");
 	write_field_attribute(f, sim->iter, sim->field.phi, "phi");
 	write_field_attribute(f, sim->iter, sim->field.rho, "rho");
+	write_field_attribute(f, sim->iter, sim->field.E[X], "E_X");
+	write_field_attribute(f, sim->iter, sim->field.E[Y], "E_Y");
 	fprintf(f, "    </Grid>\n");
 	fprintf(f, "  </Domain>\n");
 	fprintf(f, "</Xdmf>\n");
@@ -657,17 +659,10 @@ output_fields(sim_t *sim)
 		return -1;
 	}
 
-	if(write_field(sim, sim->output, sim->field._rho, "rho"))
-	{
-		err("write_field failed\n");
-		return -1;
-	}
-
-	if(write_field(sim, sim->output, sim->field._phi, "phi"))
-	{
-		err("write_field failed\n");
-		return -1;
-	}
+	if(write_field(sim, sim->output, sim->field._rho, "rho")) return -1;
+	if(write_field(sim, sim->output, sim->field._phi, "phi")) return -1;
+	if(write_field(sim, sim->output, sim->field._E[X], "E_X")) return -1;
+	if(write_field(sim, sim->output, sim->field._E[Y], "E_Y")) return -1;
 
 	perf_stop(&sim->timers[TIMER_OUTPUT_FIELDS]);
 
