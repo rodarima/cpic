@@ -22,6 +22,46 @@
 #define IS_ALIGNED(ADDR, SIZE) (((uintptr_t)(const void *)(ADDR)) % (SIZE) == 0)
 
 int
+create_directories(output_t *out)
+{
+	char path[PATH_MAX];
+
+	if(mkdir(out->path, 0700))
+	{
+		if(errno == EEXIST)
+		{
+			dbg("Output directory \"%s\" already exists, will be overwritten\n",
+					out->path);
+		}
+		else
+		{
+			perror("mkdir");
+			return -1;
+		}
+	}
+
+	if(snprintf(path, PATH_MAX, "%s/xdmf", out->path) >= PATH_MAX)
+		return -1;
+
+	if(mkdir(path, 0700) && errno != EEXIST)
+	{
+		perror("mkdir");
+		return -1;
+	}
+
+	if(snprintf(path, PATH_MAX, "%s/bin", out->path) >= PATH_MAX)
+		return -1;
+
+	if(mkdir(path, 0700) && errno != EEXIST)
+	{
+		perror("mkdir");
+		return -1;
+	}
+
+	return 0;
+}
+
+int
 output_init(sim_t *sim, output_t *out)
 {
 	const char *path;
@@ -33,6 +73,11 @@ output_init(sim_t *sim, output_t *out)
 		return 0;
 	}
 
+	if(strlen(out->path) >= PATH_MAX)
+	{
+		err("Too long output path\n");
+		return -1;
+	}
 	strncpy(out->path, path, PATH_MAX-1);
 	out->path[PATH_MAX-1] = '\0';
 
@@ -70,8 +115,16 @@ output_init(sim_t *sim, output_t *out)
 	{
 		err("The number of slices %d doesn't divide the blocksize in Y of %d\n",
 				out->max_slices, sim->blocksize[Y]);
-		return 1;
+		return -1;
 
+	}
+
+	/* Prepare output directories */
+
+	if(create_directories(out))
+	{
+		err("Cannot create output directories\n");
+		return -1;
 	}
 
 	return 0;
@@ -345,24 +398,35 @@ output_particles(sim_t *sim)
 }
 
 int
+write_field_attribute(FILE *f, int iter, mat_t *m, const char *name)
+{
+	fprintf(f, "      <Attribute Center=\"Node\" Name=\"%s\" DataType=\"Scalar\">\n", name);
+	fprintf(f, "        <DataItem ItemType=\"HyperSlab\" Dimensions=\"1 %d %d\" Type=\"HyperSlab\">\n",
+			m->shape[Y], m->shape[X]);
+	fprintf(f, "          <DataItem Dimensions=\"3 3\" Format=\"XML\">\n");
+	fprintf(f, "            0 %d %d\n", m->delta[Y], m->delta[X]);
+	fprintf(f, "            1 1 1\n");
+	fprintf(f, "            1 %d %d\n", m->delta[Y] + m->shape[Y], m->delta[X] + m->shape[X]);
+	fprintf(f, "          </DataItem>\n");
+	fprintf(f, "          <DataItem Dimensions=\"1 %d %d\" DataType=\"Float\" Precision=\"8\" Format=\"Binary\">\n",
+			m->real_shape[Y], m->real_shape[X]);
+	fprintf(f, "            ../bin/%d/%s.bin\n",
+			iter, name);
+	fprintf(f, "          </DataItem>\n");
+	fprintf(f, "        </DataItem>\n");
+	fprintf(f, "      </Attribute>\n");
+
+	return 0;
+}
+
+int
 write_xdmf_fields(sim_t *sim)
 {
 	FILE *f;
 	char file[PATH_MAX];
-	char dataset[PATH_MAX];
-	mat_t *rho, *phi;
 
-	rho = sim->field.rho;
-	phi = sim->field.phi;
-
-	if(snprintf(file, PATH_MAX, "%s/fields-iter%d.xdmf",
+	if(snprintf(file, PATH_MAX, "%s/xdmf/fields-iter%d.xdmf",
 			sim->output->path, sim->iter) >= PATH_MAX)
-	{
-		return -1;
-	}
-
-	if(snprintf(dataset, PATH_MAX, "fields-iter%d.h5",
-			sim->iter) >= PATH_MAX)
 	{
 		return -1;
 	}
@@ -374,7 +438,7 @@ write_xdmf_fields(sim_t *sim)
 	fprintf(f, "  <Domain>\n");
 	fprintf(f, "    <Grid Name=\"fields\">\n");
 	fprintf(f, "      <Topology TopologyType=\"3DCoRectMesh\" NumberOfElements=\"%d %d %d\"/>\n",
-			1, rho->shape[Y], rho->shape[X]);
+			1, sim->blocksize[Y], sim->blocksize[X]);
 	fprintf(f, "      <Geometry Origin=\"\" Type=\"ORIGIN_DXDYDZ\">\n");
 	fprintf(f, "        <DataItem Format=\"XML\" Dimensions=\"3\">\n");
 	fprintf(f, "            0.0 0.0 0.0\n");
@@ -383,14 +447,8 @@ write_xdmf_fields(sim_t *sim)
 	fprintf(f, "            %f %f %f\n", sim->dx[Z], sim->dx[Y], sim->dx[X]);
 	fprintf(f, "        </DataItem>\n");
 	fprintf(f, "      </Geometry>\n");
-	fprintf(f, "      <Attribute Center=\"Node\" Name=\"RHO\" DataType=\"Scalar\">\n");
-	fprintf(f, "        <DataItem Dimensions=\"%d %d %d\" DataType=\"Float\" Precision=\"8\" Format=\"HDF\">%s:/rho</DataItem>\n",
-			1, rho->shape[Y], rho->shape[X], dataset);
-	fprintf(f, "      </Attribute>\n");
-	fprintf(f, "      <Attribute Center=\"Node\" Name=\"PHI\" DataType=\"Scalar\">\n");
-	fprintf(f, "        <DataItem Dimensions=\"%d %d %d\" DataType=\"Float\" Precision=\"8\" Format=\"HDF\">%s:/phi</DataItem>\n",
-			1, phi->shape[Y], phi->shape[X], dataset);
-	fprintf(f, "      </Attribute>\n");
+	write_field_attribute(f, sim->iter, sim->field.phi, "phi");
+	write_field_attribute(f, sim->iter, sim->field.rho, "rho");
 	fprintf(f, "    </Grid>\n");
 	fprintf(f, "  </Domain>\n");
 	fprintf(f, "</Xdmf>\n");
@@ -492,7 +550,7 @@ write_field(sim_t *sim, output_t *out, mat_t *m, const char *name)
 
 	ret = 0;
 
-	if(snprintf(file, PATH_MAX, "%s/%d/%s.bin",
+	if(snprintf(file, PATH_MAX, "%s/bin/%d/%s.bin",
 				out->path, sim->iter, name) >= PATH_MAX)
 	{
 		err("Path exceeds PATH_MAX\n");
@@ -584,7 +642,9 @@ output_fields(sim_t *sim)
 
 	out = sim->output;
 
-	if(snprintf(dir, PATH_MAX, "%s/%d",
+	write_xdmf_fields(sim);
+
+	if(snprintf(dir, PATH_MAX, "%s/bin/%d",
 				out->path, sim->iter) >= PATH_MAX)
 	{
 		err("Dir path exceeds PATH_MAX\n");
