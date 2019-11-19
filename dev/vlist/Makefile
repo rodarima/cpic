@@ -1,9 +1,11 @@
 # Common
 #CFLAGS=-O3
-CFLAGS=-g
+CFLAGS=-g -Wall
+
+CC=c99
 
 # GCC
-CC=gcc
+#CC=gcc
 #CFLAGS+=-fopenmp
 #CFLAGS+=-fopenmp-simd
 #CFLAGS+=-fopt-info-vec-all
