@@ -1,34 +1,16 @@
 #pragma once
 
-#define NBLOCKS 64
-#define PBLOCK_NMAX (1024*1024)
+#include "simd.h"
 
-#define VEC_ALIGN   64	/* bytes */
-#define VL_HEAD_PAD 64	/* bytes */
-#define PB_HEAD_PAD 128	/* bytes */
+#define NBLOCKS 1
+#define PBLOCK_NMAX (64*1024*1024)
+
+#define VLIST_ALIGN	1024*1024	/* bytes */
+#define VEC_ALIGN	64	/* bytes */
+#define VL_HEAD_PAD	64	/* bytes */
+#define PB_HEAD_PAD	128	/* bytes */
 
 #define MAX_DIM 3
-#define MAX_VEC 8 /* Vector size in doubles */
-
-#define IS_ALIGNED(POINTER, BYTE_COUNT) \
-    (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
-
-#ifdef __INTEL_COMPILER
-	#define ASSUME_ALIGNED(dst, src, bytes) 		\
-		(dst) = (src);					\
-		__assume_aligned((dst), (bytes))
-//	#warning "Using Intel alignment specification"
-#else
-
-#ifdef __GNUC__
-	#define ASSUME_ALIGNED(dst, src, bytes) 		\
-		(dst) = __builtin_assume_aligned((src), (bytes))
-//	#warning "Using GNU alignment specification"
-#else
-
-	#error "Unsopported compiler. Use gcc or icc"
-#endif
-#endif
 
 enum dim {
 	X = 0,
@@ -67,10 +49,23 @@ struct vlist
 struct particle_header
 {
 	size_t *__restrict__ i; /* Particle global index */
-	double *__restrict__ r[MAX_DIM]; /* Position */
-	double *__restrict__ u[MAX_DIM]; /* Velocity */
-	double *__restrict__ E[MAX_DIM]; /* Electric field */
-	double *__restrict__ B[MAX_DIM]; /* Magnetic field */
+	union
+	{
+		struct
+		{
+			double *__restrict__ r[MAX_DIM]; /* Position */
+			double *__restrict__ u[MAX_DIM]; /* Velocity */
+			double *__restrict__ E[MAX_DIM]; /* Electric field */
+			double *__restrict__ B[MAX_DIM]; /* Magnetic field */
+		};
+		struct
+		{
+			VDOUBLE *__restrict__ vr[MAX_DIM]; /* Position */
+			VDOUBLE *__restrict__ vu[MAX_DIM]; /* Velocity */
+			VDOUBLE *__restrict__ vE[MAX_DIM]; /* Electric field */
+			VDOUBLE *__restrict__ vB[MAX_DIM]; /* Magnetic field */
+		};
+	};
 }; /* <=104 bytes */
 
 struct pblock

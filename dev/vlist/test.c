@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <assert.h>
 #include <sys/types.h>
 #include <math.h>
@@ -10,19 +11,52 @@
 #include "perf.h"
 #include "test.h"
 #include "kernel.h"
+#include "mem.h"
+#include <sys/mman.h>
+
+//#define USE_PAPI
+
+#ifdef USE_PAPI
+#include <papi.h>
+#endif
 
 #define RUNS 30
+
+int
+rodrix_memalign(void **ptr, size_t align, size_t alloc_bytes)
+{
+	static uintptr_t counter = 0;
+	uintptr_t inc, base;
+	void *p;
+
+	base =   0x700000000000UL;
+	inc =      0x1000000000UL;
+	p = (void *)(base + (inc * counter));
+
+	assert(IS_ALIGNED(p, align));
+
+	(*ptr) = mmap((void *)(base + (inc * counter)), alloc_bytes,
+			PROT_READ|PROT_WRITE,
+			MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED,
+			-1, 0);
+
+	counter++;
+	return (*ptr == NULL);
+}
 
 vlist *
 vlist_init(size_t blocksize)
 {
 	vlist *l;
 
-	if(posix_memalign((void *)&l, VEC_ALIGN, sizeof(vlist) + blocksize) != 0)
+	if(posix_memalign((void **)&l, VLIST_ALIGN, sizeof(vlist) + blocksize) != 0)
+	//if(rodrix_memalign((void **)&l, VLIST_ALIGN, sizeof(vlist) + blocksize) != 0)
 	{
 		fprintf(stderr, "posix_memalign failed\n");
 		return NULL;
 	}
+
+	assert(IS_ALIGNED(l, VLIST_ALIGN));
 
 	l->is_main = 1;
 	l->blocksize = blocksize;
@@ -42,7 +76,8 @@ vlist_grow(vlist *l)
 	if(l->is_main != 1)
 		return -1;
 
-	if(posix_memalign((void *)&new, VEC_ALIGN, sizeof(vlist) + l->blocksize) != 0)
+	if(posix_memalign((void **)&new, VLIST_ALIGN, sizeof(vlist) + l->blocksize) != 0)
+	//if(rodrix_memalign((void **)&new, VLIST_ALIGN, sizeof(vlist) + l->blocksize) != 0)
 	{
 		return -1;
 	}
@@ -172,20 +207,6 @@ pblock_init(pblock *b, size_t n, size_t nmax)
 	return 0;
 }
 
-//#define SWAP(a, b, tmp) do { (tmp)=(a); (a)=(b); (b)=(tmp); } while(0)
-//
-//void
-//pswap(pblock *a, size_t i, pblock *b, size_t j)
-//{
-//	int k;
-//	double tmp;
-//
-//	SWAP(a->i[i], b->i[j], tmp);
-//
-//	for(k=0; k<MAX_DIM*4; k++)
-//		SWAP(a->_v[k][i], a->r[k][i], tmp);
-//}
-
 void
 pprint(vlist *l)
 {
@@ -214,191 +235,12 @@ pprint(vlist *l)
 	}
 }
 
-static inline void
-v_cross_product_goodie(
-		double r[MAX_DIM][MAX_VEC],
-		double a[MAX_DIM][MAX_VEC],
-		double b[MAX_DIM][MAX_VEC])
+void
+init_block(vlist *l)
 {
-	//assert(r != a && r != b);
-	int iv;
-
-//#pragma omp simd aligned(r[X],r[Y],r[Z],a[X],a[Y],a[Z],b[X],b[Y],b[Z] : 64)
-#pragma omp simd
-	for(iv=0; iv<MAX_VEC; iv++)
-	{
-		r[X][iv] = a[Y][iv]*b[Z][iv] - a[Z][iv]*b[Y][iv];
-		r[Y][iv] = a[Z][iv]*b[X][iv] - a[X][iv]*b[Z][iv];
-		r[Z][iv] = a[X][iv]*b[Y][iv] - a[Y][iv]*b[X][iv];
-	}
-}
-
-static inline void
-v_cross_product(double *__restrict__ r,
-		double *__restrict__ a,
-		double *__restrict__ b)
-{
-	//assert(r != a && r != b);
-	int iv;
-
-#pragma omp simd aligned(r,a,b : 64)
-	for(iv=0; iv<MAX_VEC; iv++)
-	{
-		r[X*MAX_VEC + iv] =
-			a[Y*MAX_VEC + iv] * b[Z*MAX_VEC + iv] -
-			a[Z*MAX_VEC + iv] * b[Y*MAX_VEC + iv];
-
-		r[Y*MAX_VEC + iv] =
-			a[Z*MAX_VEC + iv] * b[X*MAX_VEC + iv] -
-			a[X*MAX_VEC + iv] * b[Z*MAX_VEC + iv];
-
-		r[Z*MAX_VEC + iv] =
-			a[X*MAX_VEC + iv] * b[Y*MAX_VEC + iv] -
-			a[Y*MAX_VEC + iv] * b[X*MAX_VEC + iv];
-	}
-}
-
-static inline void
-//__attribute__((always_inline))
-v_boris_rotation(int ip, struct particle_header *p, double dtqm2)
-{
-//	__assume_aligned(p, 64);
-	/* Straight forward from Birdsall section 4-3 and 4-4 */
-	int iv, d;
-
-	//ip = 0;
-
-	/* Vectorized vectors */
-	double _Alignas(VEC_ALIGN) v_prime[MAX_DIM][MAX_VEC];
-	double _Alignas(VEC_ALIGN) v_minus[MAX_DIM][MAX_VEC];
-	double _Alignas(VEC_ALIGN)  v_plus[MAX_DIM][MAX_VEC];
-	double _Alignas(VEC_ALIGN)       t[MAX_DIM][MAX_VEC];
-	double _Alignas(VEC_ALIGN)       s[MAX_DIM][MAX_VEC];
-
-	/* Vectorized scalars */
-	double _Alignas(VEC_ALIGN)          s_denom[MAX_VEC];
-
-	double *__restrict__ B;
-	double *__restrict__ E;
-	double *__restrict__ u;
-
-	double *__restrict__ av_prime;
-	double *__restrict__ av_minus;
-	double *__restrict__ av_plus;
-	double *__restrict__ at;
-	double *__restrict__ as;
-
-	/* TODO: We can precompute v_minus with fixed magnetic field */
-
-//	assert(IS_ALIGNED(p->B[X], VEC_ALIGN));
-//	assert(IS_ALIGNED(v_prime, VEC_ALIGN));
-//	assert(IS_ALIGNED(v_minus, VEC_ALIGN));
-//	assert(IS_ALIGNED(v_plus, VEC_ALIGN));
-//	assert(IS_ALIGNED(t, VEC_ALIGN));
-//	assert(IS_ALIGNED(s, VEC_ALIGN));
-//	assert(IS_ALIGNED(s_denom, VEC_ALIGN));
-
-//	double *__restrict__* B = p->B;
-	//__assume_aligned(Bx, 64);
-
-	//__assume_aligned(p->B[X], 64);
-	//__assume_aligned(p->B[Y], 64);
-	//__assume_aligned(p->B[Z], 64);
-
-#pragma omp simd
-	for(iv=0; iv<MAX_VEC; iv++)
-		s_denom[iv] = 1.0;
-
-	for(d=X; d<MAX_DIM; d++)
-	{
-//		double *__restrict__ Bd = p->B[d];
-//		__assume_aligned(p->B[d], 64);
-//#pragma omp simd aligned(Bd: 64)
-
-
-		ASSUME_ALIGNED(B, &p->B[d][ip], VEC_ALIGN);
-		ASSUME_ALIGNED(E, &p->E[d][ip], VEC_ALIGN);
-		ASSUME_ALIGNED(u, &p->u[d][ip], VEC_ALIGN);
-		ASSUME_ALIGNED(av_prime, v_prime[d], VEC_ALIGN);
-		ASSUME_ALIGNED(av_minus, &v_minus[d][0], VEC_ALIGN);
-		ASSUME_ALIGNED(av_plus, &v_plus[d][0], VEC_ALIGN);
-		ASSUME_ALIGNED(at, &t[d][0], VEC_ALIGN);
-		ASSUME_ALIGNED(as, &s[d][0], VEC_ALIGN);
-
-//#pragma nounroll
-#pragma omp simd
-		for(iv=0; iv<MAX_VEC; iv++)
-		{
-			at[iv] = B[iv] * dtqm2;
-			s_denom[iv] += at[iv] * at[iv];
-
-			/* Advance the velocity half an electric impulse */
-			av_minus[iv] = u[iv] + dtqm2 * E[iv];
-
-			as[iv] = 2.0 * at[iv] / s_denom[iv];
-		}
-	}
-
-	/* Compute half the rotation in v' */
-	v_cross_product_goodie(v_prime, v_minus, t); /* Not the a* version!! */
-
-	for(d=X; d<MAX_DIM; d++)
-	{
-		ASSUME_ALIGNED(av_minus, &v_minus[d][0], VEC_ALIGN);
-		ASSUME_ALIGNED(av_minus, &v_minus[d][0], VEC_ALIGN);
-#pragma omp simd
-		for(iv=0; iv<MAX_VEC; iv++)
-			av_prime[iv] += av_minus[iv];
-	}
-
-	v_cross_product_goodie(v_plus, v_prime, s); /* Not the a* version!! */
-
-	for(d=X; d<MAX_DIM; d++)
-	{
-		ASSUME_ALIGNED(av_minus, &v_minus[d][0], VEC_ALIGN);
-		ASSUME_ALIGNED(av_plus, &v_plus[d][0], VEC_ALIGN);
-		ASSUME_ALIGNED(E, &p->E[d][ip], VEC_ALIGN);
-		ASSUME_ALIGNED(u, &p->u[d][ip], VEC_ALIGN);
-
-//#pragma vector nontemporal(u)
-#pragma omp simd
-		for(iv=0; iv<MAX_VEC; iv++)
-		{
-			/* Then finish the rotation by symmetry */
-			av_plus[iv] += av_minus[iv];
-
-			/* Advance the velocity final half electric impulse */
-			u[iv] = av_plus[iv] + dtqm2 * E[iv];
-		}
-	}
-}
-
-int
-main(int argc, char **argv)
-{
-	size_t i, r, j, ii;
-	size_t blocksize;
-	vlist *l, *tmp;
-	pblock *b;
-	perf_t p;
-	double dtqm2, t;
-
-	blocksize = pblock_size(PBLOCK_NMAX);
-
-	printf("For K=%d we need %lu bytes\n", PBLOCK_NMAX, blocksize);
-
-	perf_init(&p);
-	perf_start(&p);
-
-	l = vlist_init(blocksize);
-	pblock_init((void*) l->data, PBLOCK_NMAX, PBLOCK_NMAX);
-
-	for(i=0; i<NBLOCKS-1; i++)
-	{
-		vlist_grow(l);
-		pblock_init((void*) l->last->data, PBLOCK_NMAX, PBLOCK_NMAX);
-	}
-
+	size_t i, j, ii;
+	struct pblock *b;
+	vlist *tmp;
 
 	for(j=0,ii=0,tmp=l; tmp; tmp = tmp->next, j++)
 	{
@@ -414,10 +256,67 @@ main(int argc, char **argv)
 			b->p.u[X][i] = 20;
 			b->p.u[Y][i] = 30;
 			b->p.u[Z][i] = 40;
+
+			b->p.B[X][i] = 2.0;
+			b->p.B[Y][i] = 2.0;
+			b->p.B[Z][i] = 2.0;
+
+			b->p.E[X][i] = 3.0;
+			b->p.E[Y][i] = 3.0;
+			b->p.E[Z][i] = 3.0;
 		}
 	}
+}
+int
+main(int argc, char **argv)
+{
+	size_t i, r;
+	size_t blocksize;
+	vlist *l, *tmp;
+	pblock *b;
+	perf_t p;
+	double t;
+
+#ifdef USE_PAPI
+
+#define NCOUNTERS 3
+
+	int PAPI_events[] =
+	{
+		PAPI_TOT_CYC,
+		PAPI_L2_DCM,
+		PAPI_L2_DCA
+	};
+	long long counters[NCOUNTERS] = {0};
+
+	PAPI_library_init(PAPI_VER_CURRENT);
+#endif
+
+	blocksize = pblock_size(PBLOCK_NMAX);
+
+	fprintf(stderr, "For K=%d we need %lu bytes\n", PBLOCK_NMAX, blocksize);
+
+	perf_init(&p);
+	perf_start(&p);
+
+	l = vlist_init(blocksize);
+	pblock_init((void*) l->data, PBLOCK_NMAX, PBLOCK_NMAX);
+
+	for(i=0; i<NBLOCKS-1; i++)
+	{
+		vlist_grow(l);
+		pblock_init((void*) l->last->data, PBLOCK_NMAX, PBLOCK_NMAX);
+	}
+
+	void* phy = phys_from_virtual(l);
+
+	fprintf(stderr, "phy = %p\n", phy);
+
+
+	init_block(l);
+
 	perf_stop(&p);
-	printf("init \t%e s\n", perf_measure(&p));
+	fprintf(stderr, "init \t%e s\n", perf_measure(&p));
 
 	//pprint(l);
 
@@ -431,37 +330,59 @@ main(int argc, char **argv)
 
 	perf_init(&p);
 
-	dtqm2 = 0.0;
 	for(r=0; r<RUNS; r++)
 	{
 		perf_reset(&p);
 		perf_start(&p);
 
+#ifdef USE_PAPI
+		if(PAPI_start_counters(PAPI_events, NCOUNTERS) != PAPI_OK)
+		{
+			fprintf(stderr, "Failure starting counters\n");
+			PAPI_perror("PAPI_start_counters");
+			exit(1);
+		}
+#endif
+
 		for(tmp = l; tmp; tmp = tmp->next)
 		{
 			b = (pblock *) tmp->data;
-			for(i=0; i<b->n; i+=MAX_VEC)
-			{
-				dtqm2 += M_PI * i * 0.3333;
-				//v_boris_rotation(i, &b->p, dtqm2);
-				i_boris_rotation(i, &b->p, dtqm2);
-			}
+			particle_x_update(b);
 		}
+
+#ifdef USE_PAPI
+
+		if(PAPI_stop_counters(counters, NCOUNTERS) != PAPI_OK)
+		{
+			fprintf(stderr, "Failure reading counters\n");
+			PAPI_perror("PAPI_read_counters");
+			exit(1);
+		}
+#endif
 
 		perf_stop(&p);
 		t = perf_measure(&p);
 		perf_record(&p, t);
-		printf("rot \t%e s\n", t);
+		printf("%e %p\n", t, phy);
+
+#ifdef USE_PAPI
+		fprintf(stderr, "%lld cycles\n"
+				"%lld/%lld L2 cache misses\n",
+				counters[0],
+				counters[1],
+				counters[2]
+		       );
+#endif
 	}
 
 	double mean, std, sem;
 
 	perf_stats(&p, &mean, &std, &sem);
-	printf("mean=%e std=%e\n", mean, std);
+	fprintf(stderr, "mean=%e std=%e\n", mean, std);
 
 	//pprint(l);
 
-	vlist_free(l);
+	//vlist_free(l);
 
 	return 0;
 }

@@ -12,11 +12,11 @@ GCFLAGS=$(CFLAGS)
 #GCFLAGS+=-fopenmp
 GCFLAGS+=-fopenmp-simd
 #GCFLAGS+=-fopt-info-vec-all
-#GCFLAGS+=-march=native
-#GCFLAGS+=-mtune=native
-GCFLAGS+=-march=skylake-avx512
-GCFLAGS+=-mtune=skylake-avx512
-GCFLAGS+=-mprefer-vector-width=512
+GCFLAGS+=-march=native
+GCFLAGS+=-mtune=native
+#GCFLAGS+=-march=skylake-avx512
+#GCFLAGS+=-mtune=skylake-avx512
+#GCFLAGS+=-mprefer-vector-width=512
 GCFLAGS+=-fverbose-asm
 GCFLAGS+=-fdump-tree-optimized
 GCFLAGS+=-ftree-vectorize
@@ -26,12 +26,21 @@ GCFLAGS+=-ftree-vectorize
 #GCFLAGS+=-fira-verbose=50
 #GCFLAGS+=-fsched-pressure
 
+# LLVM/Clang
+LCC=clang
+LCFLAGS=$(CFLAGS)
+LCFLAGS+=-march=native
+#LCFLAGS+=-march=skylake-avx512
+#LCFLAGS+=-mtune=skylake-avx512
+
 # Intel
 ICC=icc
 ICFLAGS=$(CFLAGS)
 ##CFLAGS+=-axCORE-AVX512
 ICFLAGS+=-fsource-asm
-ICFLAGS+=-xCOMMON-AVX512
+ICFLAGS+=-xHost
+#ICFLAGS+=-xCOMMON-AVX512
+#ICFLAGS+=-xCOMMON-AVX512
 #ICFLAGS+=-qopt-report=5
 #ICFLAGS+=-xCORE-AVX512 -qopt-report=5
 ICFLAGS+=-qopt-zmm-usage=high
@@ -42,32 +51,53 @@ ICFLAGS+=-qopt-zmm-usage=high
 #CFLAGS+=--ompss-2 -k --v
 #CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
-LDLIBS+=-lm
+LDLIBS+=-L/apps/PAPI/5.6.0/lib -lm #-lpapi
 
-BIN=icc-test gcc-test my-test
-ASM=icc-kernel.s gcc-kernel.s
+COMPILERS=$(LCC)
+#COMPILERS=$(LCC) $(GCC)
+#COMPILERS=$(ICC) $(GCC) $(LCC)
+BIN=$(addprefix test.,$(COMPILERS)) #my-kernel
+ASM=$(addsuffix .s, $(BIN))
+OBJ=$(addprefix kernel.,$(COMPILERS)) #my-kernel
+VINST=$(addsuffix .v, $(OBJ))
 
-all: $(BIN) $(ASM)
+#.SECONDARY:
+.PRECIOUS: $(ASM)
 
-icc-kernel.s: kernel.c
+all: $(ASM) $(BIN) $(VINST)
+
+%.icc.s: %.c
 	$(ICC) $(filter-out -g,$(ICFLAGS)) -S $^ -o $@
 
-icc-kernel.o: icc-kernel.s
+%.icc.o: %.icc.s
 	$(ICC) -c $(ICFLAGS) $< -o $@
 
-icc-test: test.c perf.c icc-kernel.o
+test.icc: test.c perf.c mem.icc.o kernel.icc.o
 	$(ICC) $(ICFLAGS) $^ $(LDLIBS) -o $@
 
 ################################################################
 
-gcc-kernel.s: kernel.c
+%.clang.s: %.c
+	$(LCC) $(filter-out -g,$(LCFLAGS)) -S $^ -o $@
+
+%.clang.o: %.clang.s
+	$(LCC) -c $(LCFLAGS) $< -o $@
+
+test.clang: test.c perf.c mem.o kernel.clang.o
+	$(LCC) $(LCFLAGS) $^ $(LDLIBS) -o $@
+
+################################################################
+
+%.gcc.s: %.c
 	$(GCC) $(filter-out -g,$(GCFLAGS)) -S $^ -o $@
 
-gcc-kernel.o: gcc-kernel.s
+%.gcc.o: %.gcc.s
 	$(GCC) -c $(GCFLAGS) $< -o $@
 
-gcc-test: test.c perf.c gcc-kernel.o
+test.gcc: test.c perf.c mem.o kernel.gcc.o
 	$(GCC) $(GCFLAGS) $(LDLIBS) $^ -o $@
+
+################################################################
 
 my-kernel.o: my-kernel.s
 	$(GCC) -c $(GCFLAGS) $< -o $@
@@ -75,6 +105,10 @@ my-kernel.o: my-kernel.s
 my-test: test.c perf.c my-kernel.o
 	$(GCC) $(GCFLAGS) $(LDLIBS) $^ -o $@
 
+################################################################
+
+%.v: %.s
+	grep '^\s*v' $^ | sort | awk '{print $$1}' | uniq -c > $@
 
 ################################################################
 
@@ -85,5 +119,8 @@ my-test: test.c perf.c my-kernel.o
 #	$(GCC) $(GCFLAGS) $^ $(LDLIBS) -o $@
 
 clean:
-	rm -f *.o $(BIN) $(ASM)
+	rm -f *.o $(BIN) $(ASM) $(VINST)
 
+
+perf: test.clang
+	sudo taskset -c 1 perf stat -a -C 1 --topdown -I 100 ./test.clang
