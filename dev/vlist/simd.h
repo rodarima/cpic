@@ -5,6 +5,8 @@
 /* Always align to 64 byte boundary */
 #define VEC_ALIGN 64
 
+#define PREFETCH(p)	_mm_prefetch(p, _MM_HINT_T0)
+
 //#define USE_VECTOR_512 1
 #define USE_VECTOR_256 1
 
@@ -17,7 +19,7 @@
 #define VSET1(x)	_mm512_set1_pd(x)
 #define VLOAD(x)	_mm512_load_pd(x)
 #define VSTREAM(a, b)	_mm512_stream_pd(a, b)
-#define VSTORE(x)	_mm512_store_pd(x)
+#define VSTORE(a, b)	_mm512_store_pd(a, b)
 #define VSQRT(x)	_mm512_sqrt_pd(x)
 
 #define MAX_VEC 8 /* Vector size in doubles */
@@ -32,7 +34,7 @@
 #define VSET1(x)	_mm256_set1_pd(x)
 #define VLOAD(x)	_mm256_load_pd(x)
 #define VSTREAM(a, b)	_mm256_stream_pd(a, b)
-#define VSTORE(x)	_mm256_store_pd(x)
+#define VSTORE(a, b)	_mm256_store_pd(a, b)
 #define VSQRT(x)	_mm256_sqrt_pd(x)
 
 #define MAX_VEC 4 /* Vector size in doubles */
