@@ -10,37 +10,29 @@
 //#define USE_VECTOR_512 1
 #define USE_VECTOR_256 1
 
-/********************************************************************
-* 512 bytes (AVX-512)
-*********************************************************************/
-
 #ifdef USE_VECTOR_512
 #define VDOUBLE		__m512d
-#define VSET1(x)	_mm512_set1_pd(x)
-#define VLOAD(x)	_mm512_load_pd(x)
-#define VSTREAM(a, b)	_mm512_stream_pd(a, b)
-#define VSTORE(a, b)	_mm512_store_pd(a, b)
-#define VSQRT(x)	_mm512_sqrt_pd(x)
-
+#define VEC_PREFIX	_mm512_
 #define MAX_VEC 8 /* Vector size in doubles */
 #endif
 
-/********************************************************************
-* 256 bytes (AVX-2)
-*********************************************************************/
-
 #ifdef USE_VECTOR_256
 #define VDOUBLE		__m256d
-#define VSET1(x)	_mm256_set1_pd(x)
-#define VLOAD(x)	_mm256_load_pd(x)
-#define VSTREAM(a, b)	_mm256_stream_pd(a, b)
-#define VSTORE(a, b)	_mm256_store_pd(a, b)
-#define VSQRT(x)	_mm256_sqrt_pd(x)
-
+#define VEC_PREFIX	_mm256_
 #define MAX_VEC 4 /* Vector size in doubles */
 #endif
 
+#define CONCAT_(a, b)	a##b
+#define CONCAT(a, b)	CONCAT_(a, b)
+#define S(x)		CONCAT(VEC_PREFIX, x)
 
+#define VSET1(x)	S(set1_pd(x))
+#define VLOAD(x)	S(load_pd(x))
+#define VSTREAM(a, b)	S(stream_pd(a, b))
+#define VSTORE(a, b)	S(store_pd(a, b))
+#define VSQRT(x)	S(sqrt_pd(x))
+#define VABS(x)		S(abs_pd(x))
+#define VCMP(a, b)	S(cmp_pd(a, b))
 
 #define IS_ALIGNED(POINTER, BYTE_COUNT) \
     (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)

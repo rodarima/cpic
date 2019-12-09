@@ -363,7 +363,7 @@ main(int argc, char **argv)
 		perf_stop(&p);
 		t = perf_measure(&p);
 		perf_record(&p, t);
-		printf("%e %p\n", t, phy);
+		printf("%e s   %3f Mp/s\n", t, ((double) PBLOCK_NMAX*NBLOCKS)/t/1e6);
 
 #ifdef USE_PAPI
 		fprintf(stderr, "%lld cycles\n"

@@ -8,6 +8,7 @@
 #include "test.h"
 #include "simd.h"
 
+#undef PREFETCH
 #define PREFETCH(a)
 
 static inline void
@@ -100,25 +101,59 @@ particle_mover(size_t iv, struct particle_header *p,
 	}
 }
 
+static inline void
+check_velocity(VDOUBLE u[MAX_DIM], double u_max)
+{
+	size_t d, i;
+	VDOUBLE uu_max;
+	//VDOUBLE u_abs;
+	//__mmask8 mask;
+	VDOUBLE cmp;
+	int bitmask;
+
+	uu_max = VSET1(u_max);
+
+	for(d=X; d<MAX_DIM; d++)
+	{
+		//u_abs = VABS(u[d]);
+		//cmp = VCMP(u_abs, uu_max);
+		cmp = _mm256_cmp_pd(u[d], uu_max, _CMP_GE_OS);
+		bitmask = _mm256_movemask_pd(cmp);
+		if(bitmask)
+		{
+			fprintf(stderr, "Max velocity exceeded\n");
+			exit(1);
+		}
+	}
+}
+
 void
 particle_x_update(struct pblock *__restrict__ b)
 {
 	double dtqm2;
 	VDOUBLE dt, dtqm2v;
 	VDOUBLE u[MAX_DIM];
+	struct particle_header *__restrict__ p;
 	size_t i;
+	double u_max;
 
+	u_max = 1.0e20;
 	dtqm2 = 1.0;
+	p = &b->p;
+
 	//for (p = set->particles; p; p = p->next)
 	for(i=0; i<b->n/MAX_VEC; i++)
 	{
-		dtqm2 += M_PI * i * 0.3333;
+		dtqm2 += M_PI * i * 1.2e-8;
 		dtqm2v = VSET1(dtqm2);
 		dt = VSET1(dtqm2);
 
 		/* TODO: Use the proper dtqm2v and dt */
-		boris_rotation(i, &b->p, dtqm2v, u);
-		particle_mover(i, &b->p, u, dt);
+		boris_rotation(i, p, dtqm2v, u);
+
+		check_velocity(u, u_max);
+
+		particle_mover(i, p, u, dt);
 
 		/* Wrapping is done after the particle is moved to the right
 		 * block */
