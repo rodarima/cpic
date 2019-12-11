@@ -13,18 +13,21 @@
 #ifdef USE_VECTOR_512
 #define VDOUBLE		__m512d
 #define VEC_PREFIX	_mm512_
+#define VEC_SUFFIX	_512
 #define MAX_VEC 8 /* Vector size in doubles */
 #endif
 
 #ifdef USE_VECTOR_256
 #define VDOUBLE		__m256d
 #define VEC_PREFIX	_mm256_
+#define VEC_SUFFIX	_256
 #define MAX_VEC 4 /* Vector size in doubles */
 #endif
 
 #define CONCAT_(a, b)	a##b
 #define CONCAT(a, b)	CONCAT_(a, b)
 #define S(x)		CONCAT(VEC_PREFIX, x)
+#define V(x)		CONCAT(x, VEC_SUFFIX)
 
 #define VSET1(x)	S(set1_pd(x))
 #define VLOAD(x)	S(load_pd(x))

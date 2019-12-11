@@ -1,7 +1,7 @@
 CFLAGS=
 
 # Common
-CFLAGS+=-Ofast
+CFLAGS+=-O3
 #CFLAGS+=-O2
 CFLAGS+=-g -Wall
 #CFLAGS+=-masm=intel
@@ -27,8 +27,9 @@ GCFLAGS+=-ftree-vectorize
 #GCFLAGS+=-fsched-pressure
 
 # LLVM/Clang
-LCC=clang
+LCC=mcc
 LCFLAGS=$(CFLAGS)
+LCFLAGS+=--cc=clang --ompss-2 --v
 LCFLAGS+=-march=native
 #LCFLAGS+=-march=skylake-avx512
 #LCFLAGS+=-mtune=skylake-avx512
@@ -57,7 +58,7 @@ COMPILERS=$(LCC)
 #COMPILERS=$(LCC) $(GCC)
 #COMPILERS=$(ICC) $(GCC) $(LCC)
 BIN=$(addprefix test.,$(COMPILERS)) #my-kernel
-ASM=$(addsuffix .s, $(BIN))
+ASM=$(addsuffix .s, $(BIN) $(OBJ))
 OBJ=$(addprefix kernel.,$(COMPILERS)) #my-kernel
 VINST=$(addsuffix .v, $(OBJ))
 

@@ -21,6 +21,7 @@
 #endif
 
 #define RUNS 30
+#define NTASKS 2
 
 int
 rodrix_memalign(void **ptr, size_t align, size_t alloc_bytes)
@@ -238,7 +239,7 @@ pprint(vlist *l)
 void
 init_block(vlist *l)
 {
-	size_t i, j, ii;
+	size_t d, i, j, ii;
 	struct pblock *b;
 	vlist *tmp;
 
@@ -249,48 +250,54 @@ init_block(vlist *l)
 		for(i=0; i<b->n; i++,ii++)
 		{
 			b->p.i[i] = ii;
-			b->p.r[X][i] = 2;
-			b->p.r[Y][i] = 3;
-			b->p.r[Z][i] = 4;
-
-			b->p.u[X][i] = 20;
-			b->p.u[Y][i] = 30;
-			b->p.u[Z][i] = 40;
-
-			b->p.B[X][i] = 2.0;
-			b->p.B[Y][i] = 2.0;
-			b->p.B[Z][i] = 2.0;
-
-			b->p.E[X][i] = 3.0;
-			b->p.E[Y][i] = 3.0;
-			b->p.E[Z][i] = 3.0;
+			for(d=X; d<MAX_DIM; d++)
+			{
+				b->p.r[d][i] = 2+d;
+				b->p.u[d][i] = 20+10*d;
+				b->p.B[d][i] = 2.0;
+				b->p.E[d][i] = 3.0;
+			}
 		}
 	}
 }
-int
-main(int argc, char **argv)
+
+#pragma oss task
+void task(vlist *l)
 {
 	size_t i, r;
 	size_t blocksize;
-	vlist *l, *tmp;
+	vlist *tmp;
 	pblock *b;
 	perf_t p;
 	double t;
 
-#ifdef USE_PAPI
+	perf_init(&p);
+	perf_reset(&p);
+	perf_start(&p);
 
-#define NCOUNTERS 3
-
-	int PAPI_events[] =
+	for(tmp = l; tmp; tmp = tmp->next)
 	{
-		PAPI_TOT_CYC,
-		PAPI_L2_DCM,
-		PAPI_L2_DCA
-	};
-	long long counters[NCOUNTERS] = {0};
+		b = (pblock *) tmp->data;
+		particle_x_update(b);
+	}
 
-	PAPI_library_init(PAPI_VER_CURRENT);
-#endif
+
+	perf_stop(&p);
+	t = perf_measure(&p);
+	perf_record(&p, t);
+	printf("%e s   %3f Mp/s\n", t, ((double) PBLOCK_NMAX*NBLOCKS)/t/1e6);
+
+}
+
+int
+main(int argc, char **argv)
+{
+	size_t i, it, r;
+	size_t blocksize;
+	vlist *l[NTASKS], *tmp;
+	pblock *b;
+	perf_t p;
+	double t;
 
 	blocksize = pblock_size(PBLOCK_NMAX);
 
@@ -299,90 +306,35 @@ main(int argc, char **argv)
 	perf_init(&p);
 	perf_start(&p);
 
-	l = vlist_init(blocksize);
-	pblock_init((void*) l->data, PBLOCK_NMAX, PBLOCK_NMAX);
-
-	for(i=0; i<NBLOCKS-1; i++)
+	for(it=0; it<NTASKS; it++)
 	{
-		vlist_grow(l);
-		pblock_init((void*) l->last->data, PBLOCK_NMAX, PBLOCK_NMAX);
+		l[i] = vlist_init(blocksize);
+		pblock_init((void*) l[it]->data, PBLOCK_NMAX, PBLOCK_NMAX);
+
+		for(i=0; i<NBLOCKS-1; i++)
+		{
+			vlist_grow(l[it]);
+			pblock_init((void*) l[it]->last->data, PBLOCK_NMAX, PBLOCK_NMAX);
+		}
+
+		void* phy = phys_from_virtual(l[it]);
+
+		init_block(l[it]);
+
+		perf_stop(&p);
+		fprintf(stderr, "init \t%e s\n", perf_measure(&p));
+
 	}
-
-	void* phy = phys_from_virtual(l);
-
-	fprintf(stderr, "phy = %p\n", phy);
-
-
-	init_block(l);
-
-	perf_stop(&p);
-	fprintf(stderr, "init \t%e s\n", perf_measure(&p));
-
-	//pprint(l);
-
-	//printf("Last block %p has i starting at %p\n", b, b->p.i);
-
-	//printf("%p mod 0x%X = %lu\n", b->data, VEC_ALIGN, (uintptr_t) b->data % VEC_ALIGN);
-	//printf("%lu %lu\n", b->p.i[0], b->p.i[1]);
-	//printf("%e %e\n", b->p.r[X][0], b->p.r[X][1]);
-	//printf("%e %e\n", b->p.r[Y][0], b->p.r[Y][1]);
-	//printf("%e %e\n", b->p.r[Z][0], b->p.r[Z][1]);
 
 	perf_init(&p);
 
 	for(r=0; r<RUNS; r++)
 	{
-		perf_reset(&p);
-		perf_start(&p);
+		for(it=0; it<NTASKS; it++)
+			task(l[it]);
 
-#ifdef USE_PAPI
-		if(PAPI_start_counters(PAPI_events, NCOUNTERS) != PAPI_OK)
-		{
-			fprintf(stderr, "Failure starting counters\n");
-			PAPI_perror("PAPI_start_counters");
-			exit(1);
-		}
-#endif
-
-		for(tmp = l; tmp; tmp = tmp->next)
-		{
-			b = (pblock *) tmp->data;
-			particle_x_update(b);
-		}
-
-#ifdef USE_PAPI
-
-		if(PAPI_stop_counters(counters, NCOUNTERS) != PAPI_OK)
-		{
-			fprintf(stderr, "Failure reading counters\n");
-			PAPI_perror("PAPI_read_counters");
-			exit(1);
-		}
-#endif
-
-		perf_stop(&p);
-		t = perf_measure(&p);
-		perf_record(&p, t);
-		printf("%e s   %3f Mp/s\n", t, ((double) PBLOCK_NMAX*NBLOCKS)/t/1e6);
-
-#ifdef USE_PAPI
-		fprintf(stderr, "%lld cycles\n"
-				"%lld/%lld L2 cache misses\n",
-				counters[0],
-				counters[1],
-				counters[2]
-		       );
-#endif
+		#pragma oss taskwait
 	}
-
-	double mean, std, sem;
-
-	perf_stats(&p, &mean, &std, &sem);
-	fprintf(stderr, "mean=%e std=%e\n", mean, std);
-
-	//pprint(l);
-
-	//vlist_free(l);
 
 	return 0;
 }
