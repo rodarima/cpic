@@ -1,5 +1,6 @@
 #pragma once
 
+#include <assert.h>
 #include "simd.h"
 
 #define NBLOCKS 1
@@ -7,7 +8,7 @@
 
 #define VLIST_ALIGN	1024*1024	/* bytes */
 #define VEC_ALIGN	64	/* bytes */
-#define VL_HEAD_PAD	64	/* bytes */
+#define PL_HEAD_PAD	64	/* bytes */
 #define PB_HEAD_PAD	128	/* bytes */
 
 #define MAX_DIM 3
@@ -18,11 +19,14 @@ enum dim {
 	Z = 2
 };
 
-struct vlist;
-typedef struct vlist vlist_t;
+struct plist;
+typedef struct vlist plist_t;
 
 struct pblock;
 typedef struct pblock pblock_t;
+
+struct pheader;
+typedef struct pheader pheader_t;
 
 struct pwin;
 typedef struct pwin pwin_t;
@@ -30,7 +34,7 @@ typedef struct pwin pwin_t;
 struct pmover;
 typedef struct pmover pmover_t;
 
-struct vlist
+struct plist
 {
 	union
 	{
@@ -46,15 +50,17 @@ struct vlist
 
 			int is_main;
 		};
-		uint8_t _vlist_padding[VL_HEAD_PAD];
+		uint8_t _vlist_padding[PL_HEAD_PAD];
 
 	};
 
-	uint8_t data[]; /* Aligned to VL_HEAD_PAD */
+	uint8_t data[]; /* Aligned to PL_HEAD_PAD */
 };
 
+static_assert(sizeof(plist) > PL_HEAD_PAD,
+		"The struct plist is larger than PB_HEAD_PAD");
 
-struct particle_header
+struct pheader
 {
 	size_t *__restrict__ i; /* Particle global index */
 	union
@@ -76,6 +82,7 @@ struct particle_header
 	};
 }; /* 104 bytes */
 
+
 struct pblock
 {
 	union
@@ -86,7 +93,7 @@ struct pblock
 			pblock_t *next;
 			pblock_t *prev;
 
-			struct particle_header p;
+			pheader_t p;
 
 		}; /* 128 bytes */
 
@@ -97,18 +104,20 @@ struct pblock
 	uint8_t data[]; /* Actual particle data */
 };
 
+static_assert(sizeof(pheader) > PB_HEAD_PAD,
+		"The struct pheader is larger than PB_HEAD_PAD");
+
 struct pwin
 {
-	struct pblock *b;
-	size_t i;
-	size_t pi;
-	VMASK mark;
+	pblock *b;
+	size_t i; /* Index of the first particle of the window */
+	VMASK mask;
+	//VDOUBLE tmp; /* Not used yet */
 }
-
 
 struct pmover
 {
-	particle_list_t *l;
+	plist_t *l;
 	pwin_t A;
 	pwin_t B;
 };

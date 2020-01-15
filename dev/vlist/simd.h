@@ -31,17 +31,31 @@
 #define S(x)		CONCAT(VEC_PREFIX, x)
 #define V(x)		CONCAT(x, VEC_SUFFIX)
 
+/* Simple intrinsics */
 #define VSET1(x)	S(set1_pd(x))
 #define VLOAD(x)	S(load_pd(x))
 #define VSTREAM(a, b)	S(stream_pd(a, b))
 #define VSTORE(a, b)	S(store_pd(a, b))
 #define VSQRT(x)	S(sqrt_pd(x))
-#define VABS(x)		S(abs_pd(x))
-#define VCMP(a, b)	S(cmp_pd(a, b))
+#define VCMP(a, b, f)	S(cmp_pd_mask(a, b, f))
 
 /* Masked intrinsics */
 #define VCMP_MASK(k, a, b, f)	S(mask_cmp_pd_mask(k, a, b, f))
 #define VCOMPRESS(a, k, b)	S(mask_compress_pd(a, k, b))
+
+/*************** Hack zone begins ***************/
+#ifdef USE_VECTOR_256
+/* AVX2 doesn't provide abs, so we clear the sign bit using the AND
+ * operation with 0111111111... mask for each vector element */
+#define VABS(x)		S(and_pd(x, _mm256_set_epi64x(		\
+				0x7fffffffffffffff,		\
+				0x7fffffffffffffff,		\
+				0x7fffffffffffffff,		\
+				0x7fffffffffffffff)))
+#else
+#define VABS(x)		S(abs_pd(x))
+#endif
+/*************** Hack zone ends *****************/
 
 #define IS_ALIGNED(POINTER, BYTE_COUNT) \
     (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)

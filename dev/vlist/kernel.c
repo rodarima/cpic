@@ -175,133 +175,37 @@ particle_mover(size_t iv, struct particle_header *p,
 	}
 }
 
-#if USE_VECTOR_256
-
-union float_number
-{
-	double d;
-	unsigned long i;
-};
-
-static inline void
-check_velocity(VDOUBLE u[MAX_DIM], VDOUBLE u_max, VDOUBLE u_nmax)
-{
-	size_t d;
-	VDOUBLE cmp, cmp1, cmp2, u_abs, vmask;
-	union float_number mask;
-	int res;
-
-	res = 1;
-
-	for(d=X; d<MAX_DIM; d++)
-	{
-		cmp1 = _mm256_cmp_pd(u[d], u_max, _CMP_GE_OS);
-		cmp2 = _mm256_cmp_pd(u[d], u_nmax, _CMP_LE_OS);
-		cmp = _mm256_or_pd(cmp1, cmp2);
-		res &= _mm256_testz_pd(cmp, cmp);
-	}
-
-//	mask.i = 0x7fffffffffffffffUL;
-//	vmask = VSET1(mask.d);
-//
-//	for(d=X; d<MAX_DIM; d++)
-//	{
-//		u_abs = _mm256_and_pd(vmask, u[d]);
-//		cmp = _mm256_cmp_pd(u_abs, u_max, _CMP_GE_OS);
-//		res &= _mm256_testz_pd(cmp, cmp);
-//	}
-
-	if(!res)
-	{
-//		fprintf(stderr, "Max velocity exceeded %e %e %e %e\n"
-//				"umax = %e %e %e %e\n"
-//				"res = %d\n",
-//				u[d][0], u[d][1], u[d][2], u[d][3],
-//				u_max[0], u_max[1], u_max[2], u_max[3],
-//				res);
-		fprintf(stderr, "Max velocity exceeded\n");
-		exit(1);
-	}
-}
-
-#endif
-
-#if USE_VECTOR_512
-
 static inline void
 check_velocity(VDOUBLE u[MAX_DIM], VDOUBLE u_pmax, VDOUBLE u_nmax)
 {
 	size_t d;
 	VDOUBLE u_abs, cmp, cmp1, cmp2;
-	int res;
 	__mmask8 mask;
 
-	res = 0;
+	mask = 0;
 
 	for(d=X; d<MAX_DIM; d++)
 	{
-		u_abs = _mm512_abs_pd(u[d]);
-
-		mask = _mm512_cmpnlt_pd_mask(u_abs, u_pmax);
-		res |= mask;
+		u_abs = VABS(u[d]);
+		mask |= VCMP(u_abs, u_pmax, _CMP_GT_OS);
 	}
 
-	if(res)
+	if(mask)
 	{
-//		fprintf(stderr, "Max velocity exceeded %e %e %e %e\n"
-//				"umax = %e %e %e %e\n"
-//				"res = %d\n",
-//				u[d][0], u[d][1], u[d][2], u[d][3],
-//				u_pmax[0], u_pmax[1], u_pmax[2], u_pmax[3],
-//				res);
 		fprintf(stderr, "Max velocity exceeded\n");
 		exit(1);
 	}
 }
 
-#endif
-
-#if 0
-static inline void
-check_velocity(VDOUBLE u[MAX_DIM], double u_max)
-{
-	size_t d, i;
-	VDOUBLE u_abs, cmp, cmp1, cmp2;
-	int res;
-
-	ASSUME_ALIGNED(u, u, VEC_ALIGN);
-
-	res = 0;
-
-	for(d=X; d<MAX_DIM; d++)
-	{
-		for(i=0; i<MAX_VEC; i++)
-		{
-			res |= (fabs(u[d][i]) >= u_max);
-		}
-	}
-
-	if(res)
-	{
-//		fprintf(stderr, "Max velocity exceeded %e %e %e %e\n"
-//				"umax = %e %e %e %e\n"
-//				"res = %d\n",
-//				u[d][0], u[d][1], u[d][2], u[d][3],
-//				u_max[0], u_max[1], u_max[2], u_max[3],
-//				res);
-		fprintf(stderr, "Max velocity exceeded\n");
-		exit(1);
-	}
-}
-#endif
-
+/* Only updates the particle positions */
 void
-particle_x_update(pwin_t *w)
+particle_update_r(plist_t *l)
 {
 	double dtqm2, u_max;
 	VDOUBLE dt, dtqm2v;
 	VDOUBLE u[MAX_DIM];
-	struct particle_header *p;
+	pblock_t *b;
+	pheader_t *p;
 	size_t i;
 	VDOUBLE u_pmax, u_nmax;
 
@@ -313,19 +217,27 @@ particle_x_update(pwin_t *w)
 	dtqm2v = VSET1(dtqm2);
 	dt = VSET1(dtqm2);
 
-	i = w->i;
-	p = w->b->p;
+	for(b = l->start; b; b = b->next)
+	{
+		/* FIXME: We are updating past n as well if not aligned */
+		for(i=0; i<b->n; i+=MAX_VEC)
+		{
+			i = w->i;
+			p = w->b->p;
 
-	/* TODO: Use the proper dtqm2v and dt */
-	boris_rotation(i, p, dtqm2v, u);
+			/* TODO: Use the proper dtqm2v and dt */
+			boris_rotation(i, p, dtqm2v, u);
 
-	/* TODO: Compute energy using old and new velocity */
+			/* TODO: Compute energy using old and new velocity */
 
-	check_velocity(u, u_pmax, u_nmax);
+			check_velocity(u, u_pmax, u_nmax);
 
-	particle_mover(i, p, u, dt);
+			particle_mover(i, p, u, dt);
 
-	/* Wrapping is done after the particle is moved to the right block */
+			/* Wrapping is done after the particle is moved to the right block */
+		}
+	}
+
 }
 
 void
@@ -355,28 +267,6 @@ update_mask(mover_t *m, pwin_t *w, int invert)
 
 	/* And count how many holes we have */
 	w->left = _mm_countbits_32(w->mask);
-}
-
-int
-check_out_chunk(mover_t *m, pwin_t *w)
-{
-	size_t i;
-	pblock_t *b;
-	VMASK mask;
-
-	i = w->i;
-	b = w->b;
-
-	/* No holes means we can continue to the next window */
-	if(w->mask == _cvtu32_mask(-1U))
-		return 0;
-
-	/* Invert the mask, so holes are ones */
-	w->mask = ~w->mask;
-
-	/* Move all ones to the left */
-	w->tmp = VCOMPRESS(src, k, a);
-	w->
 }
 
 void
@@ -410,38 +300,32 @@ particle_swap(pblock_t *ba, size_t i, pblock_t *bb, size_t j)
 
 	for(d=0; d<MAX_DIM; d++)
 	{
-		swap_double(&a->vr[d][i], &b->vr[d][j]);
-		swap_double(&a->vu[d][i], &b->vu[d][j]);
-		swap_double(&a->vE[d][i], &b->vE[d][j]);
-		swap_double(&a->vB[d][i], &b->vB[d][j]);
+		swap_double(&a->r[d][i], &b->r[d][j]);
+		swap_double(&a->u[d][i], &b->u[d][j]);
+		swap_double(&a->E[d][i], &b->E[d][j]);
+		swap_double(&a->B[d][i], &b->B[d][j]);
 	}
 }
 
 /* Property at exit:
  * 	A->left != 0 || A == B */
 void
-consume(mover_t *m)
+consume(pwin_t *A, pwin_t *B)
 {
-	pwin_t *A, *B;
-
-	A = &m->A;
-	B = &m->B;
-
 	/* Holes already present */
 	if(A->left)
 		return;
 
 	do
 	{
-		/* Update all particles in the window, if we have no more holes
-		 * to fill */
-		particle_x_update(A);
+		/* Look for holes to fill */
 		update_mask(m, A, 1);
 
 		/* If we have non-zero number of holes, stop */
 		if(A->left)
 			return;
 
+		/* Otherwise slide the window and continue the search */
 		pwin_next(A, k);
 	}
 	while(!pwin_equal(A, B))
@@ -450,47 +334,37 @@ consume(mover_t *m)
 /* Property at exit:
  * 	B->left != 0 || A == B */
 void
-produce(pmover_t *m)
+produce(pwin_t *A, pwin_t *B)
 {
-	pwin_t *A, *B;
-
-	A = &m->A;
-	B = &m->B;
-
 	/* Particles already present */
 	if(B->left)
 		return;
 
 	while(!pwin_equal(A, B))
 	{
-		/* Update all particles in the window, if we have no more holes
-		 * to fill */
-		particle_x_update(B);
+		/* Look for exitting particles */
 		update_mask(m, B, 0);
 
-		/* If we have non-zero number of holes, stop */
+		/* If we found some, stop */
 		if(B->left)
 			return;
 
+		/* Otherwise slide the window and continue the search */
 		pwin_prev(B);
 	}
 }
 
 void
-exchange(pmover_t *m)
+exchange(pwin_t *A, pwin_t *B)
 {
 	size_t i;
-	pwin_t *A, *B;
-
-	A = &m->A;
-	B = &m->B;
 
 	if(pwin_equal(A, B))
 		return;
 
-	/* This should never happen */
-	assert(A->left);
-	assert(B->left);
+	/* Sanity check, otherwise something is broken */
+	assert(A->left != 0);
+	assert(B->left != 0);
 
 	i = 0;
 	j = 0;
@@ -500,7 +374,7 @@ exchange(pmover_t *m)
 		if(i>=MAX_VEC || A->left == 0 ||
 			j>=MAX_VEC || B->left == 0)
 		{
-			/* Cannot continue */
+			/* No more available actions */
 			break;
 		}
 
@@ -517,7 +391,6 @@ exchange(pmover_t *m)
 		}
 
 		/* We have both ones at a hole and at a particle */
-
 		particle_swap(A->b, A->i + i,
 				B->b, B->i + j);
 
@@ -539,29 +412,24 @@ exchange(pmover_t *m)
 }
 
 void
-update(particle_list_t *l)
+exchange_x(plist_t *l)
 {
-	pmover_t m;
-	pwin_t *A, *B;
+	pwin_t A, B;
 
-	A = &m.A;
-	B = &m.B;
-	m.l = l;
+	pwin_first(l, &A);
+	pwin_last(l, &B);
 
-	pwin_first(l, A);
-	pwin_last(l, B);
-
-	while(!pwin_equal(A, B))
+	while(!pwin_equal(&A, &B))
 	{
 		/* First we position the window in the first hole */
-		consume(&m);
+		consume(&A, &B);
 
 		/* Then we produce at least one particle */
-		produce(&m);
+		produce(&A, &B);
 
 		/* Finally we fill all holes we can */
-		exchange(&m);
+		exchange(&A, &B);
 	}
 
-	/* Now deal with the A == B case */
+	/* TODO: Now deal with the A == B case */
 }
