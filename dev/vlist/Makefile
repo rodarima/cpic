@@ -27,12 +27,11 @@ GCFLAGS+=-ftree-vectorize
 #GCFLAGS+=-fsched-pressure
 
 # LLVM/Clang
-LCC=mcc
+LCC=clang
 LCFLAGS=$(CFLAGS)
-LCFLAGS+=--cc=clang --ompss-2 --v
-LCFLAGS+=-march=native
-#LCFLAGS+=-march=skylake-avx512
-#LCFLAGS+=-mtune=skylake-avx512
+#LCFLAGS+=--cc=clang --ompss-2 --v
+#LCFLAGS+=-march=native
+LCFLAGS+=-march=skylake-avx512
 
 # Intel
 ICC=icc

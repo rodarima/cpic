@@ -36,25 +36,12 @@ typedef struct pmover pmover_t;
 
 struct plist
 {
-	union
-	{
-		struct
-		{
-			size_t nblocks;
-			size_t blocksize; /* in bytes */
+	size_t nblocks;
+	size_t blocksize; /* in bytes */
 
-			size_t nmax; /* Maximum number of particles per block */
+	size_t nmax; /* Maximum number of particles per block */
 
-			pblock_t *first;
-			pblock_t *last;
-
-			int is_main;
-		};
-		uint8_t _vlist_padding[PL_HEAD_PAD];
-
-	};
-
-	uint8_t data[]; /* Aligned to PL_HEAD_PAD */
+	pblock_t *b;
 };
 
 static_assert(sizeof(struct plist) <= PL_HEAD_PAD,

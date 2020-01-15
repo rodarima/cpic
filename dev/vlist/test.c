@@ -62,8 +62,8 @@ vlist_init(size_t blocksize)
 	l->is_main = 1;
 	l->blocksize = blocksize;
 	l->nblocks = 1;
-	l->next = NULL;
-	l->last = l;
+	l->first = (pblock_t *) &l->data;
+	l->last = (pblock_t *) &l->data;
 
 	return l;
 }
@@ -71,23 +71,20 @@ vlist_init(size_t blocksize)
 int
 vlist_grow(plist_t *l)
 {
-	plist_t *new;
+	pblock_t *new;
 
-	/* Check we are in the main header */
-	if(l->is_main != 1)
+	if(posix_memalign((void **)&new, VLIST_ALIGN, l->blocksize) != 0)
 		return -1;
 
-	if(posix_memalign((void **)&new, VLIST_ALIGN, sizeof(plist_t) + l->blocksize) != 0)
-	//if(rodrix_memalign((void **)&new, VLIST_ALIGN, sizeof(plist_t) + l->blocksize) != 0)
+	if(!l->first)
 	{
-		return -1;
+		l->first = new;
+		l->last = new;
 	}
 
-	new->is_main = 0;
 	new->next = NULL;
+	new->prev = l->last;
 
-	/* FIXME: Those fields must be uninitialized */
-	new->last = NULL;
 	/* Other fields are left as garbage on purpose */
 
 	assert(l->last->next == NULL);
@@ -101,20 +98,17 @@ vlist_grow(plist_t *l)
 int
 vlist_shrink(plist_t *l)
 {
-	plist_t *tmp;
+	pblock_t *b;
 
-	/* Check we are in the main header */
-	if(l->is_main != 1)
+
+	if(l->nblocks == 0)
 		return -1;
 
-	/* Don't remove the last block, use vlist_free in that case */
-	if(l->last == l)
-		return -1;
+	assert(l->last);
+	b = l->last;
 
-	assert(l->nblocks > 1);
+	assert(l->last->next == NULL);
 
-	tmp = l;
-	assert(tmp->next);
 	while(tmp->next->next)
 		tmp = tmp->next;
 
