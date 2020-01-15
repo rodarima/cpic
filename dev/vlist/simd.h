@@ -47,7 +47,7 @@
 #ifdef USE_VECTOR_256
 /* AVX2 doesn't provide abs, so we clear the sign bit using the AND
  * operation with 0111111111... mask for each vector element */
-#define VABS(x)		S(and_pd(x, _mm256_set_epi64x(		\
+#define VABS(x)		S(and_pd(x, (VDOUBLE) _mm256_set_epi64x(\
 				0x7fffffffffffffff,		\
 				0x7fffffffffffffff,		\
 				0x7fffffffffffffff,		\

@@ -45,13 +45,13 @@ rodrix_memalign(void **ptr, size_t align, size_t alloc_bytes)
 	return (*ptr == NULL);
 }
 
-vlist *
+plist_t *
 vlist_init(size_t blocksize)
 {
-	vlist *l;
+	plist_t *l;
 
-	if(posix_memalign((void **)&l, VLIST_ALIGN, sizeof(vlist) + blocksize) != 0)
-	//if(rodrix_memalign((void **)&l, VLIST_ALIGN, sizeof(vlist) + blocksize) != 0)
+	if(posix_memalign((void **)&l, VLIST_ALIGN, sizeof(plist_t) + blocksize) != 0)
+	//if(rodrix_memalign((void **)&l, VLIST_ALIGN, sizeof(plist_t) + blocksize) != 0)
 	{
 		fprintf(stderr, "posix_memalign failed\n");
 		return NULL;
@@ -69,16 +69,16 @@ vlist_init(size_t blocksize)
 }
 
 int
-vlist_grow(vlist *l)
+vlist_grow(plist_t *l)
 {
-	vlist *new;
+	plist_t *new;
 
 	/* Check we are in the main header */
 	if(l->is_main != 1)
 		return -1;
 
-	if(posix_memalign((void **)&new, VLIST_ALIGN, sizeof(vlist) + l->blocksize) != 0)
-	//if(rodrix_memalign((void **)&new, VLIST_ALIGN, sizeof(vlist) + l->blocksize) != 0)
+	if(posix_memalign((void **)&new, VLIST_ALIGN, sizeof(plist_t) + l->blocksize) != 0)
+	//if(rodrix_memalign((void **)&new, VLIST_ALIGN, sizeof(plist_t) + l->blocksize) != 0)
 	{
 		return -1;
 	}
@@ -99,9 +99,9 @@ vlist_grow(vlist *l)
 }
 
 int
-vlist_shrink(vlist *l)
+vlist_shrink(plist_t *l)
 {
-	vlist *tmp;
+	plist_t *tmp;
 
 	/* Check we are in the main header */
 	if(l->is_main != 1)
@@ -130,9 +130,9 @@ vlist_shrink(vlist *l)
 }
 
 void
-vlist_free(vlist *l)
+vlist_free(plist_t *l)
 {
-	vlist *next;
+	plist_t *next;
 
 	while(l)
 	{
@@ -209,16 +209,16 @@ pblock_init(pblock *b, size_t n, size_t nmax)
 }
 
 void
-pprint(vlist *l)
+pprint(plist_t *l)
 {
 	int i;
-	vlist *tmp;
+	plist_t *tmp;
 	pblock *b;
 
 	for(tmp=l; tmp; tmp = tmp->next)
 	{
 		b = (pblock *) tmp->data;
-		printf("vlist %p is_main=%d next=%p last=%p\n",
+		printf("plist_t %p is_main=%d next=%p last=%p\n",
 				tmp, tmp->is_main, tmp->next, tmp->last);
 		printf("  block %p (%lu/%lu)\n",
 				b, b->n, b->nmax);
@@ -237,11 +237,11 @@ pprint(vlist *l)
 }
 
 void
-init_block(vlist *l)
+init_block(plist_t *l)
 {
 	size_t d, i, j, ii;
 	struct pblock *b;
-	vlist *tmp;
+	plist_t *tmp;
 
 	for(j=0,ii=0,tmp=l; tmp; tmp = tmp->next, j++)
 	{
@@ -262,7 +262,7 @@ init_block(vlist *l)
 }
 
 int
-consume(vlist_t *list, pblock_t *ba, size_t A, pblock_t *bb, size_t B)
+consume(plist_t *list, pblock_t *ba, size_t A, pblock_t *bb, size_t B)
 {
 	for(; A != B; A++)
 	{
@@ -278,7 +278,7 @@ consume(vlist_t *list, pblock_t *ba, size_t A, pblock_t *bb, size_t B)
 }
 
 int
-refill(vlist_t *list, size_t A, size_t B)
+refill(plist_t *list, size_t A, size_t B)
 {
 	for(; A != B; B--)
 	{
@@ -316,31 +316,21 @@ update(particle_list_t *list)
 }
 
 #pragma oss task
-void task(vlist *l)
+void
+task(plist *l)
 {
-	size_t i, r;
-	size_t blocksize;
-	vlist *tmp;
-	pblock *b;
 	perf_t p;
 	double t;
 
 	perf_init(&p);
-	perf_reset(&p);
 	perf_start(&p);
 
-	for(tmp = l; tmp; tmp = tmp->next)
-	{
-		b = (pblock *) tmp->data;
-		particle_x_update(b);
-	}
-
+	particle_update_r(l);
+	particle_exchange_x(l);
 
 	perf_stop(&p);
 	t = perf_measure(&p);
-	perf_record(&p, t);
 	printf("%e s   %3f Mp/s\n", t, ((double) PBLOCK_NMAX*NBLOCKS)/t/1e6);
-
 }
 
 int
@@ -348,7 +338,7 @@ main(int argc, char **argv)
 {
 	size_t i, it, r;
 	size_t blocksize;
-	vlist *l[NTASKS], *tmp;
+	plist_t *l[NTASKS], *tmp;
 	pblock *b;
 	perf_t p;
 	double t;

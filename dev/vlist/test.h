@@ -20,7 +20,7 @@ enum dim {
 };
 
 struct plist;
-typedef struct vlist plist_t;
+typedef struct plist plist_t;
 
 struct pblock;
 typedef struct pblock pblock_t;
@@ -57,8 +57,8 @@ struct plist
 	uint8_t data[]; /* Aligned to PL_HEAD_PAD */
 };
 
-static_assert(sizeof(plist) > PL_HEAD_PAD,
-		"The struct plist is larger than PB_HEAD_PAD");
+static_assert(sizeof(struct plist) <= PL_HEAD_PAD,
+		"The struct plist is larger than PL_HEAD_PAD");
 
 struct pheader
 {
@@ -104,16 +104,17 @@ struct pblock
 	uint8_t data[]; /* Actual particle data */
 };
 
-static_assert(sizeof(pheader) > PB_HEAD_PAD,
+static_assert(sizeof(struct pheader) <= PB_HEAD_PAD,
 		"The struct pheader is larger than PB_HEAD_PAD");
 
 struct pwin
 {
-	pblock *b;
+	pblock_t *b;
 	size_t i; /* Index of the first particle of the window */
 	VMASK mask;
+	size_t left;
 	//VDOUBLE tmp; /* Not used yet */
-}
+};
 
 struct pmover
 {
