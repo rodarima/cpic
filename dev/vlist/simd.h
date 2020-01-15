@@ -12,6 +12,7 @@
 
 #ifdef USE_VECTOR_512
 #define VDOUBLE		__m512d
+#define VMASK		__mmask8
 #define VEC_PREFIX	_mm512_
 #define VEC_SUFFIX	_512
 #define MAX_VEC 8 /* Vector size in doubles */
@@ -19,6 +20,7 @@
 
 #ifdef USE_VECTOR_256
 #define VDOUBLE		__m256d
+#define VMASK		__mmask8
 #define VEC_PREFIX	_mm256_
 #define VEC_SUFFIX	_256
 #define MAX_VEC 4 /* Vector size in doubles */
@@ -36,6 +38,10 @@
 #define VSQRT(x)	S(sqrt_pd(x))
 #define VABS(x)		S(abs_pd(x))
 #define VCMP(a, b)	S(cmp_pd(a, b))
+
+/* Masked intrinsics */
+#define VCMP_MASK(k, a, b, f)	S(mask_cmp_pd_mask(k, a, b, f))
+#define VCOMPRESS(a, k, b)	S(mask_compress_pd(a, k, b))
 
 #define IS_ALIGNED(POINTER, BYTE_COUNT) \
     (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)

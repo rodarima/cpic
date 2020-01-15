@@ -19,10 +19,16 @@ enum dim {
 };
 
 struct vlist;
-typedef struct vlist vlist;
+typedef struct vlist vlist_t;
 
 struct pblock;
-typedef struct pblock pblock;
+typedef struct pblock pblock_t;
+
+struct pwin;
+typedef struct pwin pwin_t;
+
+struct pmover;
+typedef struct pmover pmover_t;
 
 struct vlist
 {
@@ -30,11 +36,13 @@ struct vlist
 	{
 		struct
 		{
-			ssize_t nblocks;
-			ssize_t blocksize; /* in bytes */
+			size_t nblocks;
+			size_t blocksize; /* in bytes */
 
-			vlist *next;
-			vlist *last;
+			size_t nmax; /* Maximum number of particles per block */
+
+			pblock_t *first;
+			pblock_t *last;
 
 			int is_main;
 		};
@@ -66,7 +74,7 @@ struct particle_header
 			VDOUBLE *__restrict__ vB[MAX_DIM]; /* Magnetic field */
 		};
 	};
-}; /* <=104 bytes */
+}; /* 104 bytes */
 
 struct pblock
 {
@@ -74,12 +82,13 @@ struct pblock
 	{
 		struct
 		{
-			size_t nmax; /* Maximum number of particles per block */
 			size_t n; /* Current number of particles */
+			pblock_t *next;
+			pblock_t *prev;
 
 			struct particle_header p;
 
-		}; /* <=120 bytes */
+		}; /* 128 bytes */
 
 		/* 128 bytes */
 		uint8_t _pblock_padding[PB_HEAD_PAD];
@@ -88,3 +97,18 @@ struct pblock
 	uint8_t data[]; /* Actual particle data */
 };
 
+struct pwin
+{
+	struct pblock *b;
+	size_t i;
+	size_t pi;
+	VMASK mark;
+}
+
+
+struct pmover
+{
+	particle_list_t *l;
+	pwin_t A;
+	pwin_t B;
+};

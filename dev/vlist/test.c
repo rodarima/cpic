@@ -261,6 +261,60 @@ init_block(vlist *l)
 	}
 }
 
+int
+consume(vlist_t *list, pblock_t *ba, size_t A, pblock_t *bb, size_t B)
+{
+	for(; A != B; A++)
+	{
+		update(list, A);
+		if(is_out(list, A))
+		{
+			move_out(list, A);
+			break;
+		}
+	}
+
+	return A;
+}
+
+int
+refill(vlist_t *list, size_t A, size_t B)
+{
+	for(; A != B; B--)
+	{
+		update(list, B);
+		if(!is_out(list, B))
+		{
+			swap(list, A, B);
+			B--;
+			break;
+		}
+
+		move_out(list, B)
+	}
+
+	return B;
+}
+
+void
+update(particle_list_t *list)
+{
+	particle_block_t *b0, *b1;
+	size_t A, B;
+
+	b0 = pblock_first(l);
+	b1 = pblock_last(l);
+
+	A = 0;
+	B = b1->n - 1;
+
+	while(b0 != b1 && A != B)
+	{
+		consume(list, &b0, &A, b1, B);
+		refill(list, b0, A, &b1, &B)
+	}
+}
+
 #pragma oss task
 void task(vlist *l)
 {
