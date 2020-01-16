@@ -15,15 +15,24 @@
 void
 pwin_first(plist_t *l, pwin_t *w)
 {
-	w->b = l->first;
+	assert(l->b);
+
+	w->b = l->b;
 	w->i = 0;
 }
 
 void
 pwin_last(plist_t *l, pwin_t *w)
 {
-	w->b = l->last;
-	w->i = w->b->n - 1;
+	assert(l->b);
+
+	if(l->b->prev)
+		w->b = l->b->prev;
+	else /* 1 block */
+		w->b = l->b;
+
+	w->i = l->b->n - 1;
+	assert((w->i % MAX_VEC) == 0);
 }
 
 int
@@ -213,7 +222,7 @@ particle_update_r(plist_t *l)
 	dtqm2v = VSET1(dtqm2);
 	dt = VSET1(dtqm2);
 
-	for(b = l->first; b; b = b->next)
+	for(b = l->b; b; b = b->next)
 	{
 		/* FIXME: We are updating past n as well if not aligned */
 		for(i=0; i<b->n; i+=MAX_VEC)

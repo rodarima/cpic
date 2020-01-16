@@ -6,6 +6,8 @@ CFLAGS+=-O3
 CFLAGS+=-g -Wall
 #CFLAGS+=-masm=intel
 
+CFLAGS+=-I../../src/
+
 ## GCC
 GCC=gcc
 GCFLAGS=$(CFLAGS)
@@ -83,7 +85,7 @@ test.icc: test.c perf.c mem.icc.o kernel.icc.o
 %.clang.o: %.clang.s
 	$(LCC) -c $(LCFLAGS) $< -o $@
 
-test.clang: test.c perf.c mem.o kernel.clang.o
+test.clang: test.c perf.c mem.o kernel.clang.o ../../src/utils.o
 	$(LCC) $(LCFLAGS) $^ $(LDLIBS) -o $@
 
 ################################################################

@@ -12,7 +12,9 @@
 #include "test.h"
 #include "kernel.h"
 #include "mem.h"
+#include "utils.h"
 #include <sys/mman.h>
+#include <utlist.h>
 
 //#define USE_PAPI
 
@@ -45,118 +47,51 @@ rodrix_memalign(void **ptr, size_t align, size_t alloc_bytes)
 	return (*ptr == NULL);
 }
 
-plist_t *
-vlist_init(size_t blocksize)
-{
-	plist_t *l;
-
-	if(posix_memalign((void **)&l, VLIST_ALIGN, sizeof(plist_t) + blocksize) != 0)
-	//if(rodrix_memalign((void **)&l, VLIST_ALIGN, sizeof(plist_t) + blocksize) != 0)
-	{
-		fprintf(stderr, "posix_memalign failed\n");
-		return NULL;
-	}
-
-	assert(IS_ALIGNED(l, VLIST_ALIGN));
-
-	l->is_main = 1;
-	l->blocksize = blocksize;
-	l->nblocks = 1;
-	l->first = (pblock_t *) &l->data;
-	l->last = (pblock_t *) &l->data;
-
-	return l;
-}
-
-int
-vlist_grow(plist_t *l)
-{
-	pblock_t *new;
-
-	if(posix_memalign((void **)&new, VLIST_ALIGN, l->blocksize) != 0)
-		return -1;
-
-	if(!l->first)
-	{
-		l->first = new;
-		l->last = new;
-	}
-
-	new->next = NULL;
-	new->prev = l->last;
-
-	/* Other fields are left as garbage on purpose */
-
-	assert(l->last->next == NULL);
-	l->last->next = new;
-	l->last = new;
-	l->nblocks++;
-
-	return 0;
-}
-
-int
-vlist_shrink(plist_t *l)
-{
-	pblock_t *b;
-
-
-	if(l->nblocks == 0)
-		return -1;
-
-	assert(l->last);
-	b = l->last;
-
-	assert(l->last->next == NULL);
-
-	while(tmp->next->next)
-		tmp = tmp->next;
-
-	assert(tmp->next == l->last);
-	free(l->last);
-
-	tmp->next = NULL;
-	l->last = tmp;
-
-	l->nblocks--;
-
-	return 0;
-}
-
-void
-vlist_free(plist_t *l)
-{
-	plist_t *next;
-
-	while(l)
-	{
-		next = l->next;
-		free(l);
-		l = next;
-	}
-}
-
-
 size_t
-pblock_size(size_t k)
+pblock_size(size_t nmax)
 {
 	size_t psize, blocksize;
 
 	psize = sizeof(double) * MAX_DIM * 4 + sizeof(size_t) * 1;
-	blocksize = sizeof(pblock) + k * psize;
+	blocksize = sizeof(pblock_t) + nmax * psize;
+
+	ASSERT_ALIGNED(blocksize);
 
 	return blocksize;
 }
 
+plist_t *
+plist_init(size_t nmax)
+{
+	plist_t *l;
+
+	l = safe_malloc(sizeof(*l));
+
+	l->blocksize = pblock_size(nmax);
+	l->nblocks = 0;
+	l->nmax = nmax;
+	l->b = NULL;
+
+	return l;
+}
+
+pblock_t *
+pblock_last(pblock_t *head)
+{
+	if(!head)
+		return NULL;
+
+	return head->prev;
+}
+
 int
-pblock_init(pblock *b, size_t n, size_t nmax)
+pblock_init(pblock_t *b, size_t n, size_t nmax)
 {
 	void *bdata;
 	size_t offset;
 	int d;
 
 	offset = nmax * sizeof(double);
-	b->nmax = nmax;
 	b->n = n;
 	bdata = b->data;
 
@@ -202,25 +137,108 @@ pblock_init(pblock *b, size_t n, size_t nmax)
 	return 0;
 }
 
+static pblock_t *
+plist_new_block(plist_t *l, size_t n)
+{
+	pblock_t *b;
+	if(posix_memalign((void **)&b, VLIST_ALIGN, l->blocksize) != 0)
+		return NULL;
+
+	pblock_init(b, n, l->nmax);
+
+	DL_APPEND(l->b, b);
+	l->nblocks++;
+
+	return b;
+}
+
+int
+plist_grow(plist_t *l, size_t n)
+{
+	size_t nmax;
+	pblock_t *b;
+
+	if(n > l->nmax)
+		return 1;
+	
+	nmax = l->nmax;
+	b = pblock_last(l->b);
+
+	if(b)
+	{
+		if(b->n + n <= nmax)
+		{
+			/* No need to add another block */
+			b->n += n;
+			return 0;
+		}
+		
+		n -= nmax - b->n;
+		b->n = nmax;
+	}
+
+	plist_new_block(l, n);
+
+	return 0;
+}
+
+//int
+//vlist_shrink(plist_t *l)
+//{
+//	pblock_t *b;
+//
+//
+//	if(l->nblocks == 0)
+//		return -1;
+//
+//	assert(l->last);
+//	b = l->last;
+//
+//	assert(l->last->next == NULL);
+//
+//	while(tmp->next->next)
+//		tmp = tmp->next;
+//
+//	assert(tmp->next == l->last);
+//	free(l->last);
+//
+//	tmp->next = NULL;
+//	l->last = tmp;
+//
+//	l->nblocks--;
+//
+//	return 0;
+//}
+
+//void
+//vlist_free(plist_t *l)
+//{
+//	plist_t *next;
+//
+//	while(l)
+//	{
+//		next = l->next;
+//		free(l);
+//		l = next;
+//	}
+//}
+
+
+
 void
 pprint(plist_t *l)
 {
 	int i;
-	plist_t *tmp;
-	pblock *b;
+	pblock_t *b;
+	pheader_t *p;
 
-	for(tmp=l; tmp; tmp = tmp->next)
+	for(b=l->b; b; b = b->next)
 	{
-		b = (pblock *) tmp->data;
-		printf("plist_t %p is_main=%d next=%p last=%p\n",
-				tmp, tmp->is_main, tmp->next, tmp->last);
-		printf("  block %p (%lu/%lu)\n",
-				b, b->n, b->nmax);
+		printf("  block %p (%lu/%lu) next=%p prev=%p\n",
+				b, b->n, l->nmax, b->next, b->prev);
 
 		for(i=0; i<b->n; i++)
 		{
-			struct particle_header *p;
-
 			p = &b->p;
 
 			printf("    particle i=%ld u=(%e %e %e)\n",
@@ -231,16 +249,13 @@ pprint(plist_t *l)
 }
 
 void
-init_block(plist_t *l)
+init_particles(plist_t *l)
 {
 	size_t d, i, j, ii;
-	struct pblock *b;
-	plist_t *tmp;
+	pblock_t *b;
 
-	for(j=0,ii=0,tmp=l; tmp; tmp = tmp->next, j++)
+	for(j=0,ii=0,b=l->b; b; b=b->next, j++)
 	{
-		//printf("init block %ld/%d\n", j, NBLOCKS);
-		b = (pblock *) tmp->data;
 		for(i=0; i<b->n; i++,ii++)
 		{
 			b->p.i[i] = ii;
@@ -255,63 +270,9 @@ init_block(plist_t *l)
 	}
 }
 
-int
-consume(plist_t *list, pblock_t *ba, size_t A, pblock_t *bb, size_t B)
-{
-	for(; A != B; A++)
-	{
-		update(list, A);
-		if(is_out(list, A))
-		{
-			move_out(list, A);
-			break;
-		}
-	}
-
-	return A;
-}
-
-int
-refill(plist_t *list, size_t A, size_t B)
-{
-	for(; A != B; B--)
-	{
-		update(list, B);
-		if(!is_out(list, B))
-		{
-			swap(list, A, B);
-			B--;
-			break;
-		}
-
-		move_out(list, B)
-	}
-
-	return B;
-}
-
-void
-update(particle_list_t *list)
-{
-	particle_block_t *b0, *b1;
-	size_t A, B;
-
-	b0 = pblock_first(l);
-	b1 = pblock_last(l);
-
-	A = 0;
-	B = b1->n - 1;
-
-	while(b0 != b1 && A != B)
-	{
-		consume(list, &b0, &A, b1, B);
-		refill(list, b0, A, &b1, &B)
-	}
-}
-
 #pragma oss task
 void
-task(plist *l)
+task(plist_t *l)
 {
 	perf_t p;
 	double t;
@@ -331,40 +292,24 @@ int
 main(int argc, char **argv)
 {
 	size_t i, it, r;
-	size_t blocksize;
-	plist_t *l[NTASKS], *tmp;
-	pblock *b;
+	plist_t *l[NTASKS];
 	perf_t p;
-	double t;
-
-	blocksize = pblock_size(PBLOCK_NMAX);
-
-	fprintf(stderr, "For K=%d we need %lu bytes\n", PBLOCK_NMAX, blocksize);
 
 	perf_init(&p);
 	perf_start(&p);
 
 	for(it=0; it<NTASKS; it++)
 	{
-		l[i] = vlist_init(blocksize);
-		pblock_init((void*) l[it]->data, PBLOCK_NMAX, PBLOCK_NMAX);
+		l[it] = plist_init(PBLOCK_NMAX);
 
-		for(i=0; i<NBLOCKS-1; i++)
-		{
-			vlist_grow(l[it]);
-			pblock_init((void*) l[it]->last->data, PBLOCK_NMAX, PBLOCK_NMAX);
-		}
+		for(i=0; i<NBLOCKS; i++)
+			plist_grow(l[it], PBLOCK_NMAX);
 
-		void* phy = phys_from_virtual(l[it]);
-
-		init_block(l[it]);
-
-		perf_stop(&p);
-		fprintf(stderr, "init \t%e s\n", perf_measure(&p));
-
+		init_particles(l[it]);
 	}
 
-	perf_init(&p);
+	perf_stop(&p);
+	fprintf(stderr, "init \t%e s\n", perf_measure(&p));
 
 	for(r=0; r<RUNS; r++)
 	{

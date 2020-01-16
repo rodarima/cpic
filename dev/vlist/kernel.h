@@ -3,7 +3,7 @@
 #include "test.h"
 
 void
-boris_rotation(struct pblock *__restrict__ b);
+particle_update_r(plist_t *l);
 
 void
-particle_x_update(struct pblock *__restrict__ b);
+particle_exchange_x(plist_t *l);

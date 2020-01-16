@@ -60,6 +60,9 @@
 #define IS_ALIGNED(POINTER, BYTE_COUNT) \
     (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
 
+#define ASSERT_ALIGNED(POINTER) \
+	assert(IS_ALIGNED(POINTER, MAX_VEC));
+
 #ifdef __INTEL_COMPILER
 	#define ASSUME_ALIGNED(dst, src, bytes) 		\
 		(dst) = (src);					\
