@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <sys/types.h>
 #include <math.h>
+#include <unistd.h>
 #include "perf.h"
 #include "test.h"
 #include "simd.h"
@@ -163,6 +164,13 @@ boris_rotation(size_t i, pheader_t *p, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 		/* Advance the velocity final half electric impulse */
 		u[d] = v_plus[d] + dtqm2 * E;
 
+		if(d==2 && fabs(u[d][6]) > 100.0)
+		{
+			fprintf(stderr, "Oh no!\n");
+			sleep(10);
+			abort();
+		}
+
 		/* TODO: Measure energy here */
 
 		VSTREAM((double *) &p->vu[d][i], u[d]);
@@ -184,7 +192,7 @@ particle_mover(size_t iv, pheader_t *p,
 static inline void
 check_velocity(VDOUBLE u[MAX_DIM], VDOUBLE u_pmax, VDOUBLE u_nmax)
 {
-	size_t d;
+	size_t d, i;
 	VDOUBLE u_abs;
 	__mmask8 mask;
 
@@ -196,10 +204,29 @@ check_velocity(VDOUBLE u[MAX_DIM], VDOUBLE u_pmax, VDOUBLE u_nmax)
 		mask |= VCMP(u_abs, u_pmax, _CMP_GT_OS);
 	}
 
+	for(i=0; i<MAX_VEC; i++)
+	{
+		for(d=X; d<MAX_DIM; d++)
+		{
+			if(fabs(u[d][i]) < 100.0) continue;
+			fprintf(stderr, "u[d=%ld][i=%ld] = %e\n",
+				d, i, u[d][i]);
+		}
+	}
+
 	if(mask)
 	{
-		fprintf(stderr, "Max velocity exceeded\n");
-		exit(1);
+		fprintf(stderr, "Max velocity exceeded with mask=%hhu\n", mask);
+		for(i=0; i<MAX_VEC; i++)
+		{
+			for(d=X; d<MAX_DIM; d++)
+			{
+				if(fabs(u[d][i]) > u_pmax[i])
+					fprintf(stderr, "fabs(u[%ld][%ld]) = %e > u_pmax[%ld] = %e\n",
+						d, i, fabs(u[d][i]), i, u_pmax[i]);
+			}
+		}
+		abort();
 	}
 }
 

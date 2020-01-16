@@ -1,12 +1,14 @@
 CFLAGS=
 
 # Common
-CFLAGS+=-O3
+#CFLAGS+=-O3
+CFLAGS+=-O0
 #CFLAGS+=-O2
 CFLAGS+=-g -Wall
 #CFLAGS+=-masm=intel
 
 CFLAGS+=-I../../src/
+CFLAGS+=-fno-omit-frame-pointer
 
 ## GCC
 GCC=gcc
@@ -66,7 +68,7 @@ VINST=$(addsuffix .v, $(OBJ))
 #.SECONDARY:
 .PRECIOUS: $(ASM)
 
-all: $(ASM) $(BIN) $(VINST)
+all: $(BIN) #$(ASM) $(VINST)
 
 %.icc.s: %.c
 	$(ICC) $(filter-out -g,$(ICFLAGS)) -S $^ -o $@
@@ -79,10 +81,11 @@ test.icc: test.c perf.c mem.icc.o kernel.icc.o
 
 ################################################################
 
-%.clang.s: %.c
-	$(LCC) $(filter-out -g,$(LCFLAGS)) -S $^ -o $@
+#%.clang.s: %.c
+#	$(LCC) $(filter-out -g,$(LCFLAGS)) -S $^ -o $@
 
-%.clang.o: %.clang.s
+#%.clang.o: %.clang.s
+%.clang.o: %.c
 	$(LCC) -c $(LCFLAGS) $< -o $@
 
 test.clang: test.c perf.c mem.o kernel.clang.o ../../src/utils.o
@@ -126,3 +129,6 @@ clean:
 
 perf: test.clang
 	sudo taskset -c 1 perf stat -a -C 1 --topdown -I 100 ./test.clang
+
+sync:
+	rsync -av test.c kernel.c test.clang mn:

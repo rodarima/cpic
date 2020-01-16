@@ -7,8 +7,8 @@
 
 #define PREFETCH(p)	_mm_prefetch(p, _MM_HINT_T0)
 
-//#define USE_VECTOR_512 1
-#define USE_VECTOR_256 1
+#define USE_VECTOR_512 1
+//#define USE_VECTOR_256 1
 
 #ifdef USE_VECTOR_512
 #define VDOUBLE		__m512d
