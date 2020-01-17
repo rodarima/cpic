@@ -9,6 +9,11 @@
 #include "test.h"
 #include "simd.h"
 
+#define DEBUG 1
+#define GLOBAL_DEBUG
+#include "log.h"
+
+
 #undef PREFETCH
 #define PREFETCH(a)
 
@@ -20,6 +25,8 @@ pwin_first(plist_t *l, pwin_t *w)
 
 	w->b = l->b;
 	w->i = 0;
+	w->left = 0;
+	w->mask = 0;
 }
 
 void
@@ -32,7 +39,10 @@ pwin_last(plist_t *l, pwin_t *w)
 	else /* 1 block */
 		w->b = l->b;
 
-	w->i = l->b->n - 1;
+	w->i = l->b->n - MAX_VEC;
+	w->left = 0;
+	w->mask = 0;
+
 	assert((w->i % MAX_VEC) == 0);
 }
 
@@ -103,7 +113,7 @@ cross_product(VDOUBLE r[MAX_DIM], VDOUBLE a[MAX_DIM], VDOUBLE b[MAX_DIM])
 static inline void
 boris_rotation(size_t i, pheader_t *p, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 {
-	int d;
+	int d, iw;
 	VDOUBLE s_denom[MAX_DIM];
 	VDOUBLE v_prime[MAX_DIM];
 	VDOUBLE v_minus[MAX_DIM];
@@ -117,7 +127,10 @@ boris_rotation(size_t i, pheader_t *p, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 	VDOUBLE * __restrict__ pE[MAX_DIM];
 	VDOUBLE * __restrict__ pu[MAX_DIM];
 
+	ASSERT_ALIGNED(i);
+
 	k = VSET1(2.0);
+	iw = i / MAX_VEC;
 
 	for(d=X; d<MAX_DIM; d++)
 	{
@@ -130,13 +143,13 @@ boris_rotation(size_t i, pheader_t *p, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 	{
 		s_denom[d] = VSET1(1.0);
 
-		B = pB[d][i];
-		E = pE[d][i];
-		u[d] = pu[d][i];
+		B = pB[d][iw];
+		E = pE[d][iw];
+		u[d] = pu[d][iw];
 
-		PREFETCH(&pB[d][i+1]);
-		PREFETCH(&pE[d][i+1]);
-		PREFETCH(&pu[d][i+1]);
+		PREFETCH(&pB[d][iw+1]);
+		PREFETCH(&pE[d][iw+1]);
+		PREFETCH(&pu[d][iw+1]);
 
 		t[d] = B * dtqm2;
 		s_denom[d] += t[d] * t[d];
@@ -156,7 +169,7 @@ boris_rotation(size_t i, pheader_t *p, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 
 	for(d=X; d<MAX_DIM; d++)
 	{
-		E = pE[d][i];
+		E = pE[d][iw];
 
 		/* Then finish the rotation by symmetry */
 		v_plus[d] += v_minus[d];
@@ -164,7 +177,7 @@ boris_rotation(size_t i, pheader_t *p, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 		/* Advance the velocity final half electric impulse */
 		u[d] = v_plus[d] + dtqm2 * E;
 
-		if(d==2 && fabs(u[d][6]) > 100.0)
+		if(d==2 && fabs(u[d][1]) > 100.0)
 		{
 			fprintf(stderr, "Oh no!\n");
 			sleep(10);
@@ -173,7 +186,7 @@ boris_rotation(size_t i, pheader_t *p, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 
 		/* TODO: Measure energy here */
 
-		VSTREAM((double *) &p->vu[d][i], u[d]);
+		VSTREAM((double *) &p->vu[d][iw], u[d]);
 	}
 }
 
@@ -211,6 +224,7 @@ check_velocity(VDOUBLE u[MAX_DIM], VDOUBLE u_pmax, VDOUBLE u_nmax)
 			if(fabs(u[d][i]) < 100.0) continue;
 			fprintf(stderr, "u[d=%ld][i=%ld] = %e\n",
 				d, i, u[d][i]);
+			abort();
 		}
 	}
 
@@ -272,10 +286,12 @@ particle_update_r(plist_t *l)
 void
 update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 {
-	size_t i;
+	size_t iv;
 	pblock_t *b;
 
-	i = w->i;
+	assert(w);
+
+	iv = w->i / 8;
 	b = w->b;
 
 	/* Check no more work was needed */
@@ -284,11 +300,15 @@ update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 
 	w->mask = _cvtu32_mask8(-1U);
 
+	//dbg("Begin VCMP_MASK\n");
+
 	/* Check if the particles are inside the chunk */
-	w->mask = VCMP_MASK(w->mask, b->p.vr[i][X], rlimit[X][0], _CMP_GE_OS);
-	w->mask = VCMP_MASK(w->mask, b->p.vr[i][X], rlimit[X][1], _CMP_LE_OS);
-	w->mask = VCMP_MASK(w->mask, b->p.vr[i][Y], rlimit[Y][0], _CMP_GE_OS);
-	w->mask = VCMP_MASK(w->mask, b->p.vr[i][Y], rlimit[Y][1], _CMP_LE_OS);
+	w->mask = VCMP_MASK(w->mask, b->p.vr[X][iv], rlimit[X][0], _CMP_GE_OS);
+	w->mask = VCMP_MASK(w->mask, b->p.vr[X][iv], rlimit[X][1], _CMP_LE_OS);
+	w->mask = VCMP_MASK(w->mask, b->p.vr[Y][iv], rlimit[Y][0], _CMP_GE_OS);
+	w->mask = VCMP_MASK(w->mask, b->p.vr[Y][iv], rlimit[Y][1], _CMP_LE_OS);
+
+	//dbg("End VCMP_MASK\n");
 
 	if(invert)
 		/* Invert the mask, so holes are ones */
@@ -296,6 +316,9 @@ update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 
 	/* And count how many holes we have */
 	w->left = __builtin_popcount(w->mask);
+
+	//dbg("w->left=%ld  w->mask=%hhu  invert=%d\n",
+	//	w->left, w->mask, invert);
 }
 
 void
@@ -405,6 +428,9 @@ exchange(pwin_t *A, pwin_t *B)
 
 	while(1)
 	{
+		dbg("A->left=%ld  B->left=%ld  i=%ld  j=%ld\n",
+			A->left, B->left, i, j);
+
 		if(i>=MAX_VEC || A->left == 0 ||
 			j>=MAX_VEC || B->left == 0)
 		{

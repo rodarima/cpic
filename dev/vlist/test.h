@@ -4,9 +4,10 @@
 #include "simd.h"
 
 #define NBLOCKS 1
-#define PBLOCK_NMAX (64*1024*1024)
+//#define PBLOCK_NMAX (64*1024*1024)
+#define PBLOCK_NMAX (32*1024*1024)
 
-#define VLIST_ALIGN	1024*1024	/* bytes */
+#define VLIST_ALIGN	1024	/* bytes */
 #define VEC_ALIGN	64	/* bytes */
 #define PL_HEAD_PAD	64	/* bytes */
 #define PB_HEAD_PAD	128	/* bytes */

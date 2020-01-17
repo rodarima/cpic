@@ -268,6 +268,21 @@ init_particles(plist_t *l)
 			}
 		}
 	}
+
+	for(j=0,ii=0,b=l->b; b; b=b->next, j++)
+	{
+		for(i=0; i<b->n; i++,ii++)
+		{
+			b->p.i[i] = ii;
+			for(d=X; d<MAX_DIM; d++)
+			{
+				assert(b->p.r[d][i] == 2+d);
+				assert(b->p.u[d][i] == 20+10*d);
+				assert(b->p.B[d][i] == 2.0);
+				assert(b->p.E[d][i] == 3.0);
+			}
+		}
+	}
 }
 
 #pragma oss task
