@@ -15,21 +15,26 @@
 #include "utils.h"
 #include <sys/mman.h>
 #include <utlist.h>
+#include <unistd.h>
 
-//#define USE_PAPI
+#define USE_PAPI
 
 #ifdef USE_PAPI
 #include <papi.h>
+int num_hwcntrs = 0;
 #endif
 
 #define RUNS 30
-#define NTASKS 2
+#define NTASKS 1
+
+int use_huge_pages = 0;
 
 int
 rodrix_memalign(void **ptr, size_t align, size_t alloc_bytes)
 {
 	static uintptr_t counter = 0;
 	uintptr_t inc, base;
+	int flags;
 	void *p;
 
 	base =   0x700000000000UL;
@@ -38,13 +43,19 @@ rodrix_memalign(void **ptr, size_t align, size_t alloc_bytes)
 
 	assert(IS_ALIGNED(p, align));
 
+	flags = MAP_PRIVATE|MAP_ANONYMOUS;
+
+	if(use_huge_pages)
+		flags |= MAP_HUGETLB;
+
 	(*ptr) = mmap((void *)(base + (inc * counter)), alloc_bytes,
 			PROT_READ|PROT_WRITE,
-			MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED,
-			-1, 0);
+			flags, -1, 0);
+
+	assert(*ptr != MAP_FAILED);
 
 	counter++;
-	return (*ptr == NULL);
+	return (*ptr == MAP_FAILED);
 }
 
 size_t
@@ -141,7 +152,14 @@ static pblock_t *
 plist_new_block(plist_t *l, size_t n)
 {
 	pblock_t *b;
-	if(posix_memalign((void **)&b, VLIST_ALIGN, l->blocksize) != 0)
+
+#undef VLIST_ALIGN
+#define VLIST_ALIGN 2*1024*1024
+
+	fprintf(stderr, "Allocate %ld KB for the block\n", l->blocksize/1024);
+
+//	if(posix_memalign((void **)&b, VLIST_ALIGN, l->blocksize) != 0)
+	if(rodrix_memalign((void **)&b, VLIST_ALIGN, l->blocksize) != 0)
 		return NULL;
 
 	pblock_init(b, n, l->nmax);
@@ -285,30 +303,65 @@ init_particles(plist_t *l)
 	}
 }
 
-#pragma oss task
+//#pragma oss task
 void
 task(plist_t *l)
 {
+	long long val[1] = {0};
 	perf_t p;
 	double t;
 
 	perf_init(&p);
 	perf_start(&p);
 
+#ifdef USE_PAPI
+	int ev[1] = { PAPI_TLB_DM };
+
+	/* Start counting events */
+	if (PAPI_start_counters(ev, 1) != PAPI_OK)
+		abort();
+
+	ev[0] = 0;
+#endif
+
 	particle_update_r(l);
 	particle_exchange_x(l);
 
+#ifdef USE_PAPI
+	/* Stop counting events */
+	if (PAPI_stop_counters(val, 1) != PAPI_OK)
+		abort();
+#endif
+
 	perf_stop(&p);
 	t = perf_measure(&p);
-	printf("%e s   %3f Mp/s\n", t, ((double) PBLOCK_NMAX*NBLOCKS)/t/1e6);
+	printf("%e s   %3f Mp/s  %lld\n", t, ((double) PBLOCK_NMAX*NBLOCKS)/t/1e6,
+			val[0]);
+}
+
+void
+usage(int argc, char *argv[])
+{
+	fprintf(stderr, "Usage: %s [-H]\n", argv[0]);
 }
 
 int
 main(int argc, char **argv)
 {
-	size_t i, it, r;
+	size_t i, it, r, opt;
 	plist_t *l[NTASKS];
 	perf_t p;
+
+	while ((opt = getopt(argc, argv, "H")) != -1)
+	{
+		switch(opt)
+		{
+			case 'H': use_huge_pages = 1; break;
+			default:
+				  usage(argc, argv);
+				  exit(EXIT_FAILURE);
+		}
+	}
 
 	perf_init(&p);
 	perf_start(&p);
@@ -326,12 +379,18 @@ main(int argc, char **argv)
 	perf_stop(&p);
 	fprintf(stderr, "init \t%e s\n", perf_measure(&p));
 
+	/* Initialize the PAPI library and get the number of counters available */
+	if ((num_hwcntrs = PAPI_num_counters()) <= PAPI_OK)
+		abort();
+
+	printf("This system has %d available counters\n", num_hwcntrs);
+
 	for(r=0; r<RUNS; r++)
 	{
 		for(it=0; it<NTASKS; it++)
 			task(l[it]);
 
-		#pragma oss taskwait
+		//#pragma oss taskwait
 	}
 
 	return 0;

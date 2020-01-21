@@ -7,8 +7,14 @@
 
 #define PREFETCH(p)	_mm_prefetch(p, _MM_HINT_T0)
 
-#define USE_VECTOR_512 1
+//#define USE_VECTOR_512 1
 //#define USE_VECTOR_256 1
+
+#ifndef USE_VECTOR_512
+#ifndef USE_VECTOR_256
+#error "Please define USE_VECTOR_256 or USE_VECTOR_512"
+#endif
+#endif
 
 #ifdef USE_VECTOR_512
 #define VDOUBLE		__m512d
@@ -37,11 +43,7 @@
 #define VSTREAM(a, b)	S(stream_pd(a, b))
 #define VSTORE(a, b)	S(store_pd(a, b))
 #define VSQRT(x)	S(sqrt_pd(x))
-#define VCMP(a, b, f)	S(cmp_pd_mask(a, b, f))
 
-/* Masked intrinsics */
-#define VCMP_MASK(k, a, b, f)	S(mask_cmp_pd_mask(k, a, b, f))
-#define VCOMPRESS(a, k, b)	S(mask_compress_pd(a, k, b))
 
 /*************** Hack zone begins ***************/
 #ifdef USE_VECTOR_256
@@ -56,6 +58,24 @@
 #define VABS(x)		S(abs_pd(x))
 #endif
 /*************** Hack zone ends *****************/
+
+/* ONLY for 256 bits */
+#ifdef USE_VECTOR_256
+/* __m256d _mm256_cmp_pd (__m256d a, __m256d b, const int imm8) */
+#define V256CMP(a, b, f)	S(cmp_pd(a, b, f))
+#endif
+
+/* ONLY for 512 bits */
+
+/* Masked intrinsics */
+#ifdef USE_VECTOR_512
+#define V512CMP_MASK(k, a, b, f)	S(mask_cmp_pd_mask(k, a, b, f))
+#define V512COMPRESS(a, k, b)		S(mask_compress_pd(a, k, b))
+#define V512CMP(a, b, f)		S(cmp_pd_mask(a, b, f))
+#endif
+
+
+
 
 #define IS_ALIGNED(POINTER, BYTE_COUNT) \
     (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)

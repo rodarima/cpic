@@ -1,5 +1,10 @@
 CFLAGS=
 
+VECTOR_BIT_WIDTH=256
+#VECTOR_BIT_WIDTH=512
+
+CFLAGS+=-DUSE_VECTOR_$(VECTOR_BIT_WIDTH)
+
 # For DEBUG
 #CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 #CFLAGS+=-O0
@@ -11,11 +16,13 @@ CFLAGS+=-O3
 CFLAGS+=-g -Wall
 #CFLAGS+=-masm=intel
 
+
 CFLAGS+=-I../../src/
 #CFLAGS+=-fno-omit-frame-pointer
 
 # Default compiler
 CC=clang
+
 
 ## GCC
 GCC=gcc
@@ -41,8 +48,8 @@ GCFLAGS+=-ftree-vectorize
 LCC=clang
 LCFLAGS=$(CFLAGS)
 #LCFLAGS+=--cc=clang --ompss-2 --v
-#LCFLAGS+=-march=native
-LCFLAGS+=-march=skylake-avx512
+LCFLAGS+=-march=native
+#LCFLAGS+=-march=skylake-avx512
 
 # Intel
 ICC=icc
@@ -62,7 +69,7 @@ ICFLAGS+=-qopt-zmm-usage=high
 #CFLAGS+=--ompss-2 -k --v
 #CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
-LDLIBS+=-L/apps/PAPI/5.6.0/lib -lm #-lpapi
+LDLIBS+=-L/apps/PAPI/5.6.0/lib -lm -lpapi
 
 COMPILERS=$(LCC)
 #COMPILERS=$(LCC) $(GCC)

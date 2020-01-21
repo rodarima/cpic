@@ -17,6 +17,8 @@
 #undef PREFETCH
 #define PREFETCH(a)
 
+#define IMAX 0
+#define IMIN 1
 
 void
 pwin_first(plist_t *l, pwin_t *w)
@@ -147,10 +149,6 @@ boris_rotation(size_t i, pheader_t *p, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 		E = pE[d][iw];
 		u[d] = pu[d][iw];
 
-		PREFETCH(&pB[d][iw+1]);
-		PREFETCH(&pE[d][iw+1]);
-		PREFETCH(&pu[d][iw+1]);
-
 		t[d] = B * dtqm2;
 		s_denom[d] += t[d] * t[d];
 
@@ -177,13 +175,6 @@ boris_rotation(size_t i, pheader_t *p, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 		/* Advance the velocity final half electric impulse */
 		u[d] = v_plus[d] + dtqm2 * E;
 
-		if(d==2 && fabs(u[d][1]) > 100.0)
-		{
-			fprintf(stderr, "Oh no!\n");
-			sleep(10);
-			abort();
-		}
-
 		/* TODO: Measure energy here */
 
 		VSTREAM((double *) &p->vu[d][iw], u[d]);
@@ -196,10 +187,7 @@ particle_mover(size_t iv, pheader_t *p,
 {
 	int d;
 	for(d=X; d<MAX_DIM; d++)
-	{
 		p->vr[d][iv] += u[d] * dt;
-		PREFETCH(&p->vr[d][iv+1]);
-	}
 }
 
 static inline void
@@ -211,21 +199,16 @@ check_velocity(VDOUBLE u[MAX_DIM], VDOUBLE u_pmax, VDOUBLE u_nmax)
 
 	mask = 0;
 
+
 	for(d=X; d<MAX_DIM; d++)
 	{
 		u_abs = VABS(u[d]);
-		mask |= VCMP(u_abs, u_pmax, _CMP_GT_OS);
-	}
 
-	for(i=0; i<MAX_VEC; i++)
-	{
-		for(d=X; d<MAX_DIM; d++)
-		{
-			if(fabs(u[d][i]) < 100.0) continue;
-			fprintf(stderr, "u[d=%ld][i=%ld] = %e\n",
-				d, i, u[d][i]);
-			abort();
-		}
+		/* TODO: Enable vectorization here */
+//		mask |= VCMP(u_abs, u_pmax, _CMP_GT_OS);
+
+		for(i=0; i<MAX_VEC; i++)
+			if(u_abs[i] > u_pmax[i]) mask |= 1U<<i;
 	}
 
 	if(mask)
@@ -273,7 +256,7 @@ particle_update_r(plist_t *l)
 
 			/* TODO: Compute energy using old and new velocity */
 
-			check_velocity(u, u_pmax, u_nmax);
+			//check_velocity(u, u_pmax, u_nmax);
 
 			particle_mover(i, &b->p, u, dt);
 
@@ -286,6 +269,7 @@ particle_update_r(plist_t *l)
 void
 update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 {
+
 	size_t iv;
 	pblock_t *b;
 
@@ -298,17 +282,33 @@ update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 	assert(w->mask == 0);
 	assert(w->left == 0);
 
-	w->mask = _cvtu32_mask8(-1U);
+	//w->mask = _cvtu32_mask8(-1U);
+	w->mask = (VMASK) -1U;
 
-	//dbg("Begin VCMP_MASK\n");
+#ifdef USE_VECTOR_512
 
 	/* Check if the particles are inside the chunk */
-	w->mask = VCMP_MASK(w->mask, b->p.vr[X][iv], rlimit[X][0], _CMP_GE_OS);
-	w->mask = VCMP_MASK(w->mask, b->p.vr[X][iv], rlimit[X][1], _CMP_LE_OS);
-	w->mask = VCMP_MASK(w->mask, b->p.vr[Y][iv], rlimit[Y][0], _CMP_GE_OS);
-	w->mask = VCMP_MASK(w->mask, b->p.vr[Y][iv], rlimit[Y][1], _CMP_LE_OS);
+	w->mask = VCMP_MASK(w->mask, b->p.vr[X][iv], rlimit[X][IMIN], _CMP_GE_OS);
+	w->mask = VCMP_MASK(w->mask, b->p.vr[Y][iv], rlimit[Y][IMIN], _CMP_GE_OS);
+	w->mask = VCMP_MASK(w->mask, b->p.vr[X][iv], rlimit[X][IMAX], _CMP_LE_OS);
+	w->mask = VCMP_MASK(w->mask, b->p.vr[Y][iv], rlimit[Y][IMAX], _CMP_LE_OS);
 
-	//dbg("End VCMP_MASK\n");
+#endif
+
+#ifdef USE_VECTOR_256
+	size_t i;
+
+	for(i=0; i<MAX_VEC; i++)
+	{
+		if(	b->p.vr[X][iv][i] < rlimit[X][IMIN][i] ||
+			b->p.vr[Y][iv][i] < rlimit[Y][IMIN][i] ||
+			b->p.vr[X][iv][i] > rlimit[X][IMAX][i] ||
+			b->p.vr[Y][iv][i] > rlimit[Y][IMAX][i])
+		{
+			w->mask &= ~(1U<<i);
+		}
+	}
+#endif
 
 	if(invert)
 		/* Invert the mask, so holes are ones */
@@ -483,8 +483,8 @@ particle_exchange_x(plist_t *l)
 
 	for(d = 0; d<MAX_DIM; d++)
 	{
-		rlimit[d][0] = VSET1(-10.0);
-		rlimit[d][1] = VSET1(10.0);
+		rlimit[d][IMIN] = VSET1(-10.0);
+		rlimit[d][IMAX] = VSET1(10.0);
 	}
 
 	while(!pwin_equal(&A, &B))
