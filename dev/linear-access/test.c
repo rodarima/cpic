@@ -28,8 +28,8 @@ int num_hwcntrs = 0;
 //#define NTASKS 1
 #define NTASKS 56
 #define NBLOCKS 1
-//#define PBLOCK_NMAX (64*1024*1024)
-#define PBLOCK_NMAX (8*1024*1024)
+//#define NMAX (64*1024*1024)
+#define NMAX (8*1024*1024)
 
 int use_huge_pages = 0;
 
@@ -349,8 +349,10 @@ run(plist_t *l[NTASKS])
 
 	perf_stop(&p);
 	t = perf_measure(&p);
-	printf("%e s   %3f Mp/s  %lld\n", t, ((double) NTASKS*PBLOCK_NMAX*NBLOCKS)/t/1e6,
-			val[0]);
+	/* Approximation of the bandwidth */
+	double bw = (double) NTASKS * NBLOCKS * NMAX * 12. * sizeof(double);
+	bw /= t * 1024. * 1024. * 1024.;
+	printf("%e\t%f\t%lld\t%d\n", t, bw, val[0], MAX_VEC);
 }
 
 void
@@ -382,10 +384,10 @@ main(int argc, char **argv)
 
 	for(it=0; it<NTASKS; it++)
 	{
-		l[it] = plist_init(PBLOCK_NMAX);
+		l[it] = plist_init(NMAX);
 
 		for(i=0; i<NBLOCKS; i++)
-			plist_grow(l[it], PBLOCK_NMAX);
+			plist_grow(l[it], NMAX);
 
 		#pragma oss task
 		init_particles(l[it]);

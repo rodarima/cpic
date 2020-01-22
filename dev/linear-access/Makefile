@@ -68,7 +68,8 @@ ICFLAGS+=-qopt-zmm-usage=high
 
 MCC=mcc
 MCFLAGS=$(CFLAGS)
-MCFLAGS+=--ompss-2 --v --cc=clang -k
+MCFLAGS+=--ompss-2 --cc=clang -k
+#MCFLAGS+=--v
 #CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
 LDLIBS+=-L/apps/PAPI/5.6.0/lib -lm -lpapi

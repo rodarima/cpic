@@ -115,12 +115,22 @@ cross_product(VDOUBLE r[MAX_DIM], VDOUBLE a[MAX_DIM], VDOUBLE b[MAX_DIM])
 static inline void
 linear_access(VDOUBLE *v, size_t nvec)
 {
-	size_t i;
+	size_t i, d, c;
 
-	for(i=0; i<nvec-4; i+=4)
+	c = 0;
+	//fprintf(stderr, "c=%ld, i=%ld, nvec=%ld\n", c, i, nvec);
+
+	for(i=0; i<nvec;)
 	{
-		v[i+3] += v[i] + v[i+1] + v[i+2];
+		for(d=X; d<MAX_DIM; d++, i+=4)
+		{
+			/* 3 reads and 1 write of MAX_VEC doubles */
+			v[i] = v[i+1] + v[i+2] + v[i+3];
+			c++;
+		}
 	}
+
+	//fprintf(stderr, "c=%ld, i=%ld, nvec=%ld\n", c, i, nvec);
 
 }
 
@@ -178,7 +188,7 @@ particle_update_r(plist_t *l)
 
 	for(b = l->b; b; b = b->next)
 	{
-		linear_access((VDOUBLE *) &b->data, b->n);
+		linear_access((VDOUBLE *) &b->data, b->n*12/MAX_VEC);
 	}
 
 }
