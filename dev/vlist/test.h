@@ -23,11 +23,11 @@ enum dim {
 struct plist;
 typedef struct plist plist_t;
 
+struct pchunk;
+typedef struct pchunk pchunk_t;
+
 struct pblock;
 typedef struct pblock pblock_t;
-
-struct pheader;
-typedef struct pheader pheader_t;
 
 struct pwin;
 typedef struct pwin pwin_t;
@@ -48,28 +48,19 @@ struct plist
 static_assert(sizeof(struct plist) <= PL_HEAD_PAD,
 		"The struct plist is larger than PL_HEAD_PAD");
 
-struct pheader
-{
-	size_t *__restrict__ i; /* Particle global index */
-	union
-	{
-		struct
-		{
-			double *__restrict__ r[MAX_DIM]; /* Position */
-			double *__restrict__ u[MAX_DIM]; /* Velocity */
-			double *__restrict__ E[MAX_DIM]; /* Electric field */
-			double *__restrict__ B[MAX_DIM]; /* Magnetic field */
-		};
-		struct
-		{
-			VDOUBLE *__restrict__ vr[MAX_DIM]; /* Position */
-			VDOUBLE *__restrict__ vu[MAX_DIM]; /* Velocity */
-			VDOUBLE *__restrict__ vE[MAX_DIM]; /* Electric field */
-			VDOUBLE *__restrict__ vB[MAX_DIM]; /* Magnetic field */
-		};
-	};
-}; /* 104 bytes */
 
+/* The particle chunk is designed to hold MAX_VEC particles: so 4 in AVX2 using
+ * 256 bits or 8 in AVX512 using 512 bits. A total of 13 vectors of 64bits per
+ * element, with 52 and 104 bytes respectively in AVX2 or AVX512.
+ */
+struct pchunk
+{
+	VINT i;			/* Particle global index */
+	VDOUBLE r[MAX_DIM];	/* Position */
+	VDOUBLE u[MAX_DIM];	/* Velocity */
+	VDOUBLE E[MAX_DIM];	/* Electric field */
+	VDOUBLE B[MAX_DIM];	/* Magnetic field */
+}; /* Multiple of MAX_VEC */
 
 struct pblock
 {
@@ -77,23 +68,22 @@ struct pblock
 	{
 		struct
 		{
-			size_t n; /* Current number of particles */
+			/* Current number of particles */
+			size_t n;
+
+			/* Pointers to neighbour pblocks */
 			pblock_t *next;
 			pblock_t *prev;
 
-			pheader_t p;
-
-		}; /* 128 bytes */
+		}; /* 24 bytes */
 
 		/* 128 bytes */
 		uint8_t _pblock_padding[PB_HEAD_PAD];
 	};
 
-	uint8_t data[]; /* Actual particle data */
+	/* Particle chunks */
+	pchunk_t c[];
 };
-
-static_assert(sizeof(struct pheader) <= PB_HEAD_PAD,
-		"The struct pheader is larger than PB_HEAD_PAD");
 
 struct pwin
 {

@@ -18,6 +18,7 @@
 
 #ifdef USE_VECTOR_512
 #define VDOUBLE		__m512d
+#define VINT		__m512i
 #define VMASK		__mmask8
 #define VEC_PREFIX	_mm512_
 #define VEC_SUFFIX	_512
@@ -26,6 +27,7 @@
 
 #ifdef USE_VECTOR_256
 #define VDOUBLE		__m256d
+#define VINT		__m256i
 #define VMASK		__mmask8
 #define VEC_PREFIX	_mm256_
 #define VEC_SUFFIX	_256

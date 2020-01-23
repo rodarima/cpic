@@ -17,7 +17,7 @@
 #include <utlist.h>
 #include <unistd.h>
 
-#define USE_PAPI
+//#define USE_PAPI
 
 #ifdef USE_PAPI
 #include <papi.h>
@@ -98,51 +98,15 @@ pblock_last(pblock_t *head)
 int
 pblock_init(pblock_t *b, size_t n, size_t nmax)
 {
-	void *bdata;
 	size_t offset;
-	int d;
 
 	offset = nmax * sizeof(double);
 	b->n = n;
-	bdata = b->data;
 
 	if(offset % VEC_ALIGN)
 	{
 		fprintf(stderr, "Offset is not aligned, please change k=%lu", nmax);
 		return -1;
-	}
-
-	/* Particle index */
-	b->p.i = bdata;
-	//printf("Block %p has i starting at %p\n", b, b->p.i);
-	bdata += nmax*sizeof(size_t);
-
-	/* Position */
-	for(d=0; d<MAX_DIM; d++)
-	{
-		b->p.r[d] = bdata;
-		bdata += offset;
-	}
-
-	/* Velocity */
-	for(d=0; d<MAX_DIM; d++)
-	{
-		b->p.u[d] = bdata;
-		bdata += offset;
-	}
-
-	/* Electric field */
-	for(d=0; d<MAX_DIM; d++)
-	{
-		b->p.E[d] = bdata;
-		bdata += offset;
-	}
-
-	/* Magnetic field */
-	for(d=0; d<MAX_DIM; d++)
-	{
-		b->p.B[d] = bdata;
-		bdata += offset;
 	}
 
 	return 0;
@@ -243,65 +207,28 @@ plist_grow(plist_t *l, size_t n)
 
 
 
-void
-pprint(plist_t *l)
-{
-	int i;
-	pblock_t *b;
-	pheader_t *p;
-
-	for(b=l->b; b; b = b->next)
-	{
-		printf("  block %p (%lu/%lu) next=%p prev=%p\n",
-				b, b->n, l->nmax, b->next, b->prev);
-
-		for(i=0; i<b->n; i++)
-		{
-			p = &b->p;
-
-			printf("    particle i=%ld u=(%e %e %e)\n",
-					p->i[i],
-					p->u[X][i], p->u[Y][i], p->u[Z][i]);
-		}
-	}
-}
-
-void
-init_particles(plist_t *l)
-{
-	size_t d, i, j, ii;
-	pblock_t *b;
-
-	for(j=0,ii=0,b=l->b; b; b=b->next, j++)
-	{
-		for(i=0; i<b->n; i++,ii++)
-		{
-			b->p.i[i] = ii;
-			for(d=X; d<MAX_DIM; d++)
-			{
-				b->p.r[d][i] = 2+d;
-				b->p.u[d][i] = 20+10*d;
-				b->p.B[d][i] = 2.0;
-				b->p.E[d][i] = 3.0;
-			}
-		}
-	}
-
-	for(j=0,ii=0,b=l->b; b; b=b->next, j++)
-	{
-		for(i=0; i<b->n; i++,ii++)
-		{
-			b->p.i[i] = ii;
-			for(d=X; d<MAX_DIM; d++)
-			{
-				assert(b->p.r[d][i] == 2+d);
-				assert(b->p.u[d][i] == 20+10*d);
-				assert(b->p.B[d][i] == 2.0);
-				assert(b->p.E[d][i] == 3.0);
-			}
-		}
-	}
-}
+//void
+//pprint(plist_t *l)
+//{
+//	int i;
+//	pblock_t *b;
+//	pheader_t *p;
+//
+//	for(b=l->b; b; b = b->next)
+//	{
+//		printf("  block %p (%lu/%lu) next=%p prev=%p\n",
+//				b, b->n, l->nmax, b->next, b->prev);
+//
+//		for(i=0; i<b->n; i++)
+//		{
+//			p = &b->p;
+//
+//			printf("    particle i=%ld u=(%e %e %e)\n",
+//					p->i[i],
+//					p->u[X][i], p->u[Y][i], p->u[Z][i]);
+//		}
+//	}
+//}
 
 //#pragma oss task
 void
@@ -325,7 +252,7 @@ task(plist_t *l)
 #endif
 
 	particle_update_r(l);
-	particle_exchange_x(l);
+	//particle_exchange_x(l);
 
 #ifdef USE_PAPI
 	/* Stop counting events */
@@ -379,11 +306,13 @@ main(int argc, char **argv)
 	perf_stop(&p);
 	fprintf(stderr, "init \t%e s\n", perf_measure(&p));
 
+#ifdef USE_PAPI
 	/* Initialize the PAPI library and get the number of counters available */
 	if ((num_hwcntrs = PAPI_num_counters()) <= PAPI_OK)
 		abort();
 
 	printf("This system has %d available counters\n", num_hwcntrs);
+#endif
 
 	for(r=0; r<RUNS; r++)
 	{
