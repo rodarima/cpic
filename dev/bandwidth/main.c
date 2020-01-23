@@ -38,6 +38,19 @@ compute(double *v, size_t n)
 	return sum;
 }
 
+double
+compute_256(double *v, size_t n)
+{
+	size_t i;
+	double sum = 0.0;
+
+#pragma omp simd
+	for(i=0; i<n; i++)
+		sum += v[i];
+
+	return sum;
+}
+
 int
 main(int argc, char *argv[])
 {
