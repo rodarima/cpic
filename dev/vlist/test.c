@@ -7,7 +7,7 @@
 #include <assert.h>
 #include <sys/types.h>
 #include <math.h>
-#include <x86intrin.h>
+#include "simd.h"
 #include "perf.h"
 #include "test.h"
 #include "kernel.h"
@@ -25,9 +25,12 @@ int num_hwcntrs = 0;
 #endif
 
 #define RUNS 30
-#define NTASKS 1
+#define MAX_NTASKS 128
+#define NBLOCKS 1
+#define NMAX (8*1024*1024)
 
 int use_huge_pages = 0;
+int ntasks = 1;
 
 int
 rodrix_memalign(void **ptr, size_t align, size_t alloc_bytes)
@@ -78,7 +81,9 @@ plist_init(size_t nmax)
 
 	l = safe_malloc(sizeof(*l));
 
+	/* Blocksize in bytes */
 	l->blocksize = pblock_size(nmax);
+	l->max_chunks = nmax / MAX_VEC;
 	l->nblocks = 0;
 	l->nmax = nmax;
 	l->b = NULL;
@@ -142,7 +147,7 @@ plist_grow(plist_t *l, size_t n)
 
 	if(n > l->nmax)
 		return 1;
-	
+
 	nmax = l->nmax;
 	b = pblock_last(l->b);
 
@@ -154,7 +159,7 @@ plist_grow(plist_t *l, size_t n)
 			b->n += n;
 			return 0;
 		}
-		
+
 		n -= nmax - b->n;
 		b->n = nmax;
 	}
@@ -230,10 +235,23 @@ plist_grow(plist_t *l, size_t n)
 //	}
 //}
 
-//#pragma oss task
 void
 task(plist_t *l)
 {
+	particle_update_r(l);
+	//particle_exchange_x(l);
+}
+
+void
+usage(int argc, char *argv[])
+{
+	fprintf(stderr, "Usage: %s [-H]\n", argv[0]);
+}
+
+void
+run(plist_t *l[MAX_NTASKS])
+{
+	size_t it;
 	long long val[1] = {0};
 	perf_t p;
 	double t;
@@ -250,9 +268,13 @@ task(plist_t *l)
 
 	ev[0] = 0;
 #endif
+	for(it=0; it<ntasks; it++)
+	{
+		#pragma oss task
+		task(l[it]);
+	}
 
-	particle_update_r(l);
-	//particle_exchange_x(l);
+	#pragma oss taskwait
 
 #ifdef USE_PAPI
 	/* Stop counting events */
@@ -262,43 +284,52 @@ task(plist_t *l)
 
 	perf_stop(&p);
 	t = perf_measure(&p);
-	printf("%e s   %3f Mp/s  %lld\n", t, ((double) PBLOCK_NMAX*NBLOCKS)/t/1e6,
-			val[0]);
+
+	/* FIXME: The bandwidth cannot be clearly determined by this metric, as
+	 * we need to count the number of L3 access misses in order to know
+	 * exactly how many lines were requested to the DRAM. */
+
+	/* Approximation of the bandwidth */
+	double bw = (double) ntasks * NBLOCKS * NMAX / t;
+	printf("%e\t%e\n", t, bw);
 }
 
-void
-usage(int argc, char *argv[])
-{
-	fprintf(stderr, "Usage: %s [-H]\n", argv[0]);
-}
 
 int
 main(int argc, char **argv)
 {
 	size_t i, it, r, opt;
-	plist_t *l[NTASKS];
+	plist_t *l[MAX_NTASKS];
 	perf_t p;
+	pblock_t *b, *btmp;
 
-	while ((opt = getopt(argc, argv, "H")) != -1)
+	while ((opt = getopt(argc, argv, "Ht:")) != -1)
 	{
 		switch(opt)
 		{
-			case 'H': use_huge_pages = 1; break;
+			case 'H':
+				use_huge_pages = 1;
+				break;
+			case 't':
+				ntasks = atoi(optarg);
+				break;
 			default:
 				  usage(argc, argv);
 				  exit(EXIT_FAILURE);
 		}
 	}
 
+	fprintf(stderr, "Using %d tasks\n", ntasks);
+
 	perf_init(&p);
 	perf_start(&p);
 
-	for(it=0; it<NTASKS; it++)
+	for(it=0; it<ntasks; it++)
 	{
-		l[it] = plist_init(PBLOCK_NMAX);
+		l[it] = plist_init(NMAX);
 
 		for(i=0; i<NBLOCKS; i++)
-			plist_grow(l[it], PBLOCK_NMAX);
+			plist_grow(l[it], NMAX);
 
 		init_particles(l[it]);
 	}
@@ -314,13 +345,23 @@ main(int argc, char **argv)
 	printf("This system has %d available counters\n", num_hwcntrs);
 #endif
 
-	for(r=0; r<RUNS; r++)
-	{
-		for(it=0; it<NTASKS; it++)
-			task(l[it]);
+	for(r=0; r<RUNS; r++) run(l);
+	#pragma oss taskwait
 
-		//#pragma oss taskwait
-	}
+//	for(it=0; it<RUNS; it++)
+//	{
+//		b = l[it]->b;
+//
+//		while(b)
+//		{
+//			btmp = b->next;
+//			free(b);
+//			b = btmp;
+//		}
+//
+//		free(l[it]);
+//	}
+
 
 	return 0;
 }

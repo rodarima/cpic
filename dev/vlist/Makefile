@@ -66,14 +66,16 @@ ICFLAGS+=-qopt-zmm-usage=high
 #ICFLAGS+=-xCOMMON-AVX512 -qopt-report=5
 #ICFLAGS+=-fopenmp-simd
 
-#CC=mcc
-#CFLAGS+=--ompss-2 -k --v
-#CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
+MCC=mcc
+MCFLAGS=$(CFLAGS)
+MCFLAGS+=--cc=clang
+MCFLAGS+=--ompss-2 -k --v
+#MCFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
 LDLIBS+=-L/apps/PAPI/5.6.0/lib -lm
 #LDLIBS+=-lpapi
 
-COMPILERS=$(LCC)
+COMPILERS=$(MCC)
 #COMPILERS=$(LCC) $(GCC)
 #COMPILERS=$(ICC) $(GCC) $(LCC)
 BIN=$(addprefix test.,$(COMPILERS)) #my-kernel
@@ -97,11 +99,11 @@ test.icc: test.c perf.c mem.icc.o kernel.icc.o
 
 ################################################################
 
-#%.clang.s: %.c
-#	$(LCC) $(filter-out -g,$(LCFLAGS)) -S $^ -o $@
+%.clang.s: %.c
+	$(LCC) $(filter-out -g,$(LCFLAGS)) -S $^ -o $@
 
-#%.clang.o: %.clang.s
-%.clang.o: %.c
+#%.clang.o: %.c
+%.clang.o: %.clang.s
 	$(LCC) -c $(LCFLAGS) $< -o $@
 
 test.clang: test.c perf.c mem.o kernel.clang.o ../../src/utils.o
@@ -117,6 +119,11 @@ test.clang: test.c perf.c mem.o kernel.clang.o ../../src/utils.o
 
 test.gcc: test.c perf.c mem.o kernel.gcc.o
 	$(GCC) $(GCFLAGS) $(LDLIBS) $^ -o $@
+
+################################################################
+
+test.mcc: test.c perf.c mem.o kernel.clang.s ../../src/utils.o
+	$(MCC) $(MCFLAGS) $^ $(LDLIBS) -o $@
 
 ################################################################
 

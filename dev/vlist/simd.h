@@ -1,5 +1,21 @@
 #pragma once
 
+#ifdef _MCC
+
+#define VINT		int
+#define VDOUBLE		double
+#define VMASK		unsigned long
+
+#ifdef USE_VECTOR_512
+#define MAX_VEC 8 /* Vector size in doubles */
+#endif
+
+#ifdef USE_VECTOR_256
+#define MAX_VEC 4 /* Vector size in doubles */
+#endif
+
+#else
+
 #include <x86intrin.h>
 
 /* Always align to 64 byte boundary */
@@ -79,6 +95,10 @@
 
 
 
+#endif /* _MCC */
+
+
+
 #define IS_ALIGNED(POINTER, BYTE_COUNT) \
     (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
 
@@ -99,6 +119,5 @@
 #else
 
 	#error "Unsopported compiler. Use gcc or icc"
-#endif
-#endif
-
+#endif /* __GNUC__ */
+#endif /* __INTEL_COMPILER */

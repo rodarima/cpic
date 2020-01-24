@@ -3,10 +3,6 @@
 #include <assert.h>
 #include "simd.h"
 
-#define NBLOCKS 1
-//#define PBLOCK_NMAX (64*1024*1024)
-#define PBLOCK_NMAX (32*1024*1024)
-
 #define VLIST_ALIGN	1024	/* bytes */
 #define VEC_ALIGN	64	/* bytes */
 #define PL_HEAD_PAD	64	/* bytes */
@@ -39,14 +35,11 @@ struct plist
 {
 	size_t nblocks;
 	size_t blocksize; /* in bytes */
-
+	size_t max_chunks; /* Maximum number of chunks per block */
 	size_t nmax; /* Maximum number of particles per block */
 
 	pblock_t *b;
 };
-
-static_assert(sizeof(struct plist) <= PL_HEAD_PAD,
-		"The struct plist is larger than PL_HEAD_PAD");
 
 
 /* The particle chunk is designed to hold MAX_VEC particles: so 4 in AVX2 using
