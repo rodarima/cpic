@@ -97,7 +97,7 @@ all: $(BIN) #$(ASM) $(VINST)
 %.icc.o: %.icc.s
 	$(ICC) -c $(ICFLAGS) $< -o $@
 
-test.icc: test.c perf.c mem.icc.o kernel.icc.o
+test.icc: test.c perf.c mem.icc.o kernel.icc.o ../../src/utils.o
 	$(ICC) $(ICFLAGS) $^ $(LDLIBS) -o $@
 
 ################################################################
