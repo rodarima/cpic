@@ -1,3 +1,9 @@
+/* Welcome to the vector hacker cafe.
+*
+* This file is Mercurium friendly, as it hides any intrinsic from it.
+* Contains a lot of hacks and tricks to deal with different vector size
+* intrinsics (AVX-2 and AVX-512 by now) */
+
 #pragma once
 
 #ifdef _MCC
@@ -44,7 +50,9 @@
 #ifdef USE_VECTOR_256
 #define VDOUBLE		__m256d
 #define VINT		__m256i
-#define VMASK		__mmask8
+/* FIXME: In 256 we don't really have any mask, so we use the vector double by
+ * default */
+#define VMASK          __m256d
 #define VEC_PREFIX	_mm256_
 #define VEC_SUFFIX	_256
 #define MAX_VEC 4 /* Vector size in doubles */
@@ -55,15 +63,15 @@
 #define S(x)		CONCAT(VEC_PREFIX, x)
 #define V(x)		CONCAT(x, VEC_SUFFIX)
 
-/* Simple intrinsics */
-#define VSET1(x)	S(set1_pd(x))
-#define VLOAD(x)	S(load_pd(x))
-#define VSTREAM(a, b)	S(stream_pd(a, b))
-#define VSTORE(a, b)	S(store_pd(a, b))
-#define VSQRT(x)	S(sqrt_pd(x))
 
 
-/*************** Hack zone begins ***************/
+/********************* Hack zone begins *******************
+ *
+ * Those intrinsics are not equal between AVX2 and AVX512
+ *
+ **********************************************************/
+
+/* ONLY for 256 bits */
 #ifdef USE_VECTOR_256
 /* AVX2 doesn't provide abs, so we clear the sign bit using the AND
  * operation with 0111111111... mask for each vector element */
@@ -72,27 +80,36 @@
 				0x7fffffffffffffff,		\
 				0x7fffffffffffffff,		\
 				0x7fffffffffffffff)))
-#else
-#define VABS(x)		S(abs_pd(x))
-#endif
-/*************** Hack zone ends *****************/
 
-/* ONLY for 256 bits */
-#ifdef USE_VECTOR_256
 /* __m256d _mm256_cmp_pd (__m256d a, __m256d b, const int imm8) */
-#define V256CMP(a, b, f)	S(cmp_pd(a, b, f))
-#endif
+#define VCMP(a, b, f)	S(cmp_pd(a, b, f))
+#define VMASK_ZERO(m)		m = VSET1(0)
+#define VMASK_VAL(m)		S(movemask_pd(m))
+#endif /* USE_VECTOR_256 */
 
 /* ONLY for 512 bits */
-
-/* Masked intrinsics */
 #ifdef USE_VECTOR_512
+#define VABS(x)		S(abs_pd(x))
+
 #define V512CMP_MASK(k, a, b, f)	S(mask_cmp_pd_mask(k, a, b, f))
 #define V512COMPRESS(a, k, b)		S(mask_compress_pd(a, k, b))
-#define V512CMP(a, b, f)		S(cmp_pd_mask(a, b, f))
-#endif
+/* __mmask8 _mm512_cmp_pd_mask (__m512d a, __m512d b, const int imm8) */
+#define VCMP(a, b, f)		S(cmp_pd_mask(a, b, f))
+#define VMASK_ZERO(m)		m = 0
+#define VMASK_VAL(m)		m
 
+#endif /* USE_VECTOR_512 */
 
+/******************** Hack zone ends *********************/
+
+/* Simple intrinsics */
+#define VSET1(x)	S(set1_pd(x))
+#define VLOAD(x)	S(load_pd(x))
+#define VSTREAM(a, b)	S(stream_pd(a, b))
+#define VSTORE(a, b)	S(store_pd(a, b))
+#define VSQRT(x)	S(sqrt_pd(x))
+
+#define VMASK_ANY(m)		(VMASK_VAL(m) != 0)
 
 
 #endif /* _MCC */

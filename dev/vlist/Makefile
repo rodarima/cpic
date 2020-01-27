@@ -16,6 +16,7 @@ CFLAGS+=-O3
 CFLAGS+=-g -Wall
 #CFLAGS+=-masm=intel
 
+CFLAGS+=-std=c11
 
 CFLAGS+=-I../../src/
 #CFLAGS+=-fno-omit-frame-pointer
@@ -68,7 +69,7 @@ ICFLAGS+=-qopt-zmm-usage=high
 
 MCC=mcc
 MCFLAGS=$(CFLAGS)
-MCFLAGS+=--cc=clang
+MCFLAGS+=--cc=clang --cpp=clang
 MCFLAGS+=--ompss-2 -k --v
 #MCFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 

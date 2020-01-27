@@ -28,7 +28,7 @@ pwin_first(plist_t *l, pwin_t *w)
 	w->b = l->b;
 	w->i = 0;
 	w->left = 0;
-	w->mask = 0;
+	VMASK_ZERO(w->mask);
 }
 
 void
@@ -43,7 +43,7 @@ pwin_last(plist_t *l, pwin_t *w)
 
 	w->i = l->b->n - MAX_VEC;
 	w->left = 0;
-	w->mask = 0;
+	VMASK_ZERO(w->mask);
 
 	assert((w->i % MAX_VEC) == 0);
 }
@@ -173,36 +173,39 @@ check_velocity(VDOUBLE u[MAX_DIM], VDOUBLE u_pmax, VDOUBLE u_nmax)
 {
 	size_t d, i;
 	VDOUBLE u_abs;
-	__mmask8 mask;
+	VMASK mask;
+	int mask_val;
 
-	mask = 0;
-
+	VMASK_ZERO(mask);
 
 	for(d=X; d<MAX_DIM; d++)
 	{
 		u_abs = VABS(u[d]);
+		mask = VCMP(u_abs, u_pmax, _CMP_GT_OS);
 
-		/* TODO: Enable vectorization here */
-//		mask |= VCMP(u_abs, u_pmax, _CMP_GT_OS);
+		mask_val = VMASK_VAL(mask);
 
-		for(i=0; i<MAX_VEC; i++)
-			if(u_abs[i] > u_pmax[i]) mask |= 1U<<i;
+		if(mask_val)
+			goto err;
 	}
 
-	if(mask)
+	return;
+
+err:
+	fprintf(stderr, "Max velocity exceeded with mask=%x\n", mask_val);
+
+#ifdef DEBUG
+	for(i=0; i<MAX_VEC; i++)
 	{
-		fprintf(stderr, "Max velocity exceeded with mask=%hhu\n", mask);
-		for(i=0; i<MAX_VEC; i++)
+		for(d=X; d<MAX_DIM; d++)
 		{
-			for(d=X; d<MAX_DIM; d++)
-			{
-				if(fabs(u[d][i]) > u_pmax[i])
-					fprintf(stderr, "fabs(u[%ld][%ld]) = %e > u_pmax[%ld] = %e\n",
-						d, i, fabs(u[d][i]), i, u_pmax[i]);
-			}
+			if(fabs(u[d][i]) > u_pmax[i])
+				fprintf(stderr, "fabs(u[%ld][%ld]) = %e > u_pmax[%ld] = %e\n",
+					d, i, fabs(u[d][i]), i, u_pmax[i]);
 		}
-		abort();
 	}
+#endif
+	abort();
 }
 
 /* Only updates the particle positions */
@@ -238,7 +241,7 @@ particle_update_r(plist_t *l)
 
 			/* TODO: Compute energy using old and new velocity */
 
-			//check_velocity(u, u_pmax, u_nmax);
+			check_velocity(u, u_pmax, u_nmax);
 
 			particle_mover(c, u, dt);
 
