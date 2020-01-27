@@ -136,7 +136,7 @@ boris_rotation(pchunk_t *c, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 		s_denom[d] += t[d] * t[d];
 
 		/* Advance the velocity half an electric impulse */
-		v_minus[d] = u[d] + dtqm2 * c->E[d];
+		v_minus[d] = c->u[d] + dtqm2 * c->E[d];
 
 		s[d] = two * t[d] / s_denom[d];
 	}
