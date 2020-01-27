@@ -1,4 +1,4 @@
-//#define _POSIX_C_SOURCE 200112L
+#define _DEFAULT_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -252,7 +252,6 @@ void
 run(plist_t *l[MAX_NTASKS])
 {
 	size_t it;
-	long long val[1] = {0};
 	perf_t p;
 	double t;
 
@@ -260,6 +259,7 @@ run(plist_t *l[MAX_NTASKS])
 	perf_start(&p);
 
 #ifdef USE_PAPI
+	long long val[1] = {0};
 	int ev[1] = { PAPI_TLB_DM };
 
 	/* Start counting events */

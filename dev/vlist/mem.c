@@ -1,3 +1,4 @@
+#define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -21,7 +22,8 @@ frame(void *addr)
 	}
 
 	// Seek to the page that the buffer is on
-	unsigned long offset = (unsigned long)addr / getpagesize() * PAGEMAP_LENGTH;
+	long sz = sysconf(_SC_PAGESIZE);
+	unsigned long offset = (unsigned long)addr / sz * PAGEMAP_LENGTH;
 	if(fseek(pagemap, (unsigned long)offset, SEEK_SET) != 0)
 	{
 		fprintf(stderr, "Failed to seek pagemap to proper location\n");
@@ -47,7 +49,8 @@ phys_from_virtual(void *ptr)
 	f = frame(ptr);
 
 	// Find the difference from the buffer to the page boundary
-	offset = (uintptr_t) ptr % getpagesize();
+	long sz = sysconf(_SC_PAGESIZE);
+	offset = (uintptr_t) ptr % sz;
 
 	// Determine how far to seek into memory to find the buffer
 	phy_addr = (f << PAGE_SHIFT) + offset;
