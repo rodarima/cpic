@@ -6,13 +6,14 @@ VECTOR_BIT_WIDTH=256
 CFLAGS+=-DUSE_VECTOR_$(VECTOR_BIT_WIDTH)
 
 # For DEBUG
-#CFLAGS+=-fsanitize=address -fno-omit-frame-pointer
+#CFLAGS+=-fsanitize=address
+#CFLAGS+=-fno-omit-frame-pointer
 #CFLAGS+=-O0
 
 # Common
-CFLAGS+=-O3
+#CFLAGS+=-O3
 #CFLAGS+=-O0
-#CFLAGS+=-O2
+CFLAGS+=-O2
 CFLAGS+=-g -Wall
 #CFLAGS+=-masm=intel
 
@@ -70,13 +71,14 @@ ICFLAGS+=-qopt-zmm-usage=high
 MCC=mcc
 MCFLAGS=$(CFLAGS)
 MCFLAGS+=--cc=clang --cpp=clang
-MCFLAGS+=--ompss-2 -k --v
+#MCFLAGS+=--ompss-2 -k --v
 #MCFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
 LDLIBS+=-L/apps/PAPI/5.6.0/lib -lm
 #LDLIBS+=-lpapi
 
-COMPILERS=$(MCC)
+#COMPILERS=$(MCC)
+COMPILERS=$(LCC)
 #COMPILERS=$(LCC) $(GCC)
 #COMPILERS=$(ICC) $(GCC) $(LCC)
 BIN=$(addprefix test.,$(COMPILERS)) #my-kernel
@@ -118,7 +120,7 @@ test.clang: test.c perf.c mem.o kernel.clang.o ../../src/utils.o
 %.gcc.o: %.gcc.s
 	$(GCC) -c $(GCFLAGS) $< -o $@
 
-test.gcc: test.c perf.c mem.o kernel.gcc.o
+test.gcc: test.c perf.c mem.o kernel.gcc.o ../../src/utils.o
 	$(GCC) $(GCFLAGS) $(LDLIBS) $^ -o $@
 
 ################################################################

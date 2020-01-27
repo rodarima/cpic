@@ -245,7 +245,7 @@ task(plist_t *l)
 void
 usage(int argc, char *argv[])
 {
-	fprintf(stderr, "Usage: %s [-H]\n", argv[0]);
+	fprintf(stderr, "Usage: %s [-H] [-t ntasks]\n", argv[0]);
 }
 
 void

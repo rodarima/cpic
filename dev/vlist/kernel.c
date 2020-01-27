@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE 500
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -5,6 +6,7 @@
 #include <sys/types.h>
 #include <math.h>
 #include <unistd.h>
+#include <stdalign.h>
 #include "perf.h"
 #include "test.h"
 #include "simd.h"
@@ -139,6 +141,7 @@ boris_rotation(pchunk_t *c, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 		s[d] = two * t[d] / s_denom[d];
 	}
 
+
 	cross_product(v_prime, v_minus, t);
 
 	for(d=X; d<MAX_DIM; d++)
@@ -155,6 +158,19 @@ boris_rotation(pchunk_t *c, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 		u[d] = v_plus[d] + dtqm2 * c->E[d];
 
 		/* TODO: Measure energy here */
+
+		/* FIXME: Uncommenting this line leads to correct behavior */
+		//assert(v_plus[d][0] != 0.0);
+#ifdef DEBUG
+//		int i, d;
+//		for(i=0; i<MAX_VEC; i++)
+//		{
+//			for(d=X; d<MAX_DIM; d++)
+//			{
+//				fprintf(stderr, "u[d=%d][i=%d] = %e\n", d, i, u[d][i]);
+//			}
+//		}
+#endif
 
 		VSTREAM((double *) &c->u[d], u[d]);
 	}
@@ -192,15 +208,14 @@ check_velocity(VDOUBLE u[MAX_DIM], VDOUBLE u_pmax, VDOUBLE u_nmax)
 	return;
 
 err:
-	fprintf(stderr, "Max velocity exceeded with mask=%x\n", mask_val);
+	fprintf(stderr, "Max velocity exceeded with mask=%08x\n", mask_val);
 
 #ifdef DEBUG
 	for(i=0; i<MAX_VEC; i++)
 	{
 		for(d=X; d<MAX_DIM; d++)
 		{
-			if(fabs(u[d][i]) > u_pmax[i])
-				fprintf(stderr, "fabs(u[%ld][%ld]) = %e > u_pmax[%ld] = %e\n",
+			fprintf(stderr, "fabs(u[d=%ld][i=%ld]) = %e > u_pmax[i=%ld] = %e\n",
 					d, i, fabs(u[d][i]), i, u_pmax[i]);
 		}
 	}
@@ -240,7 +255,6 @@ particle_update_r(plist_t *l)
 			boris_rotation(c, dtqm2v, u);
 
 			/* TODO: Compute energy using old and new velocity */
-
 			check_velocity(u, u_pmax, u_nmax);
 
 			particle_mover(c, u, dt);
