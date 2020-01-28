@@ -159,19 +159,6 @@ boris_rotation(pchunk_t *c, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 
 		/* TODO: Measure energy here */
 
-		/* FIXME: Uncommenting this line leads to correct behavior */
-		//assert(v_plus[d][0] != 0.0);
-#ifdef DEBUG
-//		int i, d;
-//		for(i=0; i<MAX_VEC; i++)
-//		{
-//			for(d=X; d<MAX_DIM; d++)
-//			{
-//				fprintf(stderr, "u[d=%d][i=%d] = %e\n", d, i, u[d][i]);
-//			}
-//		}
-#endif
-
 		VSTREAM((double *) &c->u[d], u[d]);
 	}
 }
@@ -179,7 +166,7 @@ boris_rotation(pchunk_t *c, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 static inline void
 particle_mover(pchunk_t *c, VDOUBLE u[MAX_DIM], VDOUBLE dt)
 {
-	int d;
+	size_t d;
 	for(d=X; d<MAX_DIM; d++)
 		c->r[d] += u[d] * dt;
 }
