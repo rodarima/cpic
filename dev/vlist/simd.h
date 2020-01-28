@@ -63,6 +63,12 @@
 #define S(x)		CONCAT(VEC_PREFIX, x)
 #define V(x)		CONCAT(x, VEC_SUFFIX)
 
+/* Simple intrinsics */
+#define VSET1(x)	S(set1_pd(x))
+#define VLOAD(x)	S(load_pd(x))
+#define VSTREAM(a, b)	S(stream_pd(a, b))
+#define VSTORE(a, b)	S(store_pd(a, b))
+#define VSQRT(x)	S(sqrt_pd(x))
 
 
 /********************* Hack zone begins *******************
@@ -82,34 +88,44 @@
 				0x7fffffffffffffff)))
 
 /* __m256d _mm256_cmp_pd (__m256d a, __m256d b, const int imm8) */
-#define VCMP(a, b, f)	S(cmp_pd(a, b, f))
-#define VMASK_ZERO(m)		m = VSET1(0)
-#define VMASK_VAL(m)		S(movemask_pd(m))
+#define VCMP(a, b, f)		S(cmp_pd(a, b, f))
+
+/* We perform the AND operation to emulate the masked CMP of AVX512 */
+#define VCMP_MASK(k, a, b, f)	S(and_pd(k, VCMP(a, b, f)))
+
+/* XXX Consider using __m256i _mm256_set1_epi8 (char a) */
+#define VMASK_SET(m, v)		m = VSET1(v)
+
+#define VMASK_GET(m)		S(movemask_pd(m))
+
 #endif /* USE_VECTOR_256 */
+
+/*********************************************************************/
 
 /* ONLY for 512 bits */
 #ifdef USE_VECTOR_512
+
 #define VABS(x)		S(abs_pd(x))
 
-#define V512CMP_MASK(k, a, b, f)	S(mask_cmp_pd_mask(k, a, b, f))
-#define V512COMPRESS(a, k, b)		S(mask_compress_pd(a, k, b))
 /* __mmask8 _mm512_cmp_pd_mask (__m512d a, __m512d b, const int imm8) */
 #define VCMP(a, b, f)		S(cmp_pd_mask(a, b, f))
-#define VMASK_ZERO(m)		m = 0
-#define VMASK_VAL(m)		m
+
+#define VCMP_MASK(k, a, b, f)	S(mask_cmp_pd_mask(k, a, b, f))
+
+#define V512COMPRESS(a, k, b)	S(mask_compress_pd(a, k, b))
+
+#define VMASK_SET(m, v)		m = v
+
+#define VMASK_GET(m)		m
 
 #endif /* USE_VECTOR_512 */
 
 /******************** Hack zone ends *********************/
 
-/* Simple intrinsics */
-#define VSET1(x)	S(set1_pd(x))
-#define VLOAD(x)	S(load_pd(x))
-#define VSTREAM(a, b)	S(stream_pd(a, b))
-#define VSTORE(a, b)	S(store_pd(a, b))
-#define VSQRT(x)	S(sqrt_pd(x))
-
-#define VMASK_ANY(m)		(VMASK_VAL(m) != 0)
+#define VMASK_ISANY(m)		(VMASK_GET(m) != 0)
+#define VMASK_ISZERO(m)		(VMASK_GET(m) == 0)
+#define VMASK_ZERO(m)		VMASK_SET(m, 0)
+#define VMASK_ONES(m)		VMASK_SET(m, 0xffffffffU)
 
 
 #endif /* _MCC */

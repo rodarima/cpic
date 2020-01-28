@@ -239,7 +239,7 @@ void
 task(plist_t *l)
 {
 	particle_update_r(l);
-	//particle_exchange_x(l);
+	particle_exchange_x(l);
 }
 
 void
@@ -301,7 +301,6 @@ main(int argc, char **argv)
 	size_t i, it, r, opt;
 	plist_t *l[MAX_NTASKS];
 	perf_t p;
-	pblock_t *b, *btmp;
 
 	while ((opt = getopt(argc, argv, "Ht:")) != -1)
 	{

@@ -71,14 +71,14 @@ ICFLAGS+=-qopt-zmm-usage=high
 MCC=mcc
 MCFLAGS=$(CFLAGS)
 MCFLAGS+=--cc=clang --cpp=clang
-#MCFLAGS+=--ompss-2 -k --v
+MCFLAGS+=--ompss-2 -k --v
 #MCFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
 LDLIBS+=-L/apps/PAPI/5.6.0/lib -lm
 #LDLIBS+=-lpapi
 
-#COMPILERS=$(MCC)
-COMPILERS=$(LCC)
+COMPILERS=$(MCC)
+#COMPILERS=$(LCC)
 #COMPILERS=$(LCC) $(GCC)
 #COMPILERS=$(ICC) $(GCC) $(LCC)
 BIN=$(addprefix test.,$(COMPILERS)) #my-kernel

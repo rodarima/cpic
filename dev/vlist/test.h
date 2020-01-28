@@ -80,11 +80,11 @@ struct pblock
 
 struct pwin
 {
-	pblock_t *b;
-	size_t i; /* Index of the first particle of the window */
-	VMASK mask;
-	size_t left;
-	//VDOUBLE tmp; /* Not used yet */
+	pblock_t *b;	/* Current pblock_t selected */
+	size_t ic;	/* Index of the pchunk_t */
+	//VMASK mask;	/* Particles selected in the chunk: 1==selected, 0==not */
+	unsigned int mask;	/* Particles selected in the chunk: 1==selected, 0==not */
+	size_t left;	/* Number of particles left */
 };
 
 struct pmover

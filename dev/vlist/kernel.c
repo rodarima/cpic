@@ -28,9 +28,10 @@ pwin_first(plist_t *l, pwin_t *w)
 	assert(l->b);
 
 	w->b = l->b;
-	w->i = 0;
+	w->ic = 0;
 	w->left = 0;
-	VMASK_ZERO(w->mask);
+	w->mask = 0;
+	//VMASK_ZERO(w->mask);
 }
 
 void
@@ -43,23 +44,19 @@ pwin_last(plist_t *l, pwin_t *w)
 	else /* 1 block */
 		w->b = l->b;
 
-	w->i = l->b->n - MAX_VEC;
+	w->ic = l->b->n / MAX_VEC;
 	w->left = 0;
-	VMASK_ZERO(w->mask);
-
-	assert((w->i % MAX_VEC) == 0);
+	w->mask = 0;
+	//VMASK_ZERO(w->mask);
 }
 
 int
 pwin_next(pwin_t *w)
 {
-	/* Check alignment */
-	assert((w->i % MAX_VEC) == 0);
-
 	/* Advance in the same block */
-	if(w->i + MAX_VEC < w->b->n)
+	if(w->ic < w->b->n / MAX_VEC)
 	{
-		w->i += MAX_VEC;
+		w->ic++;
 		return 0;
 	}
 
@@ -69,7 +66,7 @@ pwin_next(pwin_t *w)
 
 	/* Otherwise move to the next block */
 	w->b = w->b->next;
-	w->i = 0;
+	w->ic = 0;
 
 	return 0;
 }
@@ -77,25 +74,23 @@ pwin_next(pwin_t *w)
 int
 pwin_prev(pwin_t *w)
 {
-	/* Check alignment */
-	assert((w->i % MAX_VEC) == 0);
-
 	/* Move backwards in the same block */
-	if(w->i - MAX_VEC >= 0)
+	if(w->ic > 0)
 	{
-		w->i -= MAX_VEC;
+		w->ic--;
 		return 0;
 	}
 
 	/* Previous block */
 
 	/* If we are at the beginning, cannot continue */
+	/* TODO: Check this, not sure if prev is null using UTLIST macros */
 	if(!w->b->prev)
 		return 1;
 
 	/* Otherwise move to the previous block */
 	w->b = w->b->prev;
-	w->i = w->b->n - 1;
+	w->ic = w->b->n / MAX_VEC;
 
 	return 0;
 }
@@ -103,7 +98,7 @@ pwin_prev(pwin_t *w)
 int
 pwin_equal(pwin_t *A, pwin_t *B)
 {
-	return (A->b == B->b) && (A->i == B->i);
+	return (A->b == B->b) && (A->ic == B->ic);
 }
 
 static inline void
@@ -168,7 +163,9 @@ particle_mover(pchunk_t *c, VDOUBLE u[MAX_DIM], VDOUBLE dt)
 {
 	size_t d;
 	for(d=X; d<MAX_DIM; d++)
+	{
 		c->r[d] += u[d] * dt;
+	}
 }
 
 static inline void
@@ -186,7 +183,7 @@ check_velocity(VDOUBLE u[MAX_DIM], VDOUBLE u_pmax, VDOUBLE u_nmax)
 		u_abs = VABS(u[d]);
 		mask = VCMP(u_abs, u_pmax, _CMP_GT_OS);
 
-		mask_val = VMASK_VAL(mask);
+		mask_val = VMASK_GET(mask);
 
 		if(mask_val)
 			goto err;
@@ -226,7 +223,7 @@ particle_update_r(plist_t *l)
 	u_pmax = VSET1(u_max);
 	u_nmax = VSET1(-u_max);
 	dtqm2 = 1.0;
-	dtqm2 = M_PI * 1.2e-8;
+	dtqm2 = M_PI;
 	dtqm2v = VSET1(dtqm2);
 	dt = VSET1(dtqm2);
 
@@ -243,6 +240,10 @@ particle_update_r(plist_t *l)
 
 			/* TODO: Compute energy using old and new velocity */
 			check_velocity(u, u_pmax, u_nmax);
+			if(i == 0)
+			{
+				fprintf(stderr, "u[0][0]=%e r[0][0]=%e\n", u[0][0], c->r[0][0]);
+			}
 
 			particle_mover(c, u, dt);
 
@@ -252,241 +253,232 @@ particle_update_r(plist_t *l)
 
 }
 
-//void
-//update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
-//{
-//
-//	size_t iv;
-//	pblock_t *b;
-//
-//	assert(w);
-//
-//	iv = w->i / 8;
-//	b = w->b;
-//
-//	/* Check no more work was needed */
-//	assert(w->mask == 0);
-//	assert(w->left == 0);
-//
-//	//w->mask = _cvtu32_mask8(-1U);
-//	w->mask = (VMASK) -1U;
-//
-//#ifdef USE_VECTOR_512
-//
-//	/* Check if the particles are inside the chunk */
-//	w->mask = VCMP_MASK(w->mask, b->p.vr[X][iv], rlimit[X][IMIN], _CMP_GE_OS);
-//	w->mask = VCMP_MASK(w->mask, b->p.vr[Y][iv], rlimit[Y][IMIN], _CMP_GE_OS);
-//	w->mask = VCMP_MASK(w->mask, b->p.vr[X][iv], rlimit[X][IMAX], _CMP_LE_OS);
-//	w->mask = VCMP_MASK(w->mask, b->p.vr[Y][iv], rlimit[Y][IMAX], _CMP_LE_OS);
-//
-//#endif
-//
-//#ifdef USE_VECTOR_256
-//	size_t i;
-//
-//	for(i=0; i<MAX_VEC; i++)
-//	{
-//		if(	b->p.vr[X][iv][i] < rlimit[X][IMIN][i] ||
-//			b->p.vr[Y][iv][i] < rlimit[Y][IMIN][i] ||
-//			b->p.vr[X][iv][i] > rlimit[X][IMAX][i] ||
-//			b->p.vr[Y][iv][i] > rlimit[Y][IMAX][i])
-//		{
-//			w->mask &= ~(1U<<i);
-//		}
-//	}
-//#endif
-//
-//	if(invert)
-//		/* Invert the mask, so holes are ones */
-//		w->mask = ~w->mask;
-//
-//	/* And count how many holes we have */
-//	w->left = __builtin_popcount(w->mask);
-//
-//	//dbg("w->left=%ld  w->mask=%hhu  invert=%d\n",
-//	//	w->left, w->mask, invert);
-//}
-//
-//void
-//swap_size_t(size_t *a, size_t *b)
-//{
-//	size_t t;
-//
-//	t = *a;
-//	*a = *b;
-//	*b = t;
-//}
-//void
-//
-//swap_double(double *a, double *b)
-//{
-//	double t;
-//
-//	t = *a;
-//	*a = *b;
-//	*b = t;
-//}
-//
-//void
-//particle_swap(pblock_t *ba, size_t i, pblock_t *bb, size_t j)
-//{
-//	int d;
-//	pheader_t *a, *b;
-//	a = &ba->p;
-//	b = &bb->p;
-//
-//	swap_size_t(&a->i[i], &b->i[j]);
-//
-//	for(d=0; d<MAX_DIM; d++)
-//	{
-//		swap_double(&a->r[d][i], &b->r[d][j]);
-//		swap_double(&a->u[d][i], &b->u[d][j]);
-//		swap_double(&a->E[d][i], &b->E[d][j]);
-//		swap_double(&a->B[d][i], &b->B[d][j]);
-//	}
-//}
-//
-///* Property at exit:
-// * 	A->left != 0 || A == B */
-//void
-//consume(pwin_t *A, pwin_t *B, VDOUBLE rlimit[MAX_DIM][2])
-//{
-//	/* Holes already present */
-//	if(A->left)
-//		return;
-//
-//	do
-//	{
-//		/* Look for holes to fill */
-//		update_mask(A, 1, rlimit);
-//
-//		/* If we have non-zero number of holes, stop */
-//		if(A->left)
-//			return;
-//
-//		/* Otherwise slide the window and continue the search */
-//		if(pwin_next(A))
-//			return;
-//	}
-//	while(!pwin_equal(A, B));
-//}
-//
-///* Property at exit:
-// * 	B->left != 0 || A == B */
-//void
-//produce(pwin_t *A, pwin_t *B, VDOUBLE rlimit[MAX_DIM][2])
-//{
-//	/* Particles already present */
-//	if(B->left)
-//		return;
-//
-//	while(!pwin_equal(A, B))
-//	{
-//		/* Look for exitting particles */
-//		update_mask(B, 0, rlimit);
-//
-//		/* If we found some, stop */
-//		if(B->left)
-//			return;
-//
-//		/* Otherwise slide the window and continue the search */
-//		if(pwin_prev(B))
-//			return;
-//	}
-//}
-//
-///* Property at exit:
-// * 	A->left == 0 || B->left == 0 || A == B */
-//void
-//exchange(pwin_t *A, pwin_t *B)
-//{
-//	size_t i, j;
-//
-//	if(pwin_equal(A, B))
-//		return;
-//
-//	/* Sanity check, otherwise something is broken */
-//	assert(A->left != 0);
-//	assert(B->left != 0);
-//
-//	i = 0;
-//	j = 0;
-//
-//	while(1)
-//	{
-//		dbg("A->left=%ld  B->left=%ld  i=%ld  j=%ld\n",
-//			A->left, B->left, i, j);
-//
-//		if(i>=MAX_VEC || A->left == 0 ||
-//			j>=MAX_VEC || B->left == 0)
-//		{
-//			/* No more available actions */
-//			break;
-//		}
-//
-//		if((A->mask && 1U<<i) == 0)
-//		{
-//			i++;
-//			continue;
-//		}
-//
-//		if((B->mask && 1U<<j) == 0)
-//		{
-//			j++;
-//			continue;
-//		}
-//
-//		/* We have both ones at a hole and at a particle */
-//		particle_swap(A->b, A->i + i,
-//				B->b, B->i + j);
-//
-//		/* Disable the bit in the masks as well */
-//		A->mask &= ~(1U<<i);
-//		B->mask &= ~(1U<<j);
-//
-//		/* Move the bit index */
-//		i++;
-//		j++;
-//
-//		/* And reduce the number of elements to swap in both */
-//		A->left--;
-//		B->left--;
-//	}
-//
-//	/* At least a window should be empty */
-//	assert(A->left == 0 || B->left == 0);
-//}
-//
-//void
-//particle_exchange_x(plist_t *l)
-//{
-//	int d;
-//	VDOUBLE rlimit[MAX_DIM][2];
-//	pwin_t A, B;
-//
-//	pwin_first(l, &A);
-//	pwin_last(l, &B);
-//
-//	for(d = 0; d<MAX_DIM; d++)
-//	{
-//		rlimit[d][IMIN] = VSET1(-10.0);
-//		rlimit[d][IMAX] = VSET1(10.0);
-//	}
-//
-//	while(!pwin_equal(&A, &B))
-//	{
-//		/* First we position the window in the first hole */
-//		consume(&A, &B, rlimit);
-//
-//		/* Then we produce at least one particle */
-//		produce(&A, &B, rlimit);
-//
-//		/* Finally we fill all holes we can */
-//		exchange(&A, &B);
-//	}
-//
-//	/* TODO: Now deal with the A == B case */
-//}
+void
+update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
+{
+
+	size_t ic;
+	pblock_t *b;
+	pchunk_t *c;
+	volatile VMASK m;
+
+	assert(w);
+
+	ic = w->ic;
+	b = w->b;
+
+	/* Check no more work was needed */
+	assert(w->mask == 0);
+	//assert(VMASK_ISZERO(w->mask));
+	assert(w->left == 0);
+
+	/* By default mark all particles */
+	VMASK_ONES(m);
+
+	if(w->ic == 0)
+	{
+		fprintf(stderr, "m=%08lx m[0]=%08lx\n", (unsigned long) VMASK_GET(m), (unsigned long) m[0]);
+	}
+
+	c = &b->c[ic];
+
+	/* Check if the particles are inside the chunk */
+	m = VCMP_MASK(m, c->r[X], rlimit[X][IMIN], _CMP_GE_OS);
+	m = VCMP_MASK(m, c->r[Y], rlimit[Y][IMIN], _CMP_GE_OS);
+	m = VCMP_MASK(m, c->r[X], rlimit[X][IMAX], _CMP_LE_OS);
+	m = VCMP_MASK(m, c->r[Y], rlimit[Y][IMAX], _CMP_LE_OS);
+
+	if(w->ic == 0)
+	{
+		fprintf(stderr, "r[X][0]=%e   rlimit[X][IMIN]=%e   rlimit[X][IMAX]=%e\n",
+				c->r[X][0], rlimit[X][IMIN][0], rlimit[X][IMAX][0]);
+	}
+
+	w->mask = VMASK_GET(m);
+
+	if(invert)
+	{
+		/* Invert the mask, so holes are ones */
+		w->mask = ~w->mask;
+	}
+
+	/* And count how many holes we have */
+	w->left = __builtin_popcount(w->mask);
+
+	//dbg("w->left=%ld  w->mask=%hhu  invert=%d\n",
+	//	w->left, w->mask, invert);
+}
+
+#define SWAP(a, b, tmp) do { tmp=a; a=b; b=tmp; } while(0)
+
+void
+particle_swap(pchunk_t *a, size_t i, pchunk_t *b, size_t j)
+{
+	int d;
+	size_t tmpi;
+	double tmpd;
+
+	/* TODO: Vectorize swap */
+	SWAP(a->i[i], b->i[j], tmpi);
+
+	for(d=0; d<MAX_DIM; d++)
+	{
+		SWAP(a->r[d][i], b->r[d][j], tmpd);
+		SWAP(a->u[d][i], b->u[d][j], tmpd);
+		SWAP(a->E[d][i], b->E[d][j], tmpd);
+		SWAP(a->B[d][i], b->B[d][j], tmpd);
+	}
+}
+
+#undef SWAP
+
+/* Property at exit:
+ * 	A->left != 0 || A == B */
+void
+consume(pwin_t *A, pwin_t *B, VDOUBLE rlimit[MAX_DIM][2])
+{
+	/* Holes already present */
+	if(A->left)
+		return;
+
+	do
+	{
+		/* Look for holes to fill */
+		update_mask(A, 1, rlimit);
+
+		/* If we have non-zero number of holes, stop */
+		if(A->left)
+			return;
+
+		/* Otherwise slide the window and continue the search */
+		if(pwin_next(A))
+			return;
+	}
+	while(!pwin_equal(A, B));
+}
+
+/* Property at exit:
+ * 	B->left != 0 || A == B */
+void
+produce(pwin_t *A, pwin_t *B, VDOUBLE rlimit[MAX_DIM][2])
+{
+	/* Particles already present */
+	if(B->left)
+		return;
+
+	while(!pwin_equal(A, B))
+	{
+		/* Look for exitting particles */
+		update_mask(B, 0, rlimit);
+
+		/* If we found some, stop */
+		if(B->left)
+			return;
+
+		/* Otherwise slide the window and continue the search */
+		if(pwin_prev(B))
+			return;
+	}
+}
+
+/* Property at exit:
+ * 	A->left == 0 || B->left == 0 || A == B */
+void
+exchange(pwin_t *A, pwin_t *B, size_t *count)
+{
+	size_t i, j;
+	pchunk_t *a, *b;
+
+	if(pwin_equal(A, B))
+		return;
+
+	/* Sanity check, otherwise something is broken */
+	assert(A->left != 0);
+	assert(B->left != 0);
+
+	i = 0;
+	j = 0;
+
+	a = &A->b->c[A->ic];
+	b = &B->b->c[B->ic];
+
+	while(1)
+	{
+		dbg("A->left=%ld  B->left=%ld  i=%ld  j=%ld\n",
+			A->left, B->left, i, j);
+
+		if(i>=MAX_VEC || A->left == 0 ||
+			j>=MAX_VEC || B->left == 0)
+		{
+			/* No more available actions */
+			break;
+		}
+
+		if((A->mask && 1U<<i) == 0)
+		{
+			i++;
+			continue;
+		}
+
+		if((B->mask && 1U<<j) == 0)
+		{
+			j++;
+			continue;
+		}
+
+		/* We have both ones at a hole and at a particle */
+		particle_swap(a, i, b, j);
+		(*count)++;
+
+		/* Disable the bit in the masks as well */
+		A->mask &= ~(1U<<i);
+		B->mask &= ~(1U<<j);
+
+		/* Move the bit index */
+		i++;
+		j++;
+
+		/* And reduce the number of elements to swap in both */
+		A->left--;
+		B->left--;
+	}
+
+	/* At least a window should be empty */
+	assert(A->left == 0 || B->left == 0);
+}
+
+void
+particle_exchange_x(plist_t *l)
+{
+	size_t d, count;
+	VDOUBLE rlimit[MAX_DIM][2];
+	pwin_t A, B;
+
+	count = 0;
+	pwin_first(l, &A);
+	pwin_last(l, &B);
+
+	for(d = 0; d<MAX_DIM; d++)
+	{
+		rlimit[d][IMIN] = VSET1(-10.0);
+		rlimit[d][IMAX] = VSET1(10.0);
+	}
+
+	while(!pwin_equal(&A, &B))
+	{
+		/* First we position the window in the first hole */
+		consume(&A, &B, rlimit);
+
+		/* Then we produce at least one particle */
+		produce(&A, &B, rlimit);
+
+		/* Finally we fill all holes we can */
+		exchange(&A, &B, &count);
+	}
+
+	/* TODO: Now deal with the A == B case */
+	fprintf(stderr, "Total exchanges %ld\n", count);
+}
 
 void
 init_particles(plist_t *l)
@@ -494,6 +486,8 @@ init_particles(plist_t *l)
 	size_t d, ic, j, ip, iv, nc;
 	pblock_t *b;
 	pchunk_t *c;
+
+#define INITIAL_B 1e-5
 
 	for(j=0,ip=0,b=l->b; b; b=b->next, j++)
 	{
@@ -508,7 +502,7 @@ init_particles(plist_t *l)
 			{
 				c->r[d] = VSET1(2.0 + d);
 				c->u[d] = VSET1(20 + 10*d);
-				c->B[d] = VSET1(2.0);
+				c->B[d] = VSET1(1e-5);
 				c->E[d] = VSET1(3.0);
 			}
 		}
@@ -526,10 +520,12 @@ init_particles(plist_t *l)
 				{
 					assert(c->r[d][iv] == 2+d);
 					assert(c->u[d][iv] == 20+10*d);
-					assert(c->B[d][iv] == 2.0);
+					assert(c->B[d][iv] == INITIAL_B);
 					assert(c->E[d][iv] == 3.0);
 				}
 			}
 		}
 	}
+
+#undef INITIAL_B
 }
