@@ -11,7 +11,7 @@
 #include "test.h"
 #include "simd.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #define GLOBAL_DEBUG
 #include "log.h"
 
@@ -44,7 +44,8 @@ pwin_last(plist_t *l, pwin_t *w)
 	else /* 1 block */
 		w->b = l->b;
 
-	w->ic = l->b->n / MAX_VEC;
+	w->ic = (l->b->n - 1)/ MAX_VEC;
+	//dbg("pwin_last: b->n = %ld, w->ic = %ld\n", l->b->n, w->ic);
 	w->left = 0;
 	w->mask = 0;
 	//VMASK_ZERO(w->mask);
@@ -260,7 +261,7 @@ update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 	size_t ic, i, d;
 	pblock_t *b;
 	pchunk_t *c;
-	volatile VMASK m;
+	VMASK m;
 
 	assert(w);
 
@@ -278,19 +279,19 @@ update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 	c = &b->c[ic];
 
 	/* Check if the particles are inside the chunk */
-	dbg("exchange mask (init): ic=%ld m=%02x\n", w->ic, VMASK_GET(m));
+	//dbg("exchange mask (init): ic=%ld m=%02x\n", w->ic, VMASK_GET(m));
 
 	for(d=X; d<MAX_DIM; d++)
 	{
 		m = VCMP_MASK(m, c->r[d], rlimit[d][IMIN], _CMP_GE_OS);
 		m = VCMP_MASK(m, c->r[d], rlimit[d][IMAX], _CMP_LE_OS);
-		dbg("exchange mask (%ld): m=%02x\n", d, VMASK_GET(m));
+		//dbg("exchange mask (%ld): m=%02x\n", d, VMASK_GET(m));
 	}
 
 	w->mask = VMASK_GET(m);
 
-	dbg("exchange mask: ic=%ld m=%02x mask=%02x\n",
-			w->ic, VMASK_GET(m), w->mask);
+	//dbg("exchange mask: ic=%ld m=%02x mask=%02x\n",
+	//		w->ic, VMASK_GET(m), w->mask);
 
 	if(invert)
 	{
@@ -298,19 +299,26 @@ update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 		w->mask = ~w->mask & 0x0f;
 		/* TODO: VMASK_INVERT() */
 
-		dbg("inverted mask: mask=%02x\n", w->mask);
+		//dbg("inverted mask: mask=%02x\n", w->mask);
 	}
 
-	if(0)
+	dbg("exchange mask: inv=%d ic=%ld mask=%02x\n",
+			invert, w->ic, w->mask);
+
+	if(1)
 	{
-		for(i=0; i<MAX_VEC; i++)
-			for(d=X; d<MAX_DIM; d++)
+		for(d=X; d<MAX_DIM; d++)
+		{
+			for(i=0; i<MAX_VEC; i++)
+			{
 				dbg("CHECK ic=%ld inv=%d r[d=%ld][i=%ld] = %e (limit %e %e)\n",
 					w->ic, invert,
 					d,i,
 					c->r[d][i],
 					rlimit[d][IMIN][i],
 					rlimit[d][IMAX][i]);
+			}
+		}
 	}
 
 	/* And count how many holes we have */
@@ -322,7 +330,7 @@ update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 
 #define SWAP(a, b, tmp) do { tmp=a; a=b; b=tmp; } while(0)
 
-void
+static inline void
 particle_swap(pchunk_t *a, size_t i, pchunk_t *b, size_t j)
 {
 	int d;
@@ -360,10 +368,13 @@ consume(pwin_t *A, pwin_t *B, VDOUBLE rlimit[MAX_DIM][2])
 		/* If we have non-zero number of holes, stop */
 		if(A->left)
 		{
-			dbg("consume found %ld holes at %ld\n",
+			dbg("consume found %ld holes at ic=%ld\n",
 					A->left, A->ic);
 			return;
 		}
+
+		dbg("no holes found at ic=%ld, moving to the next pchunk\n",
+				A->ic);
 
 		/* Otherwise slide the window and continue the search */
 		if(pwin_next(A))
@@ -389,10 +400,13 @@ produce(pwin_t *A, pwin_t *B, VDOUBLE rlimit[MAX_DIM][2])
 		/* If we found some, stop */
 		if(B->left)
 		{
-			dbg("produce found %ld particles at %ld\n",
+			dbg("produce found %ld particles at ic=%ld\n",
 					B->left, B->ic);
 			return;
 		}
+
+		dbg("no particles found at ic=%ld, moving to the previous pchunk\n",
+				B->ic);
 
 		/* Otherwise slide the window and continue the search */
 		if(pwin_prev(B))
@@ -423,8 +437,8 @@ exchange(pwin_t *A, pwin_t *B, size_t *count)
 
 	while(1)
 	{
-		dbg("A->left=%ld  B->left=%ld  i=%ld  j=%ld\n",
-			A->left, B->left, i, j);
+		dbg("A: left=%ld  i=%ld  mask=%02x\n", A->left, i, A->mask);
+		dbg("B: left=%ld  j=%ld  mask=%02x\n", B->left, j, B->mask);
 
 		if(i>=MAX_VEC || A->left == 0 ||
 			j>=MAX_VEC || B->left == 0)
@@ -433,17 +447,19 @@ exchange(pwin_t *A, pwin_t *B, size_t *count)
 			break;
 		}
 
-		if((A->mask && 1U<<i) == 0)
+		if((A->mask & 1U<<i) == 0)
 		{
 			i++;
 			continue;
 		}
 
-		if((B->mask && 1U<<j) == 0)
+		if((B->mask & 1U<<j) == 0)
 		{
 			j++;
 			continue;
 		}
+
+		dbg("swap A:%ld with B:%ld\n", i, j);
 
 		/* We have both ones at a hole and at a particle */
 		particle_swap(a, i, b, j);
@@ -467,7 +483,7 @@ exchange(pwin_t *A, pwin_t *B, size_t *count)
 }
 
 void
-particle_exchange_x(plist_t *l)
+particle_exchange_x(plist_t *l, size_t *excount)
 {
 	size_t d, count;
 	VDOUBLE rlimit[MAX_DIM][2];
@@ -502,7 +518,8 @@ particle_exchange_x(plist_t *l)
 	}
 
 	/* TODO: Now deal with the A == B case */
-	dbg("Total exchanges %ld\n", count);
+	//err("Total exchanges %ld\n", count);
+	*excount = count;
 }
 
 void
@@ -511,8 +528,6 @@ init_particles(plist_t *l)
 	size_t d, ic, j, ip, iv, nc;
 	pblock_t *b;
 	pchunk_t *c;
-
-#define INITIAL_B 1e-5
 
 	srand(123);
 
@@ -527,10 +542,14 @@ init_particles(plist_t *l)
 
 			for(d=X; d<MAX_DIM; d++)
 			{
-				c->r[d] = VSET1(4.0 * d);
-				c->u[d] = VSET1(0.1 * d + ((double)rand() / RAND_MAX));
-				c->B[d] = VSET1(1e-5);
-				c->E[d] = VSET1(3.0e-2);
+				for(iv=0; iv<MAX_VEC; iv++)
+					c->r[d][iv] = 10.0 * ((double)rand() / RAND_MAX);
+
+				/* Increment the initial speed to increase the
+				 * avg number of particles in the exchange */
+				c->u[d] = VSET1(1e-4);
+				c->B[d] = VSET1(1e-8);
+				c->E[d] = VSET1(1e-8);
 			}
 		}
 	}

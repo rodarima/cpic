@@ -28,8 +28,11 @@ int num_hwcntrs = 0;
 #define MAX_NTASKS 128
 #define NBLOCKS 1
 #define NMAX (8*1024*1024)
+//#define NMAX 16
 
 int use_huge_pages = 0;
+int use_update_r = 0;
+int use_exchange = 0;
 int ntasks = 1;
 
 int
@@ -236,10 +239,13 @@ plist_grow(plist_t *l, size_t n)
 //}
 
 void
-task(plist_t *l)
+task(plist_t *l, size_t *excount)
 {
-	particle_update_r(l);
-	particle_exchange_x(l);
+	if(use_update_r)
+		particle_update_r(l);
+
+	if(use_exchange)
+		particle_exchange_x(l, excount);
 }
 
 void
@@ -251,10 +257,12 @@ usage(int argc, char *argv[])
 void
 run(plist_t *l[MAX_NTASKS])
 {
-	size_t it;
+	size_t it, extot;
 	perf_t p;
 	double t;
+	size_t excount[MAX_NTASKS] = {0};
 
+	extot = 0;
 	perf_init(&p);
 	perf_start(&p);
 
@@ -270,11 +278,14 @@ run(plist_t *l[MAX_NTASKS])
 #endif
 	for(it=0; it<ntasks; it++)
 	{
-		#pragma oss task
-		task(l[it]);
+		#pragma oss task shared(excount)
+		task(l[it], &excount[it]);
 	}
 
 	#pragma oss taskwait
+
+	for(it=0, extot=0; it<ntasks; it++)
+		extot += excount[it];
 
 #ifdef USE_PAPI
 	/* Stop counting events */
@@ -291,7 +302,8 @@ run(plist_t *l[MAX_NTASKS])
 
 	/* Approximation of the bandwidth */
 	double bw = (double) ntasks * NBLOCKS * NMAX / t;
-	printf("%e\t%e\n", t, bw);
+
+	printf("%e\t%e\t%ld\n", t, bw, extot);
 }
 
 
@@ -302,7 +314,7 @@ main(int argc, char **argv)
 	plist_t *l[MAX_NTASKS];
 	perf_t p;
 
-	while ((opt = getopt(argc, argv, "Ht:")) != -1)
+	while ((opt = getopt(argc, argv, "rxHt:")) != -1)
 	{
 		switch(opt)
 		{
@@ -312,13 +324,19 @@ main(int argc, char **argv)
 			case 't':
 				ntasks = atoi(optarg);
 				break;
+			case 'x':
+				use_exchange = 1;
+				break;
+			case 'r':
+				use_update_r = 1;
+				break;
 			default:
 				  usage(argc, argv);
 				  exit(EXIT_FAILURE);
 		}
 	}
 
-	fprintf(stderr, "Using %d tasks\n", ntasks);
+	//fprintf(stderr, "Using %d tasks\n", ntasks);
 
 	perf_init(&p);
 	perf_start(&p);
@@ -334,7 +352,7 @@ main(int argc, char **argv)
 	}
 
 	perf_stop(&p);
-	fprintf(stderr, "init \t%e s\n", perf_measure(&p));
+	//fprintf(stderr, "init \t%e s\n", perf_measure(&p));
 
 #ifdef USE_PAPI
 	/* Initialize the PAPI library and get the number of counters available */
