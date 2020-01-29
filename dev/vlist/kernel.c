@@ -192,14 +192,14 @@ check_velocity(VDOUBLE u[MAX_DIM], VDOUBLE u_pmax, VDOUBLE u_nmax)
 	return;
 
 err:
-	fprintf(stderr, "Max velocity exceeded with mask=%08x\n", mask_val);
+	dbg("Max velocity exceeded with mask=%08x\n", mask_val);
 
 #ifdef DEBUG
 	for(i=0; i<MAX_VEC; i++)
 	{
 		for(d=X; d<MAX_DIM; d++)
 		{
-			fprintf(stderr, "fabs(u[d=%ld][i=%ld]) = %e > u_pmax[i=%ld] = %e\n",
+			dbg("fabs(u[d=%ld][i=%ld]) = %e > u_pmax[i=%ld] = %e\n",
 					d, i, fabs(u[d][i]), i, u_pmax[i]);
 		}
 	}
@@ -242,7 +242,7 @@ particle_update_r(plist_t *l)
 			check_velocity(u, u_pmax, u_nmax);
 			if(i == 0)
 			{
-				fprintf(stderr, "u[0][0]=%e r[0][0]=%e\n", u[0][0], c->r[0][0]);
+				dbg("u[0][0]=%e r[0][0]=%e\n", u[0][0], c->r[0][0]);
 			}
 
 			particle_mover(c, u, dt);
@@ -257,7 +257,7 @@ void
 update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 {
 
-	size_t ic;
+	size_t ic, i, d;
 	pblock_t *b;
 	pchunk_t *c;
 	volatile VMASK m;
@@ -275,31 +275,42 @@ update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 	/* By default mark all particles */
 	VMASK_ONES(m);
 
-	if(w->ic == 0)
-	{
-		fprintf(stderr, "m=%08lx m[0]=%08lx\n", (unsigned long) VMASK_GET(m), (unsigned long) m[0]);
-	}
-
 	c = &b->c[ic];
 
 	/* Check if the particles are inside the chunk */
-	m = VCMP_MASK(m, c->r[X], rlimit[X][IMIN], _CMP_GE_OS);
-	m = VCMP_MASK(m, c->r[Y], rlimit[Y][IMIN], _CMP_GE_OS);
-	m = VCMP_MASK(m, c->r[X], rlimit[X][IMAX], _CMP_LE_OS);
-	m = VCMP_MASK(m, c->r[Y], rlimit[Y][IMAX], _CMP_LE_OS);
+	dbg("exchange mask (init): ic=%ld m=%02x\n", w->ic, VMASK_GET(m));
 
-	if(w->ic == 0)
+	for(d=X; d<MAX_DIM; d++)
 	{
-		fprintf(stderr, "r[X][0]=%e   rlimit[X][IMIN]=%e   rlimit[X][IMAX]=%e\n",
-				c->r[X][0], rlimit[X][IMIN][0], rlimit[X][IMAX][0]);
+		m = VCMP_MASK(m, c->r[d], rlimit[d][IMIN], _CMP_GE_OS);
+		m = VCMP_MASK(m, c->r[d], rlimit[d][IMAX], _CMP_LE_OS);
+		dbg("exchange mask (%ld): m=%02x\n", d, VMASK_GET(m));
 	}
 
 	w->mask = VMASK_GET(m);
 
+	dbg("exchange mask: ic=%ld m=%02x mask=%02x\n",
+			w->ic, VMASK_GET(m), w->mask);
+
 	if(invert)
 	{
 		/* Invert the mask, so holes are ones */
-		w->mask = ~w->mask;
+		w->mask = ~w->mask & 0x0f;
+		/* TODO: VMASK_INVERT() */
+
+		dbg("inverted mask: mask=%02x\n", w->mask);
+	}
+
+	if(0)
+	{
+		for(i=0; i<MAX_VEC; i++)
+			for(d=X; d<MAX_DIM; d++)
+				dbg("CHECK ic=%ld inv=%d r[d=%ld][i=%ld] = %e (limit %e %e)\n",
+					w->ic, invert,
+					d,i,
+					c->r[d][i],
+					rlimit[d][IMIN][i],
+					rlimit[d][IMAX][i]);
 	}
 
 	/* And count how many holes we have */
@@ -348,7 +359,11 @@ consume(pwin_t *A, pwin_t *B, VDOUBLE rlimit[MAX_DIM][2])
 
 		/* If we have non-zero number of holes, stop */
 		if(A->left)
+		{
+			dbg("consume found %ld holes at %ld\n",
+					A->left, A->ic);
 			return;
+		}
 
 		/* Otherwise slide the window and continue the search */
 		if(pwin_next(A))
@@ -373,7 +388,11 @@ produce(pwin_t *A, pwin_t *B, VDOUBLE rlimit[MAX_DIM][2])
 
 		/* If we found some, stop */
 		if(B->left)
+		{
+			dbg("produce found %ld particles at %ld\n",
+					B->left, B->ic);
 			return;
+		}
 
 		/* Otherwise slide the window and continue the search */
 		if(pwin_prev(B))
@@ -467,17 +486,23 @@ particle_exchange_x(plist_t *l)
 	while(!pwin_equal(&A, &B))
 	{
 		/* First we position the window in the first hole */
+		dbg("--- consume search begins --- \n");
 		consume(&A, &B, rlimit);
+		dbg("--- consume search ends ---\n");
 
 		/* Then we produce at least one particle */
+		dbg("--- produce search begins --- \n");
 		produce(&A, &B, rlimit);
+		dbg("--- produce search ends ---\n");
 
 		/* Finally we fill all holes we can */
+		dbg("--- exchange begins --- \n");
 		exchange(&A, &B, &count);
+		dbg("--- exchange ends --- \n");
 	}
 
 	/* TODO: Now deal with the A == B case */
-	fprintf(stderr, "Total exchanges %ld\n", count);
+	dbg("Total exchanges %ld\n", count);
 }
 
 void
@@ -488,6 +513,8 @@ init_particles(plist_t *l)
 	pchunk_t *c;
 
 #define INITIAL_B 1e-5
+
+	srand(123);
 
 	for(j=0,ip=0,b=l->b; b; b=b->next, j++)
 	{
@@ -500,32 +527,32 @@ init_particles(plist_t *l)
 
 			for(d=X; d<MAX_DIM; d++)
 			{
-				c->r[d] = VSET1(2.0 + d);
-				c->u[d] = VSET1(20 + 10*d);
+				c->r[d] = VSET1(4.0 * d);
+				c->u[d] = VSET1(0.1 * d + ((double)rand() / RAND_MAX));
 				c->B[d] = VSET1(1e-5);
-				c->E[d] = VSET1(3.0);
+				c->E[d] = VSET1(3.0e-2);
 			}
 		}
 	}
 
-	for(j=0,b=l->b; b; b=b->next, j++)
-	{
-		nc = (b->n + MAX_VEC - 1)/ MAX_VEC;
-		for(ic=0; ic<nc; ic++)
-		{
-			c = &b->c[ic];
-			for(iv=0; iv<MAX_VEC; iv++)
-			{
-				for(d=X; d<MAX_DIM; d++)
-				{
-					assert(c->r[d][iv] == 2+d);
-					assert(c->u[d][iv] == 20+10*d);
-					assert(c->B[d][iv] == INITIAL_B);
-					assert(c->E[d][iv] == 3.0);
-				}
-			}
-		}
-	}
+//	for(j=0,b=l->b; b; b=b->next, j++)
+//	{
+//		nc = (b->n + MAX_VEC - 1)/ MAX_VEC;
+//		for(ic=0; ic<nc; ic++)
+//		{
+//			c = &b->c[ic];
+//			for(iv=0; iv<MAX_VEC; iv++)
+//			{
+//				for(d=X; d<MAX_DIM; d++)
+//				{
+//					assert(c->r[d][iv] == 2.0 * d);
+//					assert(c->u[d][iv] == 0.1 * d);
+//					assert(c->B[d][iv] == INITIAL_B);
+//					assert(c->E[d][iv] == 3.0e-2);
+//				}
+//			}
+//		}
+//	}
 
 #undef INITIAL_B
 }

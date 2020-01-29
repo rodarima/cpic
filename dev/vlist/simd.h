@@ -44,7 +44,7 @@
 #define VMASK		__mmask8
 #define VEC_PREFIX	_mm512_
 #define VEC_SUFFIX	_512
-#define MAX_VEC 8 /* Vector size in doubles */
+#define MAX_VEC		8 /* Vector size in doubles */
 #endif
 
 #ifdef USE_VECTOR_256
@@ -52,10 +52,11 @@
 #define VINT		__m256i
 /* FIXME: In 256 we don't really have any mask, so we use the vector double by
  * default */
-#define VMASK          __m256d
+#define VMASK		__m256d
+#define VMC_ONES	((char) 0xff)
 #define VEC_PREFIX	_mm256_
 #define VEC_SUFFIX	_256
-#define MAX_VEC 4 /* Vector size in doubles */
+#define MAX_VEC		4 /* Vector size in doubles */
 #endif
 
 #define CONCAT_(a, b)	a##b
@@ -94,7 +95,8 @@
 #define VCMP_MASK(k, a, b, f)	S(and_pd(k, VCMP(a, b, f)))
 
 /* XXX Consider using __m256i _mm256_set1_epi8 (char a) */
-#define VMASK_SET(m, v)		m = VSET1(v)
+#define VMASK_SET(m, v)		m = _mm256_set1_epi8(v)
+//#define VMASK_SET(m, v)		m = VSET1(v)
 
 #define VMASK_GET(m)		S(movemask_pd(m))
 
@@ -125,7 +127,7 @@
 #define VMASK_ISANY(m)		(VMASK_GET(m) != 0)
 #define VMASK_ISZERO(m)		(VMASK_GET(m) == 0)
 #define VMASK_ZERO(m)		VMASK_SET(m, 0)
-#define VMASK_ONES(m)		VMASK_SET(m, 0xffffffffU)
+#define VMASK_ONES(m)		VMASK_SET(m, VMC_ONES)
 
 
 #endif /* _MCC */
