@@ -10,6 +10,7 @@
 #include "perf.h"
 #include "test.h"
 #include "simd.h"
+#include "mat.h"
 
 #define DEBUG 0
 #define GLOBAL_DEBUG
@@ -92,18 +93,19 @@ interpolate_weights_xy(vf64 x[2], vf64 dx[2], vf64 idx[2],
 	linear_interpolation_xy(delta_grid, w);
 	//assert(fabs(w[0][0] + w[0][1] + w[1][0] + w[1][1] - 1.0) < MAX_ERR);
 }
-#if 0
+#if 1
 void
 interpolate_field_to_particle_xy(vf64 blocksize[2], vf64 ghostsize[2],
-		vf64 dx[2], vf64 idx[2], particle_t *p, vf64 val[MAX_VEC],
-		mat_t *mat)
+		vf64 dx[2], vf64 idx[2], vf64 x[2], vf64 x0[2],
+		vf64 val[1], mat_t *mat)
 {
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
 
-	interpolate_weights_xy(p->x, sim->dx, sim->field.x0, w, i0);
+	interpolate_weights_xy(x, dx, idx, x0, w, i0);
 
-	/* We only need to wrap the X direction, as we have the ghost in the Y */
+	/* We only need to wrap the X direction, as we have the ghost in the Y
+	 * */
 
 	i1[X] = i0[X] + vi64_set1(1);
 	i1[Y] = i0[Y] + vi64_set1(1);
@@ -128,10 +130,10 @@ interpolate_field_to_particle_xy(vf64 blocksize[2], vf64 ghostsize[2],
 	//assert(mat->shape[X] == sim->blocksize[X]);
 	//assert(mat->shape[Y] == sim->blocksize[Y]);
 
-	*val  = w[0][0] * MAT_XY(mat, i0[X], i0[Y]);
-	*val += w[0][1] * MAT_XY(mat, i0[X], i1[Y]);
-	*val += w[1][0] * MAT_XY(mat, i1[X], i0[Y]);
-	*val += w[1][1] * MAT_XY(mat, i1[X], i1[Y]);
+	val[0]  = w[0][0] * vmat_get_xy(mat, i0[X], i0[Y]);
+	val[0] += w[0][1] * vmat_get_xy(mat, i0[X], i1[Y]);
+	val[0] += w[1][0] * vmat_get_xy(mat, i1[X], i0[Y]);
+	val[0] += w[1][1] * vmat_get_xy(mat, i1[X], i1[Y]);
 
 }
 #endif

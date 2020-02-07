@@ -3,19 +3,20 @@
 #include <assert.h>
 #include <stdint.h>
 #include "simd.h"
+#include "mat.h"
 
 #define VLIST_ALIGN	1024	/* bytes */
 #define VEC_ALIGN	64	/* bytes */
 #define PL_HEAD_PAD	64	/* bytes */
 #define PB_HEAD_PAD	128	/* bytes */
 
-#define MAX_DIM 3
+//#define MAX_DIM 3
 
-enum dim {
-	X = 0,
-	Y = 1,
-	Z = 2
-};
+//enum dim {
+//	X = 0,
+//	Y = 1,
+//	Z = 2
+//};
 
 struct plist;
 typedef struct plist plist_t;
