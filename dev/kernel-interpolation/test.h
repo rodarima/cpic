@@ -49,11 +49,11 @@ struct plist
  */
 struct pchunk
 {
-	VINT i;			/* Particle global index */
-	VDOUBLE r[MAX_DIM];	/* Position */
-	VDOUBLE u[MAX_DIM];	/* Velocity */
-	VDOUBLE E[MAX_DIM];	/* Electric field */
-	VDOUBLE B[MAX_DIM];	/* Magnetic field */
+	vi64 i;			/* Particle global index */
+	vf64 r[MAX_DIM];	/* Position */
+	vf64 u[MAX_DIM];	/* Velocity */
+	vf64 E[MAX_DIM];	/* Electric field */
+	vf64 B[MAX_DIM];	/* Magnetic field */
 }; /* Multiple of MAX_VEC */
 
 struct pblock
