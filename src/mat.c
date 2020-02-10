@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200112L
 #define DEBUG 0
 #include "log.h"
 #include "mat.h"
@@ -61,7 +62,6 @@ mat_t *
 mat_alloc(int dim, int *shape)
 {
 	mat_t *m;
-	int i;
 	size_t size;
 
 	if(dim > MAX_DIM)
@@ -81,7 +81,6 @@ mat_t *
 mat_alloc_align(int dim, int *shape, size_t alignment)
 {
 	mat_t *m;
-	int i;
 	size_t size, aligned_size, pad_size;
 	//int *ptr;
 

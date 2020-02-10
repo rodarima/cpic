@@ -175,3 +175,34 @@ test_rel()
 		assert(((__v4di) i0[Y])[iv] == 2);
 	}
 }
+
+void
+test_gather()
+{
+	mat_t *m;
+	vf64 x;
+	vi64 ix, iy;
+	//vi64 idx;
+
+	m = mat_alloc_square(2, 10);
+
+	m->data[43] = 123.0;
+
+	ix = vi64_set1(3);
+	iy = vi64_set1(4);
+	//idx = vmat_index_xy(m, ix, iy);
+	//printf("idx[0] = %lld\n", idx[0]);
+
+	x = vmat_get_xy(m, ix, iy);
+
+	assert(x[0] == 123.0);
+
+	//printf("x[0] = %f\n", x[0]);
+}
+
+void
+test()
+{
+	test_gather();
+	test_rel();
+}

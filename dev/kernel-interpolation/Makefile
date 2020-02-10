@@ -85,6 +85,7 @@ BIN=$(addprefix test.,$(COMPILERS)) #my-kernel
 ASM=$(addsuffix .s, $(BIN) $(OBJ))
 OBJ=$(addprefix kernel.,$(COMPILERS)) #my-kernel
 VINST=$(addsuffix .v, $(OBJ))
+EXTRA_OBJ=../../src/mat.o
 
 #.SECONDARY:
 .PRECIOUS: $(ASM)
@@ -109,7 +110,7 @@ test.icc: test.c perf.c mem.icc.o kernel.icc.o ../../src/utils.o
 %.clang.o: %.clang.s
 	$(LCC) -c $(LCFLAGS) $< -o $@
 
-test.clang: test.c perf.c kernel.clang.o ../../src/utils.o
+test.clang: test.c perf.c kernel.clang.o $(EXTRA_OBJ) ../../src/utils.o
 	$(LCC) $(LCFLAGS) $^ $(LDLIBS) -o $@
 
 ################################################################

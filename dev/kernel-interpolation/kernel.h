@@ -12,4 +12,4 @@ void
 init_particles(plist_t *l);
 
 void
-test_rel();
+test();

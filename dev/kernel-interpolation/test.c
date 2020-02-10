@@ -3,7 +3,7 @@
 int
 main(int argc, char **argv)
 {
-	test_rel();
+	test();
 
 	return 0;
 }

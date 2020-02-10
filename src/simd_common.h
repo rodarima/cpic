@@ -14,9 +14,14 @@
 #include "mat.h"
 
 inline vf64
+vmat_index_xy(mat_t *m, vi64 ix, vi64 iy)
+{
+	return vset1(m->real_shape[X]) * iy + ix;
+}
+
+inline vf64
 vmat_get_xy(mat_t *m, vi64 ix, vi64 iy)
 {
-	vi64 idx = vset1(m->real_shape[X]) * iy + ix;
-
-	return vgather(m->data, idx);
+	return vgather(m->data, vmat_index_xy(m, ix, iy));
 }
+
