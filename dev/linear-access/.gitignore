@@ -1,0 +1,11 @@
+*.o
+*.v
+*.s
+log/
+extrae/
+test.*
+!test.c
+!test.h
+perf/
+vtune/
+r0*/

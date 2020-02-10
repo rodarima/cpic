@@ -38,3 +38,4 @@ doc/*.snm
 doc/*.vrb
 .gdb_history
 *.h5
+.nfs*
