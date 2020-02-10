@@ -1,46 +1,11 @@
-#include "sim.h"
-
-enum field_selection {
-	FIELD_J,
-	FIELD_E
-};
+#include "mat.h"
+#include "simd.h"
 
 void
-linear_interpolation_xy(double rel_pos[2], double w[2][2]);
-
-double
-relative_position_grid(double x0, double x, double dx, int *i0);
+interpolate_weights_xy(vf64 x[2], vf64 dx[2], vf64 idx[2],
+		vf64 x0[2], vf64 w[2][2], vi64 i0[2]);
 
 void
-interpolate_weights_xy(double x[2], double dx[2], double x0[2],
-		double w[2][2], int i0[2]);
-void
-interpolate_field_to_particle_xy(sim_t *sim, particle_t *p,
-		double *val, mat_t *mat);
-
-#if 0
-void
-interpolate_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b,
-		double val, mat_t *field);
-
-//void
-//interpolate_J_add_to_grid_xy(sim_t *sim, particle_t *p, block_t *b);
-
-void
-interpolate_E_set_to_particle_xy(sim_t *sim, particle_t *p, block_t *b);
-
-
-
-
-/******************* 1 D **********************/
-
-void
-interpolate_add_to_grid_x(sim_t *sim, particle_t *p, block_t *b,
-		double val, mat_t *field);
-
-//void
-//interpolate_J_add_to_grid_x(sim_t *sim, particle_t *p, block_t *b);
-
-void
-interpolate_E_set_to_particle_x(sim_t *sim, particle_t *p, block_t *b);
-#endif
+interpolate_field_to_particle_xy(vi64 blocksize[2], vi64 ghostsize[2],
+		vf64 dx[2], vf64 idx[2], vf64 x[2], vf64 x0[2],
+		vf64 val[1], mat_t *mat);
