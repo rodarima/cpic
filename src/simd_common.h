@@ -10,18 +10,4 @@
 #define vfloor(x)	VP(floor_pd)(x)
 #define vgather(b,i)	VP(i64gather_pd)(b,i,8)
 
-/* Vectorized mat_t operations: This should be in mat.h XXX */
-#include "mat.h"
-
-inline vf64
-vmat_index_xy(mat_t *m, vi64 ix, vi64 iy)
-{
-	return vset1(m->real_shape[X]) * iy + ix;
-}
-
-inline vf64
-vmat_get_xy(mat_t *m, vi64 ix, vi64 iy)
-{
-	return vgather(m->data, vmat_index_xy(m, ix, iy));
-}
 

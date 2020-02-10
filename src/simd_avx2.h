@@ -74,3 +74,18 @@ vi64 vf64_to_vi64(vf64 x)
 
 /* We perform the AND operation to emulate the masked CMP of AVX512 */
 #define vcmp_mask(k, a, b, f)	vand(k, vcmp(a, b, f))
+
+/* Vectorized mat_t operations: This should be in mat.h XXX */
+#include "mat.h"
+
+inline vi64
+vmat_index_xy(mat_t *m, vi64 ix, vi64 iy)
+{
+	return vi64_set1(m->real_shape[X]) * iy + ix;
+}
+
+inline vf64
+vmat_get_xy(mat_t *m, vi64 ix, vi64 iy)
+{
+	return vgather(m->data, vmat_index_xy(m, ix, iy));
+}
