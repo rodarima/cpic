@@ -356,7 +356,6 @@ conservation_energy(sim_t *sim)
 	//EE /= 1.6021766208e-19;
 	//KE /= 1.6021766208e-19; /* ??? */
 
-#endif
 
 
 	/* Factor correction */
@@ -367,7 +366,6 @@ conservation_energy(sim_t *sim)
 	sim->energy_kinetic /= 2.0;
 
 
-#if 0
 	double EE = 0.0; /* Electrostatic energy */
 	double KE = 0.0; /* Kinetic energy */
 	EE = sim->energy_electrostatic;
