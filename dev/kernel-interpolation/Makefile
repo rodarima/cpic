@@ -23,7 +23,8 @@ CFLAGS+=-I../../src/
 #CFLAGS+=-fno-omit-frame-pointer
 
 # Default compiler
-CC=clang
+#CC=clang
+CC=gcc
 
 
 ## GCC
@@ -70,7 +71,8 @@ ICFLAGS+=-qopt-zmm-usage=high
 
 MCC=mcc
 MCFLAGS=$(CFLAGS)
-MCFLAGS+=--cc=clang --cpp=clang
+#MCFLAGS+=--cc=clang --cpp=clang
+MCFLAGS+=--cc=gcc --cpp=gcc
 MCFLAGS+=--ompss-2 -k --v
 #MCFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
@@ -79,8 +81,9 @@ LDLIBS+=-lm
 #LDLIBS+=-lpapi
 
 #COMPILERS=$(MCC)
-COMPILERS=$(LCC)
-#COMPILERS=$(LCC) $(GCC)
+#COMPILERS=$(LCC)
+#COMPILERS=$(LCC) $(MCC)
+COMPILERS=$(GCC) $(MCC)
 #COMPILERS=$(ICC) $(GCC) $(LCC)
 BIN=$(addprefix test.,$(COMPILERS)) #my-kernel
 ASM=$(addsuffix .s, $(BIN) $(OBJ))
@@ -111,7 +114,7 @@ test.icc: test.c perf.c mem.icc.o kernel.icc.o ../../src/utils.o
 %.clang.o: %.clang.s
 	$(LCC) -c $< -o $@
 
-test.clang: test.o perf.o kernel.clang.o $(EXTRA_OBJ) ../../src/utils.o
+test.clang: test.clang.o perf.o kernel.clang.o $(EXTRA_OBJ) ../../src/utils.o
 	$(LCC) $^ $(LCFLAGS) $(LDLIBS) -o $@
 
 ################################################################
@@ -122,12 +125,12 @@ test.clang: test.o perf.o kernel.clang.o $(EXTRA_OBJ) ../../src/utils.o
 %.gcc.o: %.gcc.s
 	$(GCC) -c $(GCFLAGS) $< -o $@
 
-test.gcc: test.c perf.c kernel.gcc.o ../../src/utils.o
+test.gcc: test.gcc.o perf.o kernel.gcc.o $(EXTRA_OBJ) ../../src/utils.o
 	$(GCC) $(GCFLAGS) $(LDLIBS) $^ -o $@
 
 ################################################################
 
-test.mcc: test.c perf.c kernel.clang.s ../../src/utils.o
+test.mcc: test.gcc.o perf.gcc.o kernel.gcc.s $(EXTRA_OBJ) ../../src/utils.o
 	$(MCC) $(MCFLAGS) $^ $(LDLIBS) -o $@
 
 ################################################################
