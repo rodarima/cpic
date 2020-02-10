@@ -43,6 +43,9 @@ CFLAGS+=-Wno-unknown-pragmas
 # Use debug messages
 CFLAGS+=-DGLOBAL_DEBUG
 
+# Use 256 bits for vector operations
+CFLAGS+=-DUSE_VECTOR_256
+
 # Use TAMPI
 USE_TAMPI?=0
 
