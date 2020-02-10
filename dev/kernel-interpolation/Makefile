@@ -74,7 +74,8 @@ MCFLAGS+=--cc=clang --cpp=clang
 MCFLAGS+=--ompss-2 -k --v
 #MCFLAGS+=-fsanitize=address -fno-omit-frame-pointer
 
-LDLIBS+=-L/apps/PAPI/5.6.0/lib -lm
+#LDLIBS+=-L/apps/PAPI/5.6.0/lib
+LDLIBS+=-lm
 #LDLIBS+=-lpapi
 
 #COMPILERS=$(MCC)
@@ -108,10 +109,10 @@ test.icc: test.c perf.c mem.icc.o kernel.icc.o ../../src/utils.o
 
 #%.clang.o: %.c
 %.clang.o: %.clang.s
-	$(LCC) -c $(LCFLAGS) $< -o $@
+	$(LCC) -c $< -o $@
 
-test.clang: test.c perf.c kernel.clang.o $(EXTRA_OBJ) ../../src/utils.o
-	$(LCC) $(LCFLAGS) $^ $(LDLIBS) -o $@
+test.clang: test.o perf.o kernel.clang.o $(EXTRA_OBJ) ../../src/utils.o
+	$(LCC) $^ $(LCFLAGS) $(LDLIBS) -o $@
 
 ################################################################
 

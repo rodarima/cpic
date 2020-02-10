@@ -95,7 +95,7 @@ interpolate_weights_xy(vf64 x[2], vf64 dx[2], vf64 idx[2],
 }
 #if 1
 void
-interpolate_field_to_particle_xy(vf64 blocksize[2], vf64 ghostsize[2],
+interpolate_field_to_particle_xy(vi64 blocksize[2], vi64 ghostsize[2],
 		vf64 dx[2], vf64 idx[2], vf64 x[2], vf64 x0[2],
 		vf64 val[1], mat_t *mat)
 {
@@ -163,8 +163,8 @@ test_rel()
 
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
-		printf("w[%d] = [%f %f %f %f]\n", iv, w[0][0][iv], w[0][1][iv], w[1][0][iv], w[1][1][iv]);
-		printf("i0[%d] = [%llx %llx]\n", iv, ((__v4di) i0[X])[iv], ((__v4di) i0[Y])[iv]);
+		//printf("w[%d] = [%f %f %f %f]\n", iv, w[0][0][iv], w[0][1][iv], w[1][0][iv], w[1][1][iv]);
+		//printf("i0[%d] = [%llx %llx]\n", iv, ((__v4di) i0[X])[iv], ((__v4di) i0[Y])[iv]);
 
 		assert(w[0][0][iv] == 3./16.);
 		assert(w[1][0][iv] == 1./16.);
@@ -198,6 +198,54 @@ test_gather()
 	assert(x[0] == 123.0);
 
 	//printf("x[0] = %f\n", x[0]);
+	free(m->data);
+	free(m);
+}
+
+void
+test_interpolation()
+{
+	mat_t *m;
+	size_t ix, iy, nx, ny;
+	vi64 blocksize[2], ghostsize[2];
+	volatile vf64 dx[2];
+	vf64 idx[2], x[2], x0[2], val, expected;
+
+	nx = ny = 100;
+	blocksize[X] = vi64_set1(100);
+	blocksize[Y] = vi64_set1(100);
+	ghostsize[X] = vi64_set1(100);
+	ghostsize[Y] = vi64_set1(100);
+	dx[X] = vset1(1.0);
+	dx[Y] = vset1(1.0);
+	idx[X] = 1.0 / dx[X];
+	idx[Y] = 1.0 / dx[Y];
+
+	/* Particle pchunk_t position */
+	x[X] = vset(0.25, 0.75, 0.25, 0.75);
+	x[Y] = vset(0.25, 0.25, 0.75, 0.75);
+	expected = vset(0.5, 1.0, 1.0, 1.5);
+
+	x0[X] = vset1(0);
+	x0[Y] = vset1(0);
+
+	m = mat_alloc_square(2, nx);
+
+	for(ix=0; ix<nx; ix++)
+	{
+		for(iy=0; iy<ny; iy++)
+		{
+			MAT_XY(m, ix, iy) = (double) ix + iy;
+		}
+	}
+
+	interpolate_field_to_particle_xy(blocksize, ghostsize,
+		(vf64 *) dx, idx, x, x0, &val, m);
+
+	assert(vmsk_iszero(vcmp(expected, val, _CMP_NEQ_OS)));
+
+	free(m->data);
+	free(m);
 }
 
 void
@@ -205,4 +253,5 @@ test()
 {
 	test_gather();
 	test_rel();
+	test_interpolation();
 }

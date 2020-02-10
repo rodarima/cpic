@@ -47,6 +47,8 @@ vi64 vf64_to_vi64(vf64 x)
 	return _mm256_cvtepu32_epi64(y);
 }
 
+#define vset(a,b,c,d)	_mm256_set_pd(d,c,b,a)
+
 #define vi32_set1(x)	_mm256_set1_epi32(x)
 #define vi64_set1(x)	_mm256_set1_epi64x(x) /* An extra x (?) */
 
