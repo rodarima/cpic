@@ -97,7 +97,7 @@ all: $(BIN) #$(ASM) $(VINST)
 %.icc.o: %.icc.s
 	$(ICC) -c $(ICFLAGS) $< -o $@
 
-test.icc: test.c perf.c mem.icc.o kernel.icc.o ../../src/utils.o
+test.icc: test.c ../../src/perf.c mem.icc.o kernel.icc.o ../../src/utils.o
 	$(ICC) $(ICFLAGS) $^ $(LDLIBS) -o $@
 
 ################################################################
@@ -109,7 +109,7 @@ test.icc: test.c perf.c mem.icc.o kernel.icc.o ../../src/utils.o
 %.clang.o: %.clang.s
 	$(LCC) -c $(LCFLAGS) $< -o $@
 
-test.clang: test.c perf.c mem.o kernel.clang.o ../../src/utils.o
+test.clang: test.c ../../src/perf.c mem.o kernel.clang.o ../../src/utils.o
 	$(LCC) $(LCFLAGS) $^ $(LDLIBS) -o $@
 
 ################################################################
@@ -120,12 +120,12 @@ test.clang: test.c perf.c mem.o kernel.clang.o ../../src/utils.o
 %.gcc.o: %.gcc.s
 	$(GCC) -c $(GCFLAGS) $< -o $@
 
-test.gcc: test.c perf.c mem.o kernel.gcc.o ../../src/utils.o
+test.gcc: test.c ../../src/perf.c mem.o kernel.gcc.o ../../src/utils.o
 	$(GCC) $(GCFLAGS) $(LDLIBS) $^ -o $@
 
 ################################################################
 
-test.mcc: test.c perf.c mem.o kernel.clang.s ../../src/utils.o
+test.mcc: test.c ../../src/perf.c mem.o kernel.clang.s ../../src/utils.o
 	$(MCC) $(MCFLAGS) $^ $(LDLIBS) -o $@
 
 ################################################################
@@ -133,7 +133,7 @@ test.mcc: test.c perf.c mem.o kernel.clang.s ../../src/utils.o
 my-kernel.o: my-kernel.s
 	$(GCC) -c $(GCFLAGS) $< -o $@
 
-my-test: test.c perf.c my-kernel.o
+my-test: test.c ../../src/perf.c my-kernel.o
 	$(GCC) $(GCFLAGS) $(LDLIBS) $^ -o $@
 
 ################################################################

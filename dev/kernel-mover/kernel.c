@@ -31,7 +31,7 @@ pwin_first(plist_t *l, pwin_t *w)
 	w->ic = 0;
 	w->left = 0;
 	w->mask = 0;
-	//VMASK_ZERO(w->mask);
+	//vmsk_zero(w->mask);
 }
 
 void
@@ -48,7 +48,7 @@ pwin_last(plist_t *l, pwin_t *w)
 	//dbg("pwin_last: b->n = %ld, w->ic = %ld\n", l->b->n, w->ic);
 	w->left = 0;
 	w->mask = 0;
-	//VMASK_ZERO(w->mask);
+	//vmsk_zero(w->mask);
 }
 
 int
@@ -103,7 +103,7 @@ pwin_equal(pwin_t *A, pwin_t *B)
 }
 
 static inline void
-cross_product(VDOUBLE r[MAX_DIM], VDOUBLE a[MAX_DIM], VDOUBLE b[MAX_DIM])
+cross_product(vf64 r[MAX_DIM], vf64 a[MAX_DIM], vf64 b[MAX_DIM])
 {
 	r[X] = a[Y]*b[Z] - a[Z]*b[Y];
 	r[Y] = a[Z]*b[X] - a[X]*b[Z];
@@ -111,22 +111,22 @@ cross_product(VDOUBLE r[MAX_DIM], VDOUBLE a[MAX_DIM], VDOUBLE b[MAX_DIM])
 }
 
 static inline void
-boris_rotation(pchunk_t *c, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
+boris_rotation(pchunk_t *c, vf64 dtqm2, vf64 u[MAX_DIM])
 {
 	int d;
-	VDOUBLE s_denom[MAX_DIM];
-	VDOUBLE v_prime[MAX_DIM];
-	VDOUBLE v_minus[MAX_DIM];
-	VDOUBLE  v_plus[MAX_DIM];
-	VDOUBLE       t[MAX_DIM];
-	VDOUBLE       s[MAX_DIM];
-	VDOUBLE              two;
+	vf64 s_denom[MAX_DIM];
+	vf64 v_prime[MAX_DIM];
+	vf64 v_minus[MAX_DIM];
+	vf64  v_plus[MAX_DIM];
+	vf64       t[MAX_DIM];
+	vf64       s[MAX_DIM];
+	vf64              two;
 
-	two = VSET1(2.0);
+	two = vset1(2.0);
 
 	for(d=X; d<MAX_DIM; d++)
 	{
-		s_denom[d] = VSET1(1.0);
+		s_denom[d] = vset1(1.0);
 
 		t[d] = c->B[d] * dtqm2;
 		s_denom[d] += t[d] * t[d];
@@ -155,12 +155,12 @@ boris_rotation(pchunk_t *c, VDOUBLE dtqm2, VDOUBLE u[MAX_DIM])
 
 		/* TODO: Measure energy here */
 
-		VSTREAM((double *) &c->u[d], u[d]);
+		vstream((double *) &c->u[d], u[d]);
 	}
 }
 
 static inline void
-particle_mover(pchunk_t *c, VDOUBLE u[MAX_DIM], VDOUBLE dt)
+particle_mover(pchunk_t *c, vf64 u[MAX_DIM], vf64 dt)
 {
 	size_t d;
 	for(d=X; d<MAX_DIM; d++)
@@ -170,21 +170,21 @@ particle_mover(pchunk_t *c, VDOUBLE u[MAX_DIM], VDOUBLE dt)
 }
 
 static inline void
-check_velocity(VDOUBLE u[MAX_DIM], VDOUBLE u_pmax, VDOUBLE u_nmax)
+check_velocity(vf64 u[MAX_DIM], vf64 u_pmax, vf64 u_nmax)
 {
 	size_t d, i;
-	VDOUBLE u_abs;
-	VMASK mask;
+	vf64 u_abs;
+	vmsk mask;
 	int mask_val;
 
-	VMASK_ZERO(mask);
+	vmsk_zero(mask);
 
 	for(d=X; d<MAX_DIM; d++)
 	{
-		u_abs = VABS(u[d]);
-		mask = VCMP(u_abs, u_pmax, _CMP_GT_OS);
+		u_abs = vabs(u[d]);
+		mask = vcmp(u_abs, u_pmax, _CMP_GT_OS);
 
-		mask_val = VMASK_GET(mask);
+		mask_val = vmsk_get(mask);
 
 		if(mask_val)
 			goto err;
@@ -213,20 +213,20 @@ void
 particle_update_r(plist_t *l)
 {
 	double dtqm2, u_max;
-	VDOUBLE dt, dtqm2v;
-	VDOUBLE u[MAX_DIM];
+	vf64 dt, dtqm2v;
+	vf64 u[MAX_DIM];
 	pblock_t *b;
 	pchunk_t *c;
 	size_t i, nvec;
-	VDOUBLE u_pmax, u_nmax;
+	vf64 u_pmax, u_nmax;
 
 	u_max = 1e10;
-	u_pmax = VSET1(u_max);
-	u_nmax = VSET1(-u_max);
+	u_pmax = vset1(u_max);
+	u_nmax = vset1(-u_max);
 	dtqm2 = 1.0;
 	dtqm2 = M_PI;
-	dtqm2v = VSET1(dtqm2);
-	dt = VSET1(dtqm2);
+	dtqm2v = vset1(dtqm2);
+	dt = vset1(dtqm2);
 
 	for(b = l->b; b; b = b->next)
 	{
@@ -255,13 +255,13 @@ particle_update_r(plist_t *l)
 }
 
 void
-update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
+update_mask(pwin_t *w, int invert, vf64 rlimit[MAX_DIM][2])
 {
 
 	size_t ic, i, d;
 	pblock_t *b;
 	pchunk_t *c;
-	VMASK m;
+	vmsk m;
 
 	assert(w);
 
@@ -270,34 +270,34 @@ update_mask(pwin_t *w, int invert, VDOUBLE rlimit[MAX_DIM][2])
 
 	/* Check no more work was needed */
 	assert(w->mask == 0);
-	//assert(VMASK_ISZERO(w->mask));
+	//assert(vmsk_iszero(w->mask));
 	assert(w->left == 0);
 
 	/* By default mark all particles */
-	VMASK_ONES(m);
+	vmsk_ones(m);
 
 	c = &b->c[ic];
 
 	/* Check if the particles are inside the chunk */
-	//dbg("exchange mask (init): ic=%ld m=%02x\n", w->ic, VMASK_GET(m));
+	//dbg("exchange mask (init): ic=%ld m=%02x\n", w->ic, vmsk_get(m));
 
 	for(d=X; d<MAX_DIM; d++)
 	{
-		m = VCMP_MASK(m, c->r[d], rlimit[d][IMIN], _CMP_GE_OS);
-		m = VCMP_MASK(m, c->r[d], rlimit[d][IMAX], _CMP_LE_OS);
-		//dbg("exchange mask (%ld): m=%02x\n", d, VMASK_GET(m));
+		m = vcmp_mask(m, c->r[d], rlimit[d][IMIN], _CMP_GE_OS);
+		m = vcmp_mask(m, c->r[d], rlimit[d][IMAX], _CMP_LE_OS);
+		//dbg("exchange mask (%ld): m=%02x\n", d, vmsk_get(m));
 	}
 
-	w->mask = VMASK_GET(m);
+	w->mask = vmsk_get(m);
 
 	//dbg("exchange mask: ic=%ld m=%02x mask=%02x\n",
-	//		w->ic, VMASK_GET(m), w->mask);
+	//		w->ic, vmsk_get(m), w->mask);
 
 	if(invert)
 	{
 		/* Invert the mask, so holes are ones */
 		w->mask = ~w->mask & 0x0f;
-		/* TODO: VMASK_INVERT() */
+		/* TODO: vmsk_invert() */
 
 		//dbg("inverted mask: mask=%02x\n", w->mask);
 	}
@@ -354,7 +354,7 @@ particle_swap(pchunk_t *a, size_t i, pchunk_t *b, size_t j)
 /* Property at exit:
  * 	A->left != 0 || A == B */
 void
-consume(pwin_t *A, pwin_t *B, VDOUBLE rlimit[MAX_DIM][2])
+consume(pwin_t *A, pwin_t *B, vf64 rlimit[MAX_DIM][2])
 {
 	/* Holes already present */
 	if(A->left)
@@ -386,7 +386,7 @@ consume(pwin_t *A, pwin_t *B, VDOUBLE rlimit[MAX_DIM][2])
 /* Property at exit:
  * 	B->left != 0 || A == B */
 void
-produce(pwin_t *A, pwin_t *B, VDOUBLE rlimit[MAX_DIM][2])
+produce(pwin_t *A, pwin_t *B, vf64 rlimit[MAX_DIM][2])
 {
 	/* Particles already present */
 	if(B->left)
@@ -486,7 +486,7 @@ void
 particle_exchange_x(plist_t *l, size_t *excount)
 {
 	size_t d, count;
-	VDOUBLE rlimit[MAX_DIM][2];
+	vf64 rlimit[MAX_DIM][2];
 	pwin_t A, B;
 
 	count = 0;
@@ -495,8 +495,8 @@ particle_exchange_x(plist_t *l, size_t *excount)
 
 	for(d = 0; d<MAX_DIM; d++)
 	{
-		rlimit[d][IMIN] = VSET1(-10.0);
-		rlimit[d][IMAX] = VSET1(10.0);
+		rlimit[d][IMIN] = vset1(-10.0);
+		rlimit[d][IMAX] = vset1(10.0);
 	}
 
 	while(!pwin_equal(&A, &B))
@@ -547,9 +547,9 @@ init_particles(plist_t *l)
 
 				/* Increment the initial speed to increase the
 				 * avg number of particles in the exchange */
-				c->u[d] = VSET1(1e-4);
-				c->B[d] = VSET1(1e-8);
-				c->E[d] = VSET1(1e-8);
+				c->u[d] = vset1(1e-4);
+				c->B[d] = vset1(1e-8);
+				c->E[d] = vset1(1e-8);
 			}
 		}
 	}
