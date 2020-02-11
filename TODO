@@ -18,3 +18,7 @@ OmpSs:
   use any text, possibly with an index
 
 - Let the user assert that a specific task is running/not running
+
+Performace:
+
+- Use builtin_expect (likely) to reduce branch prediction misses.
