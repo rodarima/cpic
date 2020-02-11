@@ -177,6 +177,9 @@ sim_prepare(sim_t *s, int quiet)
 			s->ntpoints[Y],
 			s->ntpoints[Z]);
 
+	/* TODO: Compute umax and set it here */
+	s->umax = 0.0;
+
 	/* Initially set the time t to zero */
 	s->t = 0.0;
 

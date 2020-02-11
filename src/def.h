@@ -266,7 +266,7 @@ struct plasma_chunk
 {
 	int locked;
 
-	particle_set_t *species;
+	plist_t *species; /* Array of particle lists, one per specie */
 	int nspecies;
 
 	/* Local index of the chunk inside the local plasma */
@@ -361,6 +361,9 @@ struct sim
 
 	/** Speed of light in meters/second */
 	double C;
+
+	/* Maximum speed in any dimension */
+	double umax;
 
 	/** Vacuum permittivity in Farad/meter (F/m) */
 	double e0;
