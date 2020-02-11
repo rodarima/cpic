@@ -63,7 +63,7 @@ boris_rotation(pchunk_t *c, vf64 dtqm2, vf64 u[MAX_DIM])
 }
 
 static inline void
-particle_mover(pchunk_t *c, vf64 u[MAX_DIM], vf64 dt)
+move(pchunk_t *c, vf64 u[MAX_DIM], vf64 dt)
 {
 	size_t d;
 	for(d=X; d<MAX_DIM; d++)
@@ -135,7 +135,7 @@ plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax)
 
 			check_velocity(u, umax);
 
-			particle_mover(c, u, dt);
+			move(c, u, dt);
 
 			/* Wrapping is done after the particle is moved to the right block */
 		}
@@ -163,25 +163,16 @@ chunk_update_r(sim_t *sim, int ic)
 }
 
 void
-stage_update_r(sim_t *sim)
+particle_mover(sim_t *sim)
 {
 	int i;
 
-	perf_start(&sim->timers[TIMER_PARTICLE_X]);
-
-	/* Computation */
+	/* Compute the new position for each particle. We don't care if the
+	 * particles go to another chunk here. */
 	for(i=0; i<sim->plasma.nchunks; i++)
 	{
-		#pragma oss task concurrent(sim->timers[TIMER_PARTICLE_X]) \
-			inout(sim->plasma.chunks[i]) label(chunk_update_r)
+		#pragma oss task inout(sim->plasma.chunks[i]) \
+			label(chunk_update_r)
 		chunk_update_r(sim, i);
 	}
-
-	//#pragma oss taskwait
-
-	particle_comm(sim);
-
-	#pragma oss task inout(sim->timers[TIMER_PARTICLE_X]) \
-		label(perf_stop.particle_x)
-	perf_stop(&sim->timers[TIMER_PARTICLE_X]);
 }

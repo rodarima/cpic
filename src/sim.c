@@ -474,7 +474,7 @@ sim_step(sim_t *sim)
 	 * from the current */
 
 	/* Line 6: Update E on the grid from rho */
-	field_E(sim);
+	stage_field_E(sim);
 
 	//#pragma oss task in(sim->plasma.chunks[sim->plasma.nchunks]) label(output_fields)
 	if(output_fields(sim))
@@ -487,7 +487,7 @@ sim_step(sim_t *sim)
 	 * field from the grid nodes to the particle positions. */
 
 	/* Line 7: Interpolate E on each particle */
-	particle_E(sim);
+	stage_plasma_E(sim);
 
 	/* Phase CP:PM. Particle mover, updating of the velocity and the
 	 * position of the particles from the values of the projected
@@ -495,7 +495,7 @@ sim_step(sim_t *sim)
 
 	/* Line 8: Update the speed on each particle, eq 6 */
 	/* Line 9: Update the position on each particle, eq 7 */
-	plasma_x(sim);
+	stage_plasma_r(sim);
 
 	//if((sim->iter % 100) == 0)
 	//output_particles(sim);
@@ -506,7 +506,7 @@ sim_step(sim_t *sim)
 	 * velocities. */
 
 	/* Interpolate density of charge of each specie to the field */
-	field_rho(sim);
+	stage_field_rho(sim);
 
 	/* Print the status */
 	//if(sim->period_particle && ((sim->iter % sim->period_particle) == 0))
