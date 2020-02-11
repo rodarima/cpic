@@ -1,21 +1,6 @@
-//#define _XOPEN_SOURCE 500
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <stdint.h>
-//#include <assert.h>
-//#include <sys/types.h>
-//#include <math.h>
-//#include <unistd.h>
-//#include <stdalign.h>
-//#include "perf.h"
-//#include "test.h"
+#include "def.h"
 #include "simd.h"
 #include "mat.h"
-
-//#define DEBUG 0
-//#define GLOBAL_DEBUG
-//#include "log.h"
-
 
 static inline void
 linear_interpolation_xy(vf64 rel[2], vf64 w[2][2])

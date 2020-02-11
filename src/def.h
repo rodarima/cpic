@@ -13,6 +13,8 @@
 
 
 #include "mat.h"
+#include "simd.h"
+#include <stdint.h>
 #include <linux/limits.h>
 #include <libconfig.h>
 #include <pthread.h>
@@ -25,6 +27,18 @@ typedef struct field field_t;
 typedef struct particle particle_t;
 typedef struct particle_set particle_set_t;
 typedef struct particle_config particle_config_t;
+
+struct plist;
+struct pchunk;
+struct pblock;
+struct pwin;
+struct pmover;
+
+typedef struct plist plist_t;
+typedef struct pchunk pchunk_t;
+typedef struct pblock pblock_t;
+typedef struct pwin pwin_t;
+typedef struct pmover pmover_t;
 
 struct specie;
 struct specie_block;
@@ -73,29 +87,77 @@ struct particle {
 	struct particle *next, *prev;
 };
 
-/* A particle set has a bunch of particles from only one type of specie */
-struct particle_set
+/* The particle chunk is designed to hold MAX_VEC particles: so 4 in AVX2 using
+ * 256 bits or 8 in AVX512 using 512 bits. A total of 13 vectors of 64bits per
+ * element, with 52 and 104 bytes respectively in AVX2 or AVX512.
+ */
+struct pchunk
 {
-	/* We can reuse the info in multiple particle sets */
-	struct specie *info;
+	vi64 i;			/* Particle global index */
+	vf64 r[MAX_DIM];	/* Position */
+	vf64 u[MAX_DIM];	/* Velocity */
+	vf64 E[MAX_DIM];	/* Electric field */
+	vf64 B[MAX_DIM];	/* Magnetic field */
+}; /* Multiple of MAX_VEC */
 
-	/* Local number of particles */
-	int nparticles;
-	particle_t *particles;
+/* A pblock or particle block contains fixed storage allocated for up to n
+ * particles, stored in chunks */
+struct pblock
+{
+	union
+	{
+		struct
+		{
+			/* Current number of particles */
+			size_t n;
 
-	/* Temporal particle lists to send and receive from the neighbour */
-	int *outsize;
-	particle_t **out;
+			/* Pointers to neighbour pblocks */
+			pblock_t *next;
+			pblock_t *prev;
 
-	/* Local particle list (between chunks) */
-	int *loutsize;
-	particle_t **lout;
+		}; /* 24 bytes */
+
+		/* 128 bytes */
+		uint8_t _pblock_padding[128];
+	};
+
+	/* Particle chunks */
+	pchunk_t c[];
+};
+
+/* A particle list has a bunch of particles from only one type of specie */
+struct plist
+{
+	size_t nblocks;
+	size_t blocksize;	/* in bytes */
+	size_t max_chunks;	/* Maximum number of chunks per block */
+	size_t nmax;		/* Maximum number of particles per block */
+
+	pblock_t *b;
+};
+
+/* TODO: Internal structure used by the particle mover, place in the .c */
+struct pwin
+{
+	pblock_t *b;	/* Current pblock_t selected */
+	size_t ic;	/* Index of the pchunk_t */
+	//vmsk mask;	/* Particles selected in the chunk: 1==selected, 0==not */
+	unsigned int mask;	/* Particles selected in the chunk: 1==selected, 0==not */
+	size_t left;	/* Number of particles left */
+};
+
+/* TODO: Also another internal structure */
+struct pmover
+{
+	plist_t *l;
+	pwin_t A;
+	pwin_t B;
 };
 
 struct particle_config
 {
 	char *name;
-	int (*init)(sim_t *, plasma_chunk_t *, particle_set_t *);
+	int (*init)(sim_t *, plasma_chunk_t *, plist_t *);
 };
 
 /* A specie only holds information about the particles, no real particles are
