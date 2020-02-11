@@ -9,10 +9,12 @@ GCC=gcc
 #CC=I_MPI_CC=mcc mpiicc --ompss-2 --line-markers
 MPICC=mpicc
 #CC=OMPI_CC=mcc $(MPICC) -k --ompss-2
-CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
 #CC=OMPI_CC=mcc $(MPICC) --line-markers
 
 #CC=I_MPI_CC=mcc mpiicc --cc=clang --ompss-2 --line-markers
+
+#CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
+CC=clang
 
 
 #OCC=mcc
@@ -45,6 +47,7 @@ CFLAGS+=-DGLOBAL_DEBUG
 
 # Use 256 bits for vector operations
 CFLAGS+=-DUSE_VECTOR_256
+CFLAGS+=-march=core-avx2
 
 # Use TAMPI
 USE_TAMPI?=0
@@ -156,8 +159,8 @@ include $(DEP)
 #	@echo CC $@
 #	$(COMPILE.c) $(OUTPUT_OPTION) $^
 %.o: %.c
-	@echo "CC $<"
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	#@echo "CC $<"
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 all: $(BIN)
 
