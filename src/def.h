@@ -128,6 +128,7 @@ struct pblock
 /* A particle list has a bunch of particles from only one type of specie */
 struct plist
 {
+	specie_t *info;		/* The specie of for this plist */
 	size_t nblocks;
 	size_t blocksize;	/* in bytes */
 	size_t max_chunks;	/* Maximum number of chunks per block */

@@ -193,7 +193,7 @@ sim_pre_step(sim_t *sim)
 	particle_comm_initial(sim);
 
 	/* Initial computation of rho */
-	field_rho(sim);
+	stage_field_rho(sim);
 
 	#pragma oss taskwait
 

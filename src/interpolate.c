@@ -2,8 +2,11 @@
 #include "simd.h"
 #include "mat.h"
 
+#define DEBUG 1
+#include "log.h"
+
 static inline void
-linear_interpolation_xy(vf64 rel[2], vf64 w[2][2])
+linear_interpolation(vf64 rel[2], vf64 w[2][2])
 {
 	vf64 del[2];
 
@@ -60,9 +63,9 @@ relative_position_grid(vf64 x0, vf64 x, vf64 dx, vf64 idx, vi64 i0[1])
  *
  */
 
-void
-interpolate_weights_xy(vf64 x[2], vf64 dx[2], vf64 idx[2],
-		vf64 x0[2], vf64 w[2][2], vi64 i0[2])
+static inline void
+weights(vf64 x[2], vf64 dx[2], vf64 idx[2], vf64 x0[2],
+		vf64 w[2][2], vi64 i0[2])
 {
 	vf64 delta_grid[2];
 
@@ -75,19 +78,19 @@ interpolate_weights_xy(vf64 x[2], vf64 dx[2], vf64 idx[2],
 	//dbg("delta_grid = (%f %f)\n", delta_grid[X], delta_grid[Y]);
 	//dbg("i0 = (%d %d)\n", i0[X], i0[Y]);
 
-	linear_interpolation_xy(delta_grid, w);
+	linear_interpolation(delta_grid, w);
 	//assert(fabs(w[0][0] + w[0][1] + w[1][0] + w[1][1] - 1.0) < MAX_ERR);
 }
 
-void
-interpolate_field_to_particle_xy(vi64 blocksize[2], vi64 ghostsize[2],
+static inline void
+interpolate_f2p(vi64 blocksize[2], vi64 ghostsize[2],
 		vf64 dx[2], vf64 idx[2], vf64 x[2], vf64 x0[2],
-		vf64 val[1], mat_t *mat)
+		mat_t *mat, vf64 val[1])
 {
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
 
-	interpolate_weights_xy(x, dx, idx, x0, w, i0);
+	weights(x, dx, idx, x0, w, i0);
 
 	/* We only need to wrap the X direction, as we have the ghost in the Y
 	 * */
@@ -124,8 +127,8 @@ interpolate_field_to_particle_xy(vi64 blocksize[2], vi64 ghostsize[2],
 }
 
 /* Only updates the particle positions */
-void
-interpolate_particle_to_field_xy(vi64 blocksize[2], vi64 ghostsize[2],
+static inline void
+interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 		vf64 dx[2], vf64 idx[2], vf64 x[2], vf64 x0[2],
 		vf64 q, mat_t *mat)
 {
@@ -136,7 +139,7 @@ interpolate_particle_to_field_xy(vi64 blocksize[2], vi64 ghostsize[2],
 	//assert((chunk->x0[X] <= p->x[X]) && (p->x[X] < chunk->x1[X]));
 	//assert((chunk->x0[Y] <= p->x[Y]) && (p->x[Y] < chunk->x1[Y]));
 
-	interpolate_weights_xy(x, dx, idx, x0, w, i0);
+	weights(x, dx, idx, x0, w, i0);
 
 	/* We only need to wrap the X direction, as we have the ghost in the Y
 	 * */
@@ -201,12 +204,12 @@ interpolate_particle_to_field_xy(vi64 blocksize[2], vi64 ghostsize[2],
  * with the chunk is updated, which also includes the right neighbour points.
  * */
 void
-interpolate_to_field_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
+interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 {
 	pblock_t *b;
 	pchunk_t *c;
 	mat_t *rho;
-	size_t i, nvec;
+	size_t i, iv, nvec;
 	vi64 blocksize[2], ghostsize[2];
 	vf64 dx[2], x0[2], idx[2], vq;
 
@@ -233,11 +236,76 @@ interpolate_to_field_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 		for(i=0; i < nvec; i++)
 		{
 			c = &b->c[i];
-			interpolate_particle_to_field_xy(blocksize, ghostsize,
+			interpolate_p2f(blocksize, ghostsize,
 					dx, idx, c->r, x0, vq, rho);
 		}
+	}
 
-		/* FIXME: Continue the loop if we had a non-aligned number of
-		 * particles */
+	/* FIXME: Continue the loop if we had a non-aligned number of
+	 * particles: We assign q to 0 to those elements that are out
+	 * of b->n */
+	if(b->n - nvec * MAX_VEC > 0)
+	{
+		for(iv=b->n - nvec; iv<MAX_VEC; iv++)
+		{
+			c->r[X][iv] = x0[X][iv];
+			c->r[Y][iv] = x0[Y][iv];
+			vq[iv] = 0.0;
+			dbg("Setting vq[%ld] to zero\n", iv);
+		}
+		interpolate_p2f(blocksize, ghostsize,
+				dx, idx, c->r, x0, vq, rho);
+	}
+}
+
+void
+interpolate_f2p_E(sim_t *sim, plist_t *l, double _x0[2])
+{
+	pblock_t *b;
+	pchunk_t *c;
+	field_t *f;
+	size_t i, nvec;
+	vi64 blocksize[2], ghostsize[2];
+	vf64 dx[2], x0[2], idx[2];
+
+	blocksize[X] = vset1(sim->blocksize[X]);
+	blocksize[Y] = vset1(sim->blocksize[Y]);
+	ghostsize[X] = vset1(sim->ghostsize[X]);
+	ghostsize[Y] = vset1(sim->ghostsize[Y]);
+	dx[X] = vset1(sim->dx[X]);
+	dx[Y] = vset1(sim->dx[Y]);
+	idx[X] = 1.0 / dx[X];
+	idx[Y] = 1.0 / dx[Y];
+	x0[X] = vset1(_x0[X]);
+	x0[Y] = vset1(_x0[Y]);
+
+	/* We take the whole rho field, including the ghosts in Y+ */
+	f = &sim->field;
+
+	for(b = l->b; b; b = b->next)
+	{
+		/* Here we don't care if we continue to fill the last pchunk_t
+		 * even if is not full, as we are going to update E in the
+		 * pchunk, which is harmless as long as the particle is inside
+		 * the chunk */
+		nvec = (b->n + MAX_VEC - 1) / MAX_VEC;
+		for(i=0; i < nvec; i++)
+		{
+			c = &b->c[i];
+
+			c->E[X] = vset1(0.0);
+			c->E[Y] = vset1(0.0);
+
+			/* TODO: Ensure the leftover particles in the last
+			 * pchunk have a valid position in the chunk */
+
+			interpolate_f2p(blocksize, ghostsize, dx, idx, c->r,
+					x0, f->E[X], &c->E[X]);
+			interpolate_f2p(blocksize, ghostsize, dx, idx, c->r,
+					x0, f->E[Y], &c->E[Y]);
+
+			/* TODO: Complete assert */
+			//assert(!isnan(c->E[X]) && !isnan(c->E[Y]));
+		}
 	}
 }

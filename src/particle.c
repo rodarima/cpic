@@ -12,20 +12,20 @@
 #include <utlist.h>
 #include <string.h>
 
-int
-init_default(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
+//int
+//init_default(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
 
 int
-init_randpos(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
+init_randpos(sim_t *sim, plasma_chunk_t *chunk, plist_t *l);
 
-int
-init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
+//int
+//init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
 
 particle_config_t pc[] =
 {
 	{"random position",		init_randpos},
-	{"position delta",		init_position_delta},
-	{"default",			init_default},
+//	{"position delta",		init_position_delta},
+//	{"default",			init_default},
 	{NULL, NULL}
 };
 
@@ -77,7 +77,7 @@ particles_init(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 			exit(1);
 		}
 
-		return pc[i].init(sim, chunk, set);
+		return pc[i].init(sim, chunk, i);
 	}
 
 	err("Unknown init method \"%s\", aborting.\n", method);
@@ -100,13 +100,13 @@ uniform(double a, double b)
 
 
 int
-init_randpos(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
+init_randpos(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
 {
 	particle_t *p;
 	double v[MAX_DIM];
 	config_setting_t *cs_v;
 
-	/* FIXME: Use specific random velocity inerval name */
+	/* FIXME: Use specific random velocity interval name */
 	cs_v = config_setting_get_member(set->info->conf, "drift_velocity");
 	if(config_array_float(cs_v, v, sim->dim))
 		return 1;
@@ -183,106 +183,6 @@ init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 	return 0;
 }
 
-
-static inline void
-cross_product(double *r, double *a, double *b)
-{
-	assert(r != a && r != b);
-	r[X] = a[Y]*b[Z] - a[Z]*b[Y];
-	r[Y] = a[Z]*b[X] - a[X]*b[Z];
-	r[Z] = a[X]*b[Y] - a[Y]*b[X];
-}
-
-static inline void
-boris_rotation(double q, double m, double *u, double *v, double *E, double *B, double dt)
-{
-	/* Straight forward from Birdsall section 4-3 and 4-4 */
-	int d;
-	double v_prime[MAX_DIM];
-	double v_minus[MAX_DIM];
-	double v_plus[MAX_DIM];
-	double t[MAX_DIM];
-	double s[MAX_DIM], s_denom;
-	double dtqm2;
-
-	dtqm2 = - 0.5 * dt * q / m;
-	s_denom = 1.0;
-
-	for(d=X; d<MAX_DIM; d++)
-	{
-		t[d] = B[d] * dtqm2;
-		s_denom += t[d] * t[d];
-
-		/* Advance the velocity half an electric impulse */
-		v_minus[d] = u[d] + dtqm2 * E[d];
-
-		s[d] = 2.0 * t[d] / s_denom;
-	}
-
-	/* Compute half the rotation in v' */
-	cross_product(v_prime, v_minus, t);
-
-	for(d=X; d<MAX_DIM; d++)
-		v_prime[d] += v_minus[d];
-
-	cross_product(v_plus, v_prime, s);
-
-	for(d=X; d<MAX_DIM; d++)
-	{
-		/* Then finish the rotation by symmetry */
-		v_plus[d] += v_minus[d];
-
-		/* Advance the velocity the other half electric impulse */
-		v[d] = v_plus[d] + dtqm2 * E[d];
-	}
-
-}
-
-void
-wrap_particle_position(sim_t *sim, particle_t *p)
-{
-	if(p->i < 100)
-		dbg("Particle %d is at (%.10e, %.10e) before wrap\n",
-				p->i, p->x[X], p->x[Y]);
-
-	if(sim->dim >= 1)
-	{
-		while(p->x[X] >= sim->L[X])
-			p->x[X] -= sim->L[X];
-
-		while(p->x[X] < 0.0)
-			p->x[X] += sim->L[X];
-	}
-
-	if(sim->dim >= 2)
-	{
-		while(p->x[Y] >= sim->L[Y])
-			p->x[Y] -= sim->L[Y];
-
-		while(p->x[Y] < 0.0)
-			p->x[Y] += sim->L[Y];
-	}
-
-	if(p->i < 100)
-		dbg("Particle %d is now at (%.10e, %.10e)\n",
-				p->i, p->x[X], p->x[Y]);
-
-	/* Notice that we allow p->x to be equal to L, as when the position is
-	 * wrapped from x<0 but -1e-17 < x, the wrap sets x equal to L, as with
-	 * bigger numbers the error increases, and the round off may set x to
-	 * exactly L */
-	if(sim->dim >= 1)
-	{
-		assert(p->x[X] <= sim->L[X]);
-		assert(p->x[X] >= 0.0);
-	}
-	if(sim->dim >= 2)
-	{
-		assert(p->x[Y] <= sim->L[Y]);
-		assert(p->x[Y] >= 0.0);
-	}
-}
-
 int
 particle_set_E(sim_t *sim, plasma_chunk_t *chunk, int i)
 {
@@ -321,7 +221,7 @@ chunk_E(sim_t *sim, int i)
 		dbg("Running task chunk_E with chunk %d\n", i);
 		for(i=0; i<chunk->nspecies; i++)
 		{
-			particle_set_E(sim, chunk, i);
+			interpolate_f2p_E(sim, &chunk->species[i], chunk->x0);
 		}
 	}
 
@@ -362,173 +262,4 @@ int
 particle_comm_initial(sim_t *sim)
 {
 	return comm_plasma(sim, 1);
-}
-
-/* The speed u and position x of the particles are computed in a single phase */
-static int
-particle_x_update(sim_t *sim, plasma_chunk_t *chunk, int i)
-{
-	particle_set_t *set;
-	particle_t *p;
-	specie_t *s;
-	double *E, *B, u[MAX_DIM], dx[MAX_DIM];
-#if 0
-	double uu, vv;
-#endif
-	double v[MAX_DIM] = {0};
-	double dt = sim->dt;
-	double q, m;
-
-	set = &chunk->species[i];
-	s = set->info;
-
-	q = s->q;
-	m = s->m;
-	B = sim->B;
-
-	for (p = set->particles; p; p = p->next)
-	{
-		u[X] = p->u[X];
-		u[Y] = p->u[Y];
-		u[Z] = p->u[Z];
-		E = p->E;
-
-		//E[X] = 0.0;
-		//E[Y] = 0.0;
-		//E[Z] = 0.0;
-
-		if(sim->iter == 0)
-		{
-
-			/* TODO: Improve the rotation to avoid the if. Also set
-			 * the time sim->t properly. */
-
-			boris_rotation(q, m, u, v, E, B, -dt/2.0);
-			if(p->i < 100)
-				dbg("Backward move: At t=%e u=(%.3e,%.3e) to t=%e u=(%.3e,%.3e)\n",
-						sim->t, u[X], u[Y],
-						sim->t-dt/2.0, v[X], v[Y]);
-			p->u[X] = v[X];
-			p->u[Y] = v[Y];
-			continue;
-		}
-
-		boris_rotation(q, m, u, v, E, B, dt);
-
-		if(p->i < 100)
-			dbg("Particle %d at x=(%.3e,%.3e) increases speed by (%.3e,%.3e)\n",
-					p->i, p->x[X], p->x[Y], v[X] - u[X], v[Y] - u[Y]);
-
-		/* We advance the kinetic energy here, as we know the old
-		 * velocity at t - dt/2 and the new one at t + dt/2. So we take
-		 * the average, to estimate v(t) */
-
-
-#if 0
-		uu = sqrt(v[X]*v[X] + v[Y]*v[Y]);
-		vv = sqrt(u[X]*u[X] + u[Y]*u[Y]);
-
-		sim->energy_kinetic += 0.5 * (uu+vv) * (uu+vv);
-		sim->total_momentum[X] += v[X];
-		sim->total_momentum[Y] += v[Y];
-#endif
-
-		p->u[X] = v[X];
-		p->u[Y] = v[Y];
-
-		/* Notice we advance the position x by the new velocity just
-		 * computed, following the leapfrog integrator */
-
-		dx[X] = dt * v[X];
-		dx[Y] = dt * v[Y];
-
-		if(fabs(dx[X]) > sim->L[X])
-		{
-			err("Particle %d at x=(%.3e,%.3e) has exceeded L[X]=%.3e with dx[X]=%.3e\n",
-					p->i, p->x[X], p->x[Y], sim->L[X], dx[X]);
-			err("Please, reduce dt=%.3e or increase L\n",
-					sim->dt);
-			exit(1);
-		}
-
-		if(fabs(dx[Y]) > chunk->L[Y])
-		{
-			err("Particle %d at x=(%.3e,%.3e) has exceeded chunk L[Y]=%.3e with dx[Y]=%.3e\n",
-					p->i, p->x[X], p->x[Y], chunk->L[Y], dx[Y]);
-			err("Please, reduce dt=%.3e or increase L\n",
-					sim->dt);
-			exit(1);
-		}
-
-		/*
-		if(fabs(dx[X]) > sim->dx[X] || fabs(dx[Y]) > sim->dx[Y])
-		{
-			err("Particle %d at x=(%.3e,%.3e)+(%.3e,%.3e) has exceeded sim dx=(%.3e,%.3e)\n",
-					p->i, p->x[X], p->x[Y],
-					dx[X], dx[Y],
-					sim->dx[X], sim->dx[Y]);
-			err("Please, reduce dt=%.3e or increase L\n",
-					sim->dt);
-			exit(1);
-		}
-		*/
-
-
-		p->x[X] += dx[X];
-		p->x[Y] += dx[Y];
-
-		if(p->i < 100)
-			dbg("Particle %d moved to x=(%.3e,%.3e)\n",
-					p->i, p->x[X], p->x[Y]);
-
-		/* Wrapping is done after the particle is moved to the right
-		 * block */
-
-	}
-
-	return 0;
-}
-
-int
-chunk_x_update(sim_t *sim, int ic)
-{
-	plasma_chunk_t *chunk;
-	int is;
-
-	is = 0;
-	chunk = &sim->plasma.chunks[ic];
-
-	#pragma oss task concurrent(sim->timers[TIMER_PARTICLE_X]) \
-		inout(*chunk) label(chunk_x_update)
-	{
-		dbg("Running task x update on chunk %d\n", ic);
-		for(is=0; is<chunk->nspecies; is++)
-		{
-			particle_x_update(sim, chunk, is);
-		}
-	}
-
-	return 0;
-}
-
-int
-plasma_x(sim_t *sim)
-{
-	int i;
-
-	perf_start(&sim->timers[TIMER_PARTICLE_X]);
-
-	/* Computation */
-	for(i=0; i<sim->plasma.nchunks; i++)
-		chunk_x_update(sim, i);
-
-	//#pragma oss taskwait
-
-	particle_comm(sim);
-
-	#pragma oss task inout(sim->timers[TIMER_PARTICLE_X]) \
-		label(perf_stop.particle_x)
-	perf_stop(&sim->timers[TIMER_PARTICLE_X]);
-
-	return 0;
 }

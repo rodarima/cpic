@@ -20,7 +20,7 @@
 
 #ifdef GLOBAL_DEBUG
 
-#if DEBUG
+#if DEBUG > 0
 
 #ifdef DEBUG_USE_MPI_RANK
 #define dbg(...) do {						\

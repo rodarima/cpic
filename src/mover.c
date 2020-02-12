@@ -162,7 +162,7 @@ chunk_update_r(sim_t *sim, int ic)
 	}
 }
 
-void
+static void
 plasma_mover(sim_t *sim)
 {
 	int i;
@@ -175,4 +175,15 @@ plasma_mover(sim_t *sim)
 			label(chunk_update_r)
 		chunk_update_r(sim, i);
 	}
+}
+
+void
+stage_update_r(sim_t *sim)
+{
+	/* Compute the new position for each particle */
+	plasma_mover(sim);
+
+	/* Then move out-of-chunk particles to their correct chunk, which may
+	 * involve MPI communication. We don't do global exchange here. */
+	comm_plasma(sim, 0);
 }

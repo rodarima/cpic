@@ -153,102 +153,6 @@ field_init(sim_t *sim, field_t *f)
 	return 0;
 }
 
-
-/* The field rho is updated based on the charge density computed on each
- * particle p, by using an interpolation function. Only the area corresponding
- * with the chunk is updated, which also includes the right neighbour points. */
-int
-rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
-{
-	particle_t *p;
-	field_t *field;
-	mat_t *_rho;
-	double q;
-	double w[2][2];
-	int i0[2], i1[2];
-
-	field = &sim->field;
-	_rho = field->_rho;
-
-	q = set->info->q;
-
-	dbg("Field domain x0=(%e, %e) x1=(%e,%e)\n",
-			field->x0[X], field->x0[Y],
-			field->x1[X], field->x1[Y]);
-
-	for(p = set->particles; p; p = p->next)
-	{
-		/* Interpolate the charge density of the particle to the grid
-		 * of the block */
-		dbg("Rho interpolation for p-%d at (%e, %e)\n",
-				p->i, p->x[X], p->x[Y]);
-
-		/* Ensure the particle is in the chunk */
-		assert((chunk->x0[X] <= p->x[X]) && (p->x[X] < chunk->x1[X]));
-		assert((chunk->x0[Y] <= p->x[Y]) && (p->x[Y] < chunk->x1[Y]));
-
-		interpolate_weights_xy(p->x, sim->dx, field->x0, w, i0);
-
-		dbg("Computed weights for particle %p are [%e %e %e %e]\n",
-				p, w[0][0], w[0][1], w[1][0], w[1][1]);
-
-		i1[X] = i0[X] + 1;
-		i1[Y] = i0[Y] + 1;
-
-		dbg("p-%d at (%e %e) write area i0=(%d %d) i1=(%d %d)\n",
-				p->i, p->x[X], p->x[Y],
-				i0[X], i0[Y],
-				i1[X], i1[Y]);
-
-		/* Wrap only in the X direction: we assume a periodic
-		 * domain */
-		if(i1[X] == sim->blocksize[X])
-			i1[X] -= sim->blocksize[X];
-
-		assert(i1[X] < sim->blocksize[X]);
-		assert(i1[Y] < sim->ghostsize[Y]);
-
-		assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
-		assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);
-		assert(i1[X] >= 0 && i1[X] <= sim->ghostsize[X]);
-		assert(i1[Y] >= 1 && i1[Y] <= sim->ghostsize[Y]);
-
-		/* We have the extra room in X for the solver */
-		assert(_rho->shape[X] >= sim->ghostsize[X]);
-
-		/* And also may be in Y */
-		assert(_rho->shape[Y] >= sim->ghostsize[Y]);
-
-		dbg("p-%d affects x=(%d %d) y=(%d %d) old rho=(%e %e %e %e)\n",
-				p->i, i0[X], i1[X], i0[Y], i1[Y],
-				MAT_XY(_rho, i0[X], i0[Y]),
-				MAT_XY(_rho, i1[X], i0[Y]),
-				MAT_XY(_rho, i0[X], i1[Y]),
-				MAT_XY(_rho, i1[X], i1[Y])
-			);
-
-		MAT_XY(_rho, i0[X], i0[Y]) += w[0][0] * q;
-		MAT_XY(_rho, i0[X], i1[Y]) += w[0][1] * q;
-		MAT_XY(_rho, i1[X], i0[Y]) += w[1][0] * q;
-		MAT_XY(_rho, i1[X], i1[Y]) += w[1][1] * q;
-
-		dbg("p-%d affect x=(%d %d) y=(%d %d) new rho=(%e %e %e %e)\n",
-				p->i, i0[X], i1[X], i0[Y], i1[Y],
-				MAT_XY(_rho, i0[X], i0[Y]),
-				MAT_XY(_rho, i1[X], i0[Y]),
-				MAT_XY(_rho, i0[X], i1[Y]),
-				MAT_XY(_rho, i1[X], i1[Y])
-			);
-
-		assert(MAT_XY(_rho, i0[X], i0[Y]) != 0.0);
-		dbg("p-%d _rho(%d,%d)=%e\n",
-				p->i, i0[X], i0[Y], MAT_XY(_rho, i0[X], i0[Y]));
-	}
-
-
-	return 0;
-}
-
 int
 rho_reset(sim_t *sim, int i)
 {
@@ -292,19 +196,24 @@ rho_reset(sim_t *sim, int i)
 	return 0;
 }
 
+/* The field rho is updated based on the charge density computed on each
+ * particle p, by using an interpolation function. Only the area corresponding
+ * with the chunk is updated, which also includes the right neighbour points. */
 int
 rho_update(sim_t *sim, int i)
 {
 	int is;
 	plist_t *l;
 	plasma_chunk_t *chunk;
+	specie_t *sp;
 
 	chunk = &sim->plasma.chunks[i];
 
 	for(is=0; is<sim->nspecies; is++)
 	{
 		l = &chunk->species[is];
-		rho_update_specie(sim, chunk, l);
+		sp = &sim->species[is];
+		interpolate_to_field_rho(sim, l, chunk->x0, sp->q);
 		//mat_print(sim->field.rho, "rho after update one specie");
 	}
 
