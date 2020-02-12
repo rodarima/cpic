@@ -10,3 +10,6 @@ void
 interpolate_field_to_particle_xy(vi64 blocksize[2], vi64 ghostsize[2],
 		vf64 dx[2], vf64 idx[2], vf64 x[2], vf64 x0[2],
 		vf64 val[1], mat_t *mat);
+
+void
+interpolate_to_field_rho(sim_t *sim, plist_t *l, double x0[2], double q);

@@ -163,7 +163,7 @@ chunk_update_r(sim_t *sim, int ic)
 }
 
 void
-particle_mover(sim_t *sim)
+plasma_mover(sim_t *sim)
 {
 	int i;
 

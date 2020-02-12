@@ -89,3 +89,23 @@ vmat_get_xy(mat_t *m, vi64 ix, vi64 iy)
 {
 	return vgather(m->data, vmat_index_xy(m, ix, iy));
 }
+
+inline void
+vmat_set_xy(mat_t *m, vi64 ix, vi64 iy, vf64 x)
+{
+	size_t iv;
+	vi64 idx;
+
+	/* We don't have scatter in AVX2, so we need to store each element one
+	 * by one... */
+	idx = vmat_index_xy(m, ix, iy);
+	for(iv=0; iv<MAX_VEC; iv++)
+		m->data[idx[iv]] = x[iv];
+}
+
+inline void
+vmat_add_xy(mat_t *m, vi64 ix, vi64 iy, vf64 x)
+{
+	vmat_set_xy(m, ix, iy,
+			vmat_get_xy(m, ix, iy) + x);
+}

@@ -158,7 +158,7 @@ field_init(sim_t *sim, field_t *f)
  * particle p, by using an interpolation function. Only the area corresponding
  * with the chunk is updated, which also includes the right neighbour points. */
 int
-rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
+rho_update_specie(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
 {
 	particle_t *p;
 	field_t *field;
@@ -296,15 +296,15 @@ int
 rho_update(sim_t *sim, int i)
 {
 	int is;
-	particle_set_t *set;
+	plist_t *l;
 	plasma_chunk_t *chunk;
 
 	chunk = &sim->plasma.chunks[i];
 
 	for(is=0; is<sim->nspecies; is++)
 	{
-		set = &chunk->species[is];
-		rho_update_specie(sim, chunk, set);
+		l = &chunk->species[is];
+		rho_update_specie(sim, chunk, l);
 		//mat_print(sim->field.rho, "rho after update one specie");
 	}
 
@@ -344,16 +344,14 @@ rho_destroy_ghost(sim_t *sim, int i)
 
 /* The field rho is updated based on the charge density computed on each
  * particle p, by using an interpolation function */
-int
-field_rho(sim_t *sim)
+void
+stage_field_rho(sim_t *sim)
 {
 	int i;
 	plasma_t *plasma;
 	plasma_chunk_t *c0, *c1;
 
 	plasma = &sim->plasma;
-
-	perf_start(&sim->timers[TIMER_FIELD_RHO]);
 
 	/* Reset charge density */
 	for (i=0; i<plasma->nchunks; i++)
@@ -362,9 +360,11 @@ field_rho(sim_t *sim)
 		rho_reset(sim, i);
 	}
 
+#if DEBUG
 	mat_print(sim->field.rho, "rho after reset");
 
 	/* -- taskwait? -- */
+#endif
 
 	/* Computation */
 	for (i=0; i<plasma->nchunks; i++)
@@ -402,10 +402,7 @@ field_rho(sim_t *sim)
 
 		//#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(field_rho:perf_stop)
 		/* Recv the ghost part of the rho field */
-		perf_stop(&sim->timers[TIMER_FIELD_RHO]);
 	}
-
-	return 0;
 }
 
 int
@@ -500,7 +497,7 @@ field_phi_solve(sim_t *sim)
 }
 
 int
-field_E(sim_t *sim)
+stage_field_E(sim_t *sim)
 {
 	plasma_t *plasma;
 	plasma_chunk_t *chunk, *next, *prev;
