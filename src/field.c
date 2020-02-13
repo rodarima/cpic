@@ -213,7 +213,7 @@ rho_update(sim_t *sim, int i)
 	{
 		l = &chunk->species[is];
 		sp = &sim->species[is];
-		interpolate_to_field_rho(sim, l, chunk->x0, sp->q);
+		interpolate_p2f_rho(sim, l, chunk->x0, sp->q);
 		//mat_print(sim->field.rho, "rho after update one specie");
 	}
 

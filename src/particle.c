@@ -49,14 +49,14 @@ particle_init()
 }
 
 int
-particles_init(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
+particles_init(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
 {
 	int i;
 	const char *method;
 	config_setting_t *cs;
 	specie_t *s;
 
-	s = set->info;
+	s = l->info;
 	cs = s->conf;
 
 	if(config_setting_lookup_string(cs, "init_method", &method) != CONFIG_TRUE)
@@ -77,7 +77,7 @@ particles_init(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 			exit(1);
 		}
 
-		return pc[i].init(sim, chunk, i);
+		return pc[i].init(sim, chunk, l);
 	}
 
 	err("Unknown init method \"%s\", aborting.\n", method);
@@ -87,9 +87,9 @@ particles_init(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
 }
 
 int
-init_default(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
+init_default(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
 {
-	return init_randpos(sim, chunk, set);
+	return init_randpos(sim, chunk, l);
 }
 
 double
@@ -102,111 +102,93 @@ uniform(double a, double b)
 int
 init_randpos(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
 {
-	particle_t *p;
+	pblock_t *b;
+	pchunk_t *c;
 	double v[MAX_DIM];
 	config_setting_t *cs_v;
+	size_t nvec, i, iv;
 
 	/* FIXME: Use specific random velocity interval name */
-	cs_v = config_setting_get_member(set->info->conf, "drift_velocity");
+	cs_v = config_setting_get_member(l->info->conf, "drift_velocity");
 	if(config_array_float(cs_v, v, sim->dim))
 		return 1;
 
-	for(p = set->particles; p; p = p->next)
+	for(b = l->b; b; b = b->next)
 	{
-		p->x[X] = uniform(0.0, sim->L[X]);
-		p->x[Y] = uniform(0.0, sim->L[Y]);
-		p->x[Z] = 0.0;
-
-		/* FIXME: Separate position and velocity init metods */
-		p->u[X] = uniform(-v[X], v[X]);
-		p->u[Y] = uniform(-v[Y], v[Y]);
-		p->u[Z] = 0.0;
-
-		p->E[X] = 0.0;
-		p->E[Y] = 0.0;
-		p->E[Z] = 0.0;
-
-		if(p->i < 100)
-			dbg("Particle %d randpos init at (%e, %e) in chunk (%d, %d)\n",
-				p->i, p->x[X], p->x[Y], chunk->ig[X], chunk->ig[Y]);
-
-		//if(p->x[Y] > b->x1[Y] || p->x[Y] < b->x0[Y])
-		//	err("WARN: Particle %d exceeds block boundary in Y\n", p->i);
-	}
-
-	return 0;
-}
-
-int
-init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
-{
-	int d;
-	particle_t *p;
-	double r[MAX_DIM] = {0};
-	double dr[MAX_DIM] = {0};
-	double *L;
-	double v[MAX_DIM] = {0};
-	config_setting_t *cs, *cs_v, *cs_r, *cs_dr;
-
-	cs = set->info->conf;
-	L = sim->L;
-
-	cs_v = config_setting_get_member(cs, "drift_velocity");
-	if(config_array_float(cs_v, v, sim->dim))
-		return 1;
-
-	cs_dr = config_setting_get_member(cs, "position_delta");
-	if(config_array_float(cs_dr, dr, sim->dim))
-		return 1;
-
-	cs_r = config_setting_get_member(cs, "position_init");
-	if(config_array_float(cs_r, r, sim->dim))
-		return 1;
-
-	dbg("Init position and speed in %d particles\n", set->nparticles);
-
-	for(p = set->particles; p; p = p->next)
-	{
-		for(d=0; d<sim->dim; d++)
+		/* Initialize all, even after b->n */
+		nvec = (b->n + MAX_VEC - 1) / MAX_VEC;
+		for(i=0; i < nvec; i++)
 		{
-			p->u[d] = v[d];
+			c = &b->c[i];
 
-			WRAP(p->x[d], r[d] + dr[d] * p->i, L[d]);
-			p->E[d] = 0.0;
+			for(iv=0; iv<MAX_VEC; iv++)
+			{
+				/* XXX: Should we keep the particles out of
+				 * b->n inside the chunk? */
+				c->r[X][iv] = uniform(0.0, sim->L[X]);
+				c->r[Y][iv] = uniform(0.0, sim->L[Y]);
+				c->r[Z][iv] = 0.0;
+
+				/* FIXME: Separate position and velocity init metods */
+				c->u[X][iv] = uniform(-v[X], v[X]);
+				c->u[Y][iv] = uniform(-v[Y], v[Y]);
+				c->u[Z][iv] = 0.0;
+			}
+
+			c->E[X] = vset1(0.0);
+			c->E[Y] = vset1(0.0);
+			c->E[Z] = vset1(0.0);
 		}
-
-		if(p->i < 100)
-			dbg("Particle %d offset init at (%e, %e) in chunk (%d, %d)\n",
-				p->i, p->x[X], p->x[Y], chunk->ig[X], chunk->ig[Y]);
 	}
 
 	return 0;
 }
 
-int
-particle_set_E(sim_t *sim, plasma_chunk_t *chunk, int i)
-{
-	field_t *f;
-	particle_set_t *set;
-	particle_t *p;
-
-	f = &sim->field;
-	set = &chunk->species[i];
-
-	for(p=set->particles; p; p=p->next)
-	{
-		if(p->i < 100)
-			dbg("p-%d old E=(%f %f)\n", p->i, p->E[X], p->E[Y]);
-		p->E[X] = 0.0;
-		p->E[Y] = 0.0;
-		interpolate_field_to_particle_xy(sim, p, &p->E[X], f->E[X]);
-		interpolate_field_to_particle_xy(sim, p, &p->E[Y], f->E[Y]);
-		if(p->i < 100)
-			dbg("p-%d new E=(%f %f)\n", p->i, p->E[X], p->E[Y]);
-		assert(!isnan(p->E[X]) && !isnan(p->E[Y]));
-	}
-	return 0;
-}
+//int
+//init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set)
+//{
+//	int d;
+//	particle_t *p;
+//	double r[MAX_DIM] = {0};
+//	double dr[MAX_DIM] = {0};
+//	double *L;
+//	double v[MAX_DIM] = {0};
+//	config_setting_t *cs, *cs_v, *cs_r, *cs_dr;
+//
+//	cs = set->info->conf;
+//	L = sim->L;
+//
+//	cs_v = config_setting_get_member(cs, "drift_velocity");
+//	if(config_array_float(cs_v, v, sim->dim))
+//		return 1;
+//
+//	cs_dr = config_setting_get_member(cs, "position_delta");
+//	if(config_array_float(cs_dr, dr, sim->dim))
+//		return 1;
+//
+//	cs_r = config_setting_get_member(cs, "position_init");
+//	if(config_array_float(cs_r, r, sim->dim))
+//		return 1;
+//
+//	dbg("Init position and speed in %d particles\n", set->nparticles);
+//
+//	for(p = set->particles; p; p = p->next)
+//	{
+//		for(d=0; d<sim->dim; d++)
+//		{
+//			p->u[d] = v[d];
+//
+//			WRAP(p->x[d], r[d] + dr[d] * p->i, L[d]);
+//			p->E[d] = 0.0;
+//		}
+//
+//		if(p->i < 100)
+//			dbg("Particle %d offset init at (%e, %e) in chunk (%d, %d)\n",
+//				p->i, p->x[X], p->x[Y], chunk->ig[X], chunk->ig[Y]);
+//	}
+//
+//	return 0;
+//}
 
 int
 chunk_E(sim_t *sim, int i)
@@ -215,37 +197,25 @@ chunk_E(sim_t *sim, int i)
 
 	chunk = &sim->plasma.chunks[i];
 
-	#pragma oss task concurrent(sim->timers[TIMER_PARTICLE_E]) \
-		inout(*chunk) label(chunk_E)
+	#pragma oss task inout(*chunk) label(chunk_E)
 	{
 		dbg("Running task chunk_E with chunk %d\n", i);
 		for(i=0; i<chunk->nspecies; i++)
-		{
 			interpolate_f2p_E(sim, &chunk->species[i], chunk->x0);
-		}
 	}
 
 	return 0;
 }
 
 int
-particle_E(sim_t *sim)
+stage_plasma_E(sim_t *sim)
 {
 	int i;
 
-	perf_start(&sim->timers[TIMER_PARTICLE_E]);
-
 	/* Computation */
-	for(i=0; i<sim->plasma.nchunks; i++)
-	{
-		chunk_E(sim, i);
-	}
+	for(i=0; i<sim->plasma.nchunks; i++) chunk_E(sim, i);
 
 	/* No communication required, as only p->E is updated */
-
-	#pragma oss task inout(sim->timers[TIMER_PARTICLE_E]) \
-		label(perf_stop.particle_E)
-	perf_stop(&sim->timers[TIMER_PARTICLE_E]);
 
 	return 0;
 }

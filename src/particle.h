@@ -9,7 +9,7 @@ particle_init();
 
 
 int
-particles_init(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
+particles_init(sim_t *sim, plasma_chunk_t *chunk, plist_t *l);
 
 void
 wrap_particle_position(sim_t *sim, particle_t *p);
