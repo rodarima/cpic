@@ -5,7 +5,7 @@
 
 /* NOTE: this DEBUG enables a taskwait which may lead to unexpected behavior
  * when debugging a problem, remove the taskwait if the print is not needed */
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include "mat.h"
 #include "utils.h"
@@ -25,7 +25,12 @@ field_init(sim_t *sim, field_t *f)
 	int E_shape[MAX_DIM];
 	size_t alignment;
 
-	alignment = sim->output->alignment;
+	dbg("field_init() begins\n");
+
+	if(sim->output->enabled == 0)
+		alignment = 512;
+	else
+		alignment = sim->output->alignment;
 
 	f->shape[X] = sim->blocksize[X];
 	f->shape[Y] = sim->blocksize[Y];

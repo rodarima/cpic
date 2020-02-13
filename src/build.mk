@@ -65,7 +65,7 @@ src_ldlibs+=-lhdf5
 MCC_CFLAGS:=
 
 # Enable OmpSs 2
-MCC_CFLAGS+=--ompss-2
+#MCC_CFLAGS+=--ompss-2
 
 # Show line markers in the generated file
 MCC_CFLAGS:=--line-markers

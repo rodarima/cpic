@@ -1,6 +1,7 @@
 #include "def.h"
 #include "simd.h"
 #include "mat.h"
+#include <assert.h>
 
 #define DEBUG 1
 #include "log.h"
@@ -135,6 +136,8 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
 
+	dbg("Interpolate ppack x[X]="VFMT" x[Y]="VFMT"\n",
+			VARG(x[X]), VARG(x[Y]));
 	/* Ensure the particle is in the chunk */
 	//assert((chunk->x0[X] <= p->x[X]) && (p->x[X] < chunk->x1[X]));
 	//assert((chunk->x0[Y] <= p->x[Y]) && (p->x[Y] < chunk->x1[Y]));
@@ -172,13 +175,20 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 	/* And also may be in Y */
 	//assert(_rho->shape[Y] >= sim->ghostsize[Y]);
 
-	//dbg("p-%d affects x=(%d %d) y=(%d %d) old rho=(%e %e %e %e)\n",
-	//		p->i, i0[X], i1[X], i0[Y], i1[Y],
-	//		MAT_XY(_rho, i0[X], i0[Y]),
-	//		MAT_XY(_rho, i1[X], i0[Y]),
-	//		MAT_XY(_rho, i0[X], i1[Y]),
-	//		MAT_XY(_rho, i1[X], i1[Y])
-	//	);
+#ifdef DEBUG
+	size_t iv;
+
+	for(iv=0; iv<MAX_VEC; iv++)
+	{
+		dbg("iv=%zd affects x=(%lld %lld) y=(%lld %lld) old mat=(%e %e %e %e)\n",
+				iv, i0[X][iv], i1[X][iv], i0[Y][iv], i1[Y][iv],
+				MAT_XY(mat, i0[X][iv], i0[Y][iv]),
+				MAT_XY(mat, i1[X][iv], i0[Y][iv]),
+				MAT_XY(mat, i0[X][iv], i1[Y][iv]),
+				MAT_XY(mat, i1[X][iv], i1[Y][iv])
+			);
+	}
+#endif
 
 	vmat_add_xy(mat, i0[X], i0[Y], w[0][0] * q);
 	vmat_add_xy(mat, i0[X], i1[Y], w[0][1] * q);
@@ -228,6 +238,9 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 	/* We take the whole rho field, including the ghosts in Y+ */
 	rho = sim->field._rho;
 
+	dbg("rho[0][0] = %e\n", rho->data[0]);
+	assert(rho->data[0] == 0.0); /* rho must be reset */
+
 	for(b = l->b; b; b = b->next)
 	{
 		/* FIXME: We cannot exceed the number of particles here,
@@ -235,6 +248,7 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 		nvec = b->n / MAX_VEC;
 		for(i=0; i < nvec; i++)
 		{
+			dbg("i = %zd / %zd\n", i, nvec);
 			p = &b->p[i];
 			interpolate_p2f(blocksize, ghostsize,
 					dx, idx, p->r, x0, vq, rho);
@@ -244,7 +258,9 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 	/* FIXME: Continue the loop if we had a non-aligned number of
 	 * particles: We assign q to 0 to those elements that are out
 	 * of b->n */
-	if(b->n - nvec * MAX_VEC > 0)
+	assert(l->b);
+	b = l->b->prev;
+	if(b && b->n - nvec * MAX_VEC > 0)
 	{
 		for(iv=b->n - nvec; iv<MAX_VEC; iv++)
 		{

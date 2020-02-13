@@ -8,7 +8,7 @@
 #include "plist.h"
 
 #define NBLOCKS 1
-#define NMAX (8*1024*1024)
+#define NMAX (1024)
 #define PLIST_ALIGN 2*1024*1024
 
 //void
@@ -23,8 +23,9 @@
 int
 pset_init(sim_t *sim, pchunk_t *chunk, int is)
 {
-	size_t ib, ic, step;
+	size_t ib, iv, ic, i, step, nvec;
 	plist_t *l;
+	pblock_t *b;
 	pset_t *set;
 	plasma_t *plasma;
 	specie_t *specie;
@@ -34,7 +35,7 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 	specie = &sim->species[is];
 	l = &set->list;
 
-	set->info = specie; /* XXX: This shouldn't belong here... */
+	set->info = specie;
 
 	plist_init(l, NMAX);
 
@@ -43,7 +44,7 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 
 	for(ib=0; ib<NBLOCKS; ib++)
 	{
-		if(!plist_grow(l, NMAX))
+		if(plist_grow(l, NMAX))
 		{
 			err("plist_grow() failed\n");
 			return 1;
@@ -98,8 +99,47 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 //		particle_set_add(set, p);
 //	}
 
+	i = 0;
+	for(b = l->b; b; b = b->next)
+	{
+		/* FIXME: We cannot exceed the number of particles here,
+		 * otherwise we write garbage into rho */
+		npacks = b->n / MAX_VEC;
+		for(ip=0; ip < nvec; ip++)
+		{
+			dbg("i = %zd / %zd\n", i, nvec);
+			p = &b->p[i];
+			for(iv=0; iv<MAX_VEC; iv++)
+			{
+				p->i[iv] = i;
+				i+=step;
+			}
+			interpolate_p2f(blocksize, ghostsize,
+					dx, idx, p->r, x0, vq, rho);
+		}
+	}
+
+	/* FIXME: Continue the loop if we had a non-aligned number of
+	 * particles: We assign q to 0 to those elements that are out
+	 * of b->n */
+	assert(l->b);
+	b = l->b->prev;
+	if(b && b->n - nvec * MAX_VEC > 0)
+	{
+		for(iv=b->n - nvec; iv<MAX_VEC; iv++)
+		{
+			p->r[X][iv] = x0[X][iv];
+			p->r[Y][iv] = x0[Y][iv];
+			vq[iv] = 0.0;
+			dbg("Setting vq[%ld] to zero\n", iv);
+		}
+		interpolate_p2f(blocksize, ghostsize,
+				dx, idx, p->r, x0, vq, rho);
+	}
+
 	/* Once the index of each particle is correctly computed, we initalize
 	 * all other parameters, like position and speed */
+	particles_init(sim, chunk, set);
 
 	return 0;
 }

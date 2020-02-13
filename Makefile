@@ -29,7 +29,8 @@ CFLAGS:=-g -Wall
 #CFLAGS+=-Wstrict-prototypes -Wshadow -Wconversion
 
 # Optimization enabled
-CFLAGS+=-O3
+#CFLAGS+=-O3
+CFLAGS+=-O0
 #CFLAGS:=-g -Wall -Werror
 #LDFLAGS:=-L. -Wl,-rpath,.
 
