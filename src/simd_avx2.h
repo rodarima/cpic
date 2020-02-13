@@ -78,19 +78,19 @@ vi64 vf64_to_vi64(vf64 x)
 /* Vectorized mat_t operations: This should be in mat.h XXX */
 #include "mat.h"
 
-inline vi64
+static inline vi64
 vmat_index_xy(mat_t *m, vi64 ix, vi64 iy)
 {
 	return vi64_set1(m->real_shape[X]) * iy + ix;
 }
 
-inline vf64
+static inline vf64
 vmat_get_xy(mat_t *m, vi64 ix, vi64 iy)
 {
 	return vgather(m->data, vmat_index_xy(m, ix, iy));
 }
 
-inline void
+static inline void
 vmat_set_xy(mat_t *m, vi64 ix, vi64 iy, vf64 x)
 {
 	size_t iv;
@@ -103,7 +103,7 @@ vmat_set_xy(mat_t *m, vi64 ix, vi64 iy, vf64 x)
 		m->data[idx[iv]] = x[iv];
 }
 
-inline void
+static inline void
 vmat_add_xy(mat_t *m, vi64 ix, vi64 iy, vf64 x)
 {
 	vmat_set_xy(m, ix, iy,

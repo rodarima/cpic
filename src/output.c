@@ -19,7 +19,7 @@
 #define H5Y 0
 
 #define ALIGNED
-#define IS_ALIGNED(ADDR, SIZE) (((uintptr_t)(const void *)(ADDR)) % (SIZE) == 0)
+//#define IS_ALIGNED(ADDR, SIZE) (((uintptr_t)(const void *)(ADDR)) % (SIZE) == 0)
 
 int
 create_directories(output_t *out)
@@ -183,6 +183,8 @@ write_xdmf_specie(sim_t *sim, int np)
 
 	return 0;
 }
+
+#if 0
 int
 output_chunk(sim_t *sim, int ic, int *acc_np, hid_t file_id)
 {
@@ -396,6 +398,7 @@ output_particles(sim_t *sim)
 	perf_stop(&sim->timers[TIMER_OUTPUT_PARTICLES]);
 	return 0;
 }
+#endif
 
 int
 write_field_attribute(FILE *f, int iter, mat_t *m, const char *name)
@@ -504,7 +507,6 @@ int
 write_vector(int fd, size_t offset, double *vector, size_t size, size_t alignment)
 {
 	ssize_t ret;
-	uintptr_t p;
 
 	ret = 0;
 
@@ -545,7 +547,7 @@ write_field(sim_t *sim, output_t *out, mat_t *m, const char *name)
 	 * The number of parts will then vary as the size of the fields. */
 
 	int i, fd, ret;
-	size_t n, nlast, offset, total_bytes, total_blocks, bsize;
+	size_t n, offset, total_bytes, total_blocks, bsize;
 	size_t nblocks, slice_bytes, left;
 	char *data;
 	char file[PATH_MAX];

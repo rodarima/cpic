@@ -50,11 +50,9 @@ int
 fix_fields(sim_t *sim, void *rho_data, void *phi_data)
 {
 	field_t *f;
-	int d, snx, sny, rho_alloc_size;
-	int fshape[MAX_DIM];
+	int snx, sny, rho_alloc_size;
 	int rho_shape[MAX_DIM];
 	int phi_shape[MAX_DIM];
-	int E_shape[MAX_DIM];
 
 	f = &sim->field;
 
@@ -148,7 +146,6 @@ fix_fields(sim_t *sim, void *rho_data, void *phi_data)
 size_t
 create_shared(sim_t *sim, mft_t *m)
 {
-	mat_t *rho, *phi;
 	mat_t *_rho, *_phi;
 	size_t size;
 	size_t rho_size, phi_size;
@@ -201,7 +198,6 @@ int
 MFT_TAP_init(sim_t *sim, solver_t *solver)
 {
 	mft_t *m;
-	mft_shared_t *shared;
 	int n;
 	int np, np2;
 	char hostname[20];

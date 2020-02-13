@@ -1,4 +1,4 @@
 #include "sim.h"
 
 void
-stage_update_r(sim_t *sim);
+stage_plasma_r(sim_t *sim);

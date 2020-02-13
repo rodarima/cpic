@@ -14,7 +14,7 @@ cross_product(vf64 r[MAX_DIM], vf64 a[MAX_DIM], vf64 b[MAX_DIM])
 }
 
 static inline void
-boris_rotation(pchunk_t *c, vf64 dtqm2, vf64 u[MAX_DIM])
+boris_rotation(ppack_t *p, vf64 dtqm2, vf64 u[MAX_DIM])
 {
 	int d;
 	vf64 s_denom[MAX_DIM];
@@ -31,11 +31,11 @@ boris_rotation(pchunk_t *c, vf64 dtqm2, vf64 u[MAX_DIM])
 	{
 		s_denom[d] = vset1(1.0);
 
-		t[d] = c->B[d] * dtqm2;
+		t[d] = p->B[d] * dtqm2;
 		s_denom[d] += t[d] * t[d];
 
 		/* Advance the velocity half an electric impulse */
-		v_minus[d] = c->u[d] + dtqm2 * c->E[d];
+		v_minus[d] = p->u[d] + dtqm2 * p->E[d];
 
 		s[d] = two * t[d] / s_denom[d];
 	}
@@ -54,21 +54,21 @@ boris_rotation(pchunk_t *c, vf64 dtqm2, vf64 u[MAX_DIM])
 		v_plus[d] += v_minus[d];
 
 		/* Advance the velocity final half electric impulse */
-		u[d] = v_plus[d] + dtqm2 * c->E[d];
+		u[d] = v_plus[d] + dtqm2 * p->E[d];
 
 		/* TODO: Measure energy here */
 
-		vstream((double *) &c->u[d], u[d]);
+		vstream((double *) &p->u[d], u[d]);
 	}
 }
 
 static inline void
-move(pchunk_t *c, vf64 u[MAX_DIM], vf64 dt)
+move(ppack_t *p, vf64 u[MAX_DIM], vf64 dt)
 {
 	size_t d;
 	for(d=X; d<MAX_DIM; d++)
 	{
-		c->r[d] += u[d] * dt;
+		p->r[d] += u[d] * dt;
 	}
 }
 
@@ -118,7 +118,7 @@ plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax)
 {
 	vf64 u[MAX_DIM];
 	pblock_t *b;
-	pchunk_t *c;
+	ppack_t *p;
 	size_t i, nvec;
 
 	for(b = l->b; b; b = b->next)
@@ -127,15 +127,15 @@ plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax)
 		nvec = (b->n + MAX_VEC - 1)/ MAX_VEC;
 		for(i=0; i < nvec; i++)
 		{
-			c = &b->c[i];
+			p = &b->p[i];
 
-			boris_rotation(c, dtqm2, u);
+			boris_rotation(p, dtqm2, u);
 
 			/* TODO: Compute energy using old and new velocity */
 
 			check_velocity(u, umax);
 
-			move(c, u, dt);
+			move(p, u, dt);
 
 			/* Wrapping is done after the particle is moved to the right block */
 		}
@@ -146,7 +146,7 @@ plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax)
 static void
 chunk_update_r(sim_t *sim, int ic)
 {
-	plasma_chunk_t *chunk;
+	pchunk_t *chunk;
 	int is;
 	vf64 dt, dtqm2, umax;
 
@@ -158,7 +158,7 @@ chunk_update_r(sim_t *sim, int ic)
 	for(is=0; is<chunk->nspecies; is++)
 	{
 		dtqm2 = vset1(sim->species[is].m);
-		plist_update_r(&chunk->species[is], dt, dtqm2, umax);
+		plist_update_r(&chunk->species[is].list, dt, dtqm2, umax);
 	}
 }
 
@@ -178,12 +178,12 @@ plasma_mover(sim_t *sim)
 }
 
 void
-stage_update_r(sim_t *sim)
+stage_plasma_r(sim_t *sim)
 {
 	/* Compute the new position for each particle */
 	plasma_mover(sim);
 
 	/* Then move out-of-chunk particles to their correct chunk, which may
 	 * involve MPI communication. We don't do global exchange here. */
-	comm_plasma(sim, 0);
+	//comm_plasma(sim, 0);
 }

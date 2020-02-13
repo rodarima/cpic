@@ -4,15 +4,11 @@
 
 #include <libconfig.h>
 
-particle_t *
-particle_init();
-
-
 int
-particles_init(sim_t *sim, plasma_chunk_t *chunk, plist_t *l);
+particles_init(sim_t *sim, pchunk_t *chunk, pset_t *set);
 
-void
-wrap_particle_position(sim_t *sim, particle_t *p);
+//void
+//wrap_particle_position(sim_t *sim, particle_t *p);
 
 /* Communicate particles out of their block to the correct one */
 int
@@ -23,11 +19,11 @@ particle_comm(sim_t *sim);
 int
 particle_comm_initial(sim_t *sim);
 
-int
-particle_E(sim_t *sim);
+void
+stage_plasma_E(sim_t *sim);
 
-int
-plasma_x(sim_t *sim);
+void
+stage_plasma_r(sim_t *sim);
 
 #if 0
 

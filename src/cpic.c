@@ -42,9 +42,8 @@ main(int argc, char *argv[])
 	config_t conf;
 	const char *fn, *include_dir;
 	char *fn_dup;
-	int j,i, opt, prov;
+	int opt, prov;
 	int quiet = 0;
-	char caca[100];
 	int rank, nprocs;
 
 	perf_t timer;

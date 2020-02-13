@@ -160,7 +160,7 @@ rho_reset(sim_t *sim, int i)
 	int ix, iy;
 	mat_t *_rho, *frontier;
 	field_t *field;
-	plasma_chunk_t *chunk;
+	pchunk_t *chunk;
 
 	field = &sim->field;
 	_rho = field->_rho;
@@ -204,14 +204,14 @@ rho_update(sim_t *sim, int i)
 {
 	int is;
 	plist_t *l;
-	plasma_chunk_t *chunk;
+	pchunk_t *chunk;
 	specie_t *sp;
 
 	chunk = &sim->plasma.chunks[i];
 
 	for(is=0; is<sim->nspecies; is++)
 	{
-		l = &chunk->species[is];
+		l = &chunk->species[is].list;
 		sp = &sim->species[is];
 		interpolate_p2f_rho(sim, l, chunk->x0, sp->q);
 		//mat_print(sim->field.rho, "rho after update one specie");
@@ -227,7 +227,7 @@ rho_destroy_ghost(sim_t *sim, int i)
 	int ix, iy;
 	mat_t *_rho;
 	field_t *field;
-	plasma_chunk_t *chunk;
+	pchunk_t *chunk;
 
 	field = &sim->field;
 	_rho = field->_rho;
@@ -258,7 +258,7 @@ stage_field_rho(sim_t *sim)
 {
 	int i;
 	plasma_t *plasma;
-	plasma_chunk_t *c0, *c1;
+	pchunk_t *c0, *c1;
 
 	plasma = &sim->plasma;
 
@@ -315,7 +315,7 @@ stage_field_rho(sim_t *sim)
 }
 
 int
-field_E_compute(sim_t *sim, plasma_chunk_t *chunk)
+field_E_compute(sim_t *sim, pchunk_t *chunk)
 {
 	int ix, iy, x0, x1, y0, y1, nx, ny;
 	int start[MAX_DIM], end[MAX_DIM];
@@ -409,7 +409,7 @@ int
 stage_field_E(sim_t *sim)
 {
 	plasma_t *plasma;
-	plasma_chunk_t *chunk, *next, *prev;
+	pchunk_t *chunk, *next, *prev;
 	int ic, Nc;
 
 	perf_start(&sim->timers[TIMER_FIELD_E]);

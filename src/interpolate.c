@@ -207,7 +207,7 @@ void
 interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 {
 	pblock_t *b;
-	pchunk_t *c;
+	ppack_t *p;
 	mat_t *rho;
 	size_t i, iv, nvec;
 	vi64 blocksize[2], ghostsize[2];
@@ -235,9 +235,9 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 		nvec = b->n / MAX_VEC;
 		for(i=0; i < nvec; i++)
 		{
-			c = &b->c[i];
+			p = &b->p[i];
 			interpolate_p2f(blocksize, ghostsize,
-					dx, idx, c->r, x0, vq, rho);
+					dx, idx, p->r, x0, vq, rho);
 		}
 	}
 
@@ -248,13 +248,13 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 	{
 		for(iv=b->n - nvec; iv<MAX_VEC; iv++)
 		{
-			c->r[X][iv] = x0[X][iv];
-			c->r[Y][iv] = x0[Y][iv];
+			p->r[X][iv] = x0[X][iv];
+			p->r[Y][iv] = x0[Y][iv];
 			vq[iv] = 0.0;
 			dbg("Setting vq[%ld] to zero\n", iv);
 		}
 		interpolate_p2f(blocksize, ghostsize,
-				dx, idx, c->r, x0, vq, rho);
+				dx, idx, p->r, x0, vq, rho);
 	}
 }
 
@@ -262,7 +262,7 @@ void
 interpolate_f2p_E(sim_t *sim, plist_t *l, double _x0[2])
 {
 	pblock_t *b;
-	pchunk_t *c;
+	ppack_t *p;
 	field_t *f;
 	size_t i, nvec;
 	vi64 blocksize[2], ghostsize[2];
@@ -284,28 +284,28 @@ interpolate_f2p_E(sim_t *sim, plist_t *l, double _x0[2])
 
 	for(b = l->b; b; b = b->next)
 	{
-		/* Here we don't care if we continue to fill the last pchunk_t
+		/* Here we don't care if we continue to fill the last ppack_t
 		 * even if is not full, as we are going to update E in the
-		 * pchunk, which is harmless as long as the particle is inside
+		 * ppack, which is harmless as long as the particle is inside
 		 * the chunk */
 		nvec = (b->n + MAX_VEC - 1) / MAX_VEC;
 		for(i=0; i < nvec; i++)
 		{
-			c = &b->c[i];
+			p = &b->p[i];
 
-			c->E[X] = vset1(0.0);
-			c->E[Y] = vset1(0.0);
+			p->E[X] = vset1(0.0);
+			p->E[Y] = vset1(0.0);
 
 			/* TODO: Ensure the leftover particles in the last
-			 * pchunk have a valid position in the chunk */
+			 * ppack have a valid position in the chunk */
 
-			interpolate_f2p(blocksize, ghostsize, dx, idx, c->r,
-					x0, f->E[X], &c->E[X]);
-			interpolate_f2p(blocksize, ghostsize, dx, idx, c->r,
-					x0, f->E[Y], &c->E[Y]);
+			interpolate_f2p(blocksize, ghostsize, dx, idx, p->r,
+					x0, f->E[X], &p->E[X]);
+			interpolate_f2p(blocksize, ghostsize, dx, idx, p->r,
+					x0, f->E[Y], &p->E[Y]);
 
 			/* TODO: Complete assert */
-			//assert(!isnan(c->E[X]) && !isnan(c->E[Y]));
+			//assert(!isnan(p->E[X]) && !isnan(p->E[Y]));
 		}
 	}
 }

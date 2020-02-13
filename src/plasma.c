@@ -5,32 +5,52 @@
 #include "log.h"
 #include <utlist.h>
 #include "utils.h"
+#include "plist.h"
 
-void
-particle_set_add(particle_set_t *set, particle_t *p)
-{
-	dbg("Adding particle p_%d at (%.2f, %.2f) to particle set %p\n",
-			p->i, p->x[X], p->x[Y], set);
-	DL_APPEND(set->particles, p);
-	set->nparticles++;
-}
+#define NBLOCKS 1
+#define NMAX (8*1024*1024)
+#define PLIST_ALIGN 2*1024*1024
+
+//void
+//particle_set_add(particle_set_t *set, particle_t *p)
+//{
+//	dbg("Adding particle p_%d at (%.2f, %.2f) to particle set %p\n",
+//			p->i, p->x[X], p->x[Y], set);
+//	DL_APPEND(set->particles, p);
+//	set->nparticles++;
+//}
 
 int
-particle_set_init(sim_t *sim, plasma_chunk_t *chunk, int is)
+pset_init(sim_t *sim, pchunk_t *chunk, int is)
 {
-	int ic, i, j, step;
-	particle_t *p;
-	particle_set_t *set;
+	size_t ib, ic, step;
+	plist_t *l;
+	pset_t *set;
 	plasma_t *plasma;
 	specie_t *specie;
 
 	plasma = &sim->plasma;
 	set = &chunk->species[is];
 	specie = &sim->species[is];
+	l = &set->list;
 
-	set->info = specie;
-	set->particles = NULL;
-	set->nparticles = 0;
+	set->info = specie; /* XXX: This shouldn't belong here... */
+
+	plist_init(l, NMAX);
+
+	/* XXX test */
+	assert(specie->nparticles == NMAX);
+
+	for(ib=0; ib<NBLOCKS; ib++)
+	{
+		if(!plist_grow(l, NMAX))
+		{
+			err("plist_grow() failed\n");
+			return 1;
+		}
+	}
+
+#if 0 /* Communication part skipped by now */
 
 	set->out = safe_malloc(sizeof(particle_t *) * sim->nprocs);
 	set->outsize = safe_malloc(sizeof(int) * sim->nprocs);
@@ -49,6 +69,7 @@ particle_set_init(sim_t *sim, plasma_chunk_t *chunk, int is)
 		set->lout[j] = NULL;
 		set->loutsize[j] = 0;
 	}
+#endif
 
 
 	step = sim->nprocs * sim->plasma_chunks;
@@ -56,30 +77,29 @@ particle_set_init(sim_t *sim, plasma_chunk_t *chunk, int is)
 
 	dbg("step=%d, ic=%d\n", step, ic);
 
-	/* Iterate over the appropiate particles only for this block */
-	for(i = ic; i < specie->nparticles; i+=step)
-	{
-		dbg("i=%d\n", i);
-
-		/* Ensure correct process rank */
-		assert((i % sim->nprocs) == chunk->ig[Y]);
-
-		j = i / sim->nprocs;
-
-		/* Ensure correct local block */
-		assert((j % plasma->nchunks) == chunk->i[X]);
-
-		/* We assign the particle i to the block b, at the current
-		 * process */
-
-		p = particle_init();
-		p->i = i;
-		particle_set_add(set, p);
-	}
+//	/* Iterate over the appropiate particles only for this block */
+//	for(i = ic; i < specie->nparticles; i+=step)
+//	{
+//		dbg("i=%d\n", i);
+//
+//		/* Ensure correct process rank */
+//		assert((i % sim->nprocs) == chunk->ig[Y]);
+//
+//		j = i / sim->nprocs;
+//
+//		/* Ensure correct local block */
+//		assert((j % plasma->nchunks) == chunk->i[X]);
+//
+//		/* We assign the particle i to the block b, at the current
+//		 * process */
+//
+//		p = particle_init();
+//		p->i = i;
+//		particle_set_add(set, p);
+//	}
 
 	/* Once the index of each particle is correctly computed, we initalize
 	 * all other parameters, like position and speed */
-	particles_init(sim, chunk, set);
 
 	return 0;
 }
@@ -164,10 +184,10 @@ neigh_rank(sim_t *sim, int *ig, int *nr)
 int
 plasma_chunk_init(sim_t *sim, int i)
 {
-	int is, j, d;
+	size_t is, d;
 	field_t *f;
 	plasma_t *plasma;
-	plasma_chunk_t *chunk;
+	pchunk_t *chunk;
 
 	f = &sim->field;
 	plasma = &sim->plasma;
@@ -178,7 +198,7 @@ plasma_chunk_init(sim_t *sim, int i)
 	chunk->i[Y] = 0;
 	chunk->i[Z] = 0;
 
-	chunk->species = safe_malloc(sizeof(particle_set_t) * sim->nspecies);
+	chunk->species = safe_malloc(sizeof(pset_t) * sim->nspecies);
 	chunk->nspecies = sim->nspecies;
 
 	/* We need to compute the chunk boundaries */
@@ -223,9 +243,9 @@ plasma_chunk_init(sim_t *sim, int i)
 
 	for(is = 0; is < sim->nspecies; is++)
 	{
-		if(particle_set_init(sim, chunk, is))
+		if(pset_init(sim, chunk, is))
 		{
-			err("particle_set_init failed\n");
+			err("pset_init failed\n");
 			return 1;
 		}
 	}
@@ -240,7 +260,7 @@ plasma_init(sim_t *sim, plasma_t *plasma)
 
 	nchunks = sim->plasma_chunks;
 
-	plasma->chunks = safe_malloc(nchunks * sizeof(plasma_chunk_t));
+	plasma->chunks = safe_malloc(nchunks * sizeof(pchunk_t));
 	plasma->nchunks = nchunks;
 
 	for(i=0; i < nchunks; i++)

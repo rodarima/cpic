@@ -22,6 +22,7 @@
 #define COMM_TAG_CHUNK_SIZE 16U
 #define COMM_TAG_CHUNK_MASK (~((~0U)<<COMM_TAG_CHUNK_SIZE))
 
+#if 0
 int
 comm_block(sim_t *sim, block_t *b);
 
@@ -31,6 +32,10 @@ block_delta_to_index(int delta[], int dim);
 /* Move particles to the correct chunk */
 int
 comm_plasma_chunk(sim_t *sim, int i, int global_exchange);
+
+int
+comm_plasma(sim_t *sim, int global_exchange);
+#endif
 
 int
 comm_send_ghost_rho(sim_t *sim);
@@ -43,6 +48,3 @@ comm_phi_send(sim_t *sim);
 
 int
 comm_phi_recv(sim_t *sim);
-
-int
-comm_plasma(sim_t *sim, int global_exchange);

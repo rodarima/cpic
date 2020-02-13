@@ -25,7 +25,7 @@
 #include <x86intrin.h>
 
 /* Always align to 64 byte boundary */
-//#define VEC_ALIGN 64
+#define VEC_ALIGN 64
 
 //#define PREFETCH(p)	_mm_prefetch(p, _MM_HINT_T0)
 

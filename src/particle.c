@@ -16,7 +16,7 @@
 //init_default(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
 
 int
-init_randpos(sim_t *sim, plasma_chunk_t *chunk, plist_t *l);
+init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set);
 
 //int
 //init_position_delta(sim_t *sim, plasma_chunk_t *chunk, particle_set_t *set);
@@ -29,34 +29,34 @@ particle_config_t pc[] =
 	{NULL, NULL}
 };
 
-particle_t *
-particle_init()
-{
-	particle_t *p;
-
-	p = safe_malloc(sizeof(*p));
-
-	/* As we send the particle via MPI_Send directly, some wholes don't get
-	 * initialized, thus we use memset meanwhile */
-
-	/* TODO: Use a packed version of particle_t for MPI */
-	memset(p, 0, sizeof(*p));
-
-	p->next = NULL;
-	p->prev = NULL;
-
-	return p;
-}
+//particle_t *
+//particle_init()
+//{
+//	particle_t *p;
+//
+//	p = safe_malloc(sizeof(*p));
+//
+//	/* As we send the particle via MPI_Send directly, some wholes don't get
+//	 * initialized, thus we use memset meanwhile */
+//
+//	/* TODO: Use a packed version of particle_t for MPI */
+//	memset(p, 0, sizeof(*p));
+//
+//	p->next = NULL;
+//	p->prev = NULL;
+//
+//	return p;
+//}
 
 int
-particles_init(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
+particles_init(sim_t *sim, pchunk_t *chunk, pset_t *set)
 {
 	int i;
 	const char *method;
 	config_setting_t *cs;
 	specie_t *s;
 
-	s = l->info;
+	s = set->info;
 	cs = s->conf;
 
 	if(config_setting_lookup_string(cs, "init_method", &method) != CONFIG_TRUE)
@@ -77,7 +77,7 @@ particles_init(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
 			exit(1);
 		}
 
-		return pc[i].init(sim, chunk, l);
+		return pc[i].init(sim, chunk, set);
 	}
 
 	err("Unknown init method \"%s\", aborting.\n", method);
@@ -87,9 +87,9 @@ particles_init(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
 }
 
 int
-init_default(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
+init_default(sim_t *sim, pchunk_t *chunk, pset_t *set)
 {
-	return init_randpos(sim, chunk, l);
+	return init_randpos(sim, chunk, set);
 }
 
 double
@@ -100,16 +100,19 @@ uniform(double a, double b)
 
 
 int
-init_randpos(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
+init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 {
+	plist_t *l;
 	pblock_t *b;
-	pchunk_t *c;
+	ppack_t *p;
 	double v[MAX_DIM];
 	config_setting_t *cs_v;
 	size_t nvec, i, iv;
 
+	l = &set->list;
+
 	/* FIXME: Use specific random velocity interval name */
-	cs_v = config_setting_get_member(l->info->conf, "drift_velocity");
+	cs_v = config_setting_get_member(set->info->conf, "drift_velocity");
 	if(config_array_float(cs_v, v, sim->dim))
 		return 1;
 
@@ -119,25 +122,25 @@ init_randpos(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
 		nvec = (b->n + MAX_VEC - 1) / MAX_VEC;
 		for(i=0; i < nvec; i++)
 		{
-			c = &b->c[i];
+			p = &b->p[i];
 
 			for(iv=0; iv<MAX_VEC; iv++)
 			{
 				/* XXX: Should we keep the particles out of
 				 * b->n inside the chunk? */
-				c->r[X][iv] = uniform(0.0, sim->L[X]);
-				c->r[Y][iv] = uniform(0.0, sim->L[Y]);
-				c->r[Z][iv] = 0.0;
+				p->r[X][iv] = uniform(0.0, sim->L[X]);
+				p->r[Y][iv] = uniform(0.0, sim->L[Y]);
+				p->r[Z][iv] = 0.0;
 
 				/* FIXME: Separate position and velocity init metods */
-				c->u[X][iv] = uniform(-v[X], v[X]);
-				c->u[Y][iv] = uniform(-v[Y], v[Y]);
-				c->u[Z][iv] = 0.0;
+				p->u[X][iv] = uniform(-v[X], v[X]);
+				p->u[Y][iv] = uniform(-v[Y], v[Y]);
+				p->u[Z][iv] = 0.0;
 			}
 
-			c->E[X] = vset1(0.0);
-			c->E[Y] = vset1(0.0);
-			c->E[Z] = vset1(0.0);
+			p->E[X] = vset1(0.0);
+			p->E[Y] = vset1(0.0);
+			p->E[Z] = vset1(0.0);
 		}
 	}
 
@@ -193,7 +196,7 @@ init_randpos(sim_t *sim, plasma_chunk_t *chunk, plist_t *l)
 int
 chunk_E(sim_t *sim, int i)
 {
-	plasma_chunk_t *chunk;
+	pchunk_t *chunk;
 
 	chunk = &sim->plasma.chunks[i];
 
@@ -201,13 +204,13 @@ chunk_E(sim_t *sim, int i)
 	{
 		dbg("Running task chunk_E with chunk %d\n", i);
 		for(i=0; i<chunk->nspecies; i++)
-			interpolate_f2p_E(sim, &chunk->species[i], chunk->x0);
+			interpolate_f2p_E(sim, &chunk->species[i].list, chunk->x0);
 	}
 
 	return 0;
 }
 
-int
+void
 stage_plasma_E(sim_t *sim)
 {
 	int i;
@@ -216,8 +219,6 @@ stage_plasma_E(sim_t *sim)
 	for(i=0; i<sim->plasma.nchunks; i++) chunk_E(sim, i);
 
 	/* No communication required, as only p->E is updated */
-
-	return 0;
 }
 
 
@@ -225,11 +226,13 @@ stage_plasma_E(sim_t *sim)
 int
 particle_comm(sim_t *sim)
 {
-	return comm_plasma(sim, 0);
+	//return comm_plasma(sim, 0);
+	return 0;
 }
 
 int
 particle_comm_initial(sim_t *sim)
 {
-	return comm_plasma(sim, 1);
+	//return comm_plasma(sim, 1);
+	return 0;
 }

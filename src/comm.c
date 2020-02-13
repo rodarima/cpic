@@ -47,6 +47,31 @@ chunk_delta_to_index(int delta[], int dim)
 }
 
 int
+compute_tag(unsigned int op, unsigned int iter, unsigned int value, unsigned int value_size)
+{
+	unsigned int tag;
+	unsigned int value_mask;
+
+	value_mask = ~((~0U)<<value_size);
+
+	/* Ensure we have the first bit to zero */
+	assert(COMM_TAG_ITER_SIZE + COMM_TAG_OP_SIZE
+			+ value_size < sizeof(int) * 8);
+
+	assert(value < (1<<value_size));
+
+	tag = op << COMM_TAG_ITER_SIZE;
+	tag |= iter & COMM_TAG_ITER_MASK;
+	tag <<= value_size;
+	tag |= value & value_mask;
+
+	return (int) tag;
+}
+
+
+#if 0
+
+int
 count_particles(particle_t *list)
 {
 	particle_t *p;
@@ -102,28 +127,6 @@ queue_local_particle(particle_set_t *set, particle_t *p, int chunk_index)
 	assert(nout == set->loutsize[chunk_index]);
 #endif
 	return 0;
-}
-
-int
-compute_tag(unsigned int op, unsigned int iter, unsigned int value, unsigned int value_size)
-{
-	unsigned int tag;
-	unsigned int value_mask;
-
-	value_mask = ~((~0U)<<value_size);
-
-	/* Ensure we have the first bit to zero */
-	assert(COMM_TAG_ITER_SIZE + COMM_TAG_OP_SIZE
-			+ value_size < sizeof(int) * 8);
-
-	assert(value < (1<<value_size));
-
-	tag = op << COMM_TAG_ITER_SIZE;
-	tag |= iter & COMM_TAG_ITER_MASK;
-	tag <<= value_size;
-	tag |= value & value_mask;
-
-	return (int) tag;
 }
 
 void
@@ -281,8 +284,7 @@ exchange_particles_x(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 	{
 		/* We need to wait for the collecting step to write in all
 		 * chunks before begin to look for particles */
-		#pragma oss task inout(*chunk) \
-			inout(plasma->chunks[0:plasma->nchunks-1]) \
+		#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) \
 			label(exchange_particles_x)
 		{
 			dbg("Global exchange: spread local\n");
@@ -302,8 +304,7 @@ exchange_particles_x(sim_t *sim, plasma_chunk_t *chunk, int global_exchange)
 		prev_chunk = &plasma->chunks[ic_prev];
 		next_chunk = &plasma->chunks[ic_next];
 
-		#pragma oss task inout(*chunk) \
-			inout(*prev_chunk) inout(*next_chunk) \
+		#pragma oss task inout(*chunk, *prev_chunk, *next_chunk) \
 			label(exchange_particles_x)
 		{
 			dbg("Local exchange: spread local\n");
@@ -377,7 +378,7 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 		}
 	}
 
-	dbg("comm_plasma_x begins\n");
+	dbg("comm_plasma_x ends\n");
 
 	return 0;
 }
@@ -1239,6 +1240,7 @@ comm_plasma(sim_t *sim, int global_exchange)
 
 	return 0;
 }
+#endif
 
 int
 comm_mat_send(sim_t *sim, double *data, int size, int dst, int op, int dir, MPI_Request *req)

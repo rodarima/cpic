@@ -20,23 +20,22 @@
 #include <pthread.h>
 #include <mpi.h>
 
-struct particle;
-struct particle_set;
 struct particle_config;
-typedef struct field field_t;
-typedef struct particle particle_t;
-typedef struct particle_set particle_set_t;
 typedef struct particle_config particle_config_t;
 
+struct pset;
 struct plist;
-struct pchunk;
 struct pblock;
+struct ppack;
+
 struct pwin;
 struct pmover;
 
+typedef struct pset pset_t;
 typedef struct plist plist_t;
-typedef struct pchunk pchunk_t;
 typedef struct pblock pblock_t;
+typedef struct ppack ppack_t;
+
 typedef struct pwin pwin_t;
 typedef struct pmover pmover_t;
 
@@ -50,15 +49,16 @@ typedef struct particle_queue particle_queue_t;
 
 struct comm_packet;
 typedef struct comm_packet comm_packet_t;
+
 struct specie_packet;
 typedef struct specie_packet specie_packet_t;
 
 struct field;
 typedef struct field field_t;
 
-struct plasma_chunk;
+struct pchunk;
 struct plasma;
-typedef struct plasma_chunk plasma_chunk_t;
+typedef struct pchunk pchunk_t;
 typedef struct plasma plasma_t;
 
 struct sim;
@@ -72,26 +72,11 @@ typedef struct output output_t;
 
 /************************************************************/
 
-/* One unique particle */
-struct particle {
-	int i; /* Particle number */
-
-	double x[MAX_DIM]; /* Position in 1st dimension */
-	double u[MAX_DIM]; /* Speed in 1st dimension */
-
-	/* Interpolation fields at particle position */
-	double E[MAX_DIM];
-	double B[MAX_DIM];
-
-	/* Node element in a list */
-	struct particle *next, *prev;
-};
-
-/* The particle chunk is designed to hold MAX_VEC particles: so 4 in AVX2 using
- * 256 bits or 8 in AVX512 using 512 bits. A total of 13 vectors of 64bits per
- * element, with 52 and 104 bytes respectively in AVX2 or AVX512.
+/* The particle pack (ppack) is designed to hold MAX_VEC particles: so 4 in
+ * AVX2 using 256 bits or 8 in AVX512 using 512 bits. A total of 13 vectors of
+ * 64bits per element, with 52 and 104 bytes respectively in AVX2 or AVX512.
  */
-struct pchunk
+struct ppack
 {
 	vi64 i;			/* Particle global index */
 	vf64 r[MAX_DIM];	/* Position */
@@ -101,7 +86,7 @@ struct pchunk
 }; /* Multiple of MAX_VEC */
 
 /* A pblock or particle block contains fixed storage allocated for up to n
- * particles, stored in chunks */
+ * particles, stored in ppacks */
 struct pblock
 {
 	union
@@ -121,44 +106,62 @@ struct pblock
 		uint8_t _pblock_padding[128];
 	};
 
-	/* Particle chunks */
-	pchunk_t c[];
+	/* Particle packs */
+	ppack_t p[];
 };
 
 /* A particle list has a bunch of particles from only one type of specie */
 struct plist
 {
-	specie_t *info;		/* The specie of for this plist */
 	size_t nblocks;
 	size_t blocksize;	/* in bytes */
-	size_t max_chunks;	/* Maximum number of chunks per block */
+	size_t max_packs;	/* Maximum number of packs per block */
 	size_t nmax;		/* Maximum number of particles per block */
 
 	pblock_t *b;
 };
 
-/* TODO: Internal structure used by the particle mover, place in the .c */
-struct pwin
+/* Inside each pchunk, we store the particles of each specie in a pset */
+struct pset
 {
-	pblock_t *b;	/* Current pblock_t selected */
-	size_t ic;	/* Index of the pchunk_t */
-	//vmsk mask;	/* Particles selected in the chunk: 1==selected, 0==not */
-	unsigned int mask;	/* Particles selected in the chunk: 1==selected, 0==not */
-	size_t left;	/* Number of particles left */
+	/* We can reuse the info in multiple particle sets */
+	specie_t *info;
+
+	//int n;
+	plist_t list;
+
+	/* FIXME: Not implemented yet, we may use plist as well here */
+	/* Temporal particle lists to send and receive from the neighbour */
+	//int *outsize;
+	//particle_t **out;
+
+	/* Local particle list (between chunks) */
+	//int *loutsize;
+	//particle_t **lout;
 };
 
-/* TODO: Also another internal structure */
-struct pmover
-{
-	plist_t *l;
-	pwin_t A;
-	pwin_t B;
-};
+///* TODO: Internal structure used by the particle mover, place in the .c */
+//struct pwin
+//{
+//	pblock_t *b;	/* Current pblock_t selected */
+//	size_t ip;	/* Index of the ppack_t */
+//	//vmsk mask;	/* Particles selected in the pack: 1==selected, 0==not */
+//	unsigned int mask;	/* Particles selected in the pack: 1==selected, 0==not */
+//	size_t left;	/* Number of particles left */
+//};
+//
+///* TODO: Also another internal structure */
+//struct pmover
+//{
+//	plist_t *l;
+//	pwin_t A;
+//	pwin_t B;
+//};
 
 struct particle_config
 {
 	char *name;
-	int (*init)(sim_t *, plasma_chunk_t *, plist_t *);
+	int (*init)(sim_t *, pchunk_t *, pset_t *);
 };
 
 /* A specie only holds information about the particles, no real particles are
@@ -171,7 +174,8 @@ struct specie
 	double q; /* Electric charge */
 	double m; /* Mass of the particle */
 
-	/* Total number of particles of this specie */
+	/* Total number of particles of this specie.
+	 * This number doesn't change with the simulation */
 	int nparticles;
 
 	/* Other config settings may be needed */
@@ -189,6 +193,7 @@ struct specie
 
 /* Let's skip the packing by now */
 
+#if 0
 struct /*__attribute__((__packed__))*/ specie_packet
 {
 	int specie_index;
@@ -207,6 +212,8 @@ struct /*__attribute__((__packed__))*/ comm_packet
 	int dst_chunk[MAX_DIM];
 	specie_packet_t s[];
 };
+#endif
+
 /* Ignored by mcc:
  * #pragma pack(pop)*/
 
@@ -263,11 +270,11 @@ struct field
 	mat_t *frontier;
 };
 
-struct plasma_chunk
+struct pchunk
 {
 	int locked;
 
-	plist_t *species; /* Array of particle lists, one per specie */
+	pset_t *species; /* Array of particle sets, one per specie */
 	int nspecies;
 
 	/* Local index of the chunk inside the local plasma */
@@ -300,7 +307,7 @@ struct plasma_chunk
 
 struct plasma
 {
-	plasma_chunk_t *chunks;
+	pchunk_t *chunks;
 	int nchunks;
 };
 
