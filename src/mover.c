@@ -1,6 +1,7 @@
 #include "def.h"
 #include "simd.h"
 #include "comm.h"
+#include <assert.h>
 
 #define DEBUG 1
 #include "log.h"
@@ -76,7 +77,7 @@ move(ppack_t *p, vf64 u[MAX_DIM], vf64 dt)
 }
 
 static inline void
-check_velocity(vf64 u[MAX_DIM], vf64 umax)
+check_velocity(vf64 u[MAX_DIM], vf64 umax[MAX_DIM])
 {
 	size_t d;
 	vf64 u_abs;
@@ -90,7 +91,7 @@ check_velocity(vf64 u[MAX_DIM], vf64 umax)
 	{
 		u_abs = vabs(u[d]);
 		//dbg("u_abs = "VFMT"\n", VARG(u_abs));
-		mask = vcmp(u_abs, umax, _CMP_GT_OS);
+		mask = vcmp(u_abs, umax[d], _CMP_GT_OS);
 
 		mask_val = vmsk_get(mask);
 
@@ -121,7 +122,7 @@ err:
 
 /* Only updates the particle positions */
 static void
-plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax)
+plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
 {
 	vf64 u[MAX_DIM];
 	pblock_t *b;
@@ -155,12 +156,14 @@ chunk_update_r(sim_t *sim, int ic)
 {
 	pchunk_t *chunk;
 	int is;
-	vf64 dt, dtqm2, umax;
+	vf64 dt, dtqm2, umax[MAX_DIM];
 
 	is = 0;
 	chunk = &sim->plasma.chunks[ic];
 	dt = vset1(sim->dt);
-	umax = vset1(sim->umax);
+	umax[X] = vset1(sim->umax[X]);
+	umax[Y] = vset1(sim->umax[Y]);
+	umax[Z] = vset1(sim->umax[Z]);
 
 	for(is=0; is<chunk->nspecies; is++)
 	{
@@ -187,14 +190,33 @@ plasma_mover(sim_t *sim)
 void
 dummy_wrap_ppack(vf64 x[2], double _L[2])
 {
-	size_t d;
+	vf64 last;
+	size_t d, iv;
 	vf64 L[2];
 
 	for(d=X; d<Z; d++)
 	{
+		last = vset1(0.0);
 		L[d] = vset1(_L[d]);
 		x[d] = remod(x[d], L[d]);
+		for(iv=0; iv<MAX_VEC; iv++)
+		{
+			if(x[d][iv] < 0.0)
+			{
+				last[iv] = x[d][iv];
+				//dbg("x[d=%zd][iv=%zd] = %e\n", d, iv, x[d][iv]);
+			}
+		}
 		x[d] = remodinv(x[d], vset1(0.0), L[d]);
+		for(iv=0; iv<MAX_VEC; iv++)
+		{
+			if(x[d][iv] < 0.0)
+			{
+				dbg("x[d=%zd][iv=%zd] = %e, last = %e\n",
+						d, iv, x[d][iv], last[iv]);
+				abort();
+			}
+		}
 	}
 
 //	/* Notice that we allow p->x to be equal to L, as when the position is

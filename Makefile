@@ -30,8 +30,8 @@ CFLAGS:=-g -Wall
 #CFLAGS+=-Wstrict-prototypes -Wshadow -Wconversion
 
 # Optimization enabled
-#CFLAGS+=-O3
-CFLAGS+=-O0
+CFLAGS+=-O3
+#CFLAGS+=-O0
 #CFLAGS:=-g -Wall -Werror
 #LDFLAGS:=-L. -Wl,-rpath,.
 
@@ -59,7 +59,7 @@ CFLAGS+=-DWITH_TAMPI
 endif
 
 # Instrument functions so Extrae can get some information
-CFLAGS+=-finstrument-functions
+#CFLAGS+=-finstrument-functions
 
 # Debug
 #CFLAGS+=-fsanitize=address

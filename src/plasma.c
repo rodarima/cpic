@@ -1,7 +1,7 @@
 #include "plasma.h"
 
 #include "particle.h"
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include <utlist.h>
 #include "utils.h"
@@ -23,7 +23,7 @@
 int
 pset_init(sim_t *sim, pchunk_t *chunk, int is)
 {
-	size_t ip, ib, iv, ic, global_i, j, step, npack;
+	size_t ip, iv, ic, i, j, step, npack;
 	plist_t *l;
 	pblock_t *b;
 	pset_t *set;
@@ -38,19 +38,8 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 
 	set->info = specie;
 
-	plist_init(l, NMAX);
+	plist_init(l, sim->pblock_nmax);
 
-	/* XXX test */
-	assert(specie->nparticles == NMAX);
-
-	for(ib=0; ib<NBLOCKS; ib++)
-	{
-		if(plist_grow(l, NMAX))
-		{
-			err("plist_grow() failed\n");
-			return 1;
-		}
-	}
 
 #if 0 /* Communication part skipped by now */
 
@@ -77,7 +66,7 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 	step = sim->nprocs * sim->plasma_chunks;
 	ic = chunk->ig[X] * sim->nprocs + chunk->ig[Y];
 
-	dbg("step=%d, ic=%d\n", step, ic);
+	dbg("step=%zd, ic=%zd\n", step, ic);
 
 //	/* Iterate over the appropiate particles only for this block */
 //	for(i = ic; i < specie->nparticles; i+=step)
@@ -100,25 +89,43 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 //		particle_set_add(set, p);
 //	}
 
-	global_i = ic;
+	for(i = ic; i < specie->nparticles; i+=step)
+	{
+		//dbg("i=%d\n", i);
+
+		/* Ensure correct process rank */
+		assert((i % sim->nprocs) == chunk->ig[Y]);
+
+		j = i / sim->nprocs;
+
+		/* Ensure correct local block */
+		assert((j % plasma->nchunks) == chunk->i[X]);
+
+		/* We assign the particle i to the block b, at the current
+		 * process */
+
+		plist_grow(l, 1);
+	}
+
+	i = ic;
 	for(b = l->b; b; b = b->next)
 	{
 		/* We initialize even past b->n to fill all packs */
 		npack = (b->n + MAX_VEC - 1) / MAX_VEC;
 		for(ip=0; ip < npack; ip++)
 		{
-			dbg("ip = %zd / %zd\n", ip, npack);
+			//dbg("ip = %zd / %zd\n", ip, npack);
 			p = &b->p[ip];
 			for(iv=0; iv<MAX_VEC; iv++)
 			{
-				assert((global_i % sim->nprocs) == chunk->ig[Y]);
-				j = global_i / sim->nprocs;
+				assert((i % sim->nprocs) == chunk->ig[Y]);
+				j = i / sim->nprocs;
 
 				/* Ensure correct local block */
 				assert((j % plasma->nchunks) == chunk->i[X]);
 
-				p->i[iv] = global_i;
-				global_i += step;
+				p->i[iv] = i;
+				i += step;
 			}
 		}
 	}
@@ -126,6 +133,8 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 	/* Once the index of each particle is correctly computed, we initalize
 	 * all other parameters, like position and speed */
 	particles_init(sim, chunk, set);
+
+	dbg("pset has nmax=%zd, nblocks=%zd\n", set->list.nmax, set->list.nblocks);
 
 	return 0;
 }

@@ -371,7 +371,7 @@ struct sim
 	double C;
 
 	/* Maximum speed in any dimension */
-	double umax;
+	double umax[MAX_DIM];
 
 	/** Vacuum permittivity in Farad/meter (F/m) */
 	double e0;
@@ -431,6 +431,9 @@ struct sim
 	int ghostsize[MAX_DIM];
 	int chunksize[MAX_DIM];
 	int plasma_chunks;
+
+	/* Maximum number of particles in each pblock */
+	size_t pblock_nmax;
 
 	/* Number of neighbour chunks to be considered when exchanging particles
 	 * */

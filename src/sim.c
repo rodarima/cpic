@@ -39,6 +39,7 @@ int
 sim_read_config(sim_t *s)
 {
 	config_t *conf;
+	long long nmax;
 
 	conf = s->conf;
 
@@ -57,6 +58,9 @@ sim_read_config(sim_t *s)
 	config_lookup_string(conf, "simulation.solver", &s->solver_method);
 	config_lookup_int(conf, "simulation.enable_fftw_threads", &s->fftw_threads);
 	config_lookup_int(conf, "simulation.plasma_chunks", &s->plasma_chunks);
+	config_lookup_int64(conf, "simulation.pblock_nmax", &nmax);
+
+	s->pblock_nmax = (size_t) nmax;
 
 	/* Load all dimension related vectors */
 	config_lookup_array_float(conf, "simulation.space_length", s->L, s->dim);
@@ -177,8 +181,9 @@ sim_prepare(sim_t *s, int quiet)
 			s->ntpoints[Y],
 			s->ntpoints[Z]);
 
-	/* TODO: Compute umax and set it here */
-	s->umax = 1e3;
+	s->umax[X] = s->chunksize[X] * s->dx[X] / s->dt;
+	s->umax[Y] = s->chunksize[Y] * s->dx[Y] / s->dt;
+	s->umax[Z] = s->chunksize[Z] * s->dx[Z] / s->dt;
 
 	/* Initially set the time t to zero */
 	s->t = 0.0;
