@@ -29,7 +29,8 @@ boris_rotation(ppack_t *p, vf64 dtqm2, vf64 u[MAX_DIM])
 	two = vset1(2.0);
 
 	/* TODO: The actual magnetic field is constant, so there is no need to
-	 * read it from each particle. */
+	 * read it from each particle. This poses a huge improvement in
+	 * performance, as the division can be removed */
 
 	for(d=X; d<MAX_DIM; d++)
 	{
@@ -95,7 +96,7 @@ check_velocity(vf64 u[MAX_DIM], vf64 umax[MAX_DIM])
 
 		mask_val = vmsk_get(mask);
 
-		if(mask_val) /* TODO: Unlikely */
+		if(unlikely(mask_val))
 			goto err;
 	}
 

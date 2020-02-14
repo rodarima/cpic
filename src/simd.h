@@ -24,6 +24,9 @@
 
 #include <x86intrin.h>
 
+#define likely(x)       __builtin_expect((x),1)
+#define unlikely(x)     __builtin_expect((x),0)
+
 /* Always align to 64 byte boundary */
 #define VEC_ALIGN 64
 

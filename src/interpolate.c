@@ -8,6 +8,12 @@
 
 //#define NO_EXTRA_ASSERT
 
+#ifdef NDEBUG
+#ifndef NO_EXTRA_ASSERT
+#define NO_EXTRA_ASSERT
+#endif
+#endif
+
 static inline void
 linear_interpolation(vf64 rel[2], vf64 w[2][2])
 {
@@ -253,14 +259,14 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 	vi64 blocksize[2], ghostsize[2];
 	vf64 dx[2], x0[2], idx[2], vq;
 
-	blocksize[X] = vset1(sim->blocksize[X]);
-	blocksize[Y] = vset1(sim->blocksize[Y]);
-	ghostsize[X] = vset1(sim->ghostsize[X]);
-	ghostsize[Y] = vset1(sim->ghostsize[Y]);
+	blocksize[X] = vi64_set1(sim->blocksize[X]);
+	blocksize[Y] = vi64_set1(sim->blocksize[Y]);
+	ghostsize[X] = vi64_set1(sim->ghostsize[X]);
+	ghostsize[Y] = vi64_set1(sim->ghostsize[Y]);
 	dx[X] = vset1(sim->dx[X]);
 	dx[Y] = vset1(sim->dx[Y]);
-	idx[X] = 1.0 / dx[X];
-	idx[Y] = 1.0 / dx[Y];
+	idx[X] = vset1(1.0) / dx[X];
+	idx[Y] = vset1(1.0) / dx[Y];
 	x0[X] = vset1(_x0[X]);
 	x0[Y] = vset1(_x0[Y]);
 	vq = vset1(q);
@@ -323,8 +329,8 @@ interpolate_f2p_E(sim_t *sim, plist_t *l, double _x0[2])
 	ghostsize[Y] = vi64_set1((long long) sim->ghostsize[Y]);
 	dx[X] = vset1(sim->dx[X]);
 	dx[Y] = vset1(sim->dx[Y]);
-	idx[X] = 1.0 / dx[X];
-	idx[Y] = 1.0 / dx[Y];
+	idx[X] = vset1(1.0) / dx[X];
+	idx[Y] = vset1(1.0) / dx[Y];
 	x0[X] = vset1(_x0[X]);
 	x0[Y] = vset1(_x0[Y]);
 

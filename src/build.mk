@@ -69,7 +69,13 @@ MCC_CFLAGS:=
 #MCC_CFLAGS+=--ompss-2
 
 # Show line markers in the generated file
-MCC_CFLAGS:=--line-markers
+MCC_CFLAGS+=--line-markers
+
+# For intel
+MCC_CFLAGS+=--cc=$(CC)
+MCC_CFLAGS+=--cxx=$(CPP)
+MCC_CFLAGS+=--ld=$(CPP)
+MCC_CFLAGS+=--v
 
 %.mcc.c: %.c
 	mcc $(MCC_CFLAGS) -y $^ -o $@
@@ -80,9 +86,10 @@ MCC_CFLAGS:=--line-markers
 .PRECIOUS: %.mcc.c
 
 
+#echo "LD $@"
+
 cpic: $(obj_cpic)
-	@echo "LD $@"
-	@mcxx --ompss-2 --line-markers $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
+	mcxx --ompss-2 --line-markers $(MCC_CFLAGS) $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
 #mcxx --ld=clang++ --ompss-2 --line-markers $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 

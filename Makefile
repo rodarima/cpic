@@ -15,8 +15,14 @@ MPICC=mpicc
 #CC=I_MPI_CC=mcc mpiicc --cc=clang --ompss-2 --line-markers
 
 #CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
-CC=clang
 
+CC=clang
+CPP=clang
+
+#CC=icc
+#CPP=icpc
+
+#CFLAGS+=-qopt-zmm-usage=high
 
 #OCC=mcc
 LDLIBS:=
@@ -24,7 +30,7 @@ LDLIBS:=
 # Add libtasio
 #LDLIBS+=-ltasio
 
-CFLAGS:=-g -Wall
+CFLAGS+=-g -Wall
 
 CFLAGS+=-std=c11
 
@@ -33,6 +39,7 @@ CFLAGS+=-std=c11
 
 # Optimization enabled
 CFLAGS+=-O3
+CFLAGS+=-ffp-contract=fast
 #CFLAGS+=-O0
 #CFLAGS:=-g -Wall -Werror
 #LDFLAGS:=-L. -Wl,-rpath,.
@@ -47,11 +54,21 @@ CFLAGS+=-O3
 CFLAGS+=-Wno-unknown-pragmas
 
 # Use debug messages
-CFLAGS+=-DGLOBAL_DEBUG
+#CFLAGS+=-DGLOBAL_DEBUG
+
+# No asserts
+CFLAGS+=-DNDEBUG
+
+# No extra assers
+CFLAGS+=-DNO_EXTRA_ASSERTS
+
+# For intel compiler
+CFLAGS+=-fPIE
 
 # Use 256 bits for vector operations
 CFLAGS+=-DUSE_VECTOR_256
 CFLAGS+=-march=core-avx2
+#CFLAGS+=-xHost
 
 # Use TAMPI
 USE_TAMPI?=0
@@ -156,7 +173,7 @@ include $(DEP)
 #	$(CPP) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
 %.d: %.c
-	@$(GCC) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
+	@$(CC) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
 
 #%.o: %.c

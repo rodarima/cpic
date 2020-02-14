@@ -41,3 +41,4 @@ doc/*.vrb
 .nfs*
 *.dia~
 perf.data*
+vtune/

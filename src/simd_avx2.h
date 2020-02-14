@@ -47,7 +47,7 @@ vf64 remod(vf64 a, vf64 b)
 	/* mask = (a < b) ? 0xffffffff : 0 */
 
 	/* Then invert the mask and zero out those elements in b */
-	vi64 bb = _mm256_andnot_si256((vi64) mask, b);
+	vf64 bb = (vf64) _mm256_andnot_si256((vi64) mask, (vi64) b);
 
 	/* Finally, substract only when needed (a >= b) */
 	return a - bb;
@@ -61,7 +61,7 @@ vf64 remodinv(vf64 a, vf64 b, vf64 c)
 	/* mask = (a < b) ? 0xffffffff : 0 */
 
 	/* Then invert the mask and zero out those elements in b */
-	vi64 cc = _mm256_and_si256((vi64) mask, c);
+	vf64 cc = (vf64) _mm256_and_si256((vi64) mask, (vi64) c);
 
 	/* Finally, add only when needed (a < b) */
 	return a + cc;
@@ -99,8 +99,10 @@ vi64 vf64_to_vi64(vf64 x)
 #define vcmp(a, b, f)	_mm256_cmp_pd(a, b, f)
 #define vand(a, b)	_mm256_and_pd(a, b) /* Ignored type for AND */
 
+#define vfmadd(a,b,c)	_mm256_fmadd_pd(a,b,c)
+
 /* Mask operations */
-#define vmsk_set(m, v)	(m = _mm256_set1_epi8(v))
+#define vmsk_set(m, v)	(m = (vmsk) _mm256_set1_epi8(v))
 #define vmsk_get(m)	_mm256_movemask_pd(m)
 
 /* We perform the AND operation to emulate the masked CMP of AVX512 */
