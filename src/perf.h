@@ -2,24 +2,6 @@
 
 #include <time.h>
 
-typedef struct perf perf_t;
-typedef struct timespec ts_t;
-
-enum timers {
-	TIMER_SOLVER,
-	TIMER_FIELD_SPREAD,
-	TIMER_FIELD_COLLECT,
-	TIMER_PARTICLE_X,
-	TIMER_FIELD_E,
-	TIMER_FIELD_RHO,
-	TIMER_PARTICLE_E,
-	TIMER_OUTPUT_PARTICLES,
-	TIMER_OUTPUT_FIELDS,
-	TIMER_TOTAL,
-	TIMER_ITERATION,
-	MAX_TIMERS
-};
-
 struct perf
 {
 	struct timespec begin;
@@ -28,6 +10,9 @@ struct perf
 	double std;
 	int n;
 };
+
+typedef struct perf perf_t;
+typedef struct timespec ts_t;
 
 void
 perf_init(perf_t *p);

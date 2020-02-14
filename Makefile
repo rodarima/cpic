@@ -26,6 +26,8 @@ LDLIBS:=
 
 CFLAGS:=-g -Wall
 
+CFLAGS+=-std=c11
+
 #Extra warnings
 #CFLAGS+=-Wstrict-prototypes -Wshadow -Wconversion
 
@@ -160,8 +162,10 @@ include $(DEP)
 #%.o: %.c
 #	@echo CC $@
 #	$(COMPILE.c) $(OUTPUT_OPTION) $^
+
+
+#@echo "CC $<"
 %.o: %.c
-	#@echo "CC $<"
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 all: $(BIN)

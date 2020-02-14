@@ -1,10 +1,12 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "perf.h"
 
 #include <time.h>
 #include <assert.h>
 #include <math.h>
 #include <string.h>
-#include "utils.h"
+
 
 void
 perf_init(perf_t *p)
