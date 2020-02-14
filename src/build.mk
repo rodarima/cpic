@@ -1,6 +1,7 @@
 module:=src
 
-bin:=cpic mft_worker cpic.a
+#bin:=cpic mft_worker cpic.a
+bin:=cpic cpic.a
 
 all_src:=$(wildcard $(module)/*.c)
 all_src:=$(filter-out $(wildcard $(module)/*.mcc.c),$(all_src))

@@ -141,6 +141,10 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 			p->E[X] = vset1(0.0);
 			p->E[Y] = vset1(0.0);
 			p->E[Z] = vset1(0.0);
+
+			p->B[X] = vset1(sim->B[X]);
+			p->B[Y] = vset1(sim->B[Y]);
+			p->B[Z] = vset1(sim->B[Z]);
 		}
 	}
 

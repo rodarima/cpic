@@ -178,7 +178,7 @@ sim_prepare(sim_t *s, int quiet)
 			s->ntpoints[Z]);
 
 	/* TODO: Compute umax and set it here */
-	s->umax = 0.0;
+	s->umax = 1e3;
 
 	/* Initially set the time t to zero */
 	s->t = 0.0;
@@ -477,11 +477,13 @@ sim_step(sim_t *sim)
 	stage_field_E(sim);
 
 	//#pragma oss task in(sim->plasma.chunks[sim->plasma.nchunks]) label(output_fields)
+#if 0
 	if(output_fields(sim))
 	{
 		err("output_fields failed\n");
 		return -1;
 	}
+#endif
 
 	/* Phase IP:FI. Field interpolation, projection of the electric
 	 * field from the grid nodes to the particle positions. */

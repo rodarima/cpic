@@ -38,6 +38,35 @@ vi64 vi64_remod(vi64 a, vi64 b)
 	return a - bb;
 }
 
+/* Same but for floating point */
+static inline
+vf64 remod(vf64 a, vf64 b)
+{
+	/* Compute elements which are lower than b, so the opposite */
+	vf64 mask = _mm256_cmp_pd(a, b, _CMP_LT_OS);
+	/* mask = (a < b) ? 0xffffffff : 0 */
+
+	/* Then invert the mask and zero out those elements in b */
+	vi64 bb = _mm256_andnot_si256((vi64) mask, b);
+
+	/* Finally, substract only when needed (a >= b) */
+	return a - bb;
+}
+
+/* (a<b) ? a+c : a */
+static inline
+vf64 remodinv(vf64 a, vf64 b, vf64 c)
+{
+	vf64 mask = _mm256_cmp_pd(a, b, _CMP_LT_OS);
+	/* mask = (a < b) ? 0xffffffff : 0 */
+
+	/* Then invert the mask and zero out those elements in b */
+	vi64 cc = _mm256_and_si256((vi64) mask, c);
+
+	/* Finally, add only when needed (a < b) */
+	return a + cc;
+}
+
 static inline
 vi64 vf64_to_vi64(vf64 x)
 {

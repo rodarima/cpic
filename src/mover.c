@@ -2,7 +2,7 @@
 #include "simd.h"
 #include "comm.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 static inline void
@@ -26,6 +26,9 @@ boris_rotation(ppack_t *p, vf64 dtqm2, vf64 u[MAX_DIM])
 	vf64              two;
 
 	two = vset1(2.0);
+
+	/* TODO: The actual magnetic field is constant, so there is no need to
+	 * read it from each particle. */
 
 	for(d=X; d<MAX_DIM; d++)
 	{
@@ -80,11 +83,13 @@ check_velocity(vf64 u[MAX_DIM], vf64 umax)
 	vmsk mask;
 	int mask_val;
 
+	mask_val = 0;
 	vmsk_zero(mask);
 
 	for(d=X; d<MAX_DIM; d++)
 	{
 		u_abs = vabs(u[d]);
+		//dbg("u_abs = "VFMT"\n", VARG(u_abs));
 		mask = vcmp(u_abs, umax, _CMP_GT_OS);
 
 		mask_val = vmsk_get(mask);
@@ -98,7 +103,9 @@ check_velocity(vf64 u[MAX_DIM], vf64 umax)
 err:
 	dbg("Max velocity exceeded with mask=%08x\n", mask_val);
 
-#if DEBUG
+#if 0
+	size_t i;
+
 	/* TODO: Use a better define system for debug code */
 	for(i=0; i<MAX_VEC; i++)
 	{
@@ -127,6 +134,7 @@ plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax)
 		nvec = (b->n + MAX_VEC - 1)/ MAX_VEC;
 		for(i=0; i < nvec; i++)
 		{
+			//fprintf(stderr, "Moving i=%zd\n", i);
 			p = &b->p[i];
 
 			boris_rotation(p, dtqm2, u);
@@ -140,7 +148,6 @@ plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax)
 			/* Wrapping is done after the particle is moved to the right block */
 		}
 	}
-
 }
 
 static void
@@ -178,10 +185,79 @@ plasma_mover(sim_t *sim)
 }
 
 void
+dummy_wrap_ppack(vf64 x[2], double _L[2])
+{
+	size_t d;
+	vf64 L[2];
+
+	for(d=X; d<Z; d++)
+	{
+		L[d] = vset1(_L[d]);
+		x[d] = remod(x[d], L[d]);
+		x[d] = remodinv(x[d], vset1(0.0), L[d]);
+	}
+
+//	/* Notice that we allow p->x to be equal to L, as when the position is
+//	 * wrapped from x<0 but -1e-17 < x, the wrap sets x equal to L, as with
+//	 * bigger numbers the error increases, and the round off may set x to
+//	 * exactly L */
+//	if(sim->dim >= 1)
+//	{
+//		assert(p->x[X] <= sim->L[X]);
+//		assert(p->x[X] >= 0.0);
+//	}
+//	if(sim->dim >= 2)
+//	{
+//		assert(p->x[Y] <= sim->L[Y]);
+//		assert(p->x[Y] >= 0.0);
+//	}
+}
+
+void
+dummy_wrap_plist(sim_t *sim, plist_t *l)
+{
+	pblock_t *b;
+	ppack_t *p;
+	size_t i, nvec;
+
+	for(b = l->b; b; b = b->next)
+	{
+		/* FIXME: We are updating past n as well to fill MAX_VEC */
+		nvec = (b->n + MAX_VEC - 1)/ MAX_VEC;
+		for(i=0; i < nvec; i++)
+		{
+			p = &b->p[i];
+			dummy_wrap_ppack(p->r, sim->L);
+		}
+	}
+}
+
+void
+dummy_wrap(sim_t *sim)
+{
+	pchunk_t *chunk;
+	plist_t *l;
+	size_t is, ic;
+
+	for(ic=0; ic<sim->plasma.nchunks; ic++)
+	{
+		chunk = &sim->plasma.chunks[ic];
+		for(is=0; is<chunk->nspecies; is++)
+		{
+			l = &chunk->species[is].list;
+			dummy_wrap_plist(sim, l);
+		}
+	}
+}
+
+void
 stage_plasma_r(sim_t *sim)
 {
 	/* Compute the new position for each particle */
 	plasma_mover(sim);
+
+	/* FIXME: Remove dummy wrapper and use proper communication instead */
+	dummy_wrap(sim);
 
 	/* Then move out-of-chunk particles to their correct chunk, which may
 	 * involve MPI communication. We don't do global exchange here. */

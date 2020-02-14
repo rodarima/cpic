@@ -23,10 +23,11 @@
 int
 pset_init(sim_t *sim, pchunk_t *chunk, int is)
 {
-	size_t ib, iv, ic, i, step, nvec;
+	size_t ip, ib, iv, ic, global_i, j, step, npack;
 	plist_t *l;
 	pblock_t *b;
 	pset_t *set;
+	ppack_t *p;
 	plasma_t *plasma;
 	specie_t *specie;
 
@@ -99,42 +100,27 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 //		particle_set_add(set, p);
 //	}
 
-	i = 0;
+	global_i = ic;
 	for(b = l->b; b; b = b->next)
 	{
-		/* FIXME: We cannot exceed the number of particles here,
-		 * otherwise we write garbage into rho */
-		npacks = b->n / MAX_VEC;
-		for(ip=0; ip < nvec; ip++)
+		/* We initialize even past b->n to fill all packs */
+		npack = (b->n + MAX_VEC - 1) / MAX_VEC;
+		for(ip=0; ip < npack; ip++)
 		{
-			dbg("i = %zd / %zd\n", i, nvec);
-			p = &b->p[i];
+			dbg("ip = %zd / %zd\n", ip, npack);
+			p = &b->p[ip];
 			for(iv=0; iv<MAX_VEC; iv++)
 			{
-				p->i[iv] = i;
-				i+=step;
-			}
-			interpolate_p2f(blocksize, ghostsize,
-					dx, idx, p->r, x0, vq, rho);
-		}
-	}
+				assert((global_i % sim->nprocs) == chunk->ig[Y]);
+				j = global_i / sim->nprocs;
 
-	/* FIXME: Continue the loop if we had a non-aligned number of
-	 * particles: We assign q to 0 to those elements that are out
-	 * of b->n */
-	assert(l->b);
-	b = l->b->prev;
-	if(b && b->n - nvec * MAX_VEC > 0)
-	{
-		for(iv=b->n - nvec; iv<MAX_VEC; iv++)
-		{
-			p->r[X][iv] = x0[X][iv];
-			p->r[Y][iv] = x0[Y][iv];
-			vq[iv] = 0.0;
-			dbg("Setting vq[%ld] to zero\n", iv);
+				/* Ensure correct local block */
+				assert((j % plasma->nchunks) == chunk->i[X]);
+
+				p->i[iv] = global_i;
+				global_i += step;
+			}
 		}
-		interpolate_p2f(blocksize, ghostsize,
-				dx, idx, p->r, x0, vq, rho);
 	}
 
 	/* Once the index of each particle is correctly computed, we initalize

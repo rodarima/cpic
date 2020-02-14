@@ -3,7 +3,7 @@
 #include "mat.h"
 #include <assert.h>
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 static inline void
@@ -135,12 +135,28 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 {
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
+#if DEBUG > 0
+	size_t iv;
+#endif
 
-	dbg("Interpolate ppack x[X]="VFMT" x[Y]="VFMT"\n",
-			VARG(x[X]), VARG(x[Y]));
+//	dbg("Interpolate ppack x[X]="VFMT" x[Y]="VFMT"\n",
+//			VARG(x[X]), VARG(x[Y]));
+
 	/* Ensure the particle is in the chunk */
-	//assert((chunk->x0[X] <= p->x[X]) && (p->x[X] < chunk->x1[X]));
-	//assert((chunk->x0[Y] <= p->x[Y]) && (p->x[Y] < chunk->x1[Y]));
+#if DEBUG > 0
+	dbg("x[X] = "VFMT"\n", VARG(x[X]));
+	dbg("x[Y] = "VFMT"\n", VARG(x[Y]));
+	dbg("dx[X] = "VFMT"\n", VARG(dx[X]));
+	dbg("dx[Y] = "VFMT"\n", VARG(dx[Y]));
+	for(iv=0; iv<MAX_VEC; iv++)
+	{
+		/* FIXME: We should use x1 instead of computing it here again */
+		assert(x0[X][iv] <= x[X][iv]);
+	       	assert(x[X][iv] < x0[X][iv] + dx[X][iv] * blocksize[X][iv]);
+		assert(x0[Y][iv] <= x[Y][iv]);
+	       	assert(x[Y][iv] < x0[Y][iv] + dx[Y][iv] * blocksize[Y][iv]);
+	}
+#endif
 
 	weights(x, dx, idx, x0, w, i0);
 
@@ -175,18 +191,17 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 	/* And also may be in Y */
 	//assert(_rho->shape[Y] >= sim->ghostsize[Y]);
 
-#ifdef DEBUG
-	size_t iv;
-
+#if DEBUG > 0
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
-		dbg("iv=%zd affects x=(%lld %lld) y=(%lld %lld) old mat=(%e %e %e %e)\n",
-				iv, i0[X][iv], i1[X][iv], i0[Y][iv], i1[Y][iv],
-				MAT_XY(mat, i0[X][iv], i0[Y][iv]),
-				MAT_XY(mat, i1[X][iv], i0[Y][iv]),
-				MAT_XY(mat, i0[X][iv], i1[Y][iv]),
-				MAT_XY(mat, i1[X][iv], i1[Y][iv])
-			);
+		dbg("iv=%zd affects x=(%lld %lld) y=(%lld %lld)\n",
+			iv, i0[X][iv], i1[X][iv], i0[Y][iv], i1[Y][iv]);
+		dbg("  with mat=(%e %e %e %e)\n",
+			MAT_XY(mat, i0[X][iv], i0[Y][iv]),
+			MAT_XY(mat, i1[X][iv], i0[Y][iv]),
+			MAT_XY(mat, i0[X][iv], i1[Y][iv]),
+			MAT_XY(mat, i1[X][iv], i1[Y][iv])
+		);
 	}
 #endif
 
