@@ -50,7 +50,7 @@ tap_shared_query(size_t *size, MPI_Comm comm)
 int
 reorder_node_comm(MPI_Comm comm, int master_rank, int size, MPI_Comm *new_comm)
 {
-	int i, ret;
+	int i;
 	int *order;
 	MPI_Group group, new_group;
 
@@ -173,7 +173,6 @@ tap_spawn(int n, char *cmd, MPI_Comm *comm)
 	int i, node_size, node_rank, size;
 	int master_rank, master_size, universe_size, k;
 	int total_workers;
-	MPI_Group node_group;
 
 	PMPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -269,7 +268,6 @@ reorder_workers(MPI_Comm old, struct worker_info *info, int nworkers, MPI_Comm *
 int
 tap_child(MPI_Comm *node_comm, MPI_Comm *worker_comm, int *master_rank)
 {
-	int i;
 	int size, rank, worker_rank, total_workers;
 	int nworkers, master_node_rank;
 	size_t info_size;
