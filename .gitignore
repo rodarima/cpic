@@ -40,3 +40,4 @@ doc/*.vrb
 *.h5
 .nfs*
 *.dia~
+perf.data*
