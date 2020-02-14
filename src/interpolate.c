@@ -6,6 +6,8 @@
 #define DEBUG 0
 #include "log.h"
 
+//#define NO_EXTRA_ASSERT
+
 static inline void
 linear_interpolation(vf64 rel[2], vf64 w[2][2])
 {
@@ -90,6 +92,9 @@ interpolate_f2p(vi64 blocksize[2], vi64 ghostsize[2],
 {
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
+#ifndef NO_EXTRA_ASSERT
+	size_t iv;
+#endif
 
 	weights(x, dx, idx, x0, w, i0);
 
@@ -106,19 +111,29 @@ interpolate_f2p(vi64 blocksize[2], vi64 ghostsize[2],
 	/* Wrap only in the X direction: we assume a periodic domain */
 	i1[X] = vi64_remod(i1[X], blocksize[X]);
 
-	/* TODO: Implement all these tests conditionally */
-	//assert(i1[X] < sim->blocksize[X]);
-	//assert(i1[Y] < sim->ghostsize[Y]);
+#ifndef NO_EXTRA_ASSERT
+	for(iv=0; iv<MAX_VEC; iv++)
+	{
+		assert(i1[X][iv] < blocksize[X][iv]);
+		assert(i1[Y][iv] < ghostsize[Y][iv]);
 
-	//dbg("i0 = (%d %d) i1 = (%d %d)\n", i0[X], i0[Y], i1[X], i1[Y]);
+		dbg("i0 = (%lld %lld) i1 = (%lld %lld)\n",
+				i0[X][iv], i0[Y][iv],
+				i1[X][iv], i1[Y][iv]);
 
-	//assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
-	//assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);
-	//assert(i1[X] >= 0 && i1[X] <= sim->ghostsize[X]);
-	//assert(i1[Y] >= 1 && i1[Y] <= sim->ghostsize[Y]);
+		assert(i0[X][iv] >= 0 && i0[X][iv] <= blocksize[X][iv]);
+		assert(i0[Y][iv] >= 0 && i0[Y][iv] <= blocksize[Y][iv]);
+		assert(i1[X][iv] >= 0 && i1[X][iv] <= ghostsize[X][iv]);
+		assert(i1[Y][iv] >= 1 && i1[Y][iv] <= ghostsize[Y][iv]);
 
-	//assert(mat->shape[X] == sim->blocksize[X]);
-	//assert(mat->shape[Y] == sim->blocksize[Y]);
+		dbg("mat shape = (%d %d) blocksize = (%lld %lld)\n",
+				mat->shape[X], mat->shape[Y],
+				blocksize[X][iv], blocksize[Y][iv]);
+
+		assert(mat->shape[X] == blocksize[X][iv]);
+		assert(mat->shape[Y] == blocksize[Y][iv]);
+	}
+#endif
 
 	val[0]  = w[0][0] * vmat_get_xy(mat, i0[X], i0[Y]);
 	val[0] += w[0][1] * vmat_get_xy(mat, i0[X], i1[Y]);
@@ -135,7 +150,7 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 {
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
-#if DEBUG > 0
+#ifndef NO_EXTRA_ASSERT
 	size_t iv;
 #endif
 
@@ -143,7 +158,7 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 //			VARG(x[X]), VARG(x[Y]));
 
 	/* Ensure the particle is in the chunk */
-#if DEBUG > 0
+#ifndef NO_EXTRA_ASSERT
 	dbg("x[X] = "VFMT"\n", VARG(x[X]));
 	dbg("x[Y] = "VFMT"\n", VARG(x[Y]));
 	dbg("dx[X] = "VFMT"\n", VARG(dx[X]));
@@ -191,7 +206,7 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 	/* And also may be in Y */
 	//assert(_rho->shape[Y] >= sim->ghostsize[Y]);
 
-#if DEBUG > 0
+#ifndef NO_EXTRA_ASSERT
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
 		dbg("iv=%zd affects x=(%lld %lld) y=(%lld %lld)\n",
@@ -299,10 +314,13 @@ interpolate_f2p_E(sim_t *sim, plist_t *l, double _x0[2])
 	vi64 blocksize[2], ghostsize[2];
 	vf64 dx[2], x0[2], idx[2];
 
-	blocksize[X] = vset1(sim->blocksize[X]);
-	blocksize[Y] = vset1(sim->blocksize[Y]);
-	ghostsize[X] = vset1(sim->ghostsize[X]);
-	ghostsize[Y] = vset1(sim->ghostsize[Y]);
+	dbg("Sim blocksize=(%d %d)\n",
+			sim->blocksize[X], sim->blocksize[Y]);
+
+	blocksize[X] = vi64_set1((long long) sim->blocksize[X]);
+	blocksize[Y] = vi64_set1((long long) sim->blocksize[Y]);
+	ghostsize[X] = vi64_set1((long long) sim->ghostsize[X]);
+	ghostsize[Y] = vi64_set1((long long) sim->ghostsize[Y]);
 	dx[X] = vset1(sim->dx[X]);
 	dx[Y] = vset1(sim->dx[Y]);
 	idx[X] = 1.0 / dx[X];
