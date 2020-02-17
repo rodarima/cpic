@@ -16,11 +16,16 @@ MPICC=mpicc
 
 #CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
 
-CC=clang
-CPP=clang
+#CC=clang
+#CPP=clang
+
+CC=gcc
+CPP=gcc
 
 #CC=icc
 #CPP=icpc
+
+MCC=/usr/local/bin/mcc --ompss-2 --cc=$(CC) -k
 
 #CFLAGS+=-qopt-zmm-usage=high
 
@@ -183,7 +188,7 @@ include $(DEP)
 
 #@echo "CC $<"
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(MCC) $(CFLAGS) -c -o $@ $<
 
 all: $(BIN)
 
