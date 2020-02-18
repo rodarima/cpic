@@ -1,5 +1,5 @@
-MODULES:=src
-#MODULES:=src test
+#MODULES:=src
+MODULES:=src test
 #MODULES+=test user
 
 
@@ -16,16 +16,16 @@ MPICC=mpicc
 
 #CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
 
-#CC=clang
-#CPP=clang
+CC=clang
+CPP=clang
 
-CC=gcc
-CPP=gcc
+#CC=gcc
+#CPP=gcc
 
 #CC=icc
 #CPP=icpc
 
-MCC=/usr/local/bin/mcc --ompss-2 --cc=$(CC) -k
+MCC=mcc --ompss-2 --cc=$(CC) --pp=$(CC) --v --cpp=$(CC)
 
 #CFLAGS+=-qopt-zmm-usage=high
 
