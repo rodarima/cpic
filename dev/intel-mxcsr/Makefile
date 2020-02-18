@@ -1,18 +1,24 @@
-BIN=main.gcc main.icc main.clang main.mcc
+COMPILERS=gcc icc clang mcc imcc
+BIN:=
+BIN+=$(addprefix main., $(COMPILERS))
+BIN+=$(addprefix task., $(COMPILERS))
 
 all: $(BIN)
 
-main.gcc: main.c
+%.gcc: %.c
 	gcc -Ofast -ffast-math $^ -o $@
 
-main.icc: main.c
-	icc -Ofast -fp-model fast $^ -o $@
+%.icc: %.c
+	icc -no-ftz $^ -o $@
 
-main.clang: main.c
+%.clang: %.c
 	clang -Ofast -ffast-math $^ -o $@
 
-main.mcc: main.c
-	mcc -ffast-math $^ -o $@
+%.mcc: %.c
+	mcc --ompss-2 -ffast-math $^ -o $@
+
+%.imcc: %.c
+	imcc --v --ompss-2 -Xcompiler -Ofast -fp-model=fast $^ -o $@
 
 run: $(BIN)
 	@for EXE in $(BIN) ; do \
