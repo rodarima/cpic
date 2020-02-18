@@ -16,11 +16,11 @@ MPICC=mpicc
 
 #CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
 
-CC=clang
-CPP=clang
+#CC=clang
+#CPP=clang
 
-#CC=gcc
-#CPP=gcc
+CC=gcc
+CPP=gcc
 
 #CC=icc
 #CPP=icpc
