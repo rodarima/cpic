@@ -71,7 +71,6 @@ compute_tag(unsigned int op, unsigned int iter, unsigned int value, unsigned int
 int
 comm_plasma_x(sim_t *sim, int global_exchange)
 {
-
 	return 0;
 }
 

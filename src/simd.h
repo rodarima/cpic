@@ -22,19 +22,7 @@
 //
 //#else /* _MCC */
 
-
-/* Workaround to bug https://pm.bsc.es/gitlab/mercurium/mcxx/issues/2979,
- * this is completely ugly and probably will break soon: */
-#ifdef _MCC
-#define extern static
-#warning "The 'extern' keyword was defined as 'static' to prevent errors with mcc'
-#endif
-
 #include <x86intrin.h>
-
-#ifdef _MCC
-#undef extern
-#endif
 
 #define likely(x)       __builtin_expect((x),1)
 #define unlikely(x)     __builtin_expect((x),0)
