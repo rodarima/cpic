@@ -1,6 +1,5 @@
 #pragma once
 
-#include "block.h"
 #include "sim.h"
 
 #define COMM_TAG_ITER_SIZE 8U

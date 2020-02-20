@@ -270,7 +270,8 @@ stage_field_rho(sim_t *sim)
 	/* Reset charge density */
 	for (i=0; i<plasma->nchunks; i++)
 	{
-		#pragma oss task out(plasma->chunks[i]) label(rho_reset)
+		//#pragma oss task out(plasma->chunks[i]) label(rho_reset)
+		#pragma oss task out(plasma->chunks[i])
 		rho_reset(sim, i);
 	}
 
@@ -285,7 +286,8 @@ stage_field_rho(sim_t *sim)
 	{
 		c0 = &plasma->chunks[i];
 		c1 = &plasma->chunks[(i + 1) % plasma->nchunks];
-		#pragma oss task commutative(*c0, *c1) label(rho_update)
+		//#pragma oss task commutative(*c0, *c1) label(rho_update)
+		#pragma oss task commutative(*c0, *c1)
 		rho_update(sim, i);
 	}
 
@@ -296,7 +298,8 @@ stage_field_rho(sim_t *sim)
 #endif
 
 	/* Send the ghost part of the rho field */
-	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_send_ghost_rho)
+	//#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_send_ghost_rho)
+	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1])
 	{
 		comm_send_ghost_rho(sim);
 
@@ -422,15 +425,18 @@ stage_field_E(sim_t *sim)
 	plasma = &sim->plasma;
 	Nc = plasma->nchunks;
 
-	#pragma oss task inout(sim->plasma.chunks[0:Nc-1]) label(field_phi_solve)
+	//#pragma oss task inout(sim->plasma.chunks[0:Nc-1]) label(field_phi_solve)
+	#pragma oss task inout(sim->plasma.chunks[0:Nc-1])
 	field_phi_solve(sim);
 
 	mat_print(sim->field.phi, "phi before communication");
 
-	#pragma oss task inout(sim->plasma.chunks[0:Nc-1]) label(comm_phi_send)
+	//#pragma oss task inout(sim->plasma.chunks[0:Nc-1]) label(comm_phi_send)
+	#pragma oss task inout(sim->plasma.chunks[0:Nc-1])
 	comm_phi_send(sim);
 
-	#pragma oss task inout(sim->plasma.chunks[0:Nc-1]) label(comm_phi_recv)
+	//#pragma oss task inout(sim->plasma.chunks[0:Nc-1]) label(comm_phi_recv)
+	#pragma oss task inout(sim->plasma.chunks[0:Nc-1])
 	comm_phi_recv(sim);
 
 	mat_print(sim->field.phi, "phi after communication");
@@ -441,14 +447,16 @@ stage_field_E(sim_t *sim)
 		chunk = &plasma->chunks[ic];
 		next = &plasma->chunks[(ic+1) % Nc];
 		prev = &plasma->chunks[(ic-1+Nc) % Nc];
-		#pragma oss task concurrent(sim->timers[TIMER_FIELD_E]) commutative(*prev,*next,*chunk) label(field_E_compute)
+		//#pragma oss task concurrent(sim->timers[TIMER_FIELD_E]) commutative(*prev,*next,*chunk) label(field_E_compute)
+		#pragma oss task concurrent(sim->timers[TIMER_FIELD_E]) commutative(*prev,*next,*chunk)
 		field_E_compute(sim, chunk);
 	}
 
 	mat_print(sim->field.E[X], "E[X]");
 	mat_print(sim->field.E[Y], "E[Y]");
 
-	#pragma oss task inout(sim->timers[TIMER_FIELD_E]) label(perf_stop.field_E)
+	//#pragma oss task inout(sim->timers[TIMER_FIELD_E]) label(perf_stop.field_E)
+	#pragma oss task inout(sim->timers[TIMER_FIELD_E])
 	perf_stop(&sim->timers[TIMER_FIELD_E]);
 
 	return 0;

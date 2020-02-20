@@ -245,10 +245,12 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 	//}
 }
 
-/* The field rho is updated based on the charge density computed on each
- * particle p, by using an interpolation function. Only the area corresponding
- * with the chunk is updated, which also includes the right neighbour points.
- * */
+/** Interpolate the electric charge rho from the plasma into the field. The
+ * field rho is updated based on the charge density computed on each particle
+ * p, by using an interpolation function.  Only the area corresponding with the
+ * chunk is updated, which also includes the right neighbour points.
+ *
+ * @param _x0: Position where the \ref pchunk begins */
 void
 interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 {
@@ -310,6 +312,7 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 	}
 }
 
+/** Interpolate the electric field E into the plasma */
 void
 interpolate_f2p_E(sim_t *sim, plist_t *l, double _x0[2])
 {

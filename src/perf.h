@@ -2,12 +2,23 @@
 
 #include <time.h>
 
+/** Holds the timer state and the rolling statistics */
 struct perf
 {
+	/** The time of calling perf_start */
 	struct timespec begin;
+
+	/** Stores the time difference between begin and the next call to
+	 * perf_stop */
 	struct timespec acc;
+
+	/** Rolling mean of the samples */
 	double mean;
+
+	/** Rolling standard deviation of the samples */
 	double std;
+
+	/** Number of samples collected */
 	int n;
 };
 

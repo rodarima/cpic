@@ -17,6 +17,7 @@ enum solver_method {
 	METHOD_MFT_TAP,
 };
 
+/** Contains the state of the solver and auxiliary data */
 struct solver
 {
 	int method;
@@ -28,12 +29,12 @@ struct solver
 	gsl_matrix *LU;
 #endif
 
-	/* For MFT */
+	/** For MFT */
 	mat_t *G;
 	fftw_complex *g;
 	fftw_plan plan;
 
-	/* Custom data for the specific solver */
+	/** Custom data for the specific solver */
 	void *data;
 };
 

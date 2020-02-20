@@ -58,6 +58,9 @@ mat_init(mat_t *m, int dim, int *shape)
 	m->real_data = m->data;
 }
 
+/** \brief Allocate a new mat_t with the given shape.
+ *
+ * The allocated area is not aligned. \see mat_alloc_align */
 mat_t *
 mat_alloc(int dim, int *shape)
 {

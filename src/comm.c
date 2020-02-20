@@ -1,7 +1,6 @@
 #include <utlist.h>
 #include <string.h>
 #include "sim.h"
-#include "block.h"
 #include "specie.h"
 #include "particle.h"
 #include "comm.h"
@@ -68,11 +67,182 @@ compute_tag(unsigned int op, unsigned int iter, unsigned int value, unsigned int
 	return (int) tag;
 }
 
+#if 0
+
+#define SWAP(a, b, tmp) do { tmp=a; a=b; b=tmp; } while(0)
+
+static inline void
+ppack_move(ppack_t *src, size_t i, ppack_t *dst, size_t j)
+{
+	int d;
+	size_t tmpi;
+	double tmpd;
+
+	/* TODO: Vectorize swap */
+	SWAP(a->i[i], b->i[j], tmpi);
+
+	for(d=0; d<MAX_DIM; d++)
+	{
+		SWAP(a->r[d][i], b->r[d][j], tmpd);
+		SWAP(a->u[d][i], b->u[d][j], tmpd);
+		SWAP(a->E[d][i], b->E[d][j], tmpd);
+		SWAP(a->B[d][i], b->B[d][j], tmpd);
+	}
+}
+
+#undef SWAP
+
+/* Take all particles from the pset which are out of bounds in the d dimension
+ * and place them in the queue q */
+static inline void
+plist_collect_x(enum dim d, vf64 bounds[2], plist_t *l, plist_t *q)
+{
+	pblock_t *b;
+	ppack_t *p, *pq[2], remainder, tmp;
+	pwin_t wq[2], w;
+	size_t ip, iv, ipq[2], i, ipl[2];
+
+	/* Move the beginning incompleted ppacks of the queue to a temporal
+	 * ppack, so we can transfer compete ppacks directly to the queue */
+
+	ppack_split_full(q, &ipq[0], &pq[0], &ipl[0]);
+	ppack_split_full(q, &ipq[1], &pq[1], &ipl[1]);
+
+	for(b = b->l; b; b = b->next)
+	{
+		for(ip=0; ip < b->nfpacks; ip++)
+		{
+			p = &b->p[ip];
+			for(iv=0; iv < MAX_VEC; iv++)
+			{
+				/* First check the particles that exceed X for
+				 * the lower side */
+				if(p->r[iv][d] < bounds[iv][0])
+				{
+					/* Store the individual particle in pq
+					 * */
+					ppack_move(p, iv, pq[0], ivq[0]++);
+
+					/* If the ppack is completed, transfer
+					 * to the queue */
+					if(ipl[1] == MAX_VEC)
+					{
+						ppack_move(p, iv, pq[0], ivq[0]);
+					}
+				}
+				else if(p->r[iv][d] > bounds[iv][1])
+				{
+					ppack_move(p, iv, pq[1], ipl[1]++);
+				}
+
+				/* Check if we completed a ppack_t */
+			}
+		}
+
+		/* Remainder */
+		//for(ip=b->nfpacks; ip < b->npacks; ip++)
+		//{
+		//	p = &b->p[ip];
+		//}
+	}
+}
+
+/* Check ONLY in the X dimension, if any particle has exceeded the chunk size in
+ * X, and place it in the correct qx queue. */
+int
+local_collect_x(sim_t *sim, pchunk_t *c, int is)
+{
+	particle_set_t *set;
+	int j, ix, ix_next, ix_prev;
+	int dst, dst_ig[MAX_DIM];
+
+	set = &chunk->species[is];
+
+	/* Check that no particles are left from the previous iteration */
+	for(j=0; j<sim->plasma_chunks; j++)
+	{
+		assert(set->lout[j] == NULL);
+		assert(set->loutsize[j] == 0);
+	}
+
+	ix = chunk->ig[X];
+	//iy = chunk->ig[Y];
+
+	dbg("Collecting local particles for chunk %d for specie %d\n", ix, is);
+
+	ix_next = (ix + 1) % sim->plasma_chunks;
+	ix_prev = (ix - 1 + sim->plasma_chunks) % sim->plasma_chunks;
+
+	dbg("Chunk %d goes from x0=(%e %e) to x1=(%e %e)\n",
+			ix, chunk->x0[X], chunk->x0[Y],
+			chunk->x1[X], chunk->x1[Y]);
+
+	DL_FOREACH_SAFE(set->particles, p, tmp)
+	{
+		/* Wrap particle position arount the whole simulation space, to
+		 * determine the target chunk */
+		wrap_particle_position(sim, p);
+
+		particle_chunk_index(sim, chunk, p, dst_ig);
+
+		/* The particle is in the same process */
+		if(dst_ig[X] == ix)
+		{
+			/* And also in the same chunk */
+			//dbg("p%d remains in chunk (%d %d), skips move\n",
+			//		p->i, ix, iy);
+			continue;
+		}
+
+		/* Otherwise, the particle is in the same process but
+		 * needs to move chunk */
+
+		/* Ensure the particle only needs to jump to the
+		 * neighbour chunk if we are in local exchange */
+		assert(global_exchange ||
+			((dst_ig[X] == ix_next) || (dst_ig[X] == ix_prev)));
+
+		queue_local_particle(set, p, dst_ig[X]);
+	}
+
+
+	return 0;
+}
+
 int
 comm_plasma_x(sim_t *sim, int global_exchange)
 {
+	size_t ic, is, color, max_color;
+	plasma_t *plasma;
+	pchunk_t *c;
+
+	plasma = &sim->plasma;
+
+	dbg("comm_plasma_x begins\n");
+
+	if(global_exchange)
+	{
+		err("Not implemented yet: global_exchange = 1\n");
+		return 0;
+	}
+
+	for(ic = 0; ic < plasma->nchunks; ic++)
+	{
+		c= &plasma->chunks[ic];
+		/* Find particles that mush be exchanged in the X dimension */
+		#pragma oss task inout(*chunk) label(collect_particles_x)
+		for(is = 0; is < sim->nspecies; is++)
+		{
+			collect_particles_x(sim, chunk, is, global_exchange);
+		}
+	}
+
+	dbg("comm_plasma_x ends\n");
+
 	return 0;
 }
+
+#endif
 
 int
 comm_plasma(sim_t *sim, int global_exchange)
@@ -80,7 +250,7 @@ comm_plasma(sim_t *sim, int global_exchange)
 	/* First all particles are displaced in the X direction to the correct
 	 * chunk */
 
-	comm_plasma_x(sim, global_exchange);
+	//comm_plasma_x(sim, global_exchange);
 
 	/* No communication in Y needed with only one process */
 	if(sim->nprocs == 1) return 0;

@@ -1,20 +1,19 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "perf.h"
-
 #include <time.h>
 #include <assert.h>
 #include <math.h>
 #include <string.h>
 
-
+/** Zeroes the structure */
 void
 perf_init(perf_t *p)
 {
 	memset(p, 0, sizeof(*p));
 }
 
-void
+static inline void
 ts_add_diff(ts_t *dst, ts_t *t0, ts_t *t1)
 {
 	dst->tv_sec	+= t1->tv_sec - t0->tv_sec;
@@ -27,6 +26,8 @@ ts_add_diff(ts_t *dst, ts_t *t0, ts_t *t1)
 	}
 }
 
+/** Starts the timer by setting the begin time to the current time. In case of
+ * multiple calls, previous stored values in the begin time are lost */
 void
 perf_start(perf_t *p)
 {
@@ -37,6 +38,8 @@ perf_start(perf_t *p)
 	clock_gettime(CLOCK_MONOTONIC, tp);
 }
 
+/** Takes the difference time between the begin time and the current time. The
+ * acc time is updated with the difference */
 void
 perf_stop(perf_t *p)
 {
@@ -50,6 +53,7 @@ perf_stop(perf_t *p)
 	ts_add_diff(acc, begin, &now);
 }
 
+/** Resets the accumulated time to zero */
 void
 perf_reset(perf_t *p)
 {
@@ -61,6 +65,7 @@ perf_reset(perf_t *p)
 	acc->tv_nsec = 0;
 }
 
+/** Returns the accumulated time in seconds */
 double
 perf_measure(perf_t *p)
 {
@@ -72,6 +77,8 @@ perf_measure(perf_t *p)
 		+ ((double) acc->tv_nsec) / 1e9;
 }
 
+/** Records the accumulated time as a new sample. The rolling mean and standard
+ * deviation are updated accordingly */
 void
 perf_record(perf_t *p, double time)
 {
@@ -96,6 +103,8 @@ perf_record(perf_t *p, double time)
 	p->n = n;
 }
 
+/** Obtains the current values or the mean, standard deviation and standard
+ * error of the mean (SEM) */
 void
 perf_stats(perf_t *p, double *mean, double *std, double *sem)
 {

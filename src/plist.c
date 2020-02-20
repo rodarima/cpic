@@ -42,17 +42,25 @@ pblock_last(pblock_t *head)
 	return head->prev;
 }
 
+static inline void
+pblock_update_n(pblock_t *b, size_t n)
+{
+	b->n = n;
+	b->npacks = (n + MAX_VEC - 1) / MAX_VEC;
+	b->nfpacks = n / MAX_VEC;
+}
+
 int
 pblock_init(pblock_t *b, size_t n, size_t nmax)
 {
 	size_t offset;
 
 	offset = nmax * sizeof(double);
-	b->n = n;
+	pblock_update_n(b, n);
 
 	if(offset % VEC_ALIGN)
 	{
-		fprintf(stderr, "Offset is not aligned, please change k=%lu", nmax);
+		fprintf(stderr, "Offset is not aligned, please change nmax=%lu", nmax);
 		return -1;
 	}
 
@@ -65,7 +73,8 @@ plist_new_block(plist_t *l, size_t n)
 	pblock_t *b;
 
 
-	fprintf(stderr, "Allocate %ld KB for the block\n", l->blocksize/1024);
+	//fprintf(stderr, "Allocate %ld KB for the block\n",
+	//l->blocksize/1024);
 
 	if(posix_memalign((void **)&b, PLIST_ALIGN, l->blocksize) != 0)
 //	if(rodrix_memalign((void **)&b, PLIST_ALIGN, l->blocksize) != 0)
@@ -107,13 +116,13 @@ plist_grow(plist_t *l, size_t n)
 	{
 		if(b->n + n <= nmax)
 		{
-			/* No need to add another block */
-			b->n += n;
+			/* No need to add another pblock */
+			pblock_update_n(b, b->n + n);
 			return 0;
 		}
 
 		n -= nmax - b->n;
-		b->n = nmax;
+		pblock_update_n(b, nmax);
 	}
 
 	plist_new_block(l, n);

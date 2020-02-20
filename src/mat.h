@@ -12,11 +12,34 @@ enum dim {
 	Y = 1,
 	Z = 2
 };
-//enum shape_dim {
-//	SHAPE_X = 0,
-//	SHAPE_Y = 1,
-//	SHAPE_Z = 2
-//};
+
+struct mat;
+typedef struct mat mat_t;
+
+
+/** A 1, 2 or 3 dimensional matrix or view. The data is stored in contiguous
+ * memory in double elements. Can be a view of another \ref mat, so the
+ * elements don't need to be copied */
+struct mat
+{
+	/** Pointer to the initially allocated data */
+	double *real_data;
+	double *data;
+	int delta[MAX_DIM];
+
+	/** Dimensions of the matrix or view */
+	int shape[MAX_DIM];
+
+	/** Shape of the real matrix data */
+	int real_shape[MAX_DIM];
+
+	/** Number of dimensions */
+	int dim;
+	size_t real_size;
+	size_t size;
+	size_t aligned_size;
+};
+
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
@@ -24,18 +47,6 @@ enum dim {
  * that the result r = x - nh */
 #define WRAP(r, x, h) do { r = fmod(x, h); if(r<0.0) r+=h; } while(0);
 
-typedef struct
-{
-	double *real_data;
-	double *data;
-	int delta[MAX_DIM];
-	int shape[MAX_DIM];
-	int real_shape[MAX_DIM];
-	int dim;
-	size_t real_size;
-	size_t size;
-	size_t aligned_size;
-} mat_t;
 
 #define mat_set(m, pos, type, v)			\
 do {							\

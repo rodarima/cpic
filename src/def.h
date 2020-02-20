@@ -72,75 +72,84 @@ typedef struct output output_t;
 
 /************************************************************/
 
-/* The particle pack (ppack) is designed to hold MAX_VEC particles: so 4 in
- * AVX2 using 256 bits or 8 in AVX512 using 512 bits. A total of 13 vectors of
- * 64bits per element, with 52 and 104 bytes respectively in AVX2 or AVX512.
- */
+/** A particle pack designed to hold \ref MAX_VEC particles: 4 in AVX2 using 256
+ * bits or 8 in AVX512 using 512 bits. A total of 13 vectors of 64bits per
+ * element, with 52 and 104 bytes respectively in AVX2 or AVX512.
+ *
+ * The structure size is multiple of the vector line, so any access to the
+ * members are aligned */
 struct ppack
 {
-	vi64 i;			/* Particle global index */
-	vf64 r[MAX_DIM];	/* Position */
-	vf64 u[MAX_DIM];	/* Velocity */
-	vf64 E[MAX_DIM];	/* Electric field */
-	vf64 B[MAX_DIM];	/* Magnetic field */
+	vi64 i;			/**< Particle global index */
+	vf64 r[MAX_DIM];	/**< Position */
+	vf64 u[MAX_DIM];	/**< Velocity */
+	vf64 E[MAX_DIM];	/**< Electric field */
+	vf64 B[MAX_DIM];	/**< Magnetic field */
 }; /* Multiple of MAX_VEC */
 
-/* A pblock or particle block contains fixed storage allocated for up to n
- * particles, stored in ppacks */
+/** A pblock or particle block contains fixed storage allocated for up to n
+ * particles, stored in \ref ppack */
 struct pblock
 {
 	union
 	{
 		struct
 		{
-			/* Current number of particles */
+			/** Current number of particles */
 			size_t n;
 
-			/* Pointers to neighbour pblocks */
-			pblock_t *next;
-			pblock_t *prev;
+			/** Current number used of ppacks. Computed as 
+			 * `(n + MAX_VEC - 1) / MAX_VEC` */
+			size_t npacks;
+
+			/** Current number of full ppacks (<= used packs).
+			 * Computed as `n / MAX_VEC` */
+			size_t nfpacks;
+
+			/** Pointer to the next pblock */
+			struct pblock *next;
+
+			/** Pointer to the previous pblock_t */
+			struct pblock *prev;
 
 		}; /* 24 bytes */
 
 		/* 128 bytes */
-		uint8_t _pblock_padding[128];
+		uint8_t _pad[128];
 	};
 
-	/* Particle packs */
-	ppack_t p[];
+	/** Particle packs */
+	struct ppack p[];
 };
 
-/* A particle list has a bunch of particles from only one type of specie */
+/** A particle list has a bunch of particles from only one type of specie */
 struct plist
 {
-	size_t nblocks;
-	size_t blocksize;	/* in bytes */
-	size_t max_packs;	/* Maximum number of packs per block */
-	size_t nmax;		/* Maximum number of particles per block */
+	size_t nblocks;		/**< Current number of pblocks used */
+	size_t blocksize;	/**< Size of each pblock in bytes */
+	size_t max_packs;	/**< Maximum number of packs per block */
+	size_t nmax;		/**< Maximum number of particles per block */
 
-	pblock_t *b;
+	/** The linked list of pblock. Should be NULL if we don't have any
+	 * pblock, but this configuration may changed in order to reuse the
+	 * same storage in each iteration */
+	struct pblock *b;
 };
 
-/* Inside each pchunk, we store the particles of each specie in a pset */
+/** Inside each pchunk, we store the particles of each specie in a pset */
 struct pset
 {
-	/* We can reuse the info in multiple particle sets */
-	specie_t *info;
+	/** We can reuse the info in multiple particle sets */
+	struct specie *info;
 
 	//int n;
-	plist_t list;
+	struct plist list;
 
-	/* FIXME: Not implemented yet, we may use plist as well here */
-	/* Temporal particle lists to send and receive from the neighbour */
-	//int *outsize;
-	//particle_t **out;
-
-	/* Local particle list (between chunks) */
-	//int *loutsize;
-	//particle_t **lout;
+	/** Plasma to be exchanged with neigbour chunks in the X dimension */
+	struct plist qx[2];
 };
 
-///* TODO: Internal structure used by the particle mover, place in the .c */
+/* TODO: Internal structure used by the particle mover, place in the .c */
 //struct pwin
 //{
 //	pblock_t *b;	/* Current pblock_t selected */
@@ -150,7 +159,7 @@ struct pset
 //	size_t left;	/* Number of particles left */
 //};
 //
-///* TODO: Also another internal structure */
+/* TODO: Also another internal structure */
 //struct pmover
 //{
 //	plist_t *l;
@@ -158,27 +167,28 @@ struct pset
 //	pwin_t B;
 //};
 
+/** Plasma initialization method descriptor */
 struct particle_config
 {
 	char *name;
 	int (*init)(sim_t *, pchunk_t *, pset_t *);
 };
 
-/* A specie only holds information about the particles, no real particles are
- * stored here */
+/** A specie only holds information about the particles, no real particles are
+ * stored here. All particles of the same specie have the same mass and charge. */
 struct specie
 {
+	/** Specie name */
 	const char *name;
 
-	/* All particles of the same specie have the same mass and charge. */
-	double q; /* Electric charge */
-	double m; /* Mass of the particle */
+	double q; /**< Electric charge */
+	double m; /**< Mass of the particle */
 
-	/* Total number of particles of this specie.
+	/** Total number of particles of this specie.
 	 * This number doesn't change with the simulation */
 	int nparticles;
 
-	/* Other config settings may be needed */
+	/** Other config settings may be needed */
 	config_setting_t *conf;
 };
 
@@ -223,102 +233,123 @@ enum {
 	MAX_DIR
 };
 
+/** The fields stored in each MPI process. */
 struct field
 {
-	/* Shape of the field slice, without ghosts */
+	/** Shape of the field slice, without ghosts */
 	int shape[MAX_DIM];
 
-	/* Shape of the field slice, with ghosts */
+	/** Shape of the field slice, with ghosts */
 	int ghostshape[MAX_DIM];
 
-	/* Physical length of the field slice */
+	/** Physical length of the field slice */
 	double L[MAX_DIM];
 
-	/* First point global index */
+	/** First point global index */
 	int igp[MAX_DIM];
 
-	/* Dimensions of the bounding box of the field slice */
+	/** Dimensions of the bounding box of the field slice */
 	double x0[MAX_DIM];
 	double x1[MAX_DIM];
 
-	/* Electric field with ghosts*/
+	/** Electric field with ghosts*/
 	mat_t *_E[MAX_DIM];
 
-	/* Electric field without ghosts (view)*/
+	/** \brief Electric field without ghosts (view)*/
 	mat_t *E[MAX_DIM];
 
-	/* Electric potential with ghosts */
+	/** Electric potential with ghosts */
 	mat_t *_phi;
 
-	/* Electric potential without ghosts (view)*/
+	/** Electric potential without ghosts (view)*/
 	mat_t *phi;
 
-	/* Electric potential ghosts (view)*/
+	/** Electric potential ghosts (view)*/
 	mat_t *ghostphi[MAX_DIR];
 
 	MPI_Request *req_phi;
 	MPI_Request *req_rho;
 
-	/* Charge density with the FFT padding in the X and the frontier ghosts
+	/** Charge density with the FFT padding in the X and the frontier ghosts
 	 * in the Y */
 	mat_t *_rho;
 
-	/* Charge density without padding and ghosts (view) */
+	/** Charge density without padding and ghosts (view) */
 	mat_t *rho;
 
-	/* Exchange ghost frontier in the Y dimension only */
+	/** Exchange ghost frontier in the Y dimension only */
 	mat_t *frontier;
 };
 
+/** Plasma contained in a physical region of space, assigned to one task. */
 struct pchunk
 {
 	int locked;
 
-	pset_t *species; /* Array of particle sets, one per specie */
+	/** Array of particle sets, one per specie */
+	pset_t *species;
 	int nspecies;
 
-	/* Local index of the chunk inside the local plasma */
+	/** Local index of the chunk inside the local plasma */
 	int i[MAX_DIM];
 	int ig[MAX_DIM];
 	double x0[MAX_DIM];
 	double x1[MAX_DIM];
 	double L[MAX_DIM];
 
-	/* Global position of the first grid point at x=0 y=0 of the chunk */
+	/** Global position of the first grid point at x=0 y=0 of the chunk */
 	int igp0[MAX_DIM];
 
-	/* Local shape of the corresponding block */
+	/** Local shape of the corresponding block */
 	int shape[MAX_DIM];
-	/* Local block index range */
+
+	/** Local block index range */
 	int ib0[MAX_DIM];
 	int ib1[MAX_DIM];
 
 
-	/* Queues of outgoing messages. One per neighbour */
+	/** Queues of outgoing messages. One per neighbour */
 	comm_packet_t **q;
 
-	/* MPI_Request of each packet sent */
+	/** MPI_Request of each packet sent */
 	MPI_Request *req;
 
-	/* The rank of each neighbour */
+	/** The rank of each neighbour */
 	int *neigh_rank;
 
 };
 
+/** Contains all the particles in this process. Holds a list of \ref pchunk,
+ * where each one is processed by one task */
 struct plasma
 {
 	pchunk_t *chunks;
 	int nchunks;
 };
 
-/* Output parameters */
+/** Output parameters */
 struct output
 {
+	/** Is write output to disk enabled? */
 	int enabled;
+
+	/** Where the output should be placed */
 	char path[PATH_MAX];
+
+	/** Number of slices to partition the fields. When writting to disk,
+	 * the fields are partitioned in the following number of slices, to be
+	 * written in parallel by different tasks. It must divide evenly the
+	 * number of gridpoints in Y / mpi processes. */
 	int max_slices;
+
 	int period_field;
 	int period_particle;
+
+	/** The number of bytes the memory used for DMA must be aligned.  It's
+	 * usually set to 512, but it may vary. Use `blockdev --getss <device>`
+	 * to determine it, or check the manual of open(2) referring to the
+	 * O_DIRECT flag and how to determine the logical size. It must be a
+	 * multiple of the logical size. */
 	long long alignment;
 };
 

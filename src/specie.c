@@ -1,6 +1,5 @@
 #include "specie.h"
 #include "mat.h"
-#include "block.h"
 #include "particle.h"
 
 #define DEBUG 0
