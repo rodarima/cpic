@@ -6,7 +6,7 @@
 
 #define PLOT 0
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include "specie.h"
 #include "particle.h"
@@ -194,6 +194,8 @@ sim_prepare(sim_t *s, int quiet)
 int
 sim_pre_step(sim_t *sim)
 {
+	err("begin sim_pre_step\n");
+
 	/* Move particles to the correct block */
 	particle_comm_initial(sim);
 
@@ -202,6 +204,7 @@ sim_pre_step(sim_t *sim)
 
 	#pragma oss taskwait
 
+	err("end sim_pre_step\n");
 	return 0;
 }
 

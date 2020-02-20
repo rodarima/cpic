@@ -3,16 +3,8 @@
 #include "mat.h"
 #include <assert.h>
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
-
-//#define NO_EXTRA_ASSERT
-
-#ifdef NDEBUG
-#ifndef NO_EXTRA_ASSERT
-#define NO_EXTRA_ASSERT
-#endif
-#endif
 
 static inline void
 linear_interpolation(vf64 rel[2], vf64 w[2][2])
@@ -123,18 +115,18 @@ interpolate_f2p(vi64 blocksize[2], vi64 ghostsize[2],
 		assert(i1[X][iv] < blocksize[X][iv]);
 		assert(i1[Y][iv] < ghostsize[Y][iv]);
 
-		dbg("i0 = (%lld %lld) i1 = (%lld %lld)\n",
-				i0[X][iv], i0[Y][iv],
-				i1[X][iv], i1[Y][iv]);
+		//dbg("i0 = (%lld %lld) i1 = (%lld %lld)\n",
+		//		i0[X][iv], i0[Y][iv],
+		//		i1[X][iv], i1[Y][iv]);
 
 		assert(i0[X][iv] >= 0 && i0[X][iv] <= blocksize[X][iv]);
 		assert(i0[Y][iv] >= 0 && i0[Y][iv] <= blocksize[Y][iv]);
 		assert(i1[X][iv] >= 0 && i1[X][iv] <= ghostsize[X][iv]);
 		assert(i1[Y][iv] >= 1 && i1[Y][iv] <= ghostsize[Y][iv]);
 
-		dbg("mat shape = (%d %d) blocksize = (%lld %lld)\n",
-				mat->shape[X], mat->shape[Y],
-				blocksize[X][iv], blocksize[Y][iv]);
+		//dbg("mat shape = (%d %d) blocksize = (%lld %lld)\n",
+		//		mat->shape[X], mat->shape[Y],
+		//		blocksize[X][iv], blocksize[Y][iv]);
 
 		assert(mat->shape[X] == blocksize[X][iv]);
 		assert(mat->shape[Y] == blocksize[Y][iv]);
@@ -156,7 +148,7 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 {
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
-#ifndef NO_EXTRA_ASSERT
+#ifndef NDEBUG
 	size_t iv;
 #endif
 
@@ -164,18 +156,18 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 //			VARG(x[X]), VARG(x[Y]));
 
 	/* Ensure the particle is in the chunk */
-#ifndef NO_EXTRA_ASSERT
-	dbg("x[X] = "VFMT"\n", VARG(x[X]));
-	dbg("x[Y] = "VFMT"\n", VARG(x[Y]));
-	dbg("dx[X] = "VFMT"\n", VARG(dx[X]));
-	dbg("dx[Y] = "VFMT"\n", VARG(dx[Y]));
+#ifndef NDEBUG
+	//dbg("x[X] = "VFMT"\n", VARG(x[X]));
+	//dbg("x[Y] = "VFMT"\n", VARG(x[Y]));
+	//dbg("dx[X] = "VFMT"\n", VARG(dx[X]));
+	//dbg("dx[Y] = "VFMT"\n", VARG(dx[Y]));
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
 		/* FIXME: We should use x1 instead of computing it here again */
 		assert(x0[X][iv] <= x[X][iv]);
-	       	assert(x[X][iv] < x0[X][iv] + dx[X][iv] * blocksize[X][iv]);
+		assert(x[X][iv] < x0[X][iv] + dx[X][iv] * blocksize[X][iv]);
 		assert(x0[Y][iv] <= x[Y][iv]);
-	       	assert(x[Y][iv] < x0[Y][iv] + dx[Y][iv] * blocksize[Y][iv]);
+		assert(x[Y][iv] < x0[Y][iv] + dx[Y][iv] * blocksize[Y][iv]);
 	}
 #endif
 
@@ -201,6 +193,7 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 	//		i1[X], i1[Y]);
 	//assert(i1[X] < sim->blocksize[X]);
 	//assert(i1[Y] < sim->ghostsize[Y]);
+	//
 	//assert(i0[X] >= 0 && i0[X] <= sim->blocksize[X]);
 	//assert(i0[Y] >= 0 && i0[Y] <= sim->blocksize[Y]);
 	//assert(i1[X] >= 0 && i1[X] <= sim->ghostsize[X]);
@@ -212,17 +205,45 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 	/* And also may be in Y */
 	//assert(_rho->shape[Y] >= sim->ghostsize[Y]);
 
-#ifndef NO_EXTRA_ASSERT
+#ifndef NDEBUG
+	//dbg("i0[X] = "vi64_VFMT"\n", VARG(i0[X]));
+	//dbg("i0[Y] = "vi64_VFMT"\n", VARG(i0[Y]));
+	//dbg("i1[X] = "vi64_VFMT"\n", VARG(i1[X]));
+	//dbg("i1[Y] = "vi64_VFMT"\n", VARG(i1[Y]));
+
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
-		dbg("iv=%zd affects x=(%lld %lld) y=(%lld %lld)\n",
-			iv, i0[X][iv], i1[X][iv], i0[Y][iv], i1[Y][iv]);
-		dbg("  with mat=(%e %e %e %e)\n",
-			MAT_XY(mat, i0[X][iv], i0[Y][iv]),
-			MAT_XY(mat, i1[X][iv], i0[Y][iv]),
-			MAT_XY(mat, i0[X][iv], i1[Y][iv]),
-			MAT_XY(mat, i1[X][iv], i1[Y][iv])
-		);
+		/* FIXME: We should use x1 instead of computing it here again */
+		assert(i0[X][iv] >= 0);
+		assert(i0[Y][iv] >= 0);
+		assert(i1[X][iv] >= 0);
+		assert(i1[Y][iv] >= 1);
+
+		assert(i0[X][iv] <= blocksize[X][iv]);
+		assert(i0[Y][iv] <= blocksize[Y][iv]);
+		assert(i1[X][iv] < blocksize[X][iv]);
+		assert(i1[Y][iv] < ghostsize[Y][iv]);
+
+		assert(x[X][iv] < x0[X][iv] + dx[X][iv] * blocksize[X][iv]);
+		assert(x0[Y][iv] <= x[Y][iv]);
+		assert(x[Y][iv] < x0[Y][iv] + dx[Y][iv] * blocksize[Y][iv]);
+
+		/* TODO: Ensure we don't write to any space outside our assigned
+		 * pchunk region by testing i0 and i1 */
+	}
+#endif
+
+#ifndef NDEBUG
+	for(iv=0; iv<MAX_VEC; iv++)
+	{
+		//dbg("iv=%zd affects x=(%lld %lld) y=(%lld %lld)\n",
+		//	iv, i0[X][iv], i1[X][iv], i0[Y][iv], i1[Y][iv]);
+		//dbg("  with mat=(%e %e %e %e)\n",
+		//	MAT_XY(mat, i0[X][iv], i0[Y][iv]),
+		//	MAT_XY(mat, i1[X][iv], i0[Y][iv]),
+		//	MAT_XY(mat, i0[X][iv], i1[Y][iv]),
+		//	MAT_XY(mat, i1[X][iv], i1[Y][iv])
+		//);
 	}
 #endif
 
@@ -254,6 +275,7 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 void
 interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 {
+	dbg("interpolate_p2f_rho begins\n");
 	pblock_t *b;
 	ppack_t *p;
 	mat_t *rho;
@@ -276,17 +298,13 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 	/* We take the whole rho field, including the ghosts in Y+ */
 	rho = sim->field._rho;
 
-	dbg("rho[0][0] = %e\n", rho->data[0]);
-	assert(rho->data[0] == 0.0); /* rho must be reset */
-
 	for(b = l->b; b; b = b->next)
 	{
 		/* FIXME: We cannot exceed the number of particles here,
 		 * otherwise we write garbage into rho */
-		nvec = b->n / MAX_VEC;
-		for(i=0; i < nvec; i++)
+		for(i=0; i < b->npacks; i++)
 		{
-			dbg("i = %zd / %zd\n", i, nvec);
+			//dbg("i = %zd / %zd\n", i, b->npacks);
 			p = &b->p[i];
 			interpolate_p2f(blocksize, ghostsize,
 					dx, idx, p->r, x0, vq, rho);
@@ -298,9 +316,9 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 	 * of b->n */
 	assert(l->b);
 	b = l->b->prev;
-	if(b && b->n - nvec * MAX_VEC > 0)
+	if(b && b->n - b->nfpacks * MAX_VEC > 0)
 	{
-		for(iv=b->n - nvec; iv<MAX_VEC; iv++)
+		for(iv=b->n - b->nfpacks * MAX_VEC; iv<MAX_VEC; iv++)
 		{
 			p->r[X][iv] = x0[X][iv];
 			p->r[Y][iv] = x0[Y][iv];
@@ -310,6 +328,7 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 		interpolate_p2f(blocksize, ghostsize,
 				dx, idx, p->r, x0, vq, rho);
 	}
+	dbg("interpolate_p2f_rho ends\n");
 }
 
 /** Interpolate the electric field E into the plasma */

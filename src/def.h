@@ -285,6 +285,7 @@ struct field
 struct pchunk
 {
 	int locked;
+	const char *lock_owner;
 
 	/** Array of particle sets, one per specie */
 	pset_t *species;

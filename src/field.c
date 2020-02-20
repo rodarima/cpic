@@ -1,12 +1,14 @@
 #include "field.h"
-#include "solver.h"
-#include "interpolate.h"
-#include "comm.h"
 
 /* NOTE: this DEBUG enables a taskwait which may lead to unexpected behavior
  * when debugging a problem, remove the taskwait if the print is not needed */
 #define DEBUG 1
 #include "log.h"
+
+#include "solver.h"
+#include "interpolate.h"
+#include "comm.h"
+#include "plasma.h"
 #include "mat.h"
 #include "utils.h"
 
@@ -161,6 +163,7 @@ field_init(sim_t *sim, field_t *f)
 int
 rho_reset(sim_t *sim, int i)
 {
+	dbg("rho_reset begins\n");
 	int start[MAX_DIM], end[MAX_DIM];
 	int ix, iy;
 	mat_t *_rho, *frontier;
@@ -197,6 +200,11 @@ rho_reset(sim_t *sim, int i)
 			MAT_XY(frontier, ix, iy) = 0.0;
 		}
 	}
+
+	/* rho must be zero in this chunk */
+	assert(MAT_XY(_rho, start[X], start[Y]) == 0.0);
+
+	dbg("rho_reset ends\n");
 
 	return 0;
 }
@@ -271,8 +279,12 @@ stage_field_rho(sim_t *sim)
 	for (i=0; i<plasma->nchunks; i++)
 	{
 		//#pragma oss task out(plasma->chunks[i]) label(rho_reset)
-		#pragma oss task out(plasma->chunks[i])
-		rho_reset(sim, i);
+		#pragma oss task inout(plasma->chunks[i])
+		{
+			pchunk_lock(&plasma->chunks[i], "rho reset");
+			rho_reset(sim, i);
+			pchunk_unlock(&plasma->chunks[i]);
+		}
 	}
 
 #if DEBUG
@@ -288,19 +300,28 @@ stage_field_rho(sim_t *sim)
 		c1 = &plasma->chunks[(i + 1) % plasma->nchunks];
 		//#pragma oss task commutative(*c0, *c1) label(rho_update)
 		#pragma oss task commutative(*c0, *c1)
-		rho_update(sim, i);
+		{
+			pchunk_lock(c0, "rho_update c0");
+			pchunk_lock(c1, "rho_update c1");
+			rho_update(sim, i);
+			pchunk_unlock(c1);
+			pchunk_unlock(c0);
+		}
 	}
 
 #if DEBUG
 	/* Only for debugging */
-	#pragma oss taskwait
-	mat_print(sim->field.rho, "rho after update");
+	//#pragma oss taskwait
+	//mat_print(sim->field.rho, "rho after update");
 #endif
 
 	/* Send the ghost part of the rho field */
 	//#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(comm_send_ghost_rho)
 	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1])
 	{
+		for(i=0; i<plasma->nchunks; i++)
+			pchunk_lock(&plasma->chunks[i], "rho ghost comm");
+
 		comm_send_ghost_rho(sim);
 
 		/* FIXME: We cannot destroy the ghost while the ghost is still
@@ -319,6 +340,9 @@ stage_field_rho(sim_t *sim)
 
 		//#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1]) label(field_rho:perf_stop)
 		/* Recv the ghost part of the rho field */
+
+		for(i=0; i<plasma->nchunks; i++)
+			pchunk_unlock(&plasma->chunks[i]);
 	}
 }
 

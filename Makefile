@@ -46,7 +46,7 @@ CFLAGS+=-fompss-2
 #CFLAGS+=-Wstrict-prototypes -Wshadow -Wconversion
 
 # Optimization enabled
-CFLAGS+=-O3
+CFLAGS+=-O0
 CFLAGS+=-ffp-contract=fast
 #CFLAGS+=-O0
 #CFLAGS:=-g -Wall -Werror
@@ -62,13 +62,13 @@ CFLAGS+=-ffp-contract=fast
 #CFLAGS+=-Wno-unknown-pragmas
 
 # Use debug messages
-#CFLAGS+=-DGLOBAL_DEBUG
+CFLAGS+=-DGLOBAL_DEBUG
 
 # No asserts
-CFLAGS+=-DNDEBUG
+#CFLAGS+=-DNDEBUG
 
 # No extra assers
-CFLAGS+=-DNO_EXTRA_ASSERTS
+#CFLAGS+=-DNO_EXTRA_ASSERTS
 
 # For intel compiler
 CFLAGS+=-fPIE

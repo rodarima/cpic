@@ -1,7 +1,7 @@
 #include "plasma.h"
 
 #include "particle.h"
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include <utlist.h>
 #include "utils.h"
@@ -247,6 +247,7 @@ plasma_chunk_init(sim_t *sim, int i)
 	chunk->ig[Z] = 0;
 
 	chunk->locked = 0;
+	chunk->lock_owner = NULL;
 
 	for(d=X; d<MAX_DIM; d++)
 	{
@@ -308,5 +309,3 @@ plasma_init(sim_t *sim, plasma_t *plasma)
 	}
 	return 0;
 }
-
-

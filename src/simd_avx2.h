@@ -10,6 +10,7 @@ typedef __m256d		vmsk;/* No mask  */
 #define MAX_VEC		4 /* Vector size in doubles */
 #define VP(x)		CONCAT(VEC_PREFIX, x)
 #define VFMT		"(%e %e %e %e)"
+#define vi64_VFMT	"(%lld %lld %lld %lld)"
 #define VARG(v)		v[0], v[1], v[2], v[3]
 
 #include "simd_common.h"

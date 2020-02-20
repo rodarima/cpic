@@ -237,6 +237,9 @@ particle_comm(sim_t *sim)
 int
 particle_comm_initial(sim_t *sim)
 {
+	/* FIXME: By now we simply move the particles back into the pchunk,
+	 * until the communications are complete. */
+	dummy_wrap(sim);
 	//return comm_plasma(sim, 1);
 	return 0;
 }

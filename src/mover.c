@@ -1,6 +1,7 @@
 #include "def.h"
 #include "simd.h"
 #include "comm.h"
+#include "plasma.h"
 #include <assert.h>
 
 #define DEBUG 1
@@ -67,6 +68,8 @@ boris_rotation(ppack_t *p, vf64 dtqm2, vf64 u[MAX_DIM])
 	}
 }
 
+/** Update the position of the particles in the ppack using the given
+ * velocity and time interval. */
 static inline void
 move(ppack_t *p, vf64 u[MAX_DIM], vf64 dt)
 {
@@ -77,6 +80,8 @@ move(ppack_t *p, vf64 u[MAX_DIM], vf64 dt)
 	}
 }
 
+/** Check if the velocity u is under the absolute limit umax. If the velocity
+ * exceeds the threshold the program is aborted. */
 static inline void
 check_velocity(vf64 u[MAX_DIM], vf64 umax[MAX_DIM])
 {
@@ -121,20 +126,19 @@ err:
 	abort();
 }
 
-/* Only updates the particle positions */
+/** Update the position in of the particles stored in a plist. */
 static void
 plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
 {
 	vf64 u[MAX_DIM];
 	pblock_t *b;
 	ppack_t *p;
-	size_t i, nvec;
+	size_t i;
 
 	for(b = l->b; b; b = b->next)
 	{
 		/* FIXME: We are updating past n as well to fill MAX_VEC */
-		nvec = (b->n + MAX_VEC - 1)/ MAX_VEC;
-		for(i=0; i < nvec; i++)
+		for(i=0; i < b->npacks; i++)
 		{
 			//fprintf(stderr, "Moving i=%zd\n", i);
 			p = &b->p[i];
@@ -152,6 +156,7 @@ plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
 	}
 }
 
+/** Update the position of all the particles in the given pchunk. */
 static void
 chunk_update_r(sim_t *sim, int ic)
 {
@@ -173,6 +178,7 @@ chunk_update_r(sim_t *sim, int ic)
 	}
 }
 
+/** Updates the position of all the local particles. */
 static void
 plasma_mover(sim_t *sim)
 {
@@ -182,93 +188,100 @@ plasma_mover(sim_t *sim)
 	 * particles go to another chunk here. */
 	for(i=0; i<sim->plasma.nchunks; i++)
 	{
-		#pragma oss task inout(sim->plasma.chunks[i]) \
-			label(chunk_update_r)
-		chunk_update_r(sim, i);
+		#pragma oss task inout(sim->plasma.chunks[i])
+		{
+			pchunk_lock(&sim->plasma.chunks[i], "chunk update r");
+			chunk_update_r(sim, i);
+			pchunk_unlock(&sim->plasma.chunks[i]);
+		}
 	}
 }
 
-void
-dummy_wrap_ppack(vf64 x[2], double _L[2])
+/** Fit the position x into the space x0 to x1 */
+static inline void
+dummy_wrap_ppack(vf64 x[2], vf64 x0[2], vf64 x1[2])
 {
-	vf64 last;
 	size_t d, iv;
-	vf64 L[2];
+	vf64 delta[2];
 
-	for(d=X; d<Z; d++)
+	delta[X] = x1[X] - x0[X];
+	delta[Y] = x1[Y] - x0[Y];
+
+	/* Notice that we allow p->x to be equal to L, as when the position is
+	 * wrapped from x<0 but -1e-17 < x, the wrap sets x equal to L, as with
+	 * bigger numbers the error increases, and the round off may set x to
+	 * exactly L */
+
+	/* Note we only iterate X and Y */
+	for(d=X; d<=Y; d++)
 	{
-		last = vset1(0.0);
-		L[d] = vset1(_L[d]);
-		x[d] = remod(x[d], L[d]);
 		for(iv=0; iv<MAX_VEC; iv++)
 		{
-			if(x[d][iv] < 0.0)
-			{
-				last[iv] = x[d][iv];
-				//dbg("x[d=%zd][iv=%zd] = %e\n", d, iv, x[d][iv]);
-			}
-		}
-		x[d] = remodinv(x[d], vset1(0.0), L[d]);
-		for(iv=0; iv<MAX_VEC; iv++)
-		{
-			if(x[d][iv] < 0.0)
-			{
-				dbg("x[d=%zd][iv=%zd] = %e, last = %e\n",
-						d, iv, x[d][iv], last[iv]);
-				abort();
-			}
+			/* Fix x >= x1 */
+			while(x[d][iv] >= x1[d][iv])
+				x[d][iv] -= delta[d][iv];
+
+			/* Fix x < x0 */
+			while(x[d][iv] < x0[d][iv])
+				x[d][iv] += delta[d][iv];
+
+			assert(x[d][iv] <= x1[d][iv]);
+			assert(x[d][iv] > x0[d][iv]);
 		}
 	}
-
-//	/* Notice that we allow p->x to be equal to L, as when the position is
-//	 * wrapped from x<0 but -1e-17 < x, the wrap sets x equal to L, as with
-//	 * bigger numbers the error increases, and the round off may set x to
-//	 * exactly L */
-//	if(sim->dim >= 1)
-//	{
-//		assert(p->x[X] <= sim->L[X]);
-//		assert(p->x[X] >= 0.0);
-//	}
-//	if(sim->dim >= 2)
-//	{
-//		assert(p->x[Y] <= sim->L[Y]);
-//		assert(p->x[Y] >= 0.0);
-//	}
 }
 
-void
-dummy_wrap_plist(sim_t *sim, plist_t *l)
+static inline void
+dummy_wrap_plist(plist_t *l, vf64 x0[2], vf64 x1[2])
 {
 	pblock_t *b;
-	ppack_t *p;
-	size_t i, nvec;
+	size_t i;
 
 	for(b = l->b; b; b = b->next)
-	{
 		/* FIXME: We are updating past n as well to fill MAX_VEC */
-		nvec = (b->n + MAX_VEC - 1)/ MAX_VEC;
-		for(i=0; i < nvec; i++)
-		{
-			p = &b->p[i];
-			dummy_wrap_ppack(p->r, sim->L);
-		}
+		for(i=0; i < b->npacks; i++)
+			dummy_wrap_ppack(b->p[i].r, x0, x1);
+}
+
+static inline void
+dummy_wrap_pchunk(pchunk_t *c)
+{
+	size_t d, is;
+	plist_t *l;
+	vf64 x0[2], x1[2];
+
+	for(d=X; d<=Y; d++)
+	{
+		x0[d] = vset1(c->x0[d]);
+		x1[d] = vset1(c->x1[d]);
+	}
+
+	dbg("Clamping %p to X = (%e %e) and Y = (%e %e)\n",
+			c, c->x0[X], c->x1[X], c->x0[Y], c->x1[Y]);
+
+	for(is=0; is<c->nspecies; is++)
+	{
+		l = &c->species[is].list;
+		dummy_wrap_plist(l, x0, x1);
 	}
 }
 
+/** Places out of chunk particles back in the chunk. This is a temporal fix,
+ * while the communication process is fixed. */
 void
 dummy_wrap(sim_t *sim)
 {
+	size_t ic;
 	pchunk_t *chunk;
-	plist_t *l;
-	size_t is, ic;
 
 	for(ic=0; ic<sim->plasma.nchunks; ic++)
 	{
 		chunk = &sim->plasma.chunks[ic];
-		for(is=0; is<chunk->nspecies; is++)
+		#pragma oss task inout(*chunk)
 		{
-			l = &chunk->species[is].list;
-			dummy_wrap_plist(sim, l);
+			pchunk_lock(chunk, "dummy wrap pchunk");
+			dummy_wrap_pchunk(chunk);
+			pchunk_unlock(chunk);
 		}
 	}
 }
