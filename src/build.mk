@@ -88,8 +88,11 @@ MCC_CFLAGS+=--v
 
 #echo "LD $@"
 
+#cpic: $(obj_cpic)
+#	mcxx --ompss-2 --line-markers $(MCC_CFLAGS) $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
+
 cpic: $(obj_cpic)
-	mcxx --ompss-2 --line-markers $(MCC_CFLAGS) $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
+	$(CC) $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
 #mcxx --ld=clang++ --ompss-2 --line-markers $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
@@ -98,8 +101,7 @@ cpic: $(obj_cpic)
 #WORKERS_CFLAGS=
 
 src/mft_worker.o: src/mft_worker.c
-	@echo "CC $^"
-	@gcc $(WORKERS_CFLAGS) -c -o $@ $^
+	$(CC) $(WORKERS_CFLAGS) -c -o $@ $^
 
 mft_worker: $(obj_worker)
 	@echo "LD $@"
@@ -108,8 +110,7 @@ mft_worker: $(obj_worker)
 #$(GCC) $(CFLAGS) $(src_cflags) $(WORKERS_CFLAGS) $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@ $^
 
 cpic.a: $(obj_lib)
-	@echo "AR $@"
-	@ar rcs $@ $^
+	ar rcs $@ $^
 
 # Add to main rules
 SRC += $(src)

@@ -3,7 +3,7 @@ MODULES:=src test
 #MODULES+=test user
 
 
-GCC=gcc
+#GCC=gcc
 #CC=clang
 #CC=mcc --ompss-2 --line-markers
 #I_MPI_CC=mcc
@@ -16,16 +16,16 @@ MPICC=mpicc
 
 #CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
 
-#CC=clang
-#CPP=clang
+CC=clang
+CPP=clang
 
-CC=gcc
-CPP=gcc
+#CC=gcc
+#CPP=gcc
 
 #CC=icc
 #CPP=icpc
 
-MCC=mcc --ompss-2 --cc=$(CC) --pp=$(CC) --v --cpp=$(CC)
+#MCC=mcc --ompss-2 --cc=$(CC) --pp=$(CC) --v --cpp=$(CC)
 
 #CFLAGS+=-qopt-zmm-usage=high
 
@@ -38,6 +38,9 @@ LDLIBS:=
 CFLAGS+=-g -Wall
 
 CFLAGS+=-std=c11
+
+# Use the new clang with ompss2 support
+CFLAGS+=-fompss-2
 
 #Extra warnings
 #CFLAGS+=-Wstrict-prototypes -Wshadow -Wconversion
@@ -56,7 +59,7 @@ CFLAGS+=-ffp-contract=fast
 #CFLAGS+=-pg
 
 # Ignore pragma warnings
-CFLAGS+=-Wno-unknown-pragmas
+#CFLAGS+=-Wno-unknown-pragmas
 
 # Use debug messages
 #CFLAGS+=-DGLOBAL_DEBUG
@@ -87,7 +90,7 @@ endif
 
 # Debug
 #CFLAGS+=-fsanitize=address
-CFLAGS+=-fno-omit-frame-pointer
+#CFLAGS+=-fno-omit-frame-pointer
 
 # Debug race conditions
 #CFLAGS+=-fsanitize=thread
@@ -187,8 +190,9 @@ include $(DEP)
 
 
 #@echo "CC $<"
+#	$(MCC) $(CFLAGS) -c -o $@ $<
 %.o: %.c
-	$(MCC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 all: $(BIN)
 
