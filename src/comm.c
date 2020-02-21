@@ -228,7 +228,7 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 
 	for(ic = 0; ic < plasma->nchunks; ic++)
 	{
-		c= &plasma->chunks[ic];
+		c = &plasma->chunks[ic];
 		/* Find particles that mush be exchanged in the X dimension */
 		#pragma oss task inout(*chunk) label(collect_particles_x)
 		for(is = 0; is < sim->nspecies; is++)

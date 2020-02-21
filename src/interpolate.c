@@ -9,12 +9,16 @@
 static inline void
 linear_interpolation(vf64 rel[2], vf64 w[2][2])
 {
+	size_t iv;
 	vf64 del[2];
 
-//	assert(rel[X] <= 1.0);
-//	assert(rel[Y] <= 1.0);
-//	assert(rel[X] >= 0.0);
-//	assert(rel[Y] >= 0.0);
+	for(iv=0; iv<MAX_VEC; iv++)
+	{
+		assert(rel[X][iv] <= 1.0);
+		assert(rel[Y][iv] <= 1.0);
+		assert(rel[X][iv] >= 0.0);
+		assert(rel[Y][iv] >= 0.0);
+	}
 
 	del[X] = vset1(1.0) - rel[X];
 	del[Y] = vset1(1.0) - rel[Y];
@@ -32,6 +36,7 @@ linear_interpolation(vf64 rel[2], vf64 w[2][2])
 static inline vf64
 relative_position_grid(vf64 x0, vf64 x, vf64 dx, vf64 idx, vi64 i0[1])
 {
+	size_t iv;
 	vf64 rel;
 	vf64 block_delta, block_rel, block_start, grid_delta;
 
@@ -49,15 +54,18 @@ relative_position_grid(vf64 x0, vf64 x, vf64 dx, vf64 idx, vi64 i0[1])
 
 	//dbg("grid_delta = %f, rel = %f, i0 = %d\n", grid_delta, rel, *i0);
 
-	//assert(rel <= 1.0);
-	//assert(rel >= 0.0);
+	for(iv=0; iv<MAX_VEC; iv++)
+	{
+		assert(rel[iv] <= 1.0);
+		assert(rel[iv] >= 0.0);
+	}
 
 	return rel;
 }
 
-/* Given a spatial 2D domain which starts at x0, and is discretized in points
- * spaced by dx[2], the weights w[2][2] are computed from the position x[2] in
- * the domain, as well as the indexes i0[2] as a bilinear interpolation.
+/* Given a spatial 2D domain (the field) which starts at fx0, and is discretized
+ * in points spaced by dx[2], the weights w[2][2] are computed from the position
+ * x[2] in the domain, as well as the indexes i0[2] as a bilinear interpolation.
  *
  * The value of each weight corresponds to the opposite area of the 4 rectangles
  * in the domain.
@@ -65,36 +73,40 @@ relative_position_grid(vf64 x0, vf64 x, vf64 dx, vf64 idx, vi64 i0[1])
  */
 
 static inline void
-weights(vf64 x[2], vf64 dx[2], vf64 idx[2], vf64 x0[2],
+weights(vf64 x[2], vf64 dx[2], vf64 idx[2], vf64 fx0[2],
 		vf64 w[2][2], vi64 i0[2])
 {
+	size_t iv;
 	vf64 delta_grid[2];
 
 	delta_grid[X] = relative_position_grid(
-			x0[X], x[X], dx[X], idx[X], &i0[X]);
+			fx0[X], x[X], dx[X], idx[X], &i0[X]);
 
 	delta_grid[Y] = relative_position_grid(
-			x0[Y], x[Y], dx[X], idx[Y], &i0[Y]);
+			fx0[Y], x[Y], dx[X], idx[Y], &i0[Y]);
 
 	//dbg("delta_grid = (%f %f)\n", delta_grid[X], delta_grid[Y]);
 	//dbg("i0 = (%d %d)\n", i0[X], i0[Y]);
 
 	linear_interpolation(delta_grid, w);
-	//assert(fabs(w[0][0] + w[0][1] + w[1][0] + w[1][1] - 1.0) < MAX_ERR);
+
+	for(iv=0; iv<MAX_VEC; iv++)
+		assert(fabs(w[0][0][iv] +
+			w[0][1][iv] +
+			w[1][0][iv] +
+			w[1][1][iv] - 1.0) < 1e-10);
 }
 
 static inline void
 interpolate_f2p(vi64 blocksize[2], vi64 ghostsize[2],
-		vf64 dx[2], vf64 idx[2], vf64 x[2], vf64 x0[2],
+		vf64 dx[2], vf64 idx[2], vf64 x[2], vf64 fx0[2],
 		mat_t *mat, vf64 val[1])
 {
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
-#ifndef NO_EXTRA_ASSERT
 	size_t iv;
-#endif
 
-	weights(x, dx, idx, x0, w, i0);
+	weights(x, dx, idx, fx0, w, i0);
 
 	/* We only need to wrap the X direction, as we have the ghost in the Y
 	 * */
@@ -109,7 +121,6 @@ interpolate_f2p(vi64 blocksize[2], vi64 ghostsize[2],
 	/* Wrap only in the X direction: we assume a periodic domain */
 	i1[X] = vi64_remod(i1[X], blocksize[X]);
 
-#ifndef NO_EXTRA_ASSERT
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
 		assert(i1[X][iv] < blocksize[X][iv]);
@@ -131,7 +142,6 @@ interpolate_f2p(vi64 blocksize[2], vi64 ghostsize[2],
 		assert(mat->shape[X] == blocksize[X][iv]);
 		assert(mat->shape[Y] == blocksize[Y][iv]);
 	}
-#endif
 
 	val[0]  = w[0][0] * vmat_get_xy(mat, i0[X], i0[Y]);
 	val[0] += w[0][1] * vmat_get_xy(mat, i0[X], i1[Y]);
@@ -140,38 +150,38 @@ interpolate_f2p(vi64 blocksize[2], vi64 ghostsize[2],
 
 }
 
-/* Only updates the particle positions */
+/** Interpolates the charge into the surounding points of the field */
+
+/* FIXME: Reduce the number of parameters required. Should we place some
+ * vectorized elements in the pchunk? */
 static inline void
-interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
-		vf64 dx[2], vf64 idx[2], vf64 x[2], vf64 x0[2],
-		vf64 q, mat_t *mat)
+interpolate_p2f(pchunk_t *c,
+		vi64 blocksize[2], vi64 ghostsize[2],
+		vf64 dx[2], vf64 idx[2], vf64 x[2],
+		vf64 fx0[2], vf64 q, mat_t *mat)
 {
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
-#ifndef NDEBUG
 	size_t iv;
-#endif
 
 //	dbg("Interpolate ppack x[X]="VFMT" x[Y]="VFMT"\n",
 //			VARG(x[X]), VARG(x[Y]));
 
 	/* Ensure the particle is in the chunk */
-#ifndef NDEBUG
 	//dbg("x[X] = "VFMT"\n", VARG(x[X]));
 	//dbg("x[Y] = "VFMT"\n", VARG(x[Y]));
 	//dbg("dx[X] = "VFMT"\n", VARG(dx[X]));
 	//dbg("dx[Y] = "VFMT"\n", VARG(dx[Y]));
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
-		/* FIXME: We should use x1 instead of computing it here again */
-		assert(x0[X][iv] <= x[X][iv]);
-		assert(x[X][iv] < x0[X][iv] + dx[X][iv] * blocksize[X][iv]);
-		assert(x0[Y][iv] <= x[Y][iv]);
-		assert(x[Y][iv] < x0[Y][iv] + dx[Y][iv] * blocksize[Y][iv]);
+		/* Ensure the particle is in the pchunk space */
+		assert(x[X][iv] >= c->x0[X]);
+		assert(x[Y][iv] >= c->x0[Y]);
+		assert(x[X][iv] <  c->x1[X]);
+		assert(x[Y][iv] <  c->x1[Y]);
 	}
-#endif
 
-	weights(x, dx, idx, x0, w, i0);
+	weights(x, dx, idx, fx0, w, i0);
 
 	/* We only need to wrap the X direction, as we have the ghost in the Y
 	 * */
@@ -213,23 +223,16 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
-		/* FIXME: We should use x1 instead of computing it here again */
-		assert(i0[X][iv] >= 0);
-		assert(i0[Y][iv] >= 0);
-		assert(i1[X][iv] >= 0);
-		assert(i1[Y][iv] >= 1);
-
-		assert(i0[X][iv] <= blocksize[X][iv]);
-		assert(i0[Y][iv] <= blocksize[Y][iv]);
-		assert(i1[X][iv] < blocksize[X][iv]);
-		assert(i1[Y][iv] < ghostsize[Y][iv]);
-
-		assert(x[X][iv] < x0[X][iv] + dx[X][iv] * blocksize[X][iv]);
-		assert(x0[Y][iv] <= x[Y][iv]);
-		assert(x[Y][iv] < x0[Y][iv] + dx[Y][iv] * blocksize[Y][iv]);
-
-		/* TODO: Ensure we don't write to any space outside our assigned
+		/* Ensure we don't write to any space outside our assigned
 		 * pchunk region by testing i0 and i1 */
+
+		assert(i0[X][iv] >= c->ib0[X]);
+		assert(i0[Y][iv] >= c->ib0[Y]);
+
+		/* We allow for the next elements (in the next chunk) to be
+		 * updated as well, due to the ghosts */
+		assert(i1[X][iv] < c->ib1[X] + INTERPOLATION_POINTS);
+		assert(i1[Y][iv] < c->ib1[Y] + INTERPOLATION_POINTS);
 	}
 #endif
 
@@ -269,20 +272,24 @@ interpolate_p2f(vi64 blocksize[2], vi64 ghostsize[2],
 /** Interpolate the electric charge rho from the plasma into the field. The
  * field rho is updated based on the charge density computed on each particle
  * p, by using an interpolation function.  Only the area corresponding with the
- * chunk is updated, which also includes the right neighbour points.
- *
- * @param _x0: Position where the \ref pchunk begins */
+ * chunk is updated, which also includes the right neighbour points. */
 void
-interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
+interpolate_p2f_rho(sim_t *sim, pchunk_t *c, pset_t *set)
 {
 	dbg("interpolate_p2f_rho begins\n");
 	pblock_t *b;
 	ppack_t *p;
+	plist_t *l;
 	mat_t *rho;
-	size_t i, iv, nvec;
+	specie_t *sp;
+	size_t i, iv;
 	vi64 blocksize[2], ghostsize[2];
-	vf64 dx[2], x0[2], idx[2], vq;
+	vf64 dx[2], fx0[2], idx[2], vq;
 
+	l = &set->list;
+	sp = set->info;
+
+	/* Vectorize all required elements */
 	blocksize[X] = vi64_set1(sim->blocksize[X]);
 	blocksize[Y] = vi64_set1(sim->blocksize[Y]);
 	ghostsize[X] = vi64_set1(sim->ghostsize[X]);
@@ -291,9 +298,9 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 	dx[Y] = vset1(sim->dx[Y]);
 	idx[X] = vset1(1.0) / dx[X];
 	idx[Y] = vset1(1.0) / dx[Y];
-	x0[X] = vset1(_x0[X]);
-	x0[Y] = vset1(_x0[Y]);
-	vq = vset1(q);
+	fx0[X] = vset1(sim->field.x0[X]);
+	fx0[Y] = vset1(sim->field.x0[Y]);
+	vq = vset1(sp->q);
 
 	/* We take the whole rho field, including the ghosts in Y+ */
 	rho = sim->field._rho;
@@ -306,8 +313,8 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 		{
 			//dbg("i = %zd / %zd\n", i, b->npacks);
 			p = &b->p[i];
-			interpolate_p2f(blocksize, ghostsize,
-					dx, idx, p->r, x0, vq, rho);
+			interpolate_p2f(c, blocksize, ghostsize,
+					dx, idx, p->r, fx0, vq, rho);
 		}
 	}
 
@@ -320,13 +327,15 @@ interpolate_p2f_rho(sim_t *sim, plist_t *l, double _x0[2], double q)
 	{
 		for(iv=b->n - b->nfpacks * MAX_VEC; iv<MAX_VEC; iv++)
 		{
-			p->r[X][iv] = x0[X][iv];
-			p->r[Y][iv] = x0[Y][iv];
+			/* Assume the particle is in the chunk, otherwise the
+			 * asserts will abort */
+			//p->r[X][iv] = x0[X][iv];
+			//p->r[Y][iv] = x0[Y][iv];
 			vq[iv] = 0.0;
 			dbg("Setting vq[%ld] to zero\n", iv);
 		}
-		interpolate_p2f(blocksize, ghostsize,
-				dx, idx, p->r, x0, vq, rho);
+		interpolate_p2f(c, blocksize, ghostsize,
+				dx, idx, p->r, fx0, vq, rho);
 	}
 	dbg("interpolate_p2f_rho ends\n");
 }
@@ -353,6 +362,8 @@ interpolate_f2p_E(sim_t *sim, plist_t *l, double _x0[2])
 	dx[Y] = vset1(sim->dx[Y]);
 	idx[X] = vset1(1.0) / dx[X];
 	idx[Y] = vset1(1.0) / dx[Y];
+
+	/* FIXME: This should be the field x0, not the chunk x0 */
 	x0[X] = vset1(_x0[X]);
 	x0[Y] = vset1(_x0[Y]);
 

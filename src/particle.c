@@ -3,6 +3,7 @@
 #include "config.h"
 #include "interpolate.h"
 #include "comm.h"
+#include "mover.h"
 
 #define DEBUG 0
 #include "log.h"
@@ -204,7 +205,7 @@ chunk_E(sim_t *sim, int i)
 
 	chunk = &sim->plasma.chunks[i];
 
-	#pragma oss task inout(*chunk) label(chunk_E)
+	#pragma oss task inout(*chunk)
 	{
 		dbg("Running task chunk_E with chunk %d\n", i);
 		for(i=0; i<chunk->nspecies; i++)
@@ -218,9 +219,16 @@ void
 stage_plasma_E(sim_t *sim)
 {
 	int i;
+	int clang_workaround = 0;
+
+	#pragma oss task inout(sim->plasma.chunks[clang_workaround])
+	perf_start(&sim->timers[TIMER_PARTICLE_E]);
 
 	/* Computation */
 	for(i=0; i<sim->plasma.nchunks; i++) chunk_E(sim, i);
+
+	#pragma oss task inout(sim->plasma.chunks[0])
+	perf_stop(&sim->timers[TIMER_PARTICLE_E]);
 
 	/* No communication required, as only p->E is updated */
 }

@@ -3,7 +3,7 @@
 
 /* Interpolate: plasma rho -> field rho */
 void
-interpolate_p2f_rho(sim_t *sim, plist_t *l, double x0[2], double q);
+interpolate_p2f_rho(sim_t *sim, pchunk_t *c, pset_t *set);
 
 /* Interpolate: field E -> plasma E */
 void

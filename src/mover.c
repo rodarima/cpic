@@ -289,6 +289,11 @@ dummy_wrap(sim_t *sim)
 void
 stage_plasma_r(sim_t *sim)
 {
+	int clang_please_dont_crash = 0;
+
+	#pragma oss task inout(sim->plasma.chunks[clang_please_dont_crash])
+	perf_start(&sim->timers[TIMER_PARTICLE_X]);
+
 	/* Compute the new position for each particle */
 	plasma_mover(sim);
 
@@ -298,4 +303,7 @@ stage_plasma_r(sim_t *sim)
 	/* Then move out-of-chunk particles to their correct chunk, which may
 	 * involve MPI communication. We don't do global exchange here. */
 	//comm_plasma(sim, 0);
+
+	#pragma oss task inout(sim->plasma.chunks[0])
+	perf_stop(&sim->timers[TIMER_PARTICLE_X]);
 }

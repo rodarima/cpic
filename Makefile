@@ -46,8 +46,8 @@ CFLAGS+=-fompss-2
 #CFLAGS+=-Wstrict-prototypes -Wshadow -Wconversion
 
 # Optimization enabled
-CFLAGS+=-O0
-CFLAGS+=-ffp-contract=fast
+CFLAGS+=-O3
+#CFLAGS+=-ffp-contract=fast
 #CFLAGS+=-O0
 #CFLAGS:=-g -Wall -Werror
 #LDFLAGS:=-L. -Wl,-rpath,.
@@ -62,10 +62,10 @@ CFLAGS+=-ffp-contract=fast
 #CFLAGS+=-Wno-unknown-pragmas
 
 # Use debug messages
-CFLAGS+=-DGLOBAL_DEBUG
+#CFLAGS+=-DGLOBAL_DEBUG
 
 # No asserts
-#CFLAGS+=-DNDEBUG
+CFLAGS+=-DNDEBUG
 
 # No extra assers
 #CFLAGS+=-DNO_EXTRA_ASSERTS
@@ -90,7 +90,9 @@ endif
 
 # Debug
 #CFLAGS+=-fsanitize=address
-#CFLAGS+=-fno-omit-frame-pointer
+
+# For perf
+#CFLAGS+=-Og -ggdb -g3 -fno-omit-frame-pointer
 
 # Debug race conditions
 #CFLAGS+=-fsanitize=thread

@@ -216,17 +216,13 @@ int
 rho_update(sim_t *sim, int i)
 {
 	int is;
-	plist_t *l;
 	pchunk_t *chunk;
-	specie_t *sp;
 
 	chunk = &sim->plasma.chunks[i];
 
 	for(is=0; is<sim->nspecies; is++)
 	{
-		l = &chunk->species[is].list;
-		sp = &sim->species[is];
-		interpolate_p2f_rho(sim, l, chunk->x0, sp->q);
+		interpolate_p2f_rho(sim, chunk, &chunk->species[is]);
 		//mat_print(sim->field.rho, "rho after update one specie");
 	}
 
@@ -274,6 +270,9 @@ stage_field_rho(sim_t *sim)
 	pchunk_t *c0, *c1;
 
 	plasma = &sim->plasma;
+
+	#pragma oss task inout(sim->plasma.chunks[0])
+	perf_start(&sim->timers[TIMER_FIELD_RHO]);
 
 	/* Reset charge density */
 	for (i=0; i<plasma->nchunks; i++)
@@ -344,6 +343,9 @@ stage_field_rho(sim_t *sim)
 		for(i=0; i<plasma->nchunks; i++)
 			pchunk_unlock(&plasma->chunks[i]);
 	}
+
+	#pragma oss task inout(sim->plasma.chunks[0])
+	perf_stop(&sim->timers[TIMER_FIELD_RHO]);
 }
 
 int
@@ -444,6 +446,7 @@ stage_field_E(sim_t *sim)
 	pchunk_t *chunk, *next, *prev;
 	int ic, Nc;
 
+	#pragma oss task inout(sim->plasma.chunks[0])
 	perf_start(&sim->timers[TIMER_FIELD_E]);
 
 	plasma = &sim->plasma;
@@ -472,7 +475,7 @@ stage_field_E(sim_t *sim)
 		next = &plasma->chunks[(ic+1) % Nc];
 		prev = &plasma->chunks[(ic-1+Nc) % Nc];
 		//#pragma oss task concurrent(sim->timers[TIMER_FIELD_E]) commutative(*prev,*next,*chunk) label(field_E_compute)
-		#pragma oss task concurrent(sim->timers[TIMER_FIELD_E]) commutative(*prev,*next,*chunk)
+		#pragma oss task commutative(*prev,*next,*chunk)
 		field_E_compute(sim, chunk);
 	}
 
@@ -480,7 +483,7 @@ stage_field_E(sim_t *sim)
 	mat_print(sim->field.E[Y], "E[Y]");
 
 	//#pragma oss task inout(sim->timers[TIMER_FIELD_E]) label(perf_stop.field_E)
-	#pragma oss task inout(sim->timers[TIMER_FIELD_E])
+	#pragma oss task inout(sim->plasma.chunks[0])
 	perf_stop(&sim->timers[TIMER_FIELD_E]);
 
 	return 0;
