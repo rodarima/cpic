@@ -30,7 +30,7 @@ release = '1'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = [ 'breathe' ]
+extensions = ['breathe', 'exhale']
 
 breathe_projects = { "cpic": "xml/" }
 breathe_default_project = "cpic"
@@ -51,9 +51,39 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 #
 html_theme = 'alabaster'
 
+html_theme_options = {
+		'show_powered_by':'false',
+		'font_size':'15px'
+}
+
+#html_theme = 'nature'
+
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+#html_static_path = ['_static']
 
 #html_theme = 'sphinx_rtd_theme'
+
+
+# Setup the exhale extension
+exhale_args = {
+		# These arguments are required
+		"containmentFolder":     "./api",
+		"rootFileName":          "library_root.rst",
+		"rootFileTitle":         "Library API",
+		"doxygenStripFromPath":  "../..",
+		# Suggested optional arguments
+		"createTreeView":        True,
+		# TIP: if using the sphinx-bootstrap-theme, you need
+		"treeViewIsBootstrap": True,
+		"exhaleExecutesDoxygen": True,
+		"exhaleDoxygenStdin":    "INPUT = ../../src"
+		}
+
+# Tell sphinx what the primary language being documented is.
+primary_domain = 'c'
+
+# Tell sphinx what the pygments highlight language should be.
+highlight_language = 'c'
+
