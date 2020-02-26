@@ -264,12 +264,12 @@ plasma_chunk_init(sim_t *sim, int i)
 				"XYZ"[d], chunk->ib1[d]);
 	}
 
-	chunk->x0[X] = f->x0[X] + (chunk->i[X] * chunk->L[X]);
-	chunk->x1[X] = chunk->x0[X] + chunk->L[X];
-	chunk->x0[Y] = f->x0[Y];
-	chunk->x1[Y] = f->x1[Y];
-	chunk->x0[Z] = f->x0[Z];
-	chunk->x1[Z] = f->x1[Z];
+	chunk->x0[X] = vset1(f->x0[X] + (chunk->i[X] * chunk->L[X]));
+	chunk->x1[X] = chunk->x0[X] + vset1(chunk->L[X]);
+	chunk->x0[Y] = vset1(f->x0[Y]);
+	chunk->x1[Y] = vset1(f->x1[Y]);
+	chunk->x0[Z] = vset1(f->x0[Z]);
+	chunk->x1[Z] = vset1(f->x1[Z]);
 
 	chunk->q = safe_calloc(sim->nprocs, sizeof(comm_packet_t *));
 	chunk->req = safe_calloc(sim->nprocs, sizeof(MPI_Request));

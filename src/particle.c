@@ -209,7 +209,7 @@ chunk_E(sim_t *sim, int i)
 	{
 		dbg("Running task chunk_E with chunk %d\n", i);
 		for(i=0; i<chunk->nspecies; i++)
-			interpolate_f2p_E(sim, &chunk->species[i].list, chunk->x0);
+			interpolate_f2p_E(sim, &chunk->species[i].list, sim->field.x0);
 	}
 
 	return 0;

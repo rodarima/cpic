@@ -29,15 +29,12 @@ struct plist;
 struct pblock;
 struct ppack;
 
-struct pwin;
 struct pmover;
 
-typedef struct pset pset_t;
 typedef struct plist plist_t;
 typedef struct pblock pblock_t;
 typedef struct ppack ppack_t;
 
-typedef struct pwin pwin_t;
 typedef struct pmover pmover_t;
 
 struct specie;
@@ -138,7 +135,7 @@ struct plist
 };
 
 /** Inside each pchunk, we store the particles of each specie in a pset */
-struct pset
+typedef struct pset
 {
 	/** We can reuse the info in multiple particle sets */
 	struct specie *info;
@@ -148,25 +145,7 @@ struct pset
 
 	/** Plasma to be exchanged with neigbour chunks in the X dimension */
 	struct plist qx[2];
-};
-
-/* TODO: Internal structure used by the particle mover, place in the .c */
-//struct pwin
-//{
-//	pblock_t *b;	/* Current pblock_t selected */
-//	size_t ip;	/* Index of the ppack_t */
-//	//vmsk mask;	/* Particles selected in the pack: 1==selected, 0==not */
-//	unsigned int mask;	/* Particles selected in the pack: 1==selected, 0==not */
-//	size_t left;	/* Number of particles left */
-//};
-//
-/* TODO: Also another internal structure */
-//struct pmover
-//{
-//	plist_t *l;
-//	pwin_t A;
-//	pwin_t B;
-//};
+} pset_t;
 
 /** Plasma initialization method descriptor */
 struct particle_config
@@ -289,14 +268,12 @@ struct pchunk
 	const char *lock_owner;
 
 	/** Array of particle sets, one per specie */
-	pset_t *species;
+	struct pset *species;
 	int nspecies;
 
 	/** Local index of the chunk inside the local plasma */
 	int i[MAX_DIM];
 	int ig[MAX_DIM];
-	double x0[MAX_DIM];
-	double x1[MAX_DIM];
 	double L[MAX_DIM];
 
 	/** Global position of the first grid point at x=0 y=0 of the chunk */
@@ -319,13 +296,20 @@ struct pchunk
 	/** The rank of each neighbour */
 	int *neigh_rank;
 
+	/* ------------- SIMD -------------- */
+
+	/** Begining of the chunk physical space */
+	vf64 x0[MAX_DIM];
+
+	/** Ending of the chunk physical space */
+	vf64 x1[MAX_DIM];
 };
 
 /** Contains all the particles in this process. Holds a list of \ref pchunk,
  * where each one is processed by one task */
 struct plasma
 {
-	pchunk_t *chunks;
+	struct pchunk *chunks;
 	int nchunks;
 };
 
@@ -365,6 +349,7 @@ enum timers {
 	TIMER_FIELD_SPREAD,
 	TIMER_FIELD_COLLECT,
 	TIMER_PARTICLE_X,
+	TIMER_PARTICLE_WRAP,
 	TIMER_FIELD_E,
 	TIMER_FIELD_RHO,
 	TIMER_PARTICLE_E,

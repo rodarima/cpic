@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sim.h"
+#include <assert.h>
 
 #define COMM_TAG_ITER_SIZE 8U
 #define COMM_TAG_ITER_MASK (~((~0U)<<COMM_TAG_ITER_SIZE))
@@ -47,3 +48,50 @@ comm_phi_send(sim_t *sim);
 
 int
 comm_phi_recv(sim_t *sim);
+
+
+static inline int
+chunk_delta_to_index(int delta[], int dim)
+{
+	int j, d, n;
+
+	/* Number of total blocks in each dimension considered in the
+	 * neighbourhood */
+	n = 3;
+	j = 0;
+
+	for(d = dim-1; d >= X; d--)
+	{
+		j *= n;
+		j += 1 + delta[d];
+	}
+
+//	if(dim == 2)
+//	{
+//		dbg("Delta (%d,%d) translated to %d\n", delta[X], delta[Y], j);
+//	}
+
+	return j;
+}
+
+static inline int
+compute_tag(unsigned int op, unsigned int iter, unsigned int value, unsigned int value_size)
+{
+	unsigned int tag;
+	unsigned int value_mask;
+
+	value_mask = ~((~0U)<<value_size);
+
+	/* Ensure we have the first bit to zero */
+	assert(COMM_TAG_ITER_SIZE + COMM_TAG_OP_SIZE
+			+ value_size < sizeof(int) * 8);
+
+	assert(value < (1<<value_size));
+
+	tag = op << COMM_TAG_ITER_SIZE;
+	tag |= iter & COMM_TAG_ITER_MASK;
+	tag <<= value_size;
+	tag |= value & value_mask;
+
+	return (int) tag;
+}

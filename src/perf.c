@@ -1,5 +1,9 @@
 #define _POSIX_C_SOURCE 200809L
 
+/*! \file perf.c
+    \brief Recording time intervals using the wall clock.
+*/
+
 #include "perf.h"
 #include <time.h>
 #include <assert.h>

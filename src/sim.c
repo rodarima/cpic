@@ -585,6 +585,9 @@ sim_stats(sim_t *sim)
 	t = perf_measure(&sim->timers[TIMER_PARTICLE_X]);
 	fprintf(f, "%e %4.1f%% particle_x\n", t, t/tot);
 
+	t = perf_measure(&sim->timers[TIMER_PARTICLE_WRAP]);
+	fprintf(f, "%e %4.1f%% particle_wrap\n", t, t/tot);
+
 	t = perf_measure(&sim->timers[TIMER_FIELD_RHO]);
 	fprintf(f, "%e %4.1f%% field_rho\n", t, t/tot);
 

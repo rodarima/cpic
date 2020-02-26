@@ -40,7 +40,7 @@ CFLAGS+=-g -Wall
 CFLAGS+=-std=c11
 
 # Use the new clang with ompss2 support
-CFLAGS+=-fompss-2
+#CFLAGS+=-fompss-2
 
 #Extra warnings
 #CFLAGS+=-Wstrict-prototypes -Wshadow -Wconversion

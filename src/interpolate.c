@@ -175,10 +175,10 @@ interpolate_p2f(pchunk_t *c,
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
 		/* Ensure the particle is in the pchunk space */
-		assert(x[X][iv] >= c->x0[X]);
-		assert(x[Y][iv] >= c->x0[Y]);
-		assert(x[X][iv] <  c->x1[X]);
-		assert(x[Y][iv] <  c->x1[Y]);
+		assert(x[X][iv] >= c->x0[X][iv]);
+		assert(x[Y][iv] >= c->x0[Y][iv]);
+		assert(x[X][iv] <  c->x1[X][iv]);
+		assert(x[Y][iv] <  c->x1[Y][iv]);
 	}
 
 	weights(x, dx, idx, fx0, w, i0);
@@ -342,14 +342,14 @@ interpolate_p2f_rho(sim_t *sim, pchunk_t *c, pset_t *set)
 
 /** Interpolate the electric field E into the plasma */
 void
-interpolate_f2p_E(sim_t *sim, plist_t *l, double _x0[2])
+interpolate_f2p_E(sim_t *sim, plist_t *l, double _fx0[2])
 {
 	pblock_t *b;
 	ppack_t *p;
 	field_t *f;
 	size_t i, nvec;
 	vi64 blocksize[2], ghostsize[2];
-	vf64 dx[2], x0[2], idx[2];
+	vf64 dx[2], fx0[2], idx[2];
 
 	dbg("Sim blocksize=(%d %d)\n",
 			sim->blocksize[X], sim->blocksize[Y]);
@@ -364,8 +364,8 @@ interpolate_f2p_E(sim_t *sim, plist_t *l, double _x0[2])
 	idx[Y] = vset1(1.0) / dx[Y];
 
 	/* FIXME: This should be the field x0, not the chunk x0 */
-	x0[X] = vset1(_x0[X]);
-	x0[Y] = vset1(_x0[Y]);
+	fx0[X] = vset1(_fx0[X]);
+	fx0[Y] = vset1(_fx0[Y]);
 
 	/* We take the whole rho field, including the ghosts in Y+ */
 	f = &sim->field;
@@ -388,9 +388,9 @@ interpolate_f2p_E(sim_t *sim, plist_t *l, double _x0[2])
 			 * ppack have a valid position in the chunk */
 
 			interpolate_f2p(blocksize, ghostsize, dx, idx, p->r,
-					x0, f->E[X], &p->E[X]);
+					fx0, f->E[X], &p->E[X]);
 			interpolate_f2p(blocksize, ghostsize, dx, idx, p->r,
-					x0, f->E[Y], &p->E[Y]);
+					fx0, f->E[Y], &p->E[Y]);
 
 			/* TODO: Complete assert */
 			//assert(!isnan(p->E[X]) && !isnan(p->E[Y]));

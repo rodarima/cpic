@@ -2,6 +2,7 @@
 #include "simd.h"
 #include "comm.h"
 #include "plasma.h"
+#include "boundary.h"
 #include <assert.h>
 
 #define DEBUG 1
@@ -126,9 +127,36 @@ err:
 	abort();
 }
 
+static inline void
+boundary_periodic_ppack(sim_t *sim, ppack_t *p)
+{
+	size_t iv, d;
+
+	for(d=X; d<MAX_DIM; d++)
+	{
+		/* TODO: Vectorize this loop */
+		for(iv=0; iv<MAX_VEC; iv++)
+		{
+			if(p->r[d][iv] >= sim->L[d])
+				p->r[d][iv] -= sim->L[d];
+			else if(p->r[d][iv] < 0.0)
+				p->r[d][iv] += sim->L[d];
+
+			/* Notice that we allow p->x to be equal to L, as when
+			 * the position is wrapped from x<0 but -1e-17 < x, the
+			 * wrap sets x equal to L, as with bigger numbers the
+			 * error increases, and the round off may set x to
+			 * exactly L */
+
+			assert(p->r[d][iv] <= sim->L[d]);
+			assert(p->r[d][iv] >= 0.0);
+		}
+	}
+}
+
 /** Update the position in of the particles stored in a plist. */
 static void
-plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
+plist_update_r(sim_t *sim, plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
 {
 	vf64 u[MAX_DIM];
 	pblock_t *b;
@@ -150,6 +178,8 @@ plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
 			check_velocity(u, umax);
 
 			move(p, u, dt);
+
+			boundary_periodic_ppack(sim, p);
 
 			/* Wrapping is done after the particle is moved to the right block */
 		}
@@ -174,7 +204,7 @@ chunk_update_r(sim_t *sim, int ic)
 	for(is=0; is<chunk->nspecies; is++)
 	{
 		dtqm2 = vset1(sim->species[is].m);
-		plist_update_r(&chunk->species[is].list, dt, dtqm2, umax);
+		plist_update_r(sim, &chunk->species[is].list, dt, dtqm2, umax);
 	}
 }
 
@@ -297,6 +327,17 @@ stage_plasma_r(sim_t *sim)
 	/* Compute the new position for each particle */
 	plasma_mover(sim);
 
+	/* What should we do with particles that exceed the simulation space?
+	 * Note that this is only about the simulation space and not particles
+	 * that are outside their chunk. By now we use periodic boundaries, so
+	 * we only wrap their position.  */
+	//plasma_boundary(sim);
+
+	#pragma oss task inout(sim->plasma.chunks[0])
+	perf_stop(&sim->timers[TIMER_PARTICLE_X]);
+
+	#pragma oss task inout(sim->plasma.chunks[clang_please_dont_crash])
+	perf_start(&sim->timers[TIMER_PARTICLE_WRAP]);
 	/* FIXME: Remove dummy wrapper and use proper communication instead */
 	dummy_wrap(sim);
 
@@ -305,5 +346,5 @@ stage_plasma_r(sim_t *sim)
 	//comm_plasma(sim, 0);
 
 	#pragma oss task inout(sim->plasma.chunks[0])
-	perf_stop(&sim->timers[TIMER_PARTICLE_X]);
+	perf_stop(&sim->timers[TIMER_PARTICLE_WRAP]);
 }

@@ -100,12 +100,14 @@ plist_init(plist_t *l, size_t nmax)
 	l->b = NULL;
 }
 
+/** Grows the plist by n particles and adds a new pblock if neccesary. */
 int
 plist_grow(plist_t *l, size_t n)
 {
 	size_t nmax;
 	pblock_t *b;
 
+	/* TODO: We should allow the plist to grow above nmax */
 	if(n > l->nmax)
 		return 1;
 
@@ -125,7 +127,8 @@ plist_grow(plist_t *l, size_t n)
 		pblock_update_n(b, nmax);
 	}
 
-	plist_new_block(l, n);
+	if(!plist_new_block(l, n))
+		return 1;
 
 	return 0;
 }

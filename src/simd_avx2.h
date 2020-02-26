@@ -99,6 +99,13 @@ vi64 vf64_to_vi64(vf64 x)
 
 #define vcmp(a, b, f)	_mm256_cmp_pd(a, b, f)
 #define vand(a, b)	_mm256_and_pd(a, b) /* Ignored type for AND */
+#define vor(a, b)	_mm256_or_pd(a, b)
+#define vnot(a)		_mm256_xor_pd(a, \
+				(vf64) _mm256_set_epi64x(	\
+					0xffffffffffffffff,	\
+					0xffffffffffffffff,	\
+					0xffffffffffffffff,	\
+					0xffffffffffffffff))
 
 #define vfmadd(a,b,c)	_mm256_fmadd_pd(a,b,c)
 
