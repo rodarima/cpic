@@ -180,8 +180,6 @@ plist_update_r(sim_t *sim, plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
 			move(p, u, dt);
 
 			boundary_periodic_ppack(sim, p);
-
-			/* Wrapping is done after the particle is moved to the right block */
 		}
 	}
 }
@@ -276,23 +274,16 @@ dummy_wrap_plist(plist_t *l, vf64 x0[2], vf64 x1[2])
 static inline void
 dummy_wrap_pchunk(pchunk_t *c)
 {
-	size_t d, is;
+	size_t is;
 	plist_t *l;
-	vf64 x0[2], x1[2];
-
-	for(d=X; d<=Y; d++)
-	{
-		x0[d] = vset1(c->x0[d]);
-		x1[d] = vset1(c->x1[d]);
-	}
 
 	dbg("Clamping %p to X = (%e %e) and Y = (%e %e)\n",
-			c, c->x0[X], c->x1[X], c->x0[Y], c->x1[Y]);
+			c, c->x0[X][0], c->x1[X][0], c->x0[Y][0], c->x1[Y][0]);
 
 	for(is=0; is<c->nspecies; is++)
 	{
 		l = &c->species[is].list;
-		dummy_wrap_plist(l, x0, x1);
+		dummy_wrap_plist(l, c->x0, c->x1);
 	}
 }
 
@@ -319,7 +310,7 @@ dummy_wrap(sim_t *sim)
 void
 stage_plasma_r(sim_t *sim)
 {
-	int clang_please_dont_crash = 0;
+	int clang_please_dont_crash __attribute__((unused)) = 0;
 
 	#pragma oss task inout(sim->plasma.chunks[clang_please_dont_crash])
 	perf_start(&sim->timers[TIMER_PARTICLE_X]);
@@ -339,11 +330,11 @@ stage_plasma_r(sim_t *sim)
 	#pragma oss task inout(sim->plasma.chunks[clang_please_dont_crash])
 	perf_start(&sim->timers[TIMER_PARTICLE_WRAP]);
 	/* FIXME: Remove dummy wrapper and use proper communication instead */
-	dummy_wrap(sim);
+	//dummy_wrap(sim);
 
 	/* Then move out-of-chunk particles to their correct chunk, which may
 	 * involve MPI communication. We don't do global exchange here. */
-	//comm_plasma(sim, 0);
+	comm_plasma(sim, 0);
 
 	#pragma oss task inout(sim->plasma.chunks[0])
 	perf_stop(&sim->timers[TIMER_PARTICLE_WRAP]);

@@ -42,14 +42,18 @@ CFLAGS+=-std=c11
 # Use the new clang with ompss2 support
 #CFLAGS+=-fompss-2
 
+#Disable ompss pragma warnings if we are not using OmpSs-2
+CFLAGS+=-Wno-unknown-pragmas
+
 #Extra warnings
 #CFLAGS+=-Wstrict-prototypes -Wshadow -Wconversion
 
 # Optimization enabled
-CFLAGS+=-O3
+#CFLAGS+=-O3
 #CFLAGS+=-ffp-contract=fast
-#CFLAGS+=-O0
-#CFLAGS:=-g -Wall -Werror
+CFLAGS+=-O0
+CFLAGS+=-g
+#CFLAGS+=-Wall -Werror
 #LDFLAGS:=-L. -Wl,-rpath,.
 
 # Enable debug in Mercurium
@@ -62,10 +66,10 @@ CFLAGS+=-O3
 #CFLAGS+=-Wno-unknown-pragmas
 
 # Use debug messages
-#CFLAGS+=-DGLOBAL_DEBUG
+CFLAGS+=-DGLOBAL_DEBUG
 
 # No asserts
-CFLAGS+=-DNDEBUG
+#CFLAGS+=-DNDEBUG
 
 # No extra assers
 #CFLAGS+=-DNO_EXTRA_ASSERTS

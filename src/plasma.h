@@ -1,7 +1,6 @@
 #pragma once
 
 #include "def.h"
-#include "log.h"
 #include <assert.h>
 
 int
@@ -26,7 +25,7 @@ pchunk_lock(pchunk_t *c, const char *owner)
 	if(c->locked != 0)
 	{
 		assert(c->lock_owner);
-		err("The chunk is already locked by '%s'\n", c->lock_owner);
+		//err("The chunk is already locked by '%s'\n", c->lock_owner);
 		abort();
 	}
 	c->locked = 1;

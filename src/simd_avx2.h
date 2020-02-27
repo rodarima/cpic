@@ -8,6 +8,8 @@ typedef __m256i		vidx;
 typedef __m256d		vmsk;/* No mask  */
 #define VEC_PREFIX	_mm256_
 #define MAX_VEC		4 /* Vector size in doubles */
+#define VEC_ALIGN_BYTES	(MAX_VEC * sizeof(double))
+#define VEC_ALIGNAS	alignas(VEC_ALIGN_BYTES)
 #define VP(x)		CONCAT(VEC_PREFIX, x)
 #define VFMT		"(%e %e %e %e)"
 #define vi64_VFMT	"(%lld %lld %lld %lld)"

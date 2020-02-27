@@ -31,25 +31,27 @@
 	fprintf(stderr, __VA_ARGS__);				\
 	fprintf(stderr, "\x1b[0m");				\
 } while(0)
-#else
+#else /* DEBUG_USE_MPI_RANK */
 #define dbg(fmt, ...) do {					\
 	fprintf(stderr, "%s:%-4d: " fmt,			\
 		__FILE__, __LINE__, ##__VA_ARGS__);		\
 } while(0)
-#endif
+#endif /* DEBUG_USE_MPI_RANK */
 
 #define dbgr(...) do {						\
 	fprintf(stderr, __VA_ARGS__);				\
 } while(0)
-#else
+#else /* DEBUG > 0 */
 #define dbg(...)
 #define dbgr(...)
 #endif
 
-#else
+#else /* GLOBAL_DEBUG */
+
 #define dbg(...)
 #define dbgr(...)
-#endif
+
+#endif /* GLOBAL_DEBUG */
 
 #define ASSERT(cond, ...) do {					\
 	if(!(cond)) { fprintf(stderr, __VA_ARGS__); abort(); }	\

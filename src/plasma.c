@@ -39,6 +39,12 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 	set->info = specie;
 
 	plist_init(l, sim->pblock_nmax);
+	plist_init(&set->qx0, sim->pblock_nmax);
+	plist_init(&set->qx1, sim->pblock_nmax);
+
+	/* Add one dummy block to the queues */
+	plist_grow(&set->qx0, MAX_VEC);
+	plist_grow(&set->qx1, MAX_VEC);
 
 
 #if 0 /* Communication part skipped by now */
@@ -296,7 +302,12 @@ plasma_init(sim_t *sim, plasma_t *plasma)
 
 	nchunks = sim->plasma_chunks;
 
-	plasma->chunks = safe_malloc(nchunks * sizeof(pchunk_t));
+	//plasma->chunks = safe_malloc(nchunks * sizeof(pchunk_t));
+	if(posix_memalign((void **)&plasma->chunks, VEC_ALIGN_BYTES,
+				nchunks * sizeof(pchunk_t)) != 0)
+	{
+		abort();
+	}
 	plasma->nchunks = nchunks;
 
 	for(i=0; i < nchunks; i++)

@@ -20,6 +20,7 @@
 #include <libconfig.h>
 #include <pthread.h>
 #include <mpi.h>
+#include <stdalign.h>
 
 struct particle_config;
 typedef struct particle_config particle_config_t;
@@ -144,7 +145,7 @@ typedef struct pset
 	struct plist list;
 
 	/** Plasma to be exchanged with neigbour chunks in the X dimension */
-	struct plist qx[2];
+	struct plist qx0, qx1;
 } pset_t;
 
 /** Plasma initialization method descriptor */
@@ -299,16 +300,17 @@ struct pchunk
 	/* ------------- SIMD -------------- */
 
 	/** Begining of the chunk physical space */
-	vf64 x0[MAX_DIM];
+	VEC_ALIGNAS vf64 x0[MAX_DIM];
 
 	/** Ending of the chunk physical space */
-	vf64 x1[MAX_DIM];
+	VEC_ALIGNAS vf64 x1[MAX_DIM];
 };
 
 /** Contains all the particles in this process. Holds a list of \ref pchunk,
  * where each one is processed by one task */
 struct plasma
 {
+	/* FIXME: Each pchunk must be aligned */
 	struct pchunk *chunks;
 	int nchunks;
 };

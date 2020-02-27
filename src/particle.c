@@ -5,7 +5,7 @@
 #include "comm.h"
 #include "mover.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include "utils.h"
 #include <math.h>
@@ -108,7 +108,7 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 	ppack_t *p;
 	double v[MAX_DIM];
 	config_setting_t *cs_v;
-	size_t nvec, i, iv;
+	size_t i, iv;
 
 	l = &set->list;
 
@@ -120,9 +120,9 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 	for(b = l->b; b; b = b->next)
 	{
 		/* Initialize all, even after b->n */
-		nvec = (b->n + MAX_VEC - 1) / MAX_VEC;
-		for(i=0; i < nvec; i++)
+		for(i=0; i < b->npacks; i++)
 		{
+			dbg("Initialization of ppack %ld\n", i);
 			p = &b->p[i];
 
 			for(iv=0; iv<MAX_VEC; iv++)
@@ -219,7 +219,7 @@ void
 stage_plasma_E(sim_t *sim)
 {
 	int i;
-	int clang_workaround = 0;
+	int clang_workaround __attribute__((unused)) = 0;
 
 	#pragma oss task inout(sim->plasma.chunks[clang_workaround])
 	perf_start(&sim->timers[TIMER_PARTICLE_E]);
@@ -245,9 +245,5 @@ particle_comm(sim_t *sim)
 int
 particle_comm_initial(sim_t *sim)
 {
-	/* FIXME: By now we simply move the particles back into the pchunk,
-	 * until the communications are complete. */
-	dummy_wrap(sim);
-	//return comm_plasma(sim, 1);
-	return 0;
+	return comm_plasma(sim, 1);
 }

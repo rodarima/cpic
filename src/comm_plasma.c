@@ -6,8 +6,9 @@
 #include "comm.h"
 #include "plasma.h"
 #include "utils.h"
+#include "plist.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 #undef EXTRA_CHECKS
@@ -59,41 +60,63 @@ typedef struct exchange
 	/** The window at the end of the plist */
 	pwin_t B;
 
-	/* The two windows at the end of each queue */
-	pwin_t q[2];
+	/** The two windows at the end of each queue */
+	pwin_t q0, q1;
+
+	/* TODO: The number of particles moved */
+	//size_t nmoved;
 } exchange_t;
 
+/* Clears the masks sel, mx0 and mx1 and sets the enabled mask accordingly */
+static void
+pwin_reset_masks(pwin_t *w)
+{
+	unsigned int mask, shift;
+
+	/* Clear masks */
+	vmsk_zero(w->sel);
+	vmsk_zero(w->mx0);
+	vmsk_zero(w->mx1);
+
+	/* And set enabled */
+	if (w->b->n == 0)
+	{
+		mask = 0;
+	}
+	else if (w->b->n < MAX_VEC)
+	{
+		shift = (unsigned int) sizeof(mask) * 8 - w->b->n;
+		mask = ((unsigned int) -1U) >> shift;
+
+		assert(mask == 0x07 || mask == 0x03 || mask == 0x01);
+	}
+	else
+	{
+		shift = (unsigned int) sizeof(mask) * 8 - MAX_VEC;
+		mask = ((unsigned int) -1U) >> shift;
+		assert(mask == 0x0f);
+	}
+
+	vmsk_set(w->enabled, mask);
+}
 
 
 /** Sets the window to the first ppack and clears the masks */
 static void
 pwin_first(plist_t *l, pwin_t *w)
 {
-	pblock_t *b;
 	assert(l->b);
 
-	b = l->b;
+	/* Use the first block */
+	w->b = l->b;
+	w->l = l;
+	w->ip = 0;
 
-	w->b = b;
-	w->ib = 0;
-
-	/* TODO: Test this mask */
-	if (b->n < MAX_VEC)
-	{
-		w->enabled = (-1U) >> (sizeof(int) - b->n);
-	}
-	else
-	{
-		w->enabled = (-1U) >> (sizeof(int) - MAX_VEC);
-		assert(MAX_VEC != 4 || w->enabled == 0x0f);
-	}
-
-	w->remaining = 0;
-	w->mask = 0;
+	pwin_reset_masks(w);
 }
 
 /** Sets the window to the last non-zero ppack and clears the masks */
-void
+static void
 pwin_last(plist_t *l, pwin_t *w)
 {
 	assert(l->b);
@@ -103,22 +126,27 @@ pwin_last(plist_t *l, pwin_t *w)
 	else /* 1 block */
 		w->b = l->b;
 
-	w->ic = l->b->npacks - 1;
-	//dbg("pwin_last: b->n = %ld, w->ic = %ld\n", l->b->n, w->ic);
-	w->left = 0;
-	w->mask = 0;
-	//vmsk_zero(w->mask);
+	w->l = l;
+
+	/* Use the non-empty number of ppacks as index, to point to the last
+	 * non-empty ppack */
+	w->ip = l->b->npacks - 1;
+	dbg("pwin_last: b->n = %ld, w->ip = %ld\n", l->b->n, w->ip);
+
+	pwin_reset_masks(w);
 }
 
-int
+/** Tries to move the window to the next ppack, moving to the next pblock if
+ * necessary. Returns 1 if no more ppacks are available, 0 otherwise. The masks
+ * are reset if the displacement was successful. */
+static int
 pwin_next(pwin_t *w)
 {
 	/* Advance in the same block */
-	if(w->ic < w->b->npacks)
+	if(w->ip < w->b->npacks - 1)
 	{
-		w->ic++;
-		/* TODO: Set the enabled mask accordinly if we have garbage */
-		return 0;
+		w->ip++;
+		goto reset_mask;
 	}
 
 	/* If we are at the end, cannot continue */
@@ -127,52 +155,199 @@ pwin_next(pwin_t *w)
 
 	/* Otherwise move to the next block */
 	w->b = w->b->next;
-	w->ic = 0;
+	w->ip = 0;
+
+reset_mask:
+	pwin_reset_masks(w);
 
 	return 0;
 }
 
-int
+/** Tries to move to the previous ppack, jumping to the previous pblock if
+ * necessary. If no more ppacks are available returns 1, otherwise returns 0. If
+ * the displacement is successful the masks are reset. */
+static int
 pwin_prev(pwin_t *w)
 {
-	/* Move backwards in the same block */
-	if(w->ic > 0)
+	/* Move backwards if we are in the same block */
+	if(w->ip > 0)
 	{
-		w->ic--;
-		return 0;
+		w->ip--;
+		goto reset_mask;
 	}
 
-	/* Previous block */
-
 	/* If we are at the beginning, cannot continue */
-	/* TODO: Check this, not sure if prev is null using UTLIST macros */
-	if(!w->b->prev)
+	if(w->l->b == w->b)
 		return 1;
 
 	/* Otherwise move to the previous block */
 	w->b = w->b->prev;
-	w->ic = w->b->npacks - 1;
+	w->ip = w->b->npacks - 1;
+
+reset_mask:
+	pwin_reset_masks(w);
 
 	return 0;
 }
 
-int
+/** Returns non-zero if the pwin A and B point to the same ppack, otherwise
+ * returns zero. */
+static int
 pwin_equal(pwin_t *A, pwin_t *B)
 {
-	return (A->b == B->b) && (A->ic == B->ic);
+	return (A->b == B->b) && (A->ip == B->ip);
+}
+
+static void
+move_particle(pwin_t *wsrc, size_t isrc, pwin_t *wdst, size_t idst)
+{
+	size_t d;
+	ppack_t *src, *dst;
+
+	src = &wsrc->b->p[wsrc->ip];
+	dst = &wdst->b->p[wdst->ip];
+
+	dbg("moving particle isrc=%ld idst=%ld\n", isrc, idst);
+
+	dst->i[idst] = src->i[isrc];
+
+	for(d=X; d<MAX_VEC; d++)
+	{
+		dst->r[d][idst] = src->r[d][isrc];
+		dst->u[d][idst] = src->u[d][isrc];
+		dst->E[d][idst] = src->E[d][isrc];
+		dst->B[d][idst] = src->B[d][isrc];
+	}
+}
+
+/** Move particles from the src window into dst. The number of particles moved
+ * is at least one, and at most the minimum number of enabled bits in the
+ * selection of src and dst. */
+static void
+transfer(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
+{
+	size_t isrc, idst;
+
+	/* TODO: We can store the index in each pwin, so we can reuse the
+	 * previous state to speed up the search */
+
+	isrc = 0;
+	idst = 0;
+
+	dbg("transfer src_mask=%x, dst_mask=%x\n",
+			vmsk_get(*src_sel), vmsk_get(*dst_sel));
+
+	assert(vmsk_isany(*dst_sel));
+	assert(vmsk_isany(*src_sel));
+
+
+	while(1)
+	{
+		/* It cannot happen that idst or isrc exceed MAX_VEC, as if
+		 * they are nonzero, the ones must be after or at idst or isrc
+		 * */
+
+		/* Compute the index in dst */
+		while((*dst_sel)[idst] == 0) idst++;
+
+		/* Same in src */
+		while((*src_sel)[isrc] == 0) isrc++;
+
+		move_particle(src, isrc, dst, idst);
+
+		/* FIXME: We must modify the list size as well */
+
+		/* Clear the bitmask */
+		/* TODO: Use proper macros to deal with the bitmasks */
+		(*src_sel)[isrc] = 0;
+		(*dst_sel)[idst] = 0;
+
+		/* And advance the index in both masks */
+		idst++;
+		isrc++;
+
+		if(idst >= MAX_VEC) break;
+		if(isrc >= MAX_VEC) break;
+
+		if(vmsk_iszero(*dst_sel)) break;
+		if(vmsk_iszero(*src_sel)) break;
+	}
+}
+
+
+/** Select next window in the queue, and grow the list if necessary */
+static void
+queue_step_window(pwin_t *q)
+{
+	dbg("Stepping queue in pwin=%p\n", q);
+	/* Ensure we don't have any hole left to fill before moving to the next
+	 * window in the queue */
+	assert(vmsk_iszero(q->sel));
+
+	/* We always need an available pblock in the queue list */
+	assert(q->l->b);
+
+	/* We always grow the list by a complete ppack of size MAX_VEC */
+	if(plist_grow(q->l, MAX_VEC))
+	{
+		err("plist_grow failed\n");
+		abort();
+	}
+
+	if(pwin_next(q))
+	{
+		err("Cannot grow the plist\n");
+		abort();
+	}
+
+	/* Enable all slots in the ppack */
+	/* TODO: Use varying bits depending on the vec size */
+	vmsk_ones(q->sel);
+	vmsk_ones(q->enabled);
+}
+
+/** Queues all particles selected with 1 in w_mask from the w window and place
+ * them into q, advancing the window if necessary. Holes in q are indicated by
+ * ones in the q_mask. */
+static void
+queue_selected(pwin_t *w, vmsk *w_mask, pwin_t *q)
+{
+	while(1)
+	{
+		dbg("queue_selected w_mask=%x q_mask=%x\n", 
+				vmsk_get(*w_mask), vmsk_get(q->sel));
+
+		assert(vmsk_isany(*w_mask));
+		assert(vmsk_isany(q->sel));
+		transfer(w, w_mask, q, &q->sel);
+
+		assert(vmsk_iszero(*w_mask) || vmsk_iszero(q->sel));
+
+		/* We may need to advance the queue window */
+		if(vmsk_iszero(q->sel))
+			queue_step_window(q);
+
+		assert(vmsk_isany(q->sel));
+
+		/* No more particles to queue, we have finished */
+		if(vmsk_iszero(*w_mask))
+			break;
+	}
 }
 
 
 /** Removes the particles that are out of the chunk from w and places them into
- * the respective queues */
+ * the respective queues q0 and q1. */
 static void
 clean_lost(pwin_t *w, pwin_t *q0, pwin_t *q1)
 {
+	dbg("Cleaning lost particles\n");
+
 	if(vmsk_isany(w->mx0))
-		queue_selected(w, &w->mx0, q0, &q0->sel);
+		queue_selected(w, &w->mx0, q0);
 
 	if(vmsk_isany(w->mx1))
-		queue_selected(w, &w->mx1, q1, &q1->sel);
+		queue_selected(w, &w->mx1, q1);
 }
 
 /** Updates the masks in the window w. The masks mx0 and mx1 are set to 1 in
@@ -192,14 +367,37 @@ update_masks(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 	assert(vmsk_iszero(w->mx1));
 	assert(vmsk_iszero(w->sel));
 
-	p = &w->b->p[w->ic];
+	p = &w->b->p[w->ip];
 
 	for(d=X; d<MAX_DIM; d++)
 	{
 		/* FIXME: This is AVX2 specific */
+		/* We cannot use >= as the unused dimensions are 0, so the
+		 * particles will have a 0 as well */
 		w->mx0 = vor(w->mx0, vcmp(p->r[d], x0[d], _CMP_LT_OS));
-		w->mx1 = vor(w->mx1, vcmp(p->r[d], x1[d], _CMP_GE_OS));
+		w->mx1 = vor(w->mx1, vcmp(p->r[d], x1[d], _CMP_GT_OS));
 	}
+
+	dbg("update_masks mx0 = %x, mx1 = %x\n",
+			vmsk_get(w->mx0), vmsk_get(w->mx1));
+
+#ifndef NDEBUG
+	size_t iv;
+
+	for(iv=0; iv<MAX_VEC; iv++)
+	{
+		dbg("Particle %lld at (%e %e %e) exceeds=%lld x0 (%e %e %e)\n",
+				p->i[iv],
+				p->r[X][iv], p->r[Y][iv], p->r[Z][iv],
+				((unsigned long long *) &w->mx0)[iv],
+				x0[X][iv], x0[Y][iv], x0[Z][iv]);
+		dbg("Particle %lld at (%e %e %e) exceeds=%lld x1 (%e %e %e)\n",
+				p->i[iv],
+				p->r[X][iv], p->r[Y][iv], p->r[Z][iv],
+				((unsigned long long *) &w->mx1)[iv],
+				x1[X][iv], x1[Y][iv], x1[Z][iv]);
+	}
+#endif
 
 	/* A particle cannot exit from both sides */
 	assert(vmsk_iszero(vand(w->mx0, w->mx1)));
@@ -254,53 +452,7 @@ produce_holes_A(exchange_t *ex)
 	while(!pwin_equal(A, B));
 
 exit:
-	assert(vmask_isany(A->sel) || pwin_equal(A, B));
-}
-
-/** Select next window in the queue, and grow the list if neccesary */
-static void
-queue_step_window(pwin_t *q)
-{
-	dbg("Stepping queue in pwin=%p\n", q);
-	/* Ensure we don't have any hole left to fill before moving to the next
-	 * window in the queue */
-	assert(vmsk_iszero(q->sel));
-
-	/* We always grow the list by a complete ppack of size MAX_VEC */
-	if(plist_grow(q->l, MAX_VEC))
-	{
-		err("plist_grow failed\n");
-		abort();
-	}
-
-	if(pwin_next(q))
-	{
-		err("Cannot grow the plist\n");
-		abort();
-	}
-}
-
-/** Queues all particles selected with 1 in w_mask from the w window and place
- * them into q, advancing the window if neccesary. Holes in q are indicated by
- * ones in the q_mask. */
-static void
-queue_selected(pwin_t *w, vmsk *w_mask, pwin_t *q, vmsk *q_mask)
-{
-	assert(vmsk_isany(w_mask));
-	while(1)
-	{
-		transfer(w, w_mask, q, q_mask);
-
-		assert(vmsk_iszero(w_mask) || vmsk_iszero(q_mask));
-
-		/* No more particles to queue, we have finished */
-		if(vmsk_iszero(w_mask))
-			break;
-
-		/* Still more work to do, we need more space in the queue */
-		assert(vmsk_iszero(q->q_mask));
-		queue_step_window(q);
-	}
+	assert(vmsk_isany(A->sel) || pwin_equal(A, B));
 }
 
 /** Produce extra particles in B. */
@@ -333,13 +485,13 @@ produce_extra_B(exchange_t *ex)
 		/* Check if we have some extra particles in B */
 		if(vmsk_isany(B->sel))
 		{
-			dbg("produce found some extra particles at ic=%ld\n",
-					B->ic);
+			dbg("produce found some extra particles at ip=%ld\n",
+					B->ip);
 			break;
 		}
 
-		dbg("no particles found at ic=%ld, moving to the previous ppack\n",
-				B->ic);
+		dbg("no extra particles found at ip=%ld, moving to the previous ppack\n",
+				B->ip);
 
 		/* Otherwise slide the window and continue the search */
 		if(pwin_prev(B))
@@ -347,77 +499,11 @@ produce_extra_B(exchange_t *ex)
 	}
 
 exit:
-	assert(vmask_isany(B->sel) || pwin_equal(A, B));
+	assert(vmsk_isany(B->sel) || pwin_equal(A, B));
 }
 
 
-static void
-move_particle(ppack_t *src, size_t isrc, ppack_t *dst, size_t idst)
-{
-	size_t d;
-
-	dst->i[idst] = src->i[isrc];
-
-	for(d=X; d<MAX_VEC; d++)
-	{
-		dst->r[d][idst] = src->r[d][isrc];
-		dst->u[d][idst] = src->v[d][isrc];
-		dst->E[d][idst] = src->E[d][isrc];
-		dst->B[d][idst] = src->B[d][isrc];
-	}
-}
-
-/** Move particles from the src window into dst. The number of particles moved
- * is at least one, and at most the minimum number of enabled bits in the
- * selection of src and dst. */
-static void
-transfer(pwin_t *src, vmsk src_sel, pwin_t *dst, vmsk dst_set)
-{
-	size_t isrc, idst;
-
-	/* TODO: We can store the index in each pwin, so we can reuse the
-	 * previous state to speed up the search */
-
-	isrc = 0;
-	idst = 0;
-
-	assert(vmsk_isany(dst_sel));
-	assert(vmsk_isany(src_sel));
-
-	while(1)
-	{
-		/* It cannot happen that idst or isrc exceed MAX_VEC, as if
-		 * they are nonzero, the ones must be after or at idst or isrc
-		 * */
-
-		/* Compute the index in dst */
-		while(dst->sel[idst] == 0) idst++;
-
-		/* Same in src */
-		while(src->sel[isrc] == 0) isrc++;
-
-		move_particle(src, isrc, dst, idst);
-
-		/* FIXME: We must modify the list size as well */
-
-		/* Clear the bitmask */
-		/* TODO: Use proper macros to deal with the bitmasks */
-		src->sel[isrc] = 0;
-		dst->sel[idst] = 0;
-
-		/* And advance the index in both masks */
-		idst++;
-		isrc++;
-
-		if(idst >= MAX_VEC) break;
-		if(isrc >= MAX_VEC) break;
-
-		if(vmsk_iszero(dst_sel)) break;
-		if(vmsk_iszero(src_sel)) break;
-	}
-}
-
-/** Trasfer all posible particles from B to fill the holes in A. No moves to
+/** Transfer all posible particles from B to fill the holes in A. No moves to
  * any queue are performed here as both windows must be clean */
 static void
 fill_holes(exchange_t *ex)
@@ -428,7 +514,7 @@ fill_holes(exchange_t *ex)
 	B = &ex->B;
 
 	/* First fill some holes in A with particles from B */
-	transfer(B, A);
+	transfer(B, &B->sel, A, &A->sel);
 
 	/* At least one window must be complete */
 	assert(vmsk_iszero(A->sel) || vmsk_iszero(B->sel));
@@ -442,54 +528,67 @@ fill_holes(exchange_t *ex)
 		pwin_next(B);
 }
 
-void
-particle_exchange_x(pchunk_t *c, pset_t *set, size_t *excount)
+static void
+queue_init(plist_t *q, pwin_t *qw)
 {
-	size_t d, count;
-	pwin_t A, B, q[2];
-
-	count = 0;
-	pwin_first(&set->l, &A);
-	pwin_last(&set->l, &B);
-
 	/* Ensure the queues always have one empty block */
-	assert(set->qx[0].b);
-	assert(set->qx[0].b->n == 0);
-	assert(set->qx[1].b);
-	assert(set->qx[1].b->n == 0);
+	assert(q->b);
+	assert(q->b->n == MAX_VEC);
 
-	pwin_first(&set->qx[0], &q[0]);
-	pwin_first(&set->qx[1], &q[1]);
+	pwin_first(q, qw);
 
-	while(!pwin_equal(&A, &B))
+	/* Also, set the enabled and sel bits */
+	/* TODO: Use proper variable init */
+	vmsk_ones(qw->sel);
+	vmsk_ones(qw->enabled);
+}
+
+void
+local_collect_x(pchunk_t *c, pset_t *set)
+{
+	exchange_t ex;
+
+	pwin_first(&set->list, &ex.A);
+	pwin_last(&set->list, &ex.B);
+
+	queue_init(&set->qx0, &ex.q0);
+	queue_init(&set->qx1, &ex.q1);
+
+	assert(vmsk_isany(ex.q0.sel));
+	assert(vmsk_isany(ex.q1.sel));
+
+	ex.c = c;
+	ex.set = set;
+
+	while(!pwin_equal(&ex.A, &ex.B))
 	{
 		/* Search for extra particles in B */
 		dbg("--- produce_extra_B begins --- \n");
-		produce_extra_B(ex);
+		produce_extra_B(&ex);
 		dbg("--- produce_extra_B ends ---\n");
 
 		/* Search for holes in A */
 		dbg("--- produce_holes_A begins --- \n");
-		produce_holes_A(ex);
+		produce_holes_A(&ex);
 		dbg("--- produce_holes_A ends ---\n");
 
 		/* Fill holes with extra particles */
 		dbg("--- fill_holes begins --- \n");
-		fill_holes(ex);
+		fill_holes(&ex);
 		dbg("--- fill_holes ends --- \n");
 	}
 
 	/* TODO: Now deal with the A == B case */
 	//err("Total exchanges %ld\n", count);
-	*excount = count;
 }
 
 int
 comm_plasma_x(sim_t *sim, int global_exchange)
 {
-	size_t ic, is, color, max_color;
+	size_t ic, is;
 	plasma_t *plasma;
 	pchunk_t *c;
+	pset_t *set;
 
 	plasma = &sim->plasma;
 
@@ -497,8 +596,7 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 
 	if(global_exchange)
 	{
-		err("Not implemented yet: global_exchange = 1\n");
-		return 0;
+		err("EXPERIMENTAL: global_exchange = 1\n");
 	}
 
 	for(ic = 0; ic < plasma->nchunks; ic++)
@@ -508,7 +606,8 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 		#pragma oss task inout(*chunk) label(collect_particles_x)
 		for(is = 0; is < sim->nspecies; is++)
 		{
-			local_collect_x(sim, chunk, is, global_exchange);
+			set = &c->species[is];
+			local_collect_x(c, set);
 		}
 	}
 
@@ -523,7 +622,7 @@ comm_plasma(sim_t *sim, int global_exchange)
 	/* First all particles are displaced in the X direction to the correct
 	 * chunk */
 
-	//comm_plasma_x(sim, global_exchange);
+	comm_plasma_x(sim, global_exchange);
 
 	/* No communication in Y needed with only one process */
 	if(sim->nprocs == 1) return 0;

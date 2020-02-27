@@ -40,6 +40,7 @@ sim_read_config(sim_t *s)
 {
 	config_t *conf;
 	long long nmax;
+	size_t d;
 
 	conf = s->conf;
 
@@ -64,6 +65,11 @@ sim_read_config(sim_t *s)
 
 	/* Load all dimension related vectors */
 	config_lookup_array_float(conf, "simulation.space_length", s->L, s->dim);
+
+	for(d=s->dim; d<MAX_DIM; d++)
+	{
+		s->L[d] = 0;
+	}
 
 	/* Note that we always need the 3 dimensions for the magnetic field, as
 	 * for example in 2D, the Z is the one used */
