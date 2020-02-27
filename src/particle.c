@@ -122,7 +122,7 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 		/* Initialize all, even after b->n */
 		for(i=0; i < b->npacks; i++)
 		{
-			dbg("Initialization of ppack %ld\n", i);
+			//dbg("Initialization of ppack %ld\n", i);
 			p = &b->p[i];
 
 			for(iv=0; iv<MAX_VEC; iv++)

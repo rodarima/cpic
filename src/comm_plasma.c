@@ -207,7 +207,7 @@ move_particle(pwin_t *wsrc, size_t isrc, pwin_t *wdst, size_t idst)
 	src = &wsrc->b->p[wsrc->ip];
 	dst = &wdst->b->p[wdst->ip];
 
-	dbg("moving particle isrc=%ld idst=%ld\n", isrc, idst);
+	//dbg("moving particle isrc=%ld idst=%ld\n", isrc, idst);
 
 	dst->i[idst] = src->i[isrc];
 
@@ -223,19 +223,21 @@ move_particle(pwin_t *wsrc, size_t isrc, pwin_t *wdst, size_t idst)
 /** Move particles from the src window into dst. The number of particles moved
  * is at least one, and at most the minimum number of enabled bits in the
  * selection of src and dst. */
-static void
+static size_t
 transfer(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
 {
 	size_t isrc, idst;
+	size_t moved;
 
 	/* TODO: We can store the index in each pwin, so we can reuse the
 	 * previous state to speed up the search */
 
 	isrc = 0;
 	idst = 0;
+	moved = 0;
 
-	dbg("transfer src_mask=%x, dst_mask=%x\n",
-			vmsk_get(*src_sel), vmsk_get(*dst_sel));
+	//dbg("transfer src_mask=%x, dst_mask=%x\n",
+	//		vmsk_get(*src_sel), vmsk_get(*dst_sel));
 
 	assert(vmsk_isany(*dst_sel));
 	assert(vmsk_isany(*src_sel));
@@ -254,6 +256,7 @@ transfer(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
 		while((*src_sel)[isrc] == 0) isrc++;
 
 		move_particle(src, isrc, dst, idst);
+		moved++;
 
 		/* FIXME: We must modify the list size as well */
 
@@ -272,6 +275,8 @@ transfer(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
 		if(vmsk_iszero(*dst_sel)) break;
 		if(vmsk_iszero(*src_sel)) break;
 	}
+
+	return moved;
 }
 
 
@@ -279,7 +284,7 @@ transfer(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
 static void
 queue_step_window(pwin_t *q)
 {
-	dbg("Stepping queue in pwin=%p\n", q);
+	//dbg("Stepping queue in pwin=%p\n", q);
 	/* Ensure we don't have any hole left to fill before moving to the next
 	 * window in the queue */
 	assert(vmsk_iszero(q->sel));
@@ -302,24 +307,30 @@ queue_step_window(pwin_t *q)
 
 	/* Enable all slots in the ppack */
 	/* TODO: Use varying bits depending on the vec size */
-	vmsk_ones(q->sel);
-	vmsk_ones(q->enabled);
+	vmsk_set(q->sel, 0x0f);
+	vmsk_set(q->enabled, 0x0f);
+
+	assert(vmsk_isany(q->enabled));
 }
 
 /** Queues all particles selected with 1 in w_mask from the w window and place
  * them into q, advancing the window if necessary. Holes in q are indicated by
  * ones in the q_mask. */
-static void
+static size_t
 queue_selected(pwin_t *w, vmsk *w_mask, pwin_t *q)
 {
+	size_t moved;
+
+	moved = 0;
+
 	while(1)
 	{
-		dbg("queue_selected w_mask=%x q_mask=%x\n", 
-				vmsk_get(*w_mask), vmsk_get(q->sel));
+		//dbg("queue_selected w_mask=%x q_mask=%x\n", 
+		//		vmsk_get(*w_mask), vmsk_get(q->sel));
 
 		assert(vmsk_isany(*w_mask));
 		assert(vmsk_isany(q->sel));
-		transfer(w, w_mask, q, &q->sel);
+		moved += transfer(w, w_mask, q, &q->sel);
 
 		assert(vmsk_iszero(*w_mask) || vmsk_iszero(q->sel));
 
@@ -333,21 +344,28 @@ queue_selected(pwin_t *w, vmsk *w_mask, pwin_t *q)
 		if(vmsk_iszero(*w_mask))
 			break;
 	}
+
+	return moved;
 }
 
 
 /** Removes the particles that are out of the chunk from w and places them into
  * the respective queues q0 and q1. */
-static void
+static size_t
 clean_lost(pwin_t *w, pwin_t *q0, pwin_t *q1)
 {
-	dbg("Cleaning lost particles\n");
+	size_t moved;
+
+	moved = 0;
+	//dbg("Cleaning lost particles\n");
 
 	if(vmsk_isany(w->mx0))
-		queue_selected(w, &w->mx0, q0);
+		moved += queue_selected(w, &w->mx0, q0);
 
 	if(vmsk_isany(w->mx1))
-		queue_selected(w, &w->mx1, q1);
+		moved += queue_selected(w, &w->mx1, q1);
+
+	return moved;
 }
 
 /** Updates the masks in the window w. The masks mx0 and mx1 are set to 1 in
@@ -378,24 +396,37 @@ update_masks(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 		w->mx1 = vor(w->mx1, vcmp(p->r[d], x1[d], _CMP_GT_OS));
 	}
 
-	dbg("update_masks mx0 = %x, mx1 = %x\n",
-			vmsk_get(w->mx0), vmsk_get(w->mx1));
+	assert(vmsk_isany(w->enabled));
 
-#ifndef NDEBUG
+	/* Remove any garbage particle from the selection */
+	w->mx0 = vand(w->mx0, w->enabled);
+	w->mx1 = vand(w->mx1, w->enabled);
+
+	//dbg("update_masks mx0 = %x, mx1 = %x\n",
+	//		vmsk_get(w->mx0), vmsk_get(w->mx1));
+
+//#ifndef NDEBUG
+#if 0
 	size_t iv;
 
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
-		dbg("Particle %lld at (%e %e %e) exceeds=%lld x0 (%e %e %e)\n",
-				p->i[iv],
-				p->r[X][iv], p->r[Y][iv], p->r[Z][iv],
-				((unsigned long long *) &w->mx0)[iv],
-				x0[X][iv], x0[Y][iv], x0[Z][iv]);
-		dbg("Particle %lld at (%e %e %e) exceeds=%lld x1 (%e %e %e)\n",
-				p->i[iv],
-				p->r[X][iv], p->r[Y][iv], p->r[Z][iv],
-				((unsigned long long *) &w->mx1)[iv],
-				x1[X][iv], x1[Y][iv], x1[Z][iv]);
+		if(w->mx0[iv])
+		{
+			dbg("Particle %lld at (%e %e %e) exceeds=%lld x0 (%e %e %e)\n",
+					p->i[iv],
+					p->r[X][iv], p->r[Y][iv], p->r[Z][iv],
+					((unsigned long long *) &w->mx0)[iv],
+					x0[X][iv], x0[Y][iv], x0[Z][iv]);
+		}
+		if(w->mx1[iv])
+		{
+			dbg("Particle %lld at (%e %e %e) exceeds=%lld x1 (%e %e %e)\n",
+					p->i[iv],
+					p->r[X][iv], p->r[Y][iv], p->r[Z][iv],
+					((unsigned long long *) &w->mx1)[iv],
+					x1[X][iv], x1[Y][iv], x1[Z][iv]);
+		}
 	}
 #endif
 
@@ -411,11 +442,13 @@ update_masks(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 }
 
 /** Produce holes in A by moving lost particles to the queues */
-void
+static size_t
 produce_holes_A(exchange_t *ex)
 {
 	pwin_t *A, *B, *q0, *q1;
+	size_t moved;
 
+	moved = 0;
 	A = &ex->A;
 	B = &ex->B;
 	q0 = &ex->q0;
@@ -428,22 +461,24 @@ produce_holes_A(exchange_t *ex)
 	/* TODO: Check why in the first iteration A != B */
 	do
 	{
+		dbg("A->ip = %ld\n", A->ip);
+
 		/* Look for holes to fill */
 		update_masks(A, ex->c->x0, ex->c->x1, 0);
 
 		/* Remove any lost particles to the queues */
-		clean_lost(A, q0, q1);
+		moved += clean_lost(A, q0, q1);
 
 		/* If we have some holes, stop */
 		if(vmsk_isany(A->sel))
 		{
-			dbg("consume found some holes at ip=%ld\n",
+			dbg("produce_holes_A found some holes at ip=%ld\n",
 					A->ip);
 			break;
 		}
 
-		dbg("no holes found at ip=%ld, moving to the next ppack\n",
-				A->ip);
+		//dbg("produce_holes_A: no holes found at ip=%ld, moving to the next ppack\n",
+		//		A->ip);
 
 		/* Otherwise slide the window and continue the search */
 		if(pwin_next(A))
@@ -453,14 +488,18 @@ produce_holes_A(exchange_t *ex)
 
 exit:
 	assert(vmsk_isany(A->sel) || pwin_equal(A, B));
+	return moved;
 }
 
 /** Produce extra particles in B. */
-static void
+static size_t
 produce_extra_B(exchange_t *ex)
 {
 	pwin_t *A, *B, *q0, *q1;
+	size_t moved;
+	int ret;
 
+	moved = 0;
 	A = &ex->A;
 	B = &ex->B;
 	q0 = &ex->q0;
@@ -472,11 +511,13 @@ produce_extra_B(exchange_t *ex)
 
 	while(!pwin_equal(A, B))
 	{
+		dbg("B->ip = %ld\n", B->ip);
+
 		/* Look for lost particles */
 		update_masks(B, ex->c->x0, ex->c->x1, 1);
 
 		/* Remove any lost particles to the queues */
-		clean_lost(B, q0, q1);
+		moved += clean_lost(B, q0, q1);
 
 		/* No more particles should be left in either queue mask */
 		assert(vmsk_iszero(B->mx0));
@@ -485,21 +526,25 @@ produce_extra_B(exchange_t *ex)
 		/* Check if we have some extra particles in B */
 		if(vmsk_isany(B->sel))
 		{
-			dbg("produce found some extra particles at ip=%ld\n",
-					B->ip);
+			dbg("extra particles found at ip=%ld\n", B->ip);
 			break;
 		}
 
-		dbg("no extra particles found at ip=%ld, moving to the previous ppack\n",
-				B->ip);
+		//dbg("moving to the previous ppack\n");
 
 		/* Otherwise slide the window and continue the search */
-		if(pwin_prev(B))
-			break;
+		pblock_update_n(B->l->b->prev, B->ip * MAX_VEC);
+		ret = pwin_prev(B);
+
+		/* We cannot reach the beginning of the list before getting into
+		 * A, so the displacement of B cannot fail */
+		assert(ret == 0);
+
 	}
 
 exit:
 	assert(vmsk_isany(B->sel) || pwin_equal(A, B));
+	return moved;
 }
 
 
@@ -513,6 +558,10 @@ fill_holes(exchange_t *ex)
 	A = &ex->A;
 	B = &ex->B;
 
+	/* Abort the transfer if we have the same windows */
+	if(pwin_equal(A, B))
+		return;
+
 	/* First fill some holes in A with particles from B */
 	transfer(B, &B->sel, A, &A->sel);
 
@@ -525,7 +574,7 @@ fill_holes(exchange_t *ex)
 		pwin_next(A);
 
 	if(vmsk_iszero(B->sel))
-		pwin_next(B);
+		pwin_prev(B);
 }
 
 static void
@@ -543,13 +592,52 @@ queue_init(plist_t *q, pwin_t *qw)
 	vmsk_ones(qw->enabled);
 }
 
-void
-local_collect_x(pchunk_t *c, pset_t *set)
+static size_t
+collect_pass(exchange_t *ex, pchunk_t *c, pset_t *set)
+{
+	size_t moved;
+
+	moved = 0;
+
+	pwin_first(&set->list, &ex->A);
+	pwin_last(&set->list, &ex->B);
+
+	while(!pwin_equal(&ex->A, &ex->B))
+	{
+		/* Search for extra particles in B */
+		dbg("--- produce_extra_B begins --- \n");
+		moved += produce_extra_B(ex);
+		dbg("--- produce_extra_B ends ---\n");
+
+		/* Search for holes in A */
+		dbg("--- produce_holes_A begins --- \n");
+		moved += produce_holes_A(ex);
+		dbg("--- produce_holes_A ends ---\n");
+
+		/* Fill holes with extra particles */
+		dbg("--- fill_holes begins --- \n");
+		fill_holes(ex);
+		dbg("--- fill_holes ends --- \n");
+	}
+
+	dbg("-----------------------------------\n");
+	dbg("      collect_pass complete\n");
+	dbg("-----------------------------------\n");
+
+	/* TODO: Now deal with the A == B case */
+
+	err("Total holes filled: %ld\n", moved);
+
+	return moved;
+}
+
+static void
+local_collect_x(pchunk_t *c, pset_t *set, int global_exchange)
 {
 	exchange_t ex;
 
-	pwin_first(&set->list, &ex.A);
-	pwin_last(&set->list, &ex.B);
+	ex.c = c;
+	ex.set = set;
 
 	queue_init(&set->qx0, &ex.q0);
 	queue_init(&set->qx1, &ex.q1);
@@ -557,29 +645,8 @@ local_collect_x(pchunk_t *c, pset_t *set)
 	assert(vmsk_isany(ex.q0.sel));
 	assert(vmsk_isany(ex.q1.sel));
 
-	ex.c = c;
-	ex.set = set;
-
-	while(!pwin_equal(&ex.A, &ex.B))
-	{
-		/* Search for extra particles in B */
-		dbg("--- produce_extra_B begins --- \n");
-		produce_extra_B(&ex);
-		dbg("--- produce_extra_B ends ---\n");
-
-		/* Search for holes in A */
-		dbg("--- produce_holes_A begins --- \n");
-		produce_holes_A(&ex);
-		dbg("--- produce_holes_A ends ---\n");
-
-		/* Fill holes with extra particles */
-		dbg("--- fill_holes begins --- \n");
-		fill_holes(&ex);
-		dbg("--- fill_holes ends --- \n");
-	}
-
-	/* TODO: Now deal with the A == B case */
-	//err("Total exchanges %ld\n", count);
+	collect_pass(&ex, c, set);
+	assert(collect_pass(&ex, c, set) == 0);
 }
 
 int
@@ -607,7 +674,7 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 		for(is = 0; is < sim->nspecies; is++)
 		{
 			set = &c->species[is];
-			local_collect_x(c, set);
+			local_collect_x(c, set, global_exchange);
 		}
 	}
 

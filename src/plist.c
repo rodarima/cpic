@@ -42,7 +42,7 @@ pblock_last(pblock_t *head)
 	return head->prev;
 }
 
-static inline void
+void
 pblock_update_n(pblock_t *b, size_t n)
 {
 	b->n = n;
