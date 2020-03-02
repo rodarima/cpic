@@ -5,7 +5,7 @@
 typedef __m256d		vf64;
 typedef __m256i		vi64;
 typedef __m256i		vidx;
-typedef __m256d		vmsk;/* No mask  */
+typedef __m256i		vmsk;/* No mask  */
 #define VEC_PREFIX	_mm256_
 #define MAX_VEC		4 /* Vector size in doubles */
 #define VEC_ALIGN_BYTES	(MAX_VEC * sizeof(double))
@@ -13,6 +13,7 @@ typedef __m256d		vmsk;/* No mask  */
 #define VP(x)		CONCAT(VEC_PREFIX, x)
 #define VFMT		"(%e %e %e %e)"
 #define vi64_VFMT	"(%lld %lld %lld %lld)"
+#define vmsk_VFMT	"(%llx %llx %llx %llx)"
 #define VARG(v)		v[0], v[1], v[2], v[3]
 
 #include "simd_common.h"
@@ -112,8 +113,31 @@ vi64 vf64_to_vi64(vf64 x)
 #define vfmadd(a,b,c)	_mm256_fmadd_pd(a,b,c)
 
 /* Mask operations */
-#define vmsk_set(m, v)	(m = (vmsk) _mm256_set1_epi8(v))
-#define vmsk_get(m)	_mm256_movemask_pd(m)
+static inline vmsk
+vmsk_set(unsigned long long v)
+{
+	unsigned long long t[2] = {0, 0xffffffffffffffffUL};
+	return _mm256_set_epi64x(
+			t[(v>>3)&1], t[(v>>2)&1], t[(v>>1)&1], t[(v>>0)&0x1]);
+}
+
+static inline unsigned long long
+vmsk_get(vmsk m)
+{
+	return _mm256_movemask_pd(m);
+}
+
+static inline vmsk
+vmsk_ones()
+{
+	return _mm256_set1_epi64x(0xffffffffffffffff);
+}
+
+static inline vmsk
+vmsk_zero()
+{
+	return _mm256_set1_epi64x(0);
+}
 
 /* We perform the AND operation to emulate the masked CMP of AVX512 */
 #define vcmp_mask(k, a, b, f)	vand(k, vcmp(a, b, f))

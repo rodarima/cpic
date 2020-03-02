@@ -87,8 +87,6 @@ typedef __mmask8	vmsk;
 
 #define vmsk_isany(m)	(vmsk_get(m) != 0)
 #define vmsk_iszero(m)	(vmsk_get(m) == 0)
-#define vmsk_zero(m)	vmsk_set(m, 0)
-#define vmsk_ones(m)	vmsk_set(m, (char) 0xff)
 
 //#endif /* _MCC */
 

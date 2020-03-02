@@ -92,7 +92,7 @@ check_velocity(vf64 u[MAX_DIM], vf64 umax[MAX_DIM])
 	int mask_val;
 
 	mask_val = 0;
-	vmsk_zero(mask);
+	mask = vmsk_zero();
 
 	for(d=X; d<MAX_DIM; d++)
 	{

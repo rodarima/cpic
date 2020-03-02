@@ -67,37 +67,58 @@ typedef struct exchange
 	//size_t nmoved;
 } exchange_t;
 
-/* Clears the masks sel, mx0 and mx1 and sets the enabled mask accordingly */
+/** Sets the enabled mask accordingly to the elements in the ppack
+ * pointed by the pwin */
+static void
+pwin_set_enabled(pwin_t *w)
+{
+	unsigned long long mask, shift;
+	size_t left;
+
+	/* The easy one is when we have ip pointing to a full ppack */
+	if(w->ip < w->b->nfpacks)
+	{
+		w->enabled = vmsk_ones();
+		return;
+	}
+
+	/* Otherwise we are pointing to a non-full ppack */
+
+	/* If we have no elements, that is easy too */
+	if(w->b->n == 0)
+	{
+		w->enabled = vmsk_zero();
+		return;
+	}
+
+	assert(w->ip = w->b->nfpacks);
+
+	left = w->b->n % MAX_VEC;
+	shift = (unsigned long long) (sizeof(mask) * 8 - left);
+	mask = ((unsigned long long) -1ULL) >> shift;
+
+	dbg("Computed mask is %llx for %zd elements, shift=%lld\n",
+			mask, left, shift);
+
+	if(MAX_VEC == 4)
+		assert(mask == 0x07 || mask == 0x03 || mask == 0x01);
+
+	w->enabled = vmsk_set(mask);
+
+	assert(vmsk_get(w->enabled) == mask);
+}
+
+/** Clears the masks sel, mx0 and mx1 and sets the enabled mask accordingly */
 static void
 pwin_reset_masks(pwin_t *w)
 {
-	unsigned int mask, shift;
-
 	/* Clear masks */
-	vmsk_zero(w->sel);
-	vmsk_zero(w->mx0);
-	vmsk_zero(w->mx1);
+	w->sel = vmsk_zero();
+	w->mx0 = vmsk_zero();
+	w->mx1 = vmsk_zero();
+	w->enabled = vmsk_zero();
 
-	/* And set enabled */
-	if (w->b->n == 0)
-	{
-		mask = 0;
-	}
-	else if (w->b->n < MAX_VEC)
-	{
-		shift = (unsigned int) sizeof(mask) * 8 - w->b->n;
-		mask = ((unsigned int) -1U) >> shift;
-
-		assert(mask == 0x07 || mask == 0x03 || mask == 0x01);
-	}
-	else
-	{
-		shift = (unsigned int) sizeof(mask) * 8 - MAX_VEC;
-		mask = ((unsigned int) -1U) >> shift;
-		assert(mask == 0x0f);
-	}
-
-	vmsk_set(w->enabled, mask);
+	pwin_set_enabled(w);
 }
 
 
@@ -163,9 +184,9 @@ reset_mask:
 	return 0;
 }
 
-/** Tries to move to the previous ppack, jumping to the previous pblock if
- * necessary. If no more ppacks are available returns 1, otherwise returns 0. If
- * the displacement is successful the masks are reset. */
+/** Tries to move to the previous ppack, jumping to the previous pblock
+  if * necessary. If no more ppacks are available returns 1, otherwise
+  returns 0. If * the displacement is successful the masks are reset. */
 static int
 pwin_prev(pwin_t *w)
 {
@@ -178,7 +199,10 @@ pwin_prev(pwin_t *w)
 
 	/* If we are at the beginning, cannot continue */
 	if(w->l->b == w->b)
+	{
+		dbg("FATAL: We cannot move back, already at the beginning\n");
 		return 1;
+	}
 
 	/* Otherwise move to the previous block */
 	w->b = w->b->prev;
@@ -207,7 +231,7 @@ move_particle(pwin_t *wsrc, size_t isrc, pwin_t *wdst, size_t idst)
 	src = &wsrc->b->p[wsrc->ip];
 	dst = &wdst->b->p[wdst->ip];
 
-	//dbg("moving particle isrc=%ld idst=%ld\n", isrc, idst);
+	dbg("moving particle isrc=%ld idst=%ld\n", isrc, idst);
 
 	dst->i[idst] = src->i[isrc];
 
@@ -236,8 +260,8 @@ transfer(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
 	idst = 0;
 	moved = 0;
 
-	//dbg("transfer src_mask=%x, dst_mask=%x\n",
-	//		vmsk_get(*src_sel), vmsk_get(*dst_sel));
+	dbg("transfer src_mask=%llx, dst_mask=%llx\n",
+			vmsk_get(*src_sel), vmsk_get(*dst_sel));
 
 	assert(vmsk_isany(*dst_sel));
 	assert(vmsk_isany(*src_sel));
@@ -306,9 +330,8 @@ queue_step_window(pwin_t *q)
 	}
 
 	/* Enable all slots in the ppack */
-	/* TODO: Use varying bits depending on the vec size */
-	vmsk_set(q->sel, 0x0f);
-	vmsk_set(q->enabled, 0x0f);
+	q->sel = vmsk_ones();
+	q->enabled = vmsk_ones();
 
 	assert(vmsk_isany(q->enabled));
 }
@@ -438,7 +461,12 @@ update_masks(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 	w->sel = vor(w->mx0, w->mx1);
 
 	if(invert_sel)
+	{
 		w->sel = vnot(w->sel);
+
+		/* Remove not available elements also here */
+		w->sel = vand(w->sel, w->enabled);
+	}
 }
 
 /** Produce holes in A by moving lost particles to the queues */
@@ -458,10 +486,9 @@ produce_holes_A(exchange_t *ex)
 	if(vmsk_isany(A->sel))
 		goto exit;
 
-	/* TODO: Check why in the first iteration A != B */
-	do
+	while(!pwin_equal(A, B))
 	{
-		dbg("A->ip = %ld\n", A->ip);
+		dbg("A: analyzing ppack at ip=%ld\n", A->ip);
 
 		/* Look for holes to fill */
 		update_masks(A, ex->c->x0, ex->c->x1, 0);
@@ -472,19 +499,21 @@ produce_holes_A(exchange_t *ex)
 		/* If we have some holes, stop */
 		if(vmsk_isany(A->sel))
 		{
-			dbg("produce_holes_A found some holes at ip=%ld\n",
+			dbg("A: found some holes at ip=%ld\n",
 					A->ip);
+			dbg("A: sel=%llx  enabled=%llx\n",
+					vmsk_get(A->sel),
+					vmsk_get(A->enabled));
 			break;
 		}
 
-		//dbg("produce_holes_A: no holes found at ip=%ld, moving to the next ppack\n",
-		//		A->ip);
+		dbg("A: no holes found at ip=%ld, moving to the next ppack\n",
+				A->ip);
 
 		/* Otherwise slide the window and continue the search */
 		if(pwin_next(A))
 			break;
 	}
-	while(!pwin_equal(A, B));
 
 exit:
 	assert(vmsk_isany(A->sel) || pwin_equal(A, B));
@@ -511,10 +540,14 @@ produce_extra_B(exchange_t *ex)
 
 	while(!pwin_equal(A, B))
 	{
-		dbg("B->ip = %ld\n", B->ip);
+		dbg("B: analyzing ppack at ip=%ld\n", B->ip);
 
 		/* Look for lost particles */
 		update_masks(B, ex->c->x0, ex->c->x1, 1);
+
+		dbg("B: after update_masks sel=%llx  enabled=%llx\n",
+				vmsk_get(B->sel),
+				vmsk_get(B->enabled));
 
 		/* Remove any lost particles to the queues */
 		moved += clean_lost(B, q0, q1);
@@ -526,11 +559,14 @@ produce_extra_B(exchange_t *ex)
 		/* Check if we have some extra particles in B */
 		if(vmsk_isany(B->sel))
 		{
-			dbg("extra particles found at ip=%ld\n", B->ip);
+			dbg("B: extra particles found at ip=%ld\n", B->ip);
+			dbg("B: sel=%llx  enabled=%llx\n",
+					vmsk_get(B->sel),
+					vmsk_get(B->enabled));
 			break;
 		}
 
-		//dbg("moving to the previous ppack\n");
+		dbg("B: moving to the previous ppack\n");
 
 		/* Otherwise slide the window and continue the search */
 		pblock_update_n(B->l->b->prev, B->ip * MAX_VEC);
@@ -562,8 +598,16 @@ fill_holes(exchange_t *ex)
 	if(pwin_equal(A, B))
 		return;
 
+	dbg("Before transfer A:sel=%llx,ip=%zd  B:sel=%llx,ip=%zd\n",
+			vmsk_get(A->sel), A->ip,
+			vmsk_get(B->sel), B->ip);
+
 	/* First fill some holes in A with particles from B */
 	transfer(B, &B->sel, A, &A->sel);
+
+	dbg("After transfer A:sel=%llx,ip=%zd  B:sel=%llx,ip=%zd\n",
+			vmsk_get(A->sel), A->ip,
+			vmsk_get(B->sel), B->ip);
 
 	/* At least one window must be complete */
 	assert(vmsk_iszero(A->sel) || vmsk_iszero(B->sel));
@@ -574,7 +618,14 @@ fill_holes(exchange_t *ex)
 		pwin_next(A);
 
 	if(vmsk_iszero(B->sel))
-		pwin_prev(B);
+		if(pwin_prev(B))
+			abort();
+
+	dbg("After window move A:sel=%llx,ip=%zd  B:sel=%llx,ip=%zd\n",
+			vmsk_get(A->sel), A->ip,
+			vmsk_get(B->sel), B->ip);
+
+	assert(vmsk_isany(B->enabled));
 }
 
 static void
@@ -588,8 +639,8 @@ queue_init(plist_t *q, pwin_t *qw)
 
 	/* Also, set the enabled and sel bits */
 	/* TODO: Use proper variable init */
-	vmsk_ones(qw->sel);
-	vmsk_ones(qw->enabled);
+	qw->sel = vmsk_ones();
+	qw->enabled = vmsk_ones();
 }
 
 static size_t
@@ -624,9 +675,9 @@ collect_pass(exchange_t *ex, pchunk_t *c, pset_t *set)
 	dbg("      collect_pass complete\n");
 	dbg("-----------------------------------\n");
 
-	/* TODO: Now deal with the A == B case */
-
 	err("Total holes filled: %ld\n", moved);
+
+	/* TODO: Now deal with the A == B case */
 
 	return moved;
 }
