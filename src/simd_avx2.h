@@ -139,6 +139,18 @@ vmsk_zero()
 	return _mm256_set1_epi64x(0);
 }
 
+static inline vmsk
+vmsk_xor(vmsk a, vmsk b)
+{
+	return _mm256_xor_si256(a, b);
+}
+
+static inline vmsk
+vmsk_and(vmsk a, vmsk b)
+{
+	return _mm256_and_si256(a, b);
+}
+
 /* We perform the AND operation to emulate the masked CMP of AVX512 */
 #define vcmp_mask(k, a, b, f)	vand(k, vcmp(a, b, f))
 

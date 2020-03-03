@@ -41,6 +41,10 @@ struct pwin
 
 	/** Particles that exceed x1 */
 	vmsk mx1;
+
+	/** Set to zero if the sel mask doesn't corresponds to the
+	 * actual window position. Is non-zero otherwise. */
+	int dirty_sel;
 };
 
 typedef struct pwin pwin_t;
@@ -66,6 +70,31 @@ typedef struct exchange
 	/* TODO: The number of particles moved */
 	//size_t nmoved;
 } exchange_t;
+
+static void
+pwin_print(pwin_t *w, const char *name)
+{
+	size_t iv;
+	char selc[2] = {' ', '*'};
+
+	dbg("%s: b=%p ip=%zd sel=[", name, w->b, w->ip);
+
+	if(w->dirty_sel)
+	{
+		selc[0] = '?';
+		selc[1] = '?';
+	}
+
+	for(iv=0; iv<MAX_VEC; iv++)
+		dbgr("%c", w->sel[iv] == 0 ? selc[0] : selc[1]);
+
+	dbgr("] enabled=[");
+
+	for(iv=0; iv<MAX_VEC; iv++)
+		dbgr("%c", w->enabled[iv] == 0 ? ' ' : '*');
+
+	dbgr("]\n");
+}
 
 /** Sets the enabled mask accordingly to the elements in the ppack
  * pointed by the pwin */
@@ -117,6 +146,7 @@ pwin_reset_masks(pwin_t *w)
 	w->mx0 = vmsk_zero();
 	w->mx1 = vmsk_zero();
 	w->enabled = vmsk_zero();
+	w->dirty_sel = 1;
 
 	pwin_set_enabled(w);
 }
@@ -396,7 +426,7 @@ clean_lost(pwin_t *w, pwin_t *q0, pwin_t *q1)
  * in sel are any of mx0 or mx1 that leave the pchunk, or if invert_sel is *
  enabled, the ones that remain in the pchunk. */
 static void
-update_masks(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
+update_sel(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 {
 	size_t d;
 	ppack_t *p;
@@ -425,7 +455,7 @@ update_masks(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 	w->mx0 = vand(w->mx0, w->enabled);
 	w->mx1 = vand(w->mx1, w->enabled);
 
-	//dbg("update_masks mx0 = %x, mx1 = %x\n",
+	//dbg("update_sel mx0 = %x, mx1 = %x\n",
 	//		vmsk_get(w->mx0), vmsk_get(w->mx1));
 
 //#ifndef NDEBUG
@@ -467,6 +497,8 @@ update_masks(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 		/* Remove not available elements also here */
 		w->sel = vand(w->sel, w->enabled);
 	}
+
+	w->dirty_sel = 0;
 }
 
 /** Produce holes in A by moving lost particles to the queues */
@@ -491,7 +523,10 @@ produce_holes_A(exchange_t *ex)
 		dbg("A: analyzing ppack at ip=%ld\n", A->ip);
 
 		/* Look for holes to fill */
-		update_masks(A, ex->c->x0, ex->c->x1, 0);
+		update_sel(A, ex->c->x0, ex->c->x1, 0);
+
+		dbg("A: After update_sel\n");
+		pwin_print(A, "A");
 
 		/* Remove any lost particles to the queues */
 		moved += clean_lost(A, q0, q1);
@@ -543,11 +578,10 @@ produce_extra_B(exchange_t *ex)
 		dbg("B: analyzing ppack at ip=%ld\n", B->ip);
 
 		/* Look for lost particles */
-		update_masks(B, ex->c->x0, ex->c->x1, 1);
+		update_sel(B, ex->c->x0, ex->c->x1, 1);
 
-		dbg("B: after update_masks sel=%llx  enabled=%llx\n",
-				vmsk_get(B->sel),
-				vmsk_get(B->enabled));
+		dbg("B: After update_sel\n");
+		pwin_print(B, "B");
 
 		/* Remove any lost particles to the queues */
 		moved += clean_lost(B, q0, q1);
@@ -598,34 +632,58 @@ fill_holes(exchange_t *ex)
 	if(pwin_equal(A, B))
 		return;
 
-	dbg("Before transfer A:sel=%llx,ip=%zd  B:sel=%llx,ip=%zd\n",
-			vmsk_get(A->sel), A->ip,
-			vmsk_get(B->sel), B->ip);
+	dbg("Before transfer\n");
+	pwin_print(A, "A");
+	pwin_print(B, "B");
 
 	/* First fill some holes in A with particles from B */
 	transfer(B, &B->sel, A, &A->sel);
 
-	dbg("After transfer A:sel=%llx,ip=%zd  B:sel=%llx,ip=%zd\n",
-			vmsk_get(A->sel), A->ip,
-			vmsk_get(B->sel), B->ip);
+	dbg("After transfer\n");
+	pwin_print(A, "A");
+	pwin_print(B, "B");
 
 	/* At least one window must be complete */
 	assert(vmsk_iszero(A->sel) || vmsk_iszero(B->sel));
+}
+
+/** Slide the window A forward and B backwards if they can be advanced
+ * (the sel mask is empty) and they don't cross each other */
+static void
+slide_windows(exchange_t *ex)
+{
+	pwin_t *A, *B;
+
+	A = &ex->A;
+	B = &ex->B;
+
+	/* Not needed if they are already the same */
+	if(pwin_equal(A, B))
+		return;
+
+	dbg("Before slide_windows\n");
+	pwin_print(A, "A");
+	pwin_print(B, "B");
 
 	/* Then advance the windows if there are no more holes or extra
 	 * particles left */
 	if(vmsk_iszero(A->sel))
+	{
 		pwin_next(A);
+
+		/* Check for A == B after the A move */
+		if(pwin_equal(A, B))
+			return;
+	}
+
 
 	if(vmsk_iszero(B->sel))
 		if(pwin_prev(B))
 			abort();
 
-	dbg("After window move A:sel=%llx,ip=%zd  B:sel=%llx,ip=%zd\n",
-			vmsk_get(A->sel), A->ip,
-			vmsk_get(B->sel), B->ip);
-
-	assert(vmsk_isany(B->enabled));
+	dbg("After slide_windows\n");
+	pwin_print(A, "A");
+	pwin_print(B, "B");
 }
 
 static void
@@ -644,6 +702,74 @@ queue_init(plist_t *q, pwin_t *qw)
 }
 
 static size_t
+finish_pass(exchange_t *ex)
+{
+	pwin_t *A, *B, *q0, *q1;
+	size_t moved, count;
+	vmsk S, D, X, F, T;
+	unsigned long long s, d;
+
+	moved = 0;
+	A = &ex->A;
+	B = &ex->B;
+	q0 = &ex->q0;
+	q1 = &ex->q1;
+
+	assert(pwin_equal(A, B));
+
+	if(B->dirty_sel)
+	{
+		/* First identify any lost particles that must leave the
+		 * chunk */
+		update_sel(B, ex->c->x0, ex->c->x1, 1);
+		pwin_print(B, "B");
+	}
+
+	/* Now remove them to the queues, if any */
+	moved += clean_lost(B, q0, q1);
+
+	/* If no particles left, we have finished */
+	if(vmsk_iszero(B->sel))
+		goto finish;
+
+	/* Now we may have some holes, so we need to compact the ppack,
+	 * so all particles are placed at the left. */
+
+	S = B->sel;
+
+	s = vmsk_get(S);
+	count = __builtin_popcountll(s);
+
+	assert(sizeof(unsigned long long) == 8);
+
+	d = (-1ULL) >> (64 - count);
+	D = vmsk_set(d);
+
+	/* The same same of ones */
+	assert(count == __builtin_popcountll(d));
+
+	X = vmsk_xor(S, D);
+
+	if(vmsk_isany(X))
+	{
+		F = vmsk_and(S, X);
+		T = vmsk_and(D, X);
+
+		dbg("Computed F=%llx T=%llx b->n=%zd\n",
+				vmsk_get(F), vmsk_get(T), B->b->n);
+
+		moved += transfer(B, &F, B, &T);
+		dbg("After transfer F=%llx T=%llx  b->n=%zd\n",
+				vmsk_get(F), vmsk_get(T), B->b->n);
+	}
+
+	pblock_update_n(B->b, B->ip * MAX_VEC + count);
+
+finish:
+	return moved;
+}
+
+static size_t
 collect_pass(exchange_t *ex, pchunk_t *c, pset_t *set)
 {
 	size_t moved;
@@ -656,24 +782,36 @@ collect_pass(exchange_t *ex, pchunk_t *c, pset_t *set)
 	while(!pwin_equal(&ex->A, &ex->B))
 	{
 		/* Search for extra particles in B */
-		dbg("--- produce_extra_B begins --- \n");
+		dbg("--- produce_extra_B begins ---\n");
 		moved += produce_extra_B(ex);
 		dbg("--- produce_extra_B ends ---\n");
 
 		/* Search for holes in A */
-		dbg("--- produce_holes_A begins --- \n");
+		dbg("--- produce_holes_A begins ---\n");
 		moved += produce_holes_A(ex);
 		dbg("--- produce_holes_A ends ---\n");
 
 		/* Fill holes with extra particles */
-		dbg("--- fill_holes begins --- \n");
+		dbg("--- fill_holes begins ---\n");
 		fill_holes(ex);
-		dbg("--- fill_holes ends --- \n");
+		dbg("--- fill_holes ends ---\n");
+
+		/* Slide windows if possible */
+		dbg("--- slide_windows begins ---\n");
+		slide_windows(ex);
+		dbg("--- slide_windows ends ---\n");
+
 	}
+
+	dbg("=== finish_pass begins ===\n");
+	moved += finish_pass(ex);
+	dbg("=== finish_pass ends ===\n");
 
 	dbg("-----------------------------------\n");
 	dbg("      collect_pass complete\n");
 	dbg("-----------------------------------\n");
+
+
 
 	err("Total holes filled: %ld\n", moved);
 
