@@ -552,6 +552,7 @@ produce_holes_A(exchange_t *ex)
 
 exit:
 	assert(vmsk_isany(A->sel) || pwin_equal(A, B));
+	dbg("A: %zd particles out\n", moved);
 	return moved;
 }
 
@@ -603,7 +604,8 @@ produce_extra_B(exchange_t *ex)
 		dbg("B: moving to the previous ppack\n");
 
 		/* Otherwise slide the window and continue the search */
-		pblock_update_n(B->l->b->prev, B->ip * MAX_VEC);
+		//pblock_update_n(B->l->b->prev, B->ip * MAX_VEC); Set
+		//at the end.
 		ret = pwin_prev(B);
 
 		/* We cannot reach the beginning of the list before getting into
@@ -614,30 +616,33 @@ produce_extra_B(exchange_t *ex)
 
 exit:
 	assert(vmsk_isany(B->sel) || pwin_equal(A, B));
+
+	dbg("B: %zd particles out\n", moved);
 	return moved;
 }
 
 
 /** Transfer all posible particles from B to fill the holes in A. No moves to
  * any queue are performed here as both windows must be clean */
-static void
+static size_t
 fill_holes(exchange_t *ex)
 {
 	pwin_t *A, *B;
+	size_t moved;
 
 	A = &ex->A;
 	B = &ex->B;
 
 	/* Abort the transfer if we have the same windows */
 	if(pwin_equal(A, B))
-		return;
+		return 0;
 
 	dbg("Before transfer\n");
 	pwin_print(A, "A");
 	pwin_print(B, "B");
 
 	/* First fill some holes in A with particles from B */
-	transfer(B, &B->sel, A, &A->sel);
+	moved = transfer(B, &B->sel, A, &A->sel);
 
 	dbg("After transfer\n");
 	pwin_print(A, "A");
@@ -645,6 +650,9 @@ fill_holes(exchange_t *ex)
 
 	/* At least one window must be complete */
 	assert(vmsk_iszero(A->sel) || vmsk_iszero(B->sel));
+
+	dbg("%zd holes filled\n", moved);
+	return moved;
 }
 
 /** Slide the window A forward and B backwards if they can be advanced
@@ -701,8 +709,8 @@ queue_init(plist_t *q, pwin_t *qw)
 	qw->enabled = vmsk_ones();
 }
 
-static size_t
-finish_pass(exchange_t *ex)
+static void
+finish_pass(exchange_t *ex, size_t *in, size_t *out)
 {
 	pwin_t *A, *B, *q0, *q1;
 	size_t moved, count;
@@ -717,20 +725,43 @@ finish_pass(exchange_t *ex)
 
 	assert(pwin_equal(A, B));
 
-	if(B->dirty_sel)
+	/* If the window was already analyzed, don't move the particles
+	 * to the queues */
+	if(B->dirty_sel && A->dirty_sel)
 	{
 		/* First identify any lost particles that must leave the
 		 * chunk */
 		update_sel(B, ex->c->x0, ex->c->x1, 1);
 		pwin_print(B, "B");
+
+		/* Now remove them to the queues, if any */
+		(*out) += clean_lost(B, q0, q1);
+		dbg("After clean_lost\n");
+		pwin_print(B, "B");
+	}
+	else
+	{
+		dbg("No sel update required\n");
 	}
 
-	/* Now remove them to the queues, if any */
-	moved += clean_lost(B, q0, q1);
+	/* Set the selection from A to B, if it was already set */
+	if(!A->dirty_sel)
+	{
+		dbg("Reusing A sel\n");
+		B->sel = vnot(A->sel);
+	}
+	else
+	{
+		dbg("Reusing B sel\n");
+	}
 
 	/* If no particles left, we have finished */
 	if(vmsk_iszero(B->sel))
-		goto finish;
+	{
+		dbg("No particles remaining in the ppack\n");
+		count = 0;
+		goto fix_size;
+	}
 
 	/* Now we may have some holes, so we need to compact the ppack,
 	 * so all particles are placed at the left. */
@@ -758,23 +789,32 @@ finish_pass(exchange_t *ex)
 		dbg("Computed F=%llx T=%llx b->n=%zd\n",
 				vmsk_get(F), vmsk_get(T), B->b->n);
 
-		moved += transfer(B, &F, B, &T);
-		dbg("After transfer F=%llx T=%llx  b->n=%zd\n",
-				vmsk_get(F), vmsk_get(T), B->b->n);
+		(*in) += transfer(B, &F, B, &T);
+		dbg("After transfer F=%llx T=%llx\n",
+				vmsk_get(F), vmsk_get(T));
+	}
+	else
+	{
+		dbg("No reorder required\n");
 	}
 
-	pblock_update_n(B->b, B->ip * MAX_VEC + count);
+fix_size:
 
-finish:
-	return moved;
+	pblock_update_n(B->b, B->ip * MAX_VEC + count);
+	dbg("Final size set to b->n=%zd\n", B->b->n);
 }
 
 static size_t
 collect_pass(exchange_t *ex, pchunk_t *c, pset_t *set)
 {
-	size_t moved;
+	size_t n0;
+	size_t moved_out, moved_in;
 
-	moved = 0;
+	moved_out = 0;
+	moved_in = 0;
+
+	/* TODO: count all the particles in all the blocks */
+	n0 = set->list.b->n;
 
 	pwin_first(&set->list, &ex->A);
 	pwin_last(&set->list, &ex->B);
@@ -783,17 +823,17 @@ collect_pass(exchange_t *ex, pchunk_t *c, pset_t *set)
 	{
 		/* Search for extra particles in B */
 		dbg("--- produce_extra_B begins ---\n");
-		moved += produce_extra_B(ex);
+		moved_out += produce_extra_B(ex);
 		dbg("--- produce_extra_B ends ---\n");
 
 		/* Search for holes in A */
 		dbg("--- produce_holes_A begins ---\n");
-		moved += produce_holes_A(ex);
+		moved_out += produce_holes_A(ex);
 		dbg("--- produce_holes_A ends ---\n");
 
 		/* Fill holes with extra particles */
 		dbg("--- fill_holes begins ---\n");
-		fill_holes(ex);
+		moved_in += fill_holes(ex);
 		dbg("--- fill_holes ends ---\n");
 
 		/* Slide windows if possible */
@@ -804,20 +844,19 @@ collect_pass(exchange_t *ex, pchunk_t *c, pset_t *set)
 	}
 
 	dbg("=== finish_pass begins ===\n");
-	moved += finish_pass(ex);
+	finish_pass(ex, &moved_in, &moved_out);
 	dbg("=== finish_pass ends ===\n");
+
+	err("Total moved out %zd, moved in %zd\n",
+			moved_out, moved_in);
 
 	dbg("-----------------------------------\n");
 	dbg("      collect_pass complete\n");
 	dbg("-----------------------------------\n");
 
+	assert(n0 == set->list.b->n + moved_out);
 
-
-	err("Total holes filled: %ld\n", moved);
-
-	/* TODO: Now deal with the A == B case */
-
-	return moved;
+	return moved_out + moved_in;
 }
 
 static void
