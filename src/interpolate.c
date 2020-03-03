@@ -309,9 +309,9 @@ interpolate_p2f_rho(sim_t *sim, pchunk_t *c, pset_t *set)
 	{
 		/* FIXME: We cannot exceed the number of particles here,
 		 * otherwise we write garbage into rho */
-		for(i=0; i < b->npacks; i++)
+		for(i=0; i < b->nfpacks; i++)
 		{
-			//dbg("i = %zd / %zd\n", i, b->npacks);
+			dbg("i = %zd / %zd\n", i, b->npacks);
 			p = &b->p[i];
 			interpolate_p2f(c, blocksize, ghostsize,
 					dx, idx, p->r, fx0, vq, rho);

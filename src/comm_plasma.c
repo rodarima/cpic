@@ -387,9 +387,15 @@ queue_selected(pwin_t *w, vmsk *w_mask, pwin_t *q)
 
 		assert(vmsk_iszero(*w_mask) || vmsk_iszero(q->sel));
 
+		/* Add the particles to the count */
+
 		/* We may need to advance the queue window */
 		if(vmsk_iszero(q->sel))
+		{
+			dbg("Growing the queue\n");
 			queue_step_window(q);
+			dbg("Queue has now n=%zd particles\n", q->b->n);
+		}
 
 		assert(vmsk_isany(q->sel));
 
@@ -681,13 +687,14 @@ slide_windows(exchange_t *ex)
 
 		/* Check for A == B after the A move */
 		if(pwin_equal(A, B))
-			return;
+			goto end;
 	}
-
 
 	if(vmsk_iszero(B->sel))
 		if(pwin_prev(B))
 			abort();
+
+end:
 
 	dbg("After slide_windows\n");
 	pwin_print(A, "A");
@@ -710,6 +717,23 @@ queue_init(plist_t *q, pwin_t *qw)
 }
 
 static void
+queue_close(pwin_t *q)
+{
+	unsigned long long mask, count;
+
+	mask = vmsk_get(q->sel);
+	count = __builtin_popcountll(mask);
+
+	q->b->n -= count;
+
+	/* FIXME: Should we leave the block if there are no particles?
+	 * */
+	assert(q->b->n >= 0);
+
+	q->sel = vmsk_zero();
+}
+
+static void
 finish_pass(exchange_t *ex, size_t *in, size_t *out)
 {
 	pwin_t *A, *B, *q0, *q1;
@@ -722,6 +746,11 @@ finish_pass(exchange_t *ex, size_t *in, size_t *out)
 	B = &ex->B;
 	q0 = &ex->q0;
 	q1 = &ex->q1;
+
+	/* Ensure the number of particles in the pblock equals the
+	 * actual number of particles in the queue */
+	queue_close(q0);
+	queue_close(q1);
 
 	assert(pwin_equal(A, B));
 
@@ -847,22 +876,30 @@ collect_pass(exchange_t *ex, pchunk_t *c, pset_t *set)
 	finish_pass(ex, &moved_in, &moved_out);
 	dbg("=== finish_pass ends ===\n");
 
-	err("Total moved out %zd, moved in %zd\n",
-			moved_out, moved_in);
-
 	dbg("-----------------------------------\n");
 	dbg("      collect_pass complete\n");
+	dbg(" Total moved out %zd, moved in %zd\n",
+			moved_out, moved_in);
+	dbg(" qx0 n=%zd, qx1 n=%zd\n",
+			set->qx0.b->n,
+			set->qx1.b->n);
 	dbg("-----------------------------------\n");
 
 	assert(n0 == set->list.b->n + moved_out);
 
-	return moved_out + moved_in;
+	if(moved_out == 0)
+		assert(moved_in == 0);
+
+	/* We are only interested in the particles moved to the queues
+	 * */
+	return moved_out;
 }
 
-static void
+static size_t
 local_collect_x(pchunk_t *c, pset_t *set, int global_exchange)
 {
 	exchange_t ex;
+	size_t collected;
 
 	ex.c = c;
 	ex.set = set;
@@ -873,38 +910,174 @@ local_collect_x(pchunk_t *c, pset_t *set, int global_exchange)
 	assert(vmsk_isany(ex.q0.sel));
 	assert(vmsk_isany(ex.q1.sel));
 
-	collect_pass(&ex, c, set);
+	collected = collect_pass(&ex, c, set);
 	assert(collect_pass(&ex, c, set) == 0);
+
+	return collected;
+}
+
+static void
+move_ppack(pwin_t *wsrc, pwin_t *wdst)
+{
+	size_t d;
+	ppack_t *src, *dst;
+
+	src = &wsrc->b->p[wsrc->ip];
+	dst = &wdst->b->p[wdst->ip];
+
+	dbg("moving ppack ip=%zd to ip=%zd\n",
+			wsrc->ip, wdst->ip);
+
+	dst->i = src->i;
+
+	for(d=X; d<MAX_VEC; d++)
+		dst->r[d] = src->r[d];
+
+	for(d=X; d<MAX_VEC; d++)
+		dst->u[d] = src->u[d];
+
+	for(d=X; d<MAX_VEC; d++)
+		dst->E[d] = src->E[d];
+
+	for(d=X; d<MAX_VEC; d++)
+		dst->B[d] = src->B[d];
+
+}
+
+static void
+inject_particles(plist_t *src, plist_t *dst)
+{
+	pwin_t S, D, E;
+
+	pwin_first(src, &S);
+	pwin_last(src, &E);
+	pwin_last(dst, &D);
+
+	if(S.b->n == 0)
+		return;
+
+	dbg("S.b->n=%zd, E.b->n=%zd\n",
+			S.b->n, E.b->n);
+
+	assert(!pwin_equal(&S, &E));
+
+	/* Skip the last ppack in src, and deal with it later, as it may
+	 * be non-full */
+	pwin_next(&S);
+
+	while(!pwin_equal(&S, &E))
+	{
+		dbg("Before move_ppack\n");
+		pwin_print(&S, "S");
+		pwin_print(&E, "E");
+
+		move_ppack(&S, &D);
+
+		dbg("After move_ppack\n");
+		pwin_print(&S, "S");
+		pwin_print(&E, "E");
+
+		pwin_next(&S);
+		pwin_next(&D);
+	}
+}
+
+static void
+exchange_particles_x(sim_t *sim,
+		pchunk_t *c, pchunk_t *cp, pchunk_t *cn)
+{
+	size_t is;
+	pset_t *from, *to;
+
+	dbg("Filling chunk %p\n", c);
+
+	/* Move particles from cp to c */
+	for(is=0; is < sim->nspecies; is++)
+	{
+		from = &cp->species[is];
+		to = &c->species[is];
+
+		/* Use the particles that exceed the chunk in positive
+		 * direction, placed in qx1 */
+		inject_particles(&from->qx1, &to->list);
+	}
+
+	/* Move particles from cn to c */
+	for(is=0; is < sim->nspecies; is++)
+	{
+		from = &cn->species[is];
+		to = &c->species[is];
+
+		/* Use the particles that exceed the chunk in negative
+		 * direction, placed in qx0 */
+		inject_particles(&from->qx0, &to->list);
+	}
+
 }
 
 int
 comm_plasma_x(sim_t *sim, int global_exchange)
 {
-	size_t ic, is;
+	size_t ic, is, icp, icn, nc;
+	size_t *collected, all_collected;
 	plasma_t *plasma;
-	pchunk_t *c;
+	pchunk_t *c, *cp, *cn;
 	pset_t *set;
 
 	plasma = &sim->plasma;
+	collected = safe_malloc(sizeof(size_t) * plasma->nchunks);
+	all_collected = 0;
 
 	dbg("comm_plasma_x begins\n");
 
 	if(global_exchange)
-	{
 		err("EXPERIMENTAL: global_exchange = 1\n");
-	}
 
-	for(ic = 0; ic < plasma->nchunks; ic++)
+	nc = plasma->nchunks;
+
+	do
 	{
-		c = &plasma->chunks[ic];
-		/* Find particles that must be exchanged in the X dimension */
-		#pragma oss task inout(*chunk) label(collect_particles_x)
-		for(is = 0; is < sim->nspecies; is++)
+		for(ic = 0; ic < plasma->nchunks; ic++)
 		{
-			set = &c->species[is];
-			local_collect_x(c, set, global_exchange);
+			c = &plasma->chunks[ic];
+			/* Find particles that must be exchanged in the X dimension */
+			#pragma oss task inout(*chunk) label(collect_particles_x)
+			for(is = 0; is < sim->nspecies; is++)
+			{
+				set = &c->species[is];
+				collected[ic] = local_collect_x(c, set, global_exchange);
+			}
+		}
+
+		/* FIXME: This introduces a barrier which we may want to
+		 * avoid */
+		#pragma oss task inout(plasma->chunks[0:N])
+		for(ic = 0; ic < plasma->nchunks; ic++)
+		{
+			all_collected += collected[ic];
+		}
+
+		/* No need to perform the exchange phase if no particles
+		 * were collected */
+		if(!all_collected)
+			break;
+
+		for(ic = 0; ic < nc; ic++)
+		{
+			c = &plasma->chunks[ic];
+
+			icp = (c->ig[X] - 1 + nc) % nc;
+			icn = (c->ig[X] + 1) % nc;
+
+			cp = &plasma->chunks[icp];
+			cn = &plasma->chunks[icn];
+
+			#pragma oss task commutative(*c, *cp, *cn) \
+					label(exchange_particles_x)
+			exchange_particles_x(sim, c, cp, cn);
 		}
 	}
+	while(global_exchange && all_collected);
 
 	dbg("comm_plasma_x ends\n");
 
@@ -929,4 +1102,3 @@ comm_plasma(sim_t *sim, int global_exchange)
 
 	return 0;
 }
-
