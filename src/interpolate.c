@@ -9,7 +9,7 @@
 static inline void
 linear_interpolation(vf64 rel[2], vf64 w[2][2])
 {
-	size_t iv;
+	i64 iv;
 	vf64 del[2];
 
 	for(iv=0; iv<MAX_VEC; iv++)
@@ -36,7 +36,7 @@ linear_interpolation(vf64 rel[2], vf64 w[2][2])
 static inline vf64
 relative_position_grid(vf64 x0, vf64 x, vf64 dx, vf64 idx, vi64 i0[1])
 {
-	size_t iv;
+	i64 iv;
 	vf64 rel;
 	vf64 block_delta, block_rel, block_start, grid_delta;
 
@@ -76,7 +76,7 @@ static inline void
 weights(vf64 x[2], vf64 dx[2], vf64 idx[2], vf64 fx0[2],
 		vf64 w[2][2], vi64 i0[2])
 {
-	size_t iv;
+	i64 iv;
 	vf64 delta_grid[2];
 
 	delta_grid[X] = relative_position_grid(
@@ -104,7 +104,7 @@ interpolate_f2p(vi64 blocksize[2], vi64 ghostsize[2],
 {
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
-	size_t iv;
+	i64 iv;
 
 	weights(x, dx, idx, fx0, w, i0);
 
@@ -156,13 +156,13 @@ interpolate_f2p(vi64 blocksize[2], vi64 ghostsize[2],
  * vectorized elements in the pchunk? */
 static inline void
 interpolate_p2f(pchunk_t *c,
-		vi64 blocksize[2], vi64 ghostsize[2],
+		vi64 blocksize[2],
 		vf64 dx[2], vf64 idx[2], vf64 x[2],
 		vf64 fx0[2], vf64 q, mat_t *mat)
 {
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
-	size_t iv;
+	i64 iv;
 
 //	dbg("Interpolate ppack x[X]="VFMT" x[Y]="VFMT"\n",
 //			VARG(x[X]), VARG(x[Y]));
@@ -282,7 +282,7 @@ interpolate_p2f_rho(sim_t *sim, pchunk_t *c, pset_t *set)
 	plist_t *l;
 	mat_t *rho;
 	specie_t *sp;
-	size_t i, iv;
+	i64 i, iv;
 	vi64 blocksize[2], ghostsize[2];
 	vf64 dx[2], fx0[2], idx[2], vq;
 
@@ -313,7 +313,7 @@ interpolate_p2f_rho(sim_t *sim, pchunk_t *c, pset_t *set)
 		{
 			dbg("i = %zd / %zd\n", i, b->npacks);
 			p = &b->p[i];
-			interpolate_p2f(c, blocksize, ghostsize,
+			interpolate_p2f(c, blocksize,
 					dx, idx, p->r, fx0, vq, rho);
 		}
 	}
@@ -334,7 +334,7 @@ interpolate_p2f_rho(sim_t *sim, pchunk_t *c, pset_t *set)
 			vq[iv] = 0.0;
 			dbg("Setting vq[%ld] to zero\n", iv);
 		}
-		interpolate_p2f(c, blocksize, ghostsize,
+		interpolate_p2f(c, blocksize,
 				dx, idx, p->r, fx0, vq, rho);
 	}
 	dbg("interpolate_p2f_rho ends\n");
@@ -347,11 +347,11 @@ interpolate_f2p_E(sim_t *sim, plist_t *l, double _fx0[2])
 	pblock_t *b;
 	ppack_t *p;
 	field_t *f;
-	size_t i, nvec;
+	i64 i, nvec;
 	vi64 blocksize[2], ghostsize[2];
 	vf64 dx[2], fx0[2], idx[2];
 
-	dbg("Sim blocksize=(%d %d)\n",
+	dbg("Sim blocksize=(%zu %zu)\n",
 			sim->blocksize[X], sim->blocksize[Y]);
 
 	blocksize[X] = vi64_set1((long long) sim->blocksize[X]);

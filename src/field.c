@@ -20,12 +20,12 @@
 int
 field_init(sim_t *sim, field_t *f)
 {
-	int d, snx, sny, rho_alloc_size;
-	int fshape[MAX_DIM];
-	int rho_shape[MAX_DIM];
-	int phi_shape[MAX_DIM];
-	int E_shape[MAX_DIM];
-	size_t alignment;
+	i64 d, snx, sny, rho_alloc_size;
+	i64 fshape[MAX_DIM];
+	i64 rho_shape[MAX_DIM];
+	i64 phi_shape[MAX_DIM];
+	i64 E_shape[MAX_DIM];
+	i64 alignment;
 
 	dbg("field_init() begins\n");
 
@@ -54,18 +54,18 @@ field_init(sim_t *sim, field_t *f)
 	 * sure that we have:
 	 * 	shape[X] = max(f->ghostshape[X], solver_rho_nx(sim)) */
 	rho_alloc_size = solver_rho_size(sim, &snx, &sny);
-	dbg("The solver wants %d bytes for rho\n", rho_alloc_size);
+	dbg("The solver wants %zu bytes for rho\n", rho_alloc_size);
 
 	if(rho_shape[X] < snx)
 	{
-		dbg("The solver needs %d extra elements of padding in X, total %d\n",
+		dbg("The solver needs %zu extra elements of padding in X, total %zu\n",
 				snx - rho_shape[X], snx);
 		rho_shape[X] = snx;
 	}
 
 	if(rho_shape[Y] < sny)
 	{
-		dbg("The solver needs %d extra elements of padding in Y, total %d\n",
+		dbg("The solver needs %zu extra elements of padding in Y, total %zu\n",
 				sny - rho_shape[Y], sny);
 		rho_shape[Y] = sny;
 	}
@@ -75,7 +75,7 @@ field_init(sim_t *sim, field_t *f)
 	/* RHO field */
 
 
-	dbg("Allocated RHO shape (%d %d %d)\n",
+	dbg("Allocated RHO shape (%zu %zu %zu)\n",
 			rho_shape[X],
 			rho_shape[Y],
 			rho_shape[Z]);
@@ -109,9 +109,9 @@ field_init(sim_t *sim, field_t *f)
 	f->ghostphi[SOUTH] = mat_view(f->_phi,
 			0, f->phi->shape[Y] + PHI_NG_NORTH, phi_shape);
 
-	dbg("blocksize (%d %d %d)\n",
+	dbg("blocksize (%zu %zu %zu)\n",
 			sim->blocksize[X], sim->blocksize[Y], sim->blocksize[Z]);
-	dbg("phi shape (%d %d %d), _phi shape (%d %d %d)\n",
+	dbg("phi shape (%zu %zu %zu), _phi shape (%zu %zu %zu)\n",
 		f->phi->shape[X], f->phi->shape[Y], f->phi->shape[Z],
 		f->_phi->shape[X], f->_phi->shape[Y], f->_phi->shape[Z]);
 
@@ -161,11 +161,11 @@ field_init(sim_t *sim, field_t *f)
 }
 
 int
-rho_reset(sim_t *sim, int i)
+rho_reset(sim_t *sim, i64 i)
 {
 	dbg("rho_reset begins\n");
-	int start[MAX_DIM], end[MAX_DIM];
-	int ix, iy;
+	i64 start[MAX_DIM], end[MAX_DIM];
+	i64 ix, iy;
 	mat_t *_rho, *frontier;
 	field_t *field;
 	pchunk_t *chunk;
@@ -213,9 +213,9 @@ rho_reset(sim_t *sim, int i)
  * particle p, by using an interpolation function. Only the area corresponding
  * with the chunk is updated, which also includes the right neighbour points. */
 int
-rho_update(sim_t *sim, int i)
+rho_update(sim_t *sim, i64 i)
 {
-	int is;
+	i64 is;
 	pchunk_t *chunk;
 
 	chunk = &sim->plasma.chunks[i];
@@ -230,10 +230,10 @@ rho_update(sim_t *sim, int i)
 }
 
 int
-rho_destroy_ghost(sim_t *sim, int i)
+rho_destroy_ghost(sim_t *sim, i64 i)
 {
-	int start[MAX_DIM], end[MAX_DIM];
-	int ix, iy;
+	i64 start[MAX_DIM], end[MAX_DIM];
+	i64 ix, iy;
 	mat_t *_rho;
 	field_t *field;
 	pchunk_t *chunk;
@@ -265,7 +265,7 @@ rho_destroy_ghost(sim_t *sim, int i)
 void
 stage_field_rho(sim_t *sim)
 {
-	int i;
+	i64 i;
 	plasma_t *plasma;
 	pchunk_t *c0, *c1;
 
@@ -351,8 +351,8 @@ stage_field_rho(sim_t *sim)
 int
 field_E_compute(sim_t *sim, pchunk_t *chunk)
 {
-	int ix, iy, x0, x1, y0, y1, nx, ny;
-	int start[MAX_DIM], end[MAX_DIM];
+	i64 ix, iy, x0, x1, y0, y1, nx, ny;
+	i64 start[MAX_DIM], end[MAX_DIM];
 	double dx2, dy2;
 	field_t *f;
 
@@ -444,7 +444,7 @@ stage_field_E(sim_t *sim)
 {
 	plasma_t *plasma;
 	pchunk_t *chunk, *next, *prev;
-	int ic, Nc;
+	i64 ic, Nc;
 
 	#pragma oss task inout(sim->plasma.chunks[0])
 	perf_start(&sim->timers[TIMER_FIELD_E]);

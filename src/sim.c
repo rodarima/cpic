@@ -39,29 +39,26 @@ int
 sim_read_config(sim_t *s)
 {
 	config_t *conf;
-	long long nmax;
-	size_t d;
+	i64 d;
 
 	conf = s->conf;
 
 	/* First set all direct configuration variables */
-	config_lookup_int(conf, "simulation.dimensions", &s->dim);
-	config_lookup_int(conf, "simulation.cycles", &s->cycles);
+	config_lookup_i64(conf, "simulation.dimensions", &s->dim);
+	config_lookup_i64(conf, "simulation.cycles", &s->cycles);
 	config_lookup_float(conf, "simulation.time_step", &s->dt);
 	config_lookup_int(conf, "simulation.random_seed", &s->seed);
 	config_lookup_float(conf, "constants.light_speed", &s->C);
 	config_lookup_float(conf, "constants.vacuum_permittivity", &s->e0);
-	config_lookup_int(conf, "simulation.sampling_period.energy", &s->period_energy);
-	config_lookup_int(conf, "simulation.sampling_period.field", &s->period_field);
-	config_lookup_int(conf, "simulation.sampling_period.particle", &s->period_particle);
+	config_lookup_i64(conf, "simulation.sampling_period.energy", &s->period_energy);
+	config_lookup_i64(conf, "simulation.sampling_period.field", &s->period_field);
+	config_lookup_i64(conf, "simulation.sampling_period.particle", &s->period_particle);
 	config_lookup_float(conf, "simulation.stop_SEM", &s->stop_SEM);
 	config_lookup_int(conf, "simulation.realtime_plot", &s->mode);
 	config_lookup_string(conf, "simulation.solver", &s->solver_method);
-	config_lookup_int(conf, "simulation.enable_fftw_threads", &s->fftw_threads);
-	config_lookup_int(conf, "simulation.plasma_chunks", &s->plasma_chunks);
-	config_lookup_int64(conf, "simulation.pblock_nmax", &nmax);
-
-	s->pblock_nmax = (size_t) nmax;
+	config_lookup_i64(conf, "simulation.enable_fftw_threads", &s->fftw_threads);
+	config_lookup_i64(conf, "simulation.plasma_chunks", &s->plasma_chunks);
+	config_lookup_i64(conf, "simulation.pblock_nmax", &s->pblock_nmax);
 
 	/* Load all dimension related vectors */
 	config_lookup_array_float(conf, "simulation.space_length", s->L, s->dim);
@@ -78,13 +75,6 @@ sim_read_config(sim_t *s)
 	config_lookup_array_int(conf, "grid.points", s->ntpoints, s->dim);
 
 	s->nspecies = config_setting_length(config_lookup(conf, "species"));
-
-	return 0;
-}
-
-int
-sim_validate_config(sim_t *s)
-{
 
 	return 0;
 }
@@ -107,17 +97,17 @@ sim_prepare(sim_t *s, int quiet)
 
 	if((s->ntpoints[Y] % s->nprocs) != 0)
 	{
-		err("The number of grid points in Y %d cannot be divided by the number of processes %d\n",
+		err("The number of grid points in Y %ld cannot be divided by the number of processes %d\n",
 				s->ntpoints[Y], s->nprocs);
-		err("Closest grid points[Y] = %d\n", (s->ntpoints[Y] / s->nprocs) * s->nprocs);
+		err("Closest grid points[Y] = %ld\n", (s->ntpoints[Y] / s->nprocs) * s->nprocs);
 		return 1;
 	}
 
 	if((s->ntpoints[X] % s->plasma_chunks) != 0)
 	{
-		err("The number of grid points in X %d cannot be divided by the number of plasma chunks %d\n",
+		err("The number of grid points in X %ld cannot be divided by the number of plasma chunks %ld\n",
 				s->ntpoints[X], s->plasma_chunks);
-		err("Closest grid points[X] = %d\n", (s->ntpoints[X] / s->plasma_chunks) * s->plasma_chunks);
+		err("Closest grid points[X] = %ld\n", (s->ntpoints[X] / s->plasma_chunks) * s->plasma_chunks);
 		return 1;
 	}
 
@@ -179,10 +169,10 @@ sim_prepare(sim_t *s, int quiet)
 	s->chunksize[Z] = s->blocksize[Z];
 
 	/* Create a large process table, so we can reuse it always */
-	s->proc_table = safe_malloc(s->nprocs * sizeof(int));
+	s->proc_table = safe_malloc(s->nprocs * sizeof(s->proc_table[0]));
 
 
-	dbg("Global number of points (%d %d %d)\n",
+	dbg("Global number of points (%ld %ld %ld)\n",
 			s->ntpoints[X],
 			s->ntpoints[Y],
 			s->ntpoints[Z]);
@@ -233,9 +223,6 @@ sim_init(config_t *conf, int quiet)
 
 	/* Load config and parameters */
 	if(sim_read_config(s))
-		return NULL;
-
-	if(sim_validate_config(s))
 		return NULL;
 
 	if(sim_prepare(s, quiet))
@@ -399,6 +386,7 @@ conservation_energy(sim_t *sim)
 int
 sim_plot(sim_t *sim)
 {
+	assert(sim);
 #if PLOT
 	pthread_mutex_lock(&sim->lock);
 	sim->run = 0;
@@ -453,7 +441,7 @@ sampling_complete(sim_t *sim)
 	if(memory_usage(&mem))
 		return -1;
 
-	printf("stats iter=%d last=%e mean=%e std=%e sem=%e rsem=%e mem=%ld solver=%e\n",
+	printf("stats iter=%ld last=%e mean=%e std=%e sem=%e rsem=%e mem=%ld solver=%e\n",
 			sim->iter, t, mean, std, sem, rsem, mem, mean_solver);
 
 	if(sim->iter < 30)
@@ -461,7 +449,7 @@ sampling_complete(sim_t *sim)
 
 	if(t > mean + std * 5.0)
 	{
-		printf("Iteration time exeeded 5 sigma! Go fix your program.\n");
+		printf("Iteration time exceeded 5 sigma! Go fix your program.\n");
 		//return 1;
 	}
 
@@ -482,7 +470,7 @@ sim_step(sim_t *sim)
 		perf_start(&sim->timers[TIMER_ITERATION]);
 	}
 
-	fprintf(stderr, "iteration %d/%d\n", sim->iter, sim->cycles);
+	fprintf(stderr, "iteration %ld/%ld\n", sim->iter, sim->cycles);
 
 	/* Phase CP:FS. Field solver, calculation of the electric field
 	 * from the current */

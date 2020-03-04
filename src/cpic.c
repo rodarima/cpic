@@ -29,10 +29,10 @@
 
 
 int
-usage(int argc, char *argv[])
+usage(char *progname)
 {
 	fprintf(stderr, "Simulation of plasma using particle in cell method.\n");
-	fprintf(stderr, "Usage: %s <config file>\n", argv[0]);
+	fprintf(stderr, "Usage: %s <config file>\n", progname);
 
 	return 1;
 }
@@ -117,12 +117,12 @@ main(int argc, char *argv[])
 				quiet = 1;
 				break;
 			default:
-				return usage(argc, argv);
+				return usage(argv[0]);
 		}
 	}
 
 	if(optind != argc-1)
-		return usage(argc, argv);
+		return usage(argv[0]);
 
 	fn = argv[optind];
 	config_init(&conf);

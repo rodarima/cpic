@@ -49,8 +49,8 @@ solver_init(sim_t *sim);
 int
 solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho);
 
-int
-solver_rho_size(sim_t *sim, int *cnx, int *cny);
+i64
+solver_rho_size(sim_t *sim, i64 *cnx, i64 *cny);
 
 int
 solver_end(sim_t *sim, solver_t *solver);

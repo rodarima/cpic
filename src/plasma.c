@@ -23,7 +23,7 @@
 int
 pset_init(sim_t *sim, pchunk_t *chunk, int is)
 {
-	size_t ip, iv, ic, i, j, step, npack;
+	i64 ip, iv, ic, i, j, step, npack;
 	plist_t *l;
 	pblock_t *b;
 	pset_t *set;
@@ -43,8 +43,8 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 	plist_init(&set->qx1, sim->pblock_nmax);
 
 	/* Add one dummy block to the queues */
-	plist_grow(&set->qx0, MAX_VEC);
-	plist_grow(&set->qx1, MAX_VEC);
+	plist_grow(&set->qx0, 0);
+	plist_grow(&set->qx1, 0);
 
 
 #if 0 /* Communication part skipped by now */
@@ -173,7 +173,7 @@ neigh_deltas(int delta[], int dim, int neigh)
 }
 
 int
-neigh_rank(sim_t *sim, int *ig, int *nr)
+neigh_rank(sim_t *sim, i64 *ig, i64 *nr)
 {
 	int i, ib;
 	int delta[MAX_DIM];
@@ -225,7 +225,7 @@ neigh_rank(sim_t *sim, int *ig, int *nr)
 int
 plasma_chunk_init(sim_t *sim, int i)
 {
-	size_t is, d;
+	i64 is, d;
 	field_t *f;
 	plasma_t *plasma;
 	pchunk_t *chunk;
@@ -279,7 +279,7 @@ plasma_chunk_init(sim_t *sim, int i)
 
 	chunk->q = safe_calloc(sim->nprocs, sizeof(comm_packet_t *));
 	chunk->req = safe_calloc(sim->nprocs, sizeof(MPI_Request));
-	chunk->neigh_rank = safe_malloc(sizeof(int) * sim->nneigh_chunks);
+	chunk->neigh_rank = safe_malloc(sizeof(i64) * sim->nneigh_chunks);
 
 	neigh_rank(sim, chunk->ig, chunk->neigh_rank);
 

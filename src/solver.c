@@ -169,11 +169,11 @@ LU_solve(solver_t *s, mat_t *phi, mat_t *rho)
 int
 MFT_init(sim_t *sim, solver_t *s)
 {
-	int dx, dy, ix, iy, nx, ny;
-	int shape[MAX_DIM] = {1,1,1};
-	int start[MAX_DIM] = {0};
-	int end[MAX_DIM] = {0};
-	int threads;
+	i64 dx, dy, ix, iy, nx, ny;
+	i64 shape[MAX_DIM] = {1,1,1};
+	i64 start[MAX_DIM] = {0};
+	i64 end[MAX_DIM] = {0};
+	i64 threads;
 	//cpu_set_t mask;
 	ptrdiff_t local_size;
 	ptrdiff_t local_n0, local_n0_start;
@@ -265,7 +265,7 @@ MFT_init(sim_t *sim, solver_t *s)
 		//else
 			threads = sim->fftw_threads;
 
-		err("Using %d threads in FFTW\n", threads);
+		err("Using %ld threads in FFTW\n", threads);
 		fftw_plan_with_nthreads(threads);
 	}
 
@@ -311,13 +311,13 @@ MFT_normalize(mat_t *x, int N)
 	}
 }
 
-int
-solver_rho_size(sim_t *sim, int *cnx, int *cny)
+i64
+solver_rho_size(sim_t *sim, i64 *cnx, i64 *cny)
 {
-	int nx, ny;
+	i64 nx, ny;
 	ptrdiff_t local_size, rho_size;
 	ptrdiff_t local_n0, local_n0_start;
-	int comp_nx, padded_nx;
+	i64 comp_nx, padded_nx;
 
 	nx = sim->ntpoints[X];
 	ny = sim->ntpoints[Y];
@@ -335,7 +335,7 @@ solver_rho_size(sim_t *sim, int *cnx, int *cny)
 	padded_nx = 2*(nx/2+1);
 
 	assert(comp_nx * sim->blocksize[Y] == rho_size);
-	dbg("solver local_size=%ld, rho_size=%ld, comp_nx=%d, padded_nx=%d\n",
+	dbg("solver local_size=%ld, rho_size=%ld, comp_nx=%zu, padded_nx=%zu\n",
 			local_size, rho_size, comp_nx, padded_nx);
 
 	*cnx = padded_nx;
@@ -519,7 +519,7 @@ solver_init(sim_t *sim)
 		case 2:
 			return solver_init_2d(solver, sim);
 		default:
-			err("Solver cannot handle %d dimensions.\n", sim->dim);
+			err("Solver cannot handle %ld dimensions.\n", sim->dim);
 			return NULL;
 	}
 
@@ -555,6 +555,7 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 int
 solver_end(sim_t *sim, solver_t *solver)
 {
+	assert(sim);
 	if(solver->method == METHOD_MFT_TAP)
 	{
 		MFT_TAP_end(solver);

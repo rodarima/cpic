@@ -90,7 +90,7 @@ comm_send_ghost_rho(sim_t *sim)
 int
 comm_recv_ghost_rho(sim_t *sim)
 {
-	int op, neigh, size, ix, iy;
+	i64 op, neigh, size, ix, iy;
 	double *ptr;
 	mat_t *rho;
 

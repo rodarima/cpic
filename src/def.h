@@ -13,6 +13,9 @@
 #define E_NG_NORTH	(INTERPOLATION_POINTS * 0)
 #define E_NG_SOUTH	(INTERPOLATION_POINTS * 1)
 
+#define USE_PPACK_MAGIC
+
+#include "int.h"
 #include "mat.h"
 #include "simd.h"
 #include <stdint.h>
@@ -79,6 +82,9 @@ typedef struct output output_t;
  * members are aligned */
 struct ppack
 {
+#ifdef USE_PPACK_MAGIC
+	vi64 magic;		/**< Some magic to detect garbage  */
+#endif
 	vi64 i;			/**< Particle global index */
 	vf64 r[MAX_DIM];	/**< Position */
 	vf64 u[MAX_DIM];	/**< Velocity */
@@ -95,15 +101,15 @@ struct pblock
 		struct
 		{
 			/** Current number of particles */
-			size_t n;
+			i64 n;
 
 			/** Current number used of ppacks. Computed as 
 			 * `(n + MAX_VEC - 1) / MAX_VEC` */
-			size_t npacks;
+			i64 npacks;
 
 			/** Current number of full ppacks (<= used packs).
 			 * Computed as `n / MAX_VEC` */
-			size_t nfpacks;
+			i64 nfpacks;
 
 			/** Pointer to the next pblock */
 			struct pblock *next;
@@ -114,7 +120,7 @@ struct pblock
 		}; /* 24 bytes */
 
 		/* 128 bytes */
-		uint8_t _pad[128];
+		u8 _pad[128];
 	};
 
 	/** Particle packs */
@@ -124,10 +130,10 @@ struct pblock
 /** A particle list has a bunch of particles from only one type of specie */
 struct plist
 {
-	size_t nblocks;		/**< Current number of pblocks used */
-	size_t blocksize;	/**< Size of each pblock in bytes */
-	size_t max_packs;	/**< Maximum number of packs per block */
-	size_t nmax;		/**< Maximum number of particles per block */
+	i64 nblocks;		/**< Current number of pblocks used */
+	i64 blocksize;	/**< Size of each pblock in bytes */
+	i64 max_packs;	/**< Maximum number of packs per block */
+	i64 nmax;		/**< Maximum number of particles per block */
 
 	/** The linked list of pblock. Should be NULL if we don't have any
 	 * pblock, but this configuration may changed in order to reuse the
@@ -167,46 +173,12 @@ struct specie
 
 	/** Total number of particles of this specie.
 	 * This number doesn't change with the simulation */
-	int nparticles;
+	i64 nparticles;
 
 	/** Other config settings may be needed */
 	config_setting_t *conf;
 };
 
-
-/* FIXME: The mercurium compiler mcc ignores the pragma pack, but keeps the
- * __attribute untouched.
-#pragma pack(push,1)
-*/
-
-/* We need the network structures to be packed, as otherwise, ununused regions
- * are left uninitialized (also we reduce some space in the transmission) */
-
-/* Let's skip the packing by now */
-
-#if 0
-struct /*__attribute__((__packed__))*/ specie_packet
-{
-	int specie_index;
-	int nparticles;
-	particle_t buf[];
-};
-
-struct /*__attribute__((__packed__))*/ comm_packet
-{
-	/* Size of the full packet in bytes */
-	int size;
-	int nspecies;
-	int nparticles;
-	int neigh;
-	int chunk_ig[MAX_DIM];
-	int dst_chunk[MAX_DIM];
-	specie_packet_t s[];
-};
-#endif
-
-/* Ignored by mcc:
- * #pragma pack(pop)*/
 
 enum {
 	NORTH = 0,
@@ -218,16 +190,16 @@ enum {
 struct field
 {
 	/** Shape of the field slice, without ghosts */
-	int shape[MAX_DIM];
+	i64 shape[MAX_DIM];
 
 	/** Shape of the field slice, with ghosts */
-	int ghostshape[MAX_DIM];
+	i64 ghostshape[MAX_DIM];
 
 	/** Physical length of the field slice */
 	double L[MAX_DIM];
 
 	/** First point global index */
-	int igp[MAX_DIM];
+	i64 igp[MAX_DIM];
 
 	/** Dimensions of the bounding box of the field slice */
 	double x0[MAX_DIM];
@@ -265,27 +237,28 @@ struct field
 /** Plasma contained in a physical region of space, assigned to one task. */
 struct pchunk
 {
-	int locked;
+	/* Debug info */
+	u8 locked;
 	const char *lock_owner;
 
 	/** Array of particle sets, one per specie */
 	struct pset *species;
-	int nspecies;
+	i64 nspecies;
 
 	/** Local index of the chunk inside the local plasma */
-	int i[MAX_DIM];
-	int ig[MAX_DIM];
+	i64 i[MAX_DIM];
+	i64 ig[MAX_DIM];
 	double L[MAX_DIM];
 
 	/** Global position of the first grid point at x=0 y=0 of the chunk */
-	int igp0[MAX_DIM];
+	i64 igp0[MAX_DIM];
 
 	/** Local shape of the corresponding block */
-	int shape[MAX_DIM];
+	i64 shape[MAX_DIM];
 
 	/** Local block index range */
-	int ib0[MAX_DIM];
-	int ib1[MAX_DIM];
+	i64 ib0[MAX_DIM];
+	i64 ib1[MAX_DIM];
 
 
 	/** Queues of outgoing messages. One per neighbour */
@@ -295,7 +268,7 @@ struct pchunk
 	MPI_Request *req;
 
 	/** The rank of each neighbour */
-	int *neigh_rank;
+	i64 *neigh_rank;
 
 	/* ------------- SIMD -------------- */
 
@@ -312,14 +285,14 @@ struct plasma
 {
 	/* FIXME: Each pchunk must be aligned */
 	struct pchunk *chunks;
-	int nchunks;
+	i64 nchunks;
 };
 
 /** Output parameters */
 struct output
 {
 	/** Is write output to disk enabled? */
-	int enabled;
+	u8 enabled;
 
 	/** Where the output should be placed */
 	char path[PATH_MAX];
@@ -328,17 +301,17 @@ struct output
 	 * the fields are partitioned in the following number of slices, to be
 	 * written in parallel by different tasks. It must divide evenly the
 	 * number of gridpoints in Y / mpi processes. */
-	int max_slices;
+	i64 max_slices;
 
-	int period_field;
-	int period_particle;
+	i64 period_field;
+	i64 period_particle;
 
 	/** The number of bytes the memory used for DMA must be aligned.  It's
 	 * usually set to 512, but it may vary. Use `blockdev --getss <device>`
 	 * to determine it, or check the manual of open(2) referring to the
 	 * O_DIRECT flag and how to determine the logical size. It must be a
 	 * multiple of the logical size. */
-	long long alignment;
+	i64 alignment;
 };
 
 enum sim_mode {
@@ -373,19 +346,19 @@ struct sim
 	double B[MAX_DIM];
 
 	/** Number of species */
-	int nspecies;
+	i64 nspecies;
 
 	/* Specie parameters. No particles stored here */
 	specie_t *species;
 
 	/* Current iteration */
-	int iter;
+	i64 iter;
 
 	/* Should the simulation continue? */
-	int running;
+	i64 running;
 
 	/* Sampling mode */
-	int sampling;
+	i64 sampling;
 
 	/* Sampling mode: limit to stop the simulation based on the SEM */
 	double stop_SEM;
@@ -412,14 +385,14 @@ struct sim
 	double e0;
 
 	/** Number of simulation steps */
-	int cycles;
+	i64 cycles;
 
 	/* Number of dimensions used */
-	int dim;
+	i64 dim;
 
-	int period_particle;
-	int period_field;
-	int period_energy;
+	i64 period_particle;
+	i64 period_field;
+	i64 period_energy;
 
 	/** Simulation configuration */
 	config_t *conf;
@@ -443,7 +416,7 @@ struct sim
 
 	const char *solver_method;
 
-	int fftw_threads;
+	i64 fftw_threads;
 
 	/* Timers */
 	perf_t timers[MAX_TIMERS];
@@ -456,26 +429,26 @@ struct sim
 
 	/* The total number of points with all blocks and in all processes of
 	 * the specified dimension. Equal to the points specified in the config */
-	int ntpoints[MAX_DIM];
+	i64 ntpoints[MAX_DIM];
 
 	/* Number of extra points needed to allocate for the interpolation
 	 * phase, corresponding to the neighbour slice */
-	int ghostpoints;
+	i64 ghostpoints;
 
-	int blocksize[MAX_DIM];
-	int ghostsize[MAX_DIM];
-	int chunksize[MAX_DIM];
-	int plasma_chunks;
+	i64 blocksize[MAX_DIM];
+	i64 ghostsize[MAX_DIM];
+	i64 chunksize[MAX_DIM];
+	i64 plasma_chunks;
 
 	/* Maximum number of particles in each pblock */
-	size_t pblock_nmax;
+	i64 pblock_nmax;
 
 	/* Number of neighbour chunks to be considered when exchanging particles
 	 * */
-	int nneigh_chunks;
+	i64 nneigh_chunks;
 
 	/* The process neighbours depending on the communication mode */
-	int *proc_table;
+	i64 *proc_table;
 
 	output_t *output;
 

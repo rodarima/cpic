@@ -5,6 +5,7 @@
 #define DEBUG 0
 #include "log.h"
 #include "utils.h"
+#include "config.h"
 
 #include <stdio.h>
 #include <assert.h>
@@ -13,10 +14,12 @@
 int
 specie_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
+	assert(sim);
 	config_setting_lookup_string(cs, "name", &s->name);
 	config_setting_lookup_float(cs, "charge", &s->q);
 	config_setting_lookup_float(cs, "mass", &s->m);
-	config_setting_lookup_int(cs, "particles", &s->nparticles);
+	config_setting_lookup_int64(cs, "particles",
+			(long long *) &s->nparticles);
 
 	s->conf = cs;
 

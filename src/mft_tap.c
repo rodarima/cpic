@@ -50,9 +50,9 @@ int
 fix_fields(sim_t *sim, void *rho_data, void *phi_data)
 {
 	field_t *f;
-	int snx, sny, rho_alloc_size;
-	int rho_shape[MAX_DIM];
-	int phi_shape[MAX_DIM];
+	i64 snx, sny, rho_alloc_size;
+	i64 rho_shape[MAX_DIM];
+	i64 phi_shape[MAX_DIM];
 
 	f = &sim->field;
 
@@ -143,12 +143,12 @@ fix_fields(sim_t *sim, void *rho_data, void *phi_data)
 }
 
 /* We need to put rho and phi in the shared memory region too */
-size_t
+i64
 create_shared(sim_t *sim, mft_t *m)
 {
 	mat_t *_rho, *_phi;
-	size_t size;
-	size_t rho_size, phi_size;
+	i64 size;
+	i64 rho_size, phi_size;
 	void *rho_data, *phi_data;
 	mft_shared_t *shared;
 

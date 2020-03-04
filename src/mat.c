@@ -11,27 +11,26 @@
 #include <string.h>
 
 
-size_t
-mat_size(int dim, int *shape)
+i64
+mat_size(i64 dim, i64 *shape)
 {
-	int i;
-	size_t size;
+	i64 i;
+	i64 size;
 
-	if(dim > MAX_DIM)
-		return -1;
+	assert(dim <= MAX_DIM);
 
 	size = 1;
 	for(i = 0; i < dim; i++)
 		size *= shape[i];
 
-	return sizeof(double) * size;
+	return (i64) (sizeof(double) * size);
 }
 
 void
-mat_init(mat_t *m, int dim, int *shape)
+mat_init(mat_t *m, i64 dim, i64 *shape)
 {
-	int i;
-	size_t size;
+	i64 i;
+	i64 size;
 
 	m->dim = dim;
 
@@ -62,10 +61,10 @@ mat_init(mat_t *m, int dim, int *shape)
  *
  * The allocated area is not aligned. \see mat_alloc_align */
 mat_t *
-mat_alloc(int dim, int *shape)
+mat_alloc(i64 dim, i64 *shape)
 {
 	mat_t *m;
-	size_t size;
+	i64 size;
 
 	if(dim > MAX_DIM)
 		return NULL;
@@ -81,10 +80,10 @@ mat_alloc(int dim, int *shape)
 }
 
 mat_t *
-mat_alloc_align(int dim, int *shape, size_t alignment)
+mat_alloc_align(i64 dim, i64 *shape, i64 alignment)
 {
 	mat_t *m;
-	size_t size, aligned_size, pad_size;
+	i64 size, aligned_size, pad_size;
 	//int *ptr;
 
 	if(dim > MAX_DIM)
@@ -125,9 +124,9 @@ mat_alloc_align(int dim, int *shape, size_t alignment)
 }
 
 mat_t *
-mat_alloc_square(int dim, int shape)
+mat_alloc_square(i64 dim, i64 shape)
 {
-	int i, v[MAX_DIM];
+	i64 i, v[MAX_DIM];
 
 	for(i=0; i<dim; i++)
 		v[i] = shape;
@@ -136,10 +135,10 @@ mat_alloc_square(int dim, int shape)
 }
 
 mat_t *
-mat_view(mat_t *m, int dx, int dy, int *shape)
+mat_view(mat_t *m, i64 dx, i64 dy, i64 *shape)
 {
 	mat_t *v;
-	int i, offset;
+	i64 i, offset;
 
 	assert(m->dim == 2);
 	assert(m->size > 0);
@@ -175,10 +174,10 @@ mat_view(mat_t *m, int dx, int dy, int *shape)
 }
 
 mat_t *
-mat_view_init(mat_t *view, mat_t *m, int dx, int dy, int *shape)
+mat_view_init(mat_t *view, mat_t *m, i64 dx, i64 dy, i64 *shape)
 {
 	mat_t *v;
-	int i, offset;
+	i64 i, offset;
 
 	assert(m->dim == 2);
 	assert(m->size > 0);
@@ -214,18 +213,18 @@ mat_view_init(mat_t *view, mat_t *m, int dx, int dy, int *shape)
 }
 
 void
-mat_set1d(mat_t *m, int pos, double v)
+mat_set1d(mat_t *m, i64 pos, double v)
 {
 	((double*) m)[pos] = v;
 }
 
 mat_t *
-vec_init(int size, double v)
+vec_init(i64 size, double v)
 {
 	mat_t *m;
-	int i;
+	i64 i;
 
-	int *sizev = safe_malloc(sizeof(int));
+	i64 *sizev = safe_malloc(sizeof(i64));
 
 	sizev[0] = size;
 
@@ -240,7 +239,7 @@ vec_init(int size, double v)
 int
 _vec_print(mat_t *m, char *title)
 {
-	int i;
+	i64 i;
 
 	if(m->dim != 1)
 		return -1;
@@ -257,7 +256,7 @@ _vec_print(mat_t *m, char *title)
 int
 _mat_print_(mat_t *m, char *title)
 {
-	int ix, iy;
+	i64 ix, iy;
 
 	if(m->dim == 1)
 		return _vec_print(m, title);
@@ -289,8 +288,7 @@ _mat_print_(mat_t *m, char *title)
 int
 _mat_print(mat_t *m, char *title)
 {
-	int ix, iy, in;
-	int mx, my;
+	i64 ix, iy, in, mx, my;
 	char *long_ending = "...";
 	char *xending = NULL;
 	char *yending = NULL;
@@ -443,10 +441,11 @@ _mat_print(mat_t *m, char *title)
 }
 
 int
-_mat_print_raw(double *A, int rows, int cols, char *title)
+_mat_print_raw(double *A, i64 rows, i64 cols, char *title)
 {
-	int i, j;
+	i64 i, j;
 
+	if(!A) return -1;
 	if(title) dbg("Matrix %s:\n", title);
 	for(i=0; i<rows; i++)
 	{
@@ -461,10 +460,11 @@ _mat_print_raw(double *A, int rows, int cols, char *title)
 }
 
 int
-_cmat_print_raw(complex double *A, int nx, int ny, char *title)
+_cmat_print_raw(complex double *A, i64 nx, i64 ny, char *title)
 {
-	int ix, iy;
+	i64 ix, iy;
 
+	if(!A) return -1;
 	if(title) dbg("Matrix %s:\n", title);
 	for(iy=0; iy<ny; iy++)
 	{

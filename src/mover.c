@@ -74,7 +74,7 @@ boris_rotation(ppack_t *p, vf64 dtqm2, vf64 u[MAX_DIM])
 static inline void
 move(ppack_t *p, vf64 u[MAX_DIM], vf64 dt)
 {
-	size_t d;
+	i64 d;
 	for(d=X; d<MAX_DIM; d++)
 	{
 		p->r[d] += u[d] * dt;
@@ -86,7 +86,7 @@ move(ppack_t *p, vf64 u[MAX_DIM], vf64 dt)
 static inline void
 check_velocity(vf64 u[MAX_DIM], vf64 umax[MAX_DIM])
 {
-	size_t d;
+	i64 d;
 	vf64 u_abs;
 	vmsk mask;
 	int mask_val;
@@ -112,7 +112,7 @@ err:
 	dbg("Max velocity exceeded with mask=%08x\n", mask_val);
 
 #if 0
-	size_t i;
+	i64 i;
 
 	/* TODO: Use a better define system for debug code */
 	for(i=0; i<MAX_VEC; i++)
@@ -130,7 +130,7 @@ err:
 static inline void
 boundary_periodic_ppack(sim_t *sim, ppack_t *p)
 {
-	size_t iv, d;
+	i64 iv, d;
 
 	for(d=X; d<MAX_DIM; d++)
 	{
@@ -161,7 +161,7 @@ plist_update_r(sim_t *sim, plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
 	vf64 u[MAX_DIM];
 	pblock_t *b;
 	ppack_t *p;
-	size_t i;
+	i64 i;
 
 	for(b = l->b; b; b = b->next)
 	{
@@ -189,7 +189,7 @@ static void
 chunk_update_r(sim_t *sim, int ic)
 {
 	pchunk_t *chunk;
-	int is;
+	i64 is;
 	vf64 dt, dtqm2, umax[MAX_DIM];
 
 	is = 0;
@@ -210,7 +210,7 @@ chunk_update_r(sim_t *sim, int ic)
 static void
 plasma_mover(sim_t *sim)
 {
-	int i;
+	i64 i;
 
 	/* Compute the new position for each particle. We don't care if the
 	 * particles go to another chunk here. */
@@ -229,7 +229,7 @@ plasma_mover(sim_t *sim)
 static inline void
 dummy_wrap_ppack(vf64 x[2], vf64 x0[2], vf64 x1[2])
 {
-	size_t d, iv;
+	i64 d, iv;
 	vf64 delta[2];
 
 	delta[X] = x1[X] - x0[X];
@@ -263,7 +263,7 @@ static inline void
 dummy_wrap_plist(plist_t *l, vf64 x0[2], vf64 x1[2])
 {
 	pblock_t *b;
-	size_t i;
+	i64 i;
 
 	for(b = l->b; b; b = b->next)
 		/* FIXME: We are updating past n as well to fill MAX_VEC */
@@ -274,7 +274,7 @@ dummy_wrap_plist(plist_t *l, vf64 x0[2], vf64 x1[2])
 static inline void
 dummy_wrap_pchunk(pchunk_t *c)
 {
-	size_t is;
+	i64 is;
 	plist_t *l;
 
 	dbg("Clamping %p to X = (%e %e) and Y = (%e %e)\n",
@@ -292,7 +292,7 @@ dummy_wrap_pchunk(pchunk_t *c)
 void
 dummy_wrap(sim_t *sim)
 {
-	size_t ic;
+	i64 ic;
 	pchunk_t *chunk;
 
 	for(ic=0; ic<sim->plasma.nchunks; ic++)

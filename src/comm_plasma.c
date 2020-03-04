@@ -28,7 +28,7 @@ struct pwin
 	pblock_t *b;
 
 	/** The ppack index in the block */
-	size_t ip;
+	i64 ip;
 
 	/** Mask for enabled particles: 1=can be used, 0=garbage*/
 	vmsk enabled;
@@ -44,7 +44,7 @@ struct pwin
 
 	/** Set to zero if the sel mask doesn't corresponds to the
 	 * actual window position. Is non-zero otherwise. */
-	int dirty_sel;
+	u8 dirty_sel;
 };
 
 typedef struct pwin pwin_t;
@@ -68,13 +68,13 @@ typedef struct exchange
 	pwin_t q0, q1;
 
 	/* TODO: The number of particles moved */
-	//size_t nmoved;
+	//i64 nmoved;
 } exchange_t;
 
 static void
 pwin_print(pwin_t *w, const char *name)
 {
-	size_t iv;
+	i64 iv;
 	char selc[2] = {' ', '*'};
 
 	dbg("%s: b=%p ip=%zd sel=[", name, w->b, w->ip);
@@ -102,7 +102,7 @@ static void
 pwin_set_enabled(pwin_t *w)
 {
 	unsigned long long mask, shift;
-	size_t left;
+	i64 left;
 
 	/* The easy one is when we have ip pointing to a full ppack */
 	if(w->ip < w->b->nfpacks)
@@ -113,14 +113,15 @@ pwin_set_enabled(pwin_t *w)
 
 	/* Otherwise we are pointing to a non-full ppack */
 
-	/* If we have no elements, that is easy too */
-	if(w->b->n == 0)
+	/* If we have no elements or past the last non-empty ppack, then
+	 * we have no elements. */
+	if(w->b->n == 0 || w->ip > w->b->npacks)
 	{
 		w->enabled = vmsk_zero();
 		return;
 	}
 
-	assert(w->ip = w->b->nfpacks);
+	assert(w->ip == w->b->nfpacks);
 
 	left = w->b->n % MAX_VEC;
 	shift = (unsigned long long) (sizeof(mask) * 8 - left);
@@ -171,17 +172,18 @@ static void
 pwin_last(plist_t *l, pwin_t *w)
 {
 	assert(l->b);
+	assert(l->b->n > 0);
+	assert(l->b->npacks > 0);
 
-	if(l->b->prev)
-		w->b = l->b->prev;
-	else /* 1 block */
-		w->b = l->b;
-
+	w->b = l->b->prev;
 	w->l = l;
+
+	assert(l->b->npacks > 0);
 
 	/* Use the non-empty number of ppacks as index, to point to the last
 	 * non-empty ppack */
 	w->ip = l->b->npacks - 1;
+
 	dbg("pwin_last: b->n = %ld, w->ip = %ld\n", l->b->n, w->ip);
 
 	pwin_reset_masks(w);
@@ -191,7 +193,7 @@ pwin_last(plist_t *l, pwin_t *w)
  * necessary. Returns 1 if no more ppacks are available, 0 otherwise. The masks
  * are reset if the displacement was successful. */
 static int
-pwin_next(pwin_t *w)
+pwin_next(pwin_t *w, int reset_masks)
 {
 	/* Advance in the same block */
 	if(w->ip < w->b->npacks - 1)
@@ -202,14 +204,18 @@ pwin_next(pwin_t *w)
 
 	/* If we are at the end, cannot continue */
 	if(!w->b->next)
+	{
+		dbg("failed pwin_next: window at end of the plist\n");
 		return 1;
+	}
 
 	/* Otherwise move to the next block */
 	w->b = w->b->next;
 	w->ip = 0;
 
 reset_mask:
-	pwin_reset_masks(w);
+	if(reset_masks)
+		pwin_reset_masks(w);
 
 	return 0;
 }
@@ -218,7 +224,7 @@ reset_mask:
   if * necessary. If no more ppacks are available returns 1, otherwise
   returns 0. If * the displacement is successful the masks are reset. */
 static int
-pwin_prev(pwin_t *w)
+pwin_prev(pwin_t *w, int reset_masks)
 {
 	/* Move backwards if we are in the same block */
 	if(w->ip > 0)
@@ -239,7 +245,8 @@ pwin_prev(pwin_t *w)
 	w->ip = w->b->npacks - 1;
 
 reset_mask:
-	pwin_reset_masks(w);
+	if(reset_masks)
+		pwin_reset_masks(w);
 
 	return 0;
 }
@@ -253,9 +260,9 @@ pwin_equal(pwin_t *A, pwin_t *B)
 }
 
 static void
-move_particle(pwin_t *wsrc, size_t isrc, pwin_t *wdst, size_t idst)
+move_particle(pwin_t *wsrc, i64 isrc, pwin_t *wdst, i64 idst)
 {
-	size_t d;
+	i64 d;
 	ppack_t *src, *dst;
 
 	src = &wsrc->b->p[wsrc->ip];
@@ -263,6 +270,9 @@ move_particle(pwin_t *wsrc, size_t isrc, pwin_t *wdst, size_t idst)
 
 	dbg("moving particle isrc=%ld idst=%ld\n", isrc, idst);
 
+#ifdef USE_PPACK_MAGIC
+	dst->magic[idst] = src->magic[isrc];
+#endif
 	dst->i[idst] = src->i[isrc];
 
 	for(d=X; d<MAX_VEC; d++)
@@ -277,11 +287,11 @@ move_particle(pwin_t *wsrc, size_t isrc, pwin_t *wdst, size_t idst)
 /** Move particles from the src window into dst. The number of particles moved
  * is at least one, and at most the minimum number of enabled bits in the
  * selection of src and dst. */
-static size_t
+static i64
 transfer(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
 {
-	size_t isrc, idst;
-	size_t moved;
+	i64 isrc, idst;
+	i64 moved;
 
 	/* TODO: We can store the index in each pwin, so we can reuse the
 	 * previous state to speed up the search */
@@ -353,7 +363,7 @@ queue_step_window(pwin_t *q)
 		abort();
 	}
 
-	if(pwin_next(q))
+	if(pwin_next(q, 1))
 	{
 		err("Cannot grow the plist\n");
 		abort();
@@ -369,10 +379,10 @@ queue_step_window(pwin_t *q)
 /** Queues all particles selected with 1 in w_mask from the w window and place
  * them into q, advancing the window if necessary. Holes in q are indicated by
  * ones in the q_mask. */
-static size_t
+static i64
 queue_selected(pwin_t *w, vmsk *w_mask, pwin_t *q)
 {
-	size_t moved;
+	i64 moved;
 
 	moved = 0;
 
@@ -410,10 +420,10 @@ queue_selected(pwin_t *w, vmsk *w_mask, pwin_t *q)
 
 /** Removes the particles that are out of the chunk from w and places them into
  * the respective queues q0 and q1. */
-static size_t
+static i64
 clean_lost(pwin_t *w, pwin_t *q0, pwin_t *q1)
 {
-	size_t moved;
+	i64 moved;
 
 	moved = 0;
 	//dbg("Cleaning lost particles\n");
@@ -434,7 +444,7 @@ clean_lost(pwin_t *w, pwin_t *q0, pwin_t *q1)
 static void
 update_sel(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 {
-	size_t d;
+	i64 d;
 	ppack_t *p;
 
 	assert(w);
@@ -445,6 +455,15 @@ update_sel(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 	assert(vmsk_iszero(w->sel));
 
 	p = &w->b->p[w->ip];
+
+#ifdef USE_PPACK_MAGIC
+	i64 iv;
+	for(iv=0; iv<MAX_VEC; iv++)
+	{
+		if(w->enabled[iv])
+			assert(p->magic[iv] == 0xdeadbeef);
+	}
+#endif
 
 	for(d=X; d<MAX_DIM; d++)
 	{
@@ -461,12 +480,12 @@ update_sel(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 	w->mx0 = vand(w->mx0, w->enabled);
 	w->mx1 = vand(w->mx1, w->enabled);
 
-	//dbg("update_sel mx0 = %x, mx1 = %x\n",
-	//		vmsk_get(w->mx0), vmsk_get(w->mx1));
+	dbg("update_sel mx0 = %llx, mx1 = %llx\n",
+			vmsk_get(w->mx0), vmsk_get(w->mx1));
 
 //#ifndef NDEBUG
 #if 0
-	size_t iv;
+	i64 iv;
 
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
@@ -508,11 +527,11 @@ update_sel(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 }
 
 /** Produce holes in A by moving lost particles to the queues */
-static size_t
+static i64
 produce_holes_A(exchange_t *ex)
 {
 	pwin_t *A, *B, *q0, *q1;
-	size_t moved;
+	i64 moved;
 
 	moved = 0;
 	A = &ex->A;
@@ -552,7 +571,7 @@ produce_holes_A(exchange_t *ex)
 				A->ip);
 
 		/* Otherwise slide the window and continue the search */
-		if(pwin_next(A))
+		if(pwin_next(A, 1))
 			break;
 	}
 
@@ -563,11 +582,11 @@ exit:
 }
 
 /** Produce extra particles in B. */
-static size_t
+static i64
 produce_extra_B(exchange_t *ex)
 {
 	pwin_t *A, *B, *q0, *q1;
-	size_t moved;
+	i64 moved;
 	int ret;
 
 	moved = 0;
@@ -612,7 +631,7 @@ produce_extra_B(exchange_t *ex)
 		/* Otherwise slide the window and continue the search */
 		//pblock_update_n(B->l->b->prev, B->ip * MAX_VEC); Set
 		//at the end.
-		ret = pwin_prev(B);
+		ret = pwin_prev(B, 1);
 
 		/* We cannot reach the beginning of the list before getting into
 		 * A, so the displacement of B cannot fail */
@@ -630,11 +649,11 @@ exit:
 
 /** Transfer all posible particles from B to fill the holes in A. No moves to
  * any queue are performed here as both windows must be clean */
-static size_t
+static i64
 fill_holes(exchange_t *ex)
 {
 	pwin_t *A, *B;
-	size_t moved;
+	i64 moved;
 
 	A = &ex->A;
 	B = &ex->B;
@@ -683,7 +702,7 @@ slide_windows(exchange_t *ex)
 	 * particles left */
 	if(vmsk_iszero(A->sel))
 	{
-		pwin_next(A);
+		pwin_next(A, 1);
 
 		/* Check for A == B after the A move */
 		if(pwin_equal(A, B))
@@ -691,7 +710,7 @@ slide_windows(exchange_t *ex)
 	}
 
 	if(vmsk_iszero(B->sel))
-		if(pwin_prev(B))
+		if(pwin_prev(B, 1))
 			abort();
 
 end:
@@ -706,9 +725,10 @@ queue_init(plist_t *q, pwin_t *qw)
 {
 	/* Ensure the queues always have one empty block */
 	assert(q->b);
-	assert(q->b->n == MAX_VEC);
+	assert(q->b->n == 0);
 
 	pwin_first(q, qw);
+	plist_grow(q, MAX_VEC);
 
 	/* Also, set the enabled and sel bits */
 	/* TODO: Use proper variable init */
@@ -734,10 +754,10 @@ queue_close(pwin_t *q)
 }
 
 static void
-finish_pass(exchange_t *ex, size_t *in, size_t *out)
+finish_pass(exchange_t *ex, i64 *in, i64 *out)
 {
 	pwin_t *A, *B, *q0, *q1;
-	size_t moved, count;
+	i64 moved, count;
 	vmsk S, D, X, F, T;
 	unsigned long long s, d;
 
@@ -806,7 +826,7 @@ finish_pass(exchange_t *ex, size_t *in, size_t *out)
 	D = vmsk_set(d);
 
 	/* The same same of ones */
-	assert(count == __builtin_popcountll(d));
+	assert(count ==  __builtin_popcountll(d));
 
 	X = vmsk_xor(S, D);
 
@@ -833,12 +853,14 @@ fix_size:
 	dbg("Final size set to b->n=%zd\n", B->b->n);
 }
 
-static size_t
-collect_pass(exchange_t *ex, pchunk_t *c, pset_t *set)
+static i64
+collect_pass(exchange_t *ex)
 {
-	size_t n0;
-	size_t moved_out, moved_in;
+	i64 n0;
+	i64 moved_out, moved_in;
+	pset_t *set;
 
+	set = ex->set;
 	moved_out = 0;
 	moved_in = 0;
 
@@ -895,11 +917,11 @@ collect_pass(exchange_t *ex, pchunk_t *c, pset_t *set)
 	return moved_out;
 }
 
-static size_t
-local_collect_x(pchunk_t *c, pset_t *set, int global_exchange)
+static i64
+local_collect_x(pchunk_t *c, pset_t *set)
 {
 	exchange_t ex;
-	size_t collected;
+	i64 collected;
 
 	ex.c = c;
 	ex.set = set;
@@ -910,8 +932,8 @@ local_collect_x(pchunk_t *c, pset_t *set, int global_exchange)
 	assert(vmsk_isany(ex.q0.sel));
 	assert(vmsk_isany(ex.q1.sel));
 
-	collected = collect_pass(&ex, c, set);
-	assert(collect_pass(&ex, c, set) == 0);
+	collected = collect_pass(&ex);
+	assert(collect_pass(&ex) == 0);
 
 	return collected;
 }
@@ -919,7 +941,7 @@ local_collect_x(pchunk_t *c, pset_t *set, int global_exchange)
 static void
 move_ppack(pwin_t *wsrc, pwin_t *wdst)
 {
-	size_t d;
+	i64 d;
 	ppack_t *src, *dst;
 
 	src = &wsrc->b->p[wsrc->ip];
@@ -927,6 +949,10 @@ move_ppack(pwin_t *wsrc, pwin_t *wdst)
 
 	dbg("moving ppack ip=%zd to ip=%zd\n",
 			wsrc->ip, wdst->ip);
+
+#ifdef USE_PPACK_MAGIC
+	dst->magic = src->magic;
+#endif
 
 	dst->i = src->i;
 
@@ -944,49 +970,166 @@ move_ppack(pwin_t *wsrc, pwin_t *wdst)
 
 }
 
-static void
-inject_particles(plist_t *src, plist_t *dst)
+/** Takes all ppacks from src to end, and copies them into dst. No
+ * checks are done with sel or enabled masks. The list in dst grows
+ * accordingly */
+static i64
+inject_full_ppacks(plist_t *queue, plist_t *list)
 {
-	pwin_t S, D, E;
+	pwin_t src, end, dst;
+	i64 count, left;
 
-	pwin_first(src, &S);
-	pwin_last(src, &E);
-	pwin_last(dst, &D);
+	assert(queue->b);
+	assert(queue->b->n > 0);
+	assert(list->b->n > 0);
 
-	if(S.b->n == 0)
-		return;
+	dbg("queue: n=%zd, npacks=%zd nfpacks=%zd\n",
+			queue->b->n, queue->b->npacks,
+			queue->b->nfpacks);
 
-	dbg("S.b->n=%zd, E.b->n=%zd\n",
-			S.b->n, E.b->n);
+	pwin_first(queue, &src);
+	pwin_last(queue, &end);
+	pwin_last(list, &dst);
 
-	assert(!pwin_equal(&S, &E));
+	/* We should have at least one ppack in the queue */
+	assert(vmsk_isany(src.enabled));
 
-	/* Skip the last ppack in src, and deal with it later, as it may
-	 * be non-full */
-	pwin_next(&S);
-
-	while(!pwin_equal(&S, &E))
+	/* Add extra room in the list */
+	if(plist_grow(dst.l, MAX_VEC))
 	{
-		dbg("Before move_ppack\n");
-		pwin_print(&S, "S");
-		pwin_print(&E, "E");
-
-		move_ppack(&S, &D);
-
-		dbg("After move_ppack\n");
-		pwin_print(&S, "S");
-		pwin_print(&E, "E");
-
-		pwin_next(&S);
-		pwin_next(&D);
+		err("plist_grow failed\n");
+		abort();
 	}
+
+	pwin_next(&dst, 0);
+
+	count = 0;
+
+	while(!pwin_equal(&src, &end))
+	{
+		move_ppack(&src, &dst);
+		count += MAX_VEC;
+
+		if(plist_grow(dst.l, MAX_VEC))
+		{
+			err("plist_grow failed\n");
+			abort();
+		}
+
+		pwin_next(&src, 0);
+		pwin_next(&dst, 0);
+	}
+
+	left = src.b->n % MAX_VEC;
+	move_ppack(&src, &dst);
+	count += left;
+
+	if(plist_grow(dst.l, left))
+	{
+		err("plist_grow failed\n");
+		abort();
+	}
+
+	pblock_update_n(src.l->b, 0);
+
+	return count;
+}
+
+/** Fills the list l to complete the last ppack in case is non-full
+ * using particles from the queue q */
+static void
+inject_fill(plist_t *q, plist_t *l)
+{
+	pwin_t src, dst;
+	i64 moved;
+
+	dbg("--- inject_fill() begins ---\n");
+
+	assert(q->b->n > 0);
+
+	pwin_last(q, &src);
+	pwin_last(l, &dst);
+
+	src.sel = src.enabled;
+	dst.sel = vnot(dst.enabled);
+
+	if(vmsk_iszero(dst.sel))
+	{
+		dbg("The list already has a complete ppack at the end\n");
+		goto end;
+	}
+
+	moved = transfer(&src, &src.sel, &dst, &dst.sel);
+	plist_grow(l, moved);
+	plist_shrink(q, moved);
+
+	dbg("Moved %zd particles to fill the ppack\n", moved);
+
+	if(vmsk_iszero(dst.sel))
+	{
+		dbg("The ppack is now complete\n");
+		goto end;
+	}
+
+	/* Ensure the last queue ppack is empty */
+	assert(vmsk_iszero(dst.sel));
+
+	dbg("The ppack requires more particles from the queue\n");
+	pwin_prev(&src, 1);
+
+	moved = transfer(&src, &src.sel, &dst, &dst.sel);
+	plist_grow(l, moved);
+	plist_shrink(q, moved);
+
+	dbg("Moved %zd particles again to fill the ppack\n", moved);
+
+end:
+	/* Now it should be complete */
+	assert(vmsk_iszero(dst.sel));
+	dbg("--- inject_fill() ends ---\n");
+}
+
+static void
+inject_particles(plist_t *queue, plist_t *list)
+{
+	/* TODO: We can skip the copy of middle pblocks by simply
+	 * swapping the pointers */
+	i64 count;
+
+	dbg("--- inject_particles() begins ---\n");
+
+	/* By now */
+	assert(list->nblocks == 1);
+
+	if(queue->b->n == 0)
+	{
+		dbg("No particles in the queue to inject\n");
+		goto end;
+	}
+
+	inject_fill(queue, list);
+
+	if(queue->b->n == 0)
+	{
+		dbg("The queue is empty\n");
+		goto end;
+	}
+
+	dbg("Injecting full ppacks first\n");
+	count = inject_full_ppacks(queue, list);
+
+	dbg("A total of %zd full ppacks were injected\n", count);
+
+end:
+	assert(queue->b->n == 0);
+	dbg("--- inject_particles() ends ---\n");
 }
 
 static void
 exchange_particles_x(sim_t *sim,
 		pchunk_t *c, pchunk_t *cp, pchunk_t *cn)
 {
-	size_t is;
+	i64 is;
 	pset_t *from, *to;
 
 	dbg("Filling chunk %p\n", c);
@@ -999,6 +1142,8 @@ exchange_particles_x(sim_t *sim,
 
 		/* Use the particles that exceed the chunk in positive
 		 * direction, placed in qx1 */
+		dbg("Injecting particles into chunk=%p is=%zd from qx1\n",
+				c, is);
 		inject_particles(&from->qx1, &to->list);
 	}
 
@@ -1010,6 +1155,8 @@ exchange_particles_x(sim_t *sim,
 
 		/* Use the particles that exceed the chunk in negative
 		 * direction, placed in qx0 */
+		dbg("Injecting particles into chunk=%p is=%zd from qx0\n",
+				c, is);
 		inject_particles(&from->qx0, &to->list);
 	}
 
@@ -1018,14 +1165,14 @@ exchange_particles_x(sim_t *sim,
 int
 comm_plasma_x(sim_t *sim, int global_exchange)
 {
-	size_t ic, is, icp, icn, nc;
-	size_t *collected, all_collected;
+	i64 ic, is, icp, icn, nc;
+	i64 *collected, all_collected;
 	plasma_t *plasma;
 	pchunk_t *c, *cp, *cn;
 	pset_t *set;
 
 	plasma = &sim->plasma;
-	collected = safe_malloc(sizeof(size_t) * plasma->nchunks);
+	collected = safe_malloc(sizeof(i64) * plasma->nchunks);
 	all_collected = 0;
 
 	dbg("comm_plasma_x begins\n");
@@ -1045,7 +1192,7 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 			for(is = 0; is < sim->nspecies; is++)
 			{
 				set = &c->species[is];
-				collected[ic] = local_collect_x(c, set, global_exchange);
+				collected[ic] = local_collect_x(c, set);
 			}
 		}
 

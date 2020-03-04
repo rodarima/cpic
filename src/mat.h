@@ -6,6 +6,7 @@
 #define MAX_DIM 3
 
 #include <complex.h>
+#include "int.h"
 
 enum dim {
 	X = 0,
@@ -25,19 +26,19 @@ struct mat
 	/** Pointer to the initially allocated data */
 	double *real_data;
 	double *data;
-	int delta[MAX_DIM];
+	i64 delta[MAX_DIM];
 
 	/** Dimensions of the matrix or view */
-	int shape[MAX_DIM];
+	i64 shape[MAX_DIM];
 
 	/** Shape of the real matrix data */
-	int real_shape[MAX_DIM];
+	i64 real_shape[MAX_DIM];
 
 	/** Number of dimensions */
-	int dim;
-	size_t real_size;
-	size_t size;
-	size_t aligned_size;
+	i64 dim;
+	i64 real_size;
+	i64 size;
+	i64 aligned_size;
 };
 
 
@@ -50,7 +51,7 @@ struct mat
 
 #define mat_set(m, pos, type, v)			\
 do {							\
-	int i, p = 0;					\
+	i64 i, p = 0;					\
 	for(i = m->dim - 1; i > 0; i--)			\
 	{						\
 		p += pos[i];				\
@@ -80,7 +81,7 @@ do {							\
 
 #define MAT_FILL(m, v)					\
 do {							\
-	size_t __ix, __iy, __iz;			\
+	i64 __ix, __iy, __iz;			\
 	for(__iz=0; __iz<m->shape[Z]; __iz++)		\
 	for(__iy=0; __iy<m->shape[Y]; __iy++)		\
 	for(__ix=0; __ix<m->shape[X]; __ix++)		\
@@ -89,32 +90,32 @@ do {							\
 
 #define VMAT_FILL(m, dim, v)				\
 do {							\
-	int __dim;					\
+	i64 __dim;					\
 	for(__dim=0; __dim<dim; __dim++)		\
 		MAT_FILL(m[__dim], v);			\
 } while(0)
 
 
-size_t
-mat_size(int dim, int *shape);
+i64
+mat_size(i64 dim, i64 *shape);
 
 mat_t *
-mat_alloc(int dim, int *shape);
+mat_alloc(i64 dim, i64 *shape);
 
 mat_t *
-mat_alloc_align(int dim, int *shape, size_t alignment);
+mat_alloc_align(i64 dim, i64 *shape, i64 alignment);
 
 void
-mat_init(mat_t *m, int dim, int *shape);
+mat_init(mat_t *m, i64 dim, i64 *shape);
 
 mat_t *
-mat_alloc_square(int dim, int shape);
+mat_alloc_square(i64 dim, i64 shape);
 
 mat_t *
-mat_view(mat_t *m, int dx, int dy, int *shape);
+mat_view(mat_t *m, i64 dx, i64 dy, i64 *shape);
 
 mat_t *
-vec_init(int size, double v);
+vec_init(i64 size, double v);
 
 int
 _vec_print(mat_t *m, char *title);
@@ -126,10 +127,10 @@ int
 _mat_print_(mat_t *m, char *title);
 
 int
-_mat_print_raw(double *A, int rows, int cols, char *title);
+_mat_print_raw(double *A, i64 rows, i64 cols, char *title);
 
 int
-_cmat_print_raw(complex double *A, int rows, int cols, char *title);
+_cmat_print_raw(complex double *A, i64 rows, i64 cols, char *title);
 
 #define MAT_DEBUG 0
 

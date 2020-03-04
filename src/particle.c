@@ -4,6 +4,7 @@
 #include "interpolate.h"
 #include "comm.h"
 #include "mover.h"
+#include "def.h"
 
 #define DEBUG 1
 #include "log.h"
@@ -108,9 +109,10 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 	ppack_t *p;
 	double v[MAX_DIM];
 	config_setting_t *cs_v;
-	size_t i, iv;
+	i64 i, iv;
 
 	l = &set->list;
+	assert(chunk);
 
 	/* FIXME: Use specific random velocity interval name */
 	cs_v = config_setting_get_member(set->info->conf, "drift_velocity");
@@ -127,6 +129,9 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 
 			for(iv=0; iv<MAX_VEC; iv++)
 			{
+#ifdef USE_PPACK_MAGIC
+				p->magic[iv] = 0xdeadbeef;
+#endif
 				/* XXX: Should we keep the particles out of
 				 * b->n inside the chunk? */
 				p->r[X][iv] = uniform(0.0, sim->L[X]);
@@ -238,6 +243,7 @@ stage_plasma_E(sim_t *sim)
 int
 particle_comm(sim_t *sim)
 {
+	assert(sim);
 	//return comm_plasma(sim, 0);
 	return 0;
 }

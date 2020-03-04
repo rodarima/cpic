@@ -151,6 +151,8 @@ vmsk_and(vmsk a, vmsk b)
 	return _mm256_and_si256(a, b);
 }
 
+#define vmsk_isfull(m)	(vmsk_get(m) == 0x0f)
+
 /* We perform the AND operation to emulate the masked CMP of AVX512 */
 #define vcmp_mask(k, a, b, f)	vand(k, vcmp(a, b, f))
 

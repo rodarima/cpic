@@ -6,7 +6,7 @@
 static inline void
 boundary_periodic_ppack(sim_t *sim, ppack_t *p)
 {
-	size_t iv, d;
+	i64 iv, d;
 
 	for(d=X; d<MAX_DIM; d++)
 	{
@@ -35,7 +35,7 @@ boundary_periodic_plist(sim_t *sim, plist_t *l)
 {
 	pblock_t *b;
 	ppack_t *p;
-	size_t i;
+	i64 i;
 
 	for(b = l->b; b; b = b->next)
 	{
@@ -53,7 +53,7 @@ static inline void
 boundary_periodic_pchunk(sim_t *sim, pchunk_t *c)
 {
 	plist_t *l;
-	int is;
+	i64 is;
 
 	for(is=0; is<c->nspecies; is++)
 	{
@@ -66,7 +66,7 @@ static inline void
 boundary_periodic(sim_t *sim)
 {
 	pchunk_t *c;
-	int ic;
+	i64 ic;
 
 	/* TODO: We only need to wrap the particles at the pchunks placed at
 	 * the boundary of the simulation, as the plasma in the inner ones

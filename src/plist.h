@@ -1,10 +1,13 @@
 #include "def.h"
 
 void
-plist_init(plist_t *l, size_t nmax);
+plist_init(plist_t *l, i64 nmax);
 
 int
-plist_grow(plist_t *l, size_t n);
+plist_grow(plist_t *l, i64 n);
+
+int
+plist_shrink(plist_t *l, i64 n);
 
 void
-pblock_update_n(pblock_t *b, size_t n);
+pblock_update_n(pblock_t *b, i64 n);

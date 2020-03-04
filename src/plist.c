@@ -14,18 +14,21 @@
 #include <utlist.h>
 #include <unistd.h>
 
+#define DEBUG 1
+#include "log.h"
+
 #define RUNS 30
 #define MAX_NTASKS 128
 #define NBLOCKS 1
 #define NMAX (8*1024*1024)
 #define PLIST_ALIGN 2*1024*1024
 
-static size_t
-pblock_size(size_t nmax)
+static i64
+pblock_size(i64 nmax)
 {
-	size_t psize, blocksize;
+	i64 psize, blocksize;
 
-	psize = sizeof(double) * MAX_DIM * 4 + sizeof(size_t) * 1;
+	psize = sizeof(double) * MAX_DIM * 4 + sizeof(i64) * 1;
 	blocksize = sizeof(pblock_t) + nmax * psize;
 
 	ASSERT_ALIGNED(blocksize);
@@ -43,7 +46,7 @@ pblock_last(pblock_t *head)
 }
 
 void
-pblock_update_n(pblock_t *b, size_t n)
+pblock_update_n(pblock_t *b, i64 n)
 {
 	b->n = n;
 	b->npacks = (n + MAX_VEC - 1) / MAX_VEC;
@@ -51,9 +54,9 @@ pblock_update_n(pblock_t *b, size_t n)
 }
 
 int
-pblock_init(pblock_t *b, size_t n, size_t nmax)
+pblock_init(pblock_t *b, i64 n, i64 nmax)
 {
-	size_t offset;
+	i64 offset;
 
 	offset = nmax * sizeof(double);
 	pblock_update_n(b, n);
@@ -68,7 +71,7 @@ pblock_init(pblock_t *b, size_t n, size_t nmax)
 }
 
 static pblock_t *
-plist_new_block(plist_t *l, size_t n)
+plist_new_block(plist_t *l, i64 n)
 {
 	pblock_t *b;
 
@@ -90,7 +93,7 @@ plist_new_block(plist_t *l, size_t n)
 
 
 void
-plist_init(plist_t *l, size_t nmax)
+plist_init(plist_t *l, i64 nmax)
 {
 	/* Blocksize in bytes */
 	l->blocksize = pblock_size(nmax);
@@ -100,16 +103,53 @@ plist_init(plist_t *l, size_t nmax)
 	l->b = NULL;
 }
 
-/** Grows the plist by n particles and adds a new pblock if neccesary. */
+/** Ensures the plist can hold n more particles. The number of blocks
+ * may be increased but the number of particles in the plist is keept
+ * unmodified.
+ *
+ * Only allocations of n < nmax can be requested by now. Two consecutive
+ * calls doen't accumulate the number of allocated room, is only based
+ * on the real number of particles. */
 int
-plist_grow(plist_t *l, size_t n)
+plist_alloc(plist_t *l, i64 n)
 {
-	size_t nmax;
+	i64 nmax;
 	pblock_t *b;
 
 	/* TODO: We should allow the plist to grow above nmax */
 	if(n > l->nmax)
+	{
+		dbg("plist_alloc: failed, too large n=%zd\n", n);
 		return 1;
+	}
+
+	nmax = l->nmax;
+	b = pblock_last(l->b);
+
+	/* No need to add another pblock */
+	if(b && b->n + n <= nmax)
+		return 0;
+
+	/* Otherwise we need another block */
+	if(!plist_new_block(l, 0))
+		return 1;
+
+	return 0;
+}
+
+/** Grows the plist by n particles and adds a new pblock if neccesary. */
+int
+plist_grow(plist_t *l, i64 n)
+{
+	i64 nmax;
+	pblock_t *b;
+
+	/* TODO: We should allow the plist to grow above nmax */
+	if(n > l->nmax)
+	{
+		dbg("plist_grow: failed, too large n=%zd\n", n);
+		return 1;
+	}
 
 	nmax = l->nmax;
 	b = pblock_last(l->b);
@@ -129,6 +169,44 @@ plist_grow(plist_t *l, size_t n)
 
 	if(!plist_new_block(l, n))
 		return 1;
+
+	return 0;
+}
+
+/** Shrinks the plist by n particles without modifying the number of
+ * pblocks. */
+int
+plist_shrink(plist_t *l, i64 n)
+{
+	i64 nmax;
+	pblock_t *b;
+
+	/* TODO: We should allow the plist to shrink above nmax */
+	if(n > l->nmax)
+	{
+		dbg("plist_grow: failed, too large n=%zd\n", n);
+		return 1;
+	}
+
+	nmax = l->nmax;
+	b = pblock_last(l->b);
+
+	if(!b)
+		return 1;
+
+	if(b->n - n >= 0)
+	{
+		/* No need to move pblock */
+		pblock_update_n(b, b->n - n);
+		return 0;
+	}
+
+	n -= b->n;
+	pblock_update_n(b, nmax);
+
+	assert(b->prev);
+	b = b->prev;
+	pblock_update_n(b, n);
 
 	return 0;
 }

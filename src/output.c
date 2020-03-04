@@ -13,6 +13,7 @@
 #define DEBUG 0
 #include "log.h"
 #include "def.h"
+#include "config.h"
 #include "utils.h"
 
 #define H5X 1
@@ -83,28 +84,28 @@ output_init(sim_t *sim, output_t *out)
 
 	out->enabled = 1;
 
-	if(config_lookup_int(sim->conf, "output.period.field",
+	if(config_lookup_i64(sim->conf, "output.period.field",
 				&out->period_field) != CONFIG_TRUE)
 	{
 		err("Using default period for fields of 1 sample/iteration\n");
 		out->period_field = 1;
 	}
 
-	if(config_lookup_int(sim->conf, "output.period.particle",
+	if(config_lookup_i64(sim->conf, "output.period.particle",
 				&out->period_particle) != CONFIG_TRUE)
 	{
 		err("Using default period for particles of 1 sample/iteration\n");
 		out->period_particle = 1;
 	}
 
-	if(config_lookup_int(sim->conf, "output.slices",
+	if(config_lookup_i64(sim->conf, "output.slices",
 				&out->max_slices) != CONFIG_TRUE)
 	{
 		err("Using one slice for field output\n");
 		out->max_slices = 1;
 	}
 
-	if(config_lookup_int64(sim->conf, "output.alignment",
+	if(config_lookup_i64(sim->conf, "output.alignment",
 				&out->alignment) != CONFIG_TRUE)
 	{
 		err("Using default 512 bytes for alignment\n");
@@ -113,7 +114,7 @@ output_init(sim_t *sim, output_t *out)
 
 	if(sim->blocksize[Y] % out->max_slices)
 	{
-		err("The number of slices %d doesn't divide the blocksize in Y of %d\n",
+		err("The number of slices %ld doesn't divide the blocksize in Y of %ld\n",
 				out->max_slices, sim->blocksize[Y]);
 		return -1;
 
@@ -131,7 +132,7 @@ output_init(sim_t *sim, output_t *out)
 }
 
 int
-write_xdmf_specie(sim_t *sim, int np)
+write_xdmf_specie(sim_t *sim, size_t np)
 {
 	FILE *f;
 	char file[PATH_MAX];
@@ -139,13 +140,13 @@ write_xdmf_specie(sim_t *sim, int np)
 
 	/* TODO: Multiple species */
 
-	if(snprintf(file, PATH_MAX, "%s/specie0-iter%d.xdmf",
+	if(snprintf(file, PATH_MAX, "%s/specie0-iter%zu.xdmf",
 			sim->output->path, sim->iter) >= PATH_MAX)
 	{
 		return -1;
 	}
 
-	if(snprintf(dataset, PATH_MAX, "specie0-iter%d.h5",
+	if(snprintf(dataset, PATH_MAX, "specie0-iter%zu.h5",
 			sim->iter) >= PATH_MAX)
 	{
 		return -1;
@@ -160,20 +161,20 @@ write_xdmf_specie(sim_t *sim, int np)
 	fprintf(f, "    <Grid Name=\"particles\">\n");
 	fprintf(f, "      <Topology TopologyType=\"Polyvertex\"/>\n");
 	fprintf(f, "      <Geometry Origin=\"\" Type=\"XY\">\n");
-	fprintf(f, "        <DataItem Dimensions=\"%d %d\" DataType=\"Float\" Precision=\"8\" Format=\"HDF\">%s:/xy</DataItem>\n",
-			np, 2, dataset);
+	fprintf(f, "        <DataItem Dimensions=\"%zu %zu\" DataType=\"Float\" Precision=\"8\" Format=\"HDF\">%s:/xy</DataItem>\n",
+			np, 2UL, dataset);
 	fprintf(f, "      </Geometry>\n");
 	fprintf(f, "      <Attribute Center=\"Node\" Name=\"ID\" DataType=\"Scalar\">\n");
-	fprintf(f, "        <DataItem Dimensions=\"%d %d\" DataType=\"Int\" Precision=\"4\" Format=\"HDF\">%s:/id</DataItem>\n",
-			np, 1, dataset);
+	fprintf(f, "        <DataItem Dimensions=\"%zu %zu\" DataType=\"Int\" Precision=\"4\" Format=\"HDF\">%s:/id</DataItem>\n",
+			np, 1UL, dataset);
 	fprintf(f, "      </Attribute>\n");
 	fprintf(f, "      <Attribute Center=\"Node\" Name=\"U\" DataType=\"Scalar\">\n");
-	fprintf(f, "        <DataItem Dimensions=\"%d %d\" DataType=\"Float\" Precision=\"8\" Format=\"HDF\">%s:/u</DataItem>\n",
-			np, 2, dataset);
+	fprintf(f, "        <DataItem Dimensions=\"%zu %zu\" DataType=\"Float\" Precision=\"8\" Format=\"HDF\">%s:/u</DataItem>\n",
+			np, 2UL, dataset);
 	fprintf(f, "      </Attribute>\n");
 	fprintf(f, "      <Attribute Center=\"Node\" Name=\"U_MAG\" DataType=\"Scalar\">\n");
-	fprintf(f, "        <DataItem Dimensions=\"%d %d\" DataType=\"Float\" Precision=\"8\" Format=\"HDF\">%s:/u_mag</DataItem>\n",
-			np, 1, dataset);
+	fprintf(f, "        <DataItem Dimensions=\"%zu %zu\" DataType=\"Float\" Precision=\"8\" Format=\"HDF\">%s:/u_mag</DataItem>\n",
+			np, 1UL, dataset);
 	fprintf(f, "      </Attribute>\n");
 	fprintf(f, "    </Grid>\n");
 	fprintf(f, "  </Domain>\n");
@@ -353,9 +354,9 @@ int
 output_particles(sim_t *sim)
 {
 	char file[PATH_MAX];
-	int ic;
-	int acc_np;
-	int all_np;
+	size_t ic;
+	size_t acc_np;
+	size_t all_np;
 	hid_t file_id;
 	herr_t status;
 
@@ -363,7 +364,7 @@ output_particles(sim_t *sim)
 
 	/* Count total number of particles */
 
-	if(snprintf(file, PATH_MAX, "%s/specie0-iter%d.h5",
+	if(snprintf(file, PATH_MAX, "%s/specie0-iter%zu.h5",
 			sim->output->path, sim->iter) >= PATH_MAX)
 	{
 		return -1;
@@ -401,19 +402,19 @@ output_particles(sim_t *sim)
 #endif
 
 int
-write_field_attribute(FILE *f, int iter, mat_t *m, const char *name)
+write_field_attribute(FILE *f, i64 iter, mat_t *m, const char *name)
 {
 	fprintf(f, "      <Attribute Center=\"Node\" Name=\"%s\" DataType=\"Scalar\">\n", name);
-	fprintf(f, "        <DataItem ItemType=\"HyperSlab\" Dimensions=\"1 %d %d\" Type=\"HyperSlab\">\n",
+	fprintf(f, "        <DataItem ItemType=\"HyperSlab\" Dimensions=\"1 %ld %ld\" Type=\"HyperSlab\">\n",
 			m->shape[Y], m->shape[X]);
 	fprintf(f, "          <DataItem Dimensions=\"3 3\" Format=\"XML\">\n");
-	fprintf(f, "            0 %d %d\n", m->delta[Y], m->delta[X]);
+	fprintf(f, "            0 %ld %ld\n", m->delta[Y], m->delta[X]);
 	fprintf(f, "            1 1 1\n");
-	fprintf(f, "            1 %d %d\n", m->delta[Y] + m->shape[Y], m->delta[X] + m->shape[X]);
+	fprintf(f, "            1 %ld %ld\n", m->delta[Y] + m->shape[Y], m->delta[X] + m->shape[X]);
 	fprintf(f, "          </DataItem>\n");
-	fprintf(f, "          <DataItem Dimensions=\"1 %d %d\" DataType=\"Float\" Precision=\"8\" Format=\"Binary\">\n",
+	fprintf(f, "          <DataItem Dimensions=\"1 %ld %ld\" DataType=\"Float\" Precision=\"8\" Format=\"Binary\">\n",
 			m->real_shape[Y], m->real_shape[X]);
-	fprintf(f, "            ../bin/%d/%s.bin\n",
+	fprintf(f, "            ../bin/%ld/%s.bin\n",
 			iter, name);
 	fprintf(f, "          </DataItem>\n");
 	fprintf(f, "        </DataItem>\n");
@@ -428,7 +429,7 @@ write_xdmf_fields(sim_t *sim)
 	FILE *f;
 	char file[PATH_MAX];
 
-	if(snprintf(file, PATH_MAX, "%s/xdmf/fields-iter%d.xdmf",
+	if(snprintf(file, PATH_MAX, "%s/xdmf/fields-iter%ld.xdmf",
 			sim->output->path, sim->iter) >= PATH_MAX)
 	{
 		return -1;
@@ -440,8 +441,8 @@ write_xdmf_fields(sim_t *sim)
 	fprintf(f, "<Xdmf xmlns:xi=\"http://www.w3.org/2001/XInclude\" Version=\"3.0\">\n");
 	fprintf(f, "  <Domain>\n");
 	fprintf(f, "    <Grid Name=\"fields\">\n");
-	fprintf(f, "      <Topology TopologyType=\"3DCoRectMesh\" NumberOfElements=\"%d %d %d\"/>\n",
-			1, sim->blocksize[Y], sim->blocksize[X]);
+	fprintf(f, "      <Topology TopologyType=\"3DCoRectMesh\" NumberOfElements=\"%ld %ld %ld\"/>\n",
+			1L, sim->blocksize[Y], sim->blocksize[X]);
 	fprintf(f, "      <Geometry Origin=\"\" Type=\"ORIGIN_DXDYDZ\">\n");
 	fprintf(f, "        <DataItem Format=\"XML\" Dimensions=\"3\">\n");
 	fprintf(f, "            0.0 0.0 0.0\n");
@@ -517,7 +518,7 @@ write_vector(int fd, size_t offset, double *vector, size_t size, size_t alignmen
 	dbg("Writing %lu bytes (%lu blocks) at offset %lu (%lu blocks)\n",
 			size, size/alignment, offset, offset/alignment);
 
-	while((ret = pwrite(fd, vector, size, offset)) != size)
+	while((ret = pwrite(fd, vector, size, offset)) != (ssize_t) size)
 	{
 		dbg("pwrite wrote %zd bytes of %zu, errno=%d\n", ret, size, errno);
 		if(ret < 0)
@@ -554,7 +555,7 @@ write_field(sim_t *sim, output_t *out, mat_t *m, const char *name)
 
 	ret = 0;
 
-	if(snprintf(file, PATH_MAX, "%s/bin/%d/%s.bin",
+	if(snprintf(file, PATH_MAX, "%s/bin/%ld/%s.bin",
 				out->path, sim->iter, name) >= PATH_MAX)
 	{
 		err("Path exceeds PATH_MAX\n");
@@ -648,7 +649,7 @@ output_fields(sim_t *sim)
 
 	write_xdmf_fields(sim);
 
-	if(snprintf(dir, PATH_MAX, "%s/bin/%d",
+	if(snprintf(dir, PATH_MAX, "%s/bin/%ld",
 				out->path, sim->iter) >= PATH_MAX)
 	{
 		err("Dir path exceeds PATH_MAX\n");

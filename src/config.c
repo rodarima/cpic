@@ -1,6 +1,8 @@
 #include <libconfig.h>
+#include <assert.h>
 
 #include "log.h"
+#include "int.h"
 
 int
 config_array_float(config_setting_t *cs, double *vector, int size)
@@ -57,15 +59,15 @@ config_array_float(config_setting_t *cs, double *vector, int size)
 }
 
 int
-config_lookup_array_int(config_t *conf, const char *path, int *vector, int size)
+config_lookup_array_int(config_t *conf, const char *path, i64 *vector, i64 size)
 {
-	int i;
+	i64 i;
 	config_setting_t *cs;
 
 	cs = config_lookup(conf, path);
 
 	for(i=0; i<size; i++)
-		vector[i] = config_setting_get_int_elem(cs, i);
+		vector[i] = config_setting_get_int64_elem(cs, i);
 
 	return 0;
 }
@@ -78,6 +80,13 @@ config_lookup_array_float(config_t *conf, const char *path, double *vector, int 
 	cs = config_lookup(conf, path);
 
 	return config_array_float(cs, vector, size);
+}
+
+int
+config_lookup_i64(const config_t *config, const char *path, i64 *value)
+{
+	assert(sizeof(i64) == sizeof(long long));
+	return config_lookup_int64(config, path, (long long *) value);
 }
 
 #if 0
