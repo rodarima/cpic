@@ -8,7 +8,7 @@
 #include "utils.h"
 #include "plist.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 #undef EXTRA_CHECKS
@@ -71,11 +71,56 @@ typedef struct exchange
 	//i64 nmoved;
 } exchange_t;
 
+
+/** Ensures the list has the particles stated in the header, no more, no
+ * less. */
+static void
+plist_sanity_check(plist_t *l)
+{
+	i64 ip, iv;
+	pblock_t *b;
+	ppack_t *p;
+
+	/* Ensure we only have one pblock by now */
+	assert(l->b->next == NULL);
+	assert(l->nblocks == 1);
+
+	b = l->b;
+
+	/* Non-negative numbers */
+	assert(b->n >= 0);
+	assert(b->npacks >= 0);
+	assert(b->nfpacks >= 0);
+
+	/* Ensure consistency in the number of particles and ppacks */
+	assert(b->nfpacks <= b->npacks);
+	assert(b->nfpacks+1 >= b->npacks);
+	assert(b->n <= b->npacks * MAX_VEC);
+
+#ifdef USE_PPACK_MAGIC
+	for(ip=0; ip<b->npacks; ip++)
+	{
+		p = &b->p[ip];
+
+		for(iv=0; iv<MAX_VEC; iv++)
+		{
+			if(ip * MAX_VEC + iv < b->n)
+				assert(p->magic[iv] == MAGIC_PARTICLE);
+			else /* This may read garbage, don't worry
+				valgrind */
+				assert(p->magic[iv] != MAGIC_PARTICLE);
+		}
+	}
+#endif
+}
+
 static void
 pwin_print(pwin_t *w, const char *name)
 {
 	i64 iv;
 	char selc[2] = {' ', '*'};
+
+	UNUSED(name);
 
 	dbg("%s: b=%p ip=%zd sel=[", name, w->b, w->ip);
 
@@ -268,14 +313,25 @@ move_particle(pwin_t *wsrc, i64 isrc, pwin_t *wdst, i64 idst)
 	src = &wsrc->b->p[wsrc->ip];
 	dst = &wdst->b->p[wdst->ip];
 
-	dbg("moving particle isrc=%ld idst=%ld\n", isrc, idst);
+	dbg("moving particle from %s.%p.%ld.%ld to %s.%p.%ld.%ld\n",
+			wsrc->l->name, wsrc->b, wsrc->ip, isrc,
+			wdst->l->name, wdst->b, wdst->ip, idst);
 
 #ifdef USE_PPACK_MAGIC
+	//dbg("writing magic %llx to ip=%ld i=%ld at %p\n",
+	//		src->magic[isrc], wdst->ip, idst,
+	//		((i64 *)&dst->magic) + idst);
+	assert(sizeof(ppack_t) == 448);
+	assert(src->magic[isrc] == MAGIC_PARTICLE);
 	dst->magic[idst] = src->magic[isrc];
+
+	/* We remove the magic from the source as it is considered
+	 * garbage now */
+	src->magic[isrc] = MAGIC_GARBAGE;
 #endif
 	dst->i[idst] = src->i[isrc];
 
-	for(d=X; d<MAX_VEC; d++)
+	for(d=X; d<MAX_DIM; d++)
 	{
 		dst->r[d][idst] = src->r[d][isrc];
 		dst->u[d][idst] = src->u[d][isrc];
@@ -335,6 +391,65 @@ transfer(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
 
 		if(idst >= MAX_VEC) break;
 		if(isrc >= MAX_VEC) break;
+
+		if(vmsk_iszero(*dst_sel)) break;
+		if(vmsk_iszero(*src_sel)) break;
+	}
+
+	return moved;
+}
+
+/** Move particles from the END of the src window into the START of dst.
+ * The number of particles moved is at least one, and at most the
+ * minimum number of enabled bits in the selection of src and dst. */
+static i64
+transfer_backwards(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
+{
+	i64 isrc, idst;
+	i64 moved;
+
+	/* TODO: We can store the index in each pwin, so we can reuse the
+	 * previous state to speed up the search */
+
+	isrc = MAX_VEC - 1;
+	idst = 0;
+	moved = 0;
+
+	dbg("transfer_backwards src_mask=%llx, dst_mask=%llx\n",
+			vmsk_get(*src_sel), vmsk_get(*dst_sel));
+
+	assert(vmsk_isany(*dst_sel));
+	assert(vmsk_isany(*src_sel));
+
+
+	while(1)
+	{
+		/* It cannot happen that idst or isrc exceed MAX_VEC, as if
+		 * they are nonzero, the ones must be after or at idst or isrc
+		 * */
+
+		/* Compute the index in dst */
+		while((*dst_sel)[idst] == 0) idst++;
+
+		/* Same in src */
+		while((*src_sel)[isrc] == 0) isrc--;
+
+		move_particle(src, isrc, dst, idst);
+		moved++;
+
+		/* FIXME: We must modify the list size as well */
+
+		/* Clear the bitmask */
+		/* TODO: Use proper macros to deal with the bitmasks */
+		(*src_sel)[isrc] = 0;
+		(*dst_sel)[idst] = 0;
+
+		/* And advance the index in both masks */
+		idst--;
+		isrc--;
+
+		if(idst >= MAX_VEC) break;
+		if(isrc < 0) break;
 
 		if(vmsk_iszero(*dst_sel)) break;
 		if(vmsk_iszero(*src_sel)) break;
@@ -461,7 +576,7 @@ update_sel(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 	for(iv=0; iv<MAX_VEC; iv++)
 	{
 		if(w->enabled[iv])
-			assert(p->magic[iv] == 0xdeadbeef);
+			assert(p->magic[iv] == MAGIC_PARTICLE);
 	}
 #endif
 
@@ -662,16 +777,16 @@ fill_holes(exchange_t *ex)
 	if(pwin_equal(A, B))
 		return 0;
 
-	dbg("Before transfer\n");
-	pwin_print(A, "A");
-	pwin_print(B, "B");
+	//dbg("Before transfer\n");
+	//pwin_print(A, "A");
+	//pwin_print(B, "B");
 
 	/* First fill some holes in A with particles from B */
 	moved = transfer(B, &B->sel, A, &A->sel);
 
-	dbg("After transfer\n");
-	pwin_print(A, "A");
-	pwin_print(B, "B");
+	//dbg("After transfer\n");
+	//pwin_print(A, "A");
+	//pwin_print(B, "B");
 
 	/* At least one window must be complete */
 	assert(vmsk_iszero(A->sel) || vmsk_iszero(B->sel));
@@ -723,6 +838,8 @@ end:
 static void
 queue_init(plist_t *q, pwin_t *qw)
 {
+	dbg("Allocate a new ppack in queue %s with n=%ld particles\n",
+			q->name, q->b->n);
 	/* Ensure the queues always have one empty block */
 	assert(q->b);
 	assert(q->b->n == 0);
@@ -739,16 +856,22 @@ queue_init(plist_t *q, pwin_t *qw)
 static void
 queue_close(pwin_t *q)
 {
-	unsigned long long mask, count;
+	i64 mask, count, n;
+
+	dbg("Closing queue %s using pwin=%p with n=%ld particles\n",
+			q->l->name, q, q->b->n);
 
 	mask = vmsk_get(q->sel);
 	count = __builtin_popcountll(mask);
 
-	q->b->n -= count;
+	dbg("There was %ld holes\n", count);
 
-	/* FIXME: Should we leave the block if there are no particles?
-	 * */
+	n = q->b->n - count;
+
+	pblock_update_n(q->b, n);
+
 	assert(q->b->n >= 0);
+	assert(q->b->nfpacks * MAX_VEC <= q->b->n);
 
 	q->sel = vmsk_zero();
 }
@@ -768,7 +891,8 @@ finish_pass(exchange_t *ex, i64 *in, i64 *out)
 	q1 = &ex->q1;
 
 	/* Ensure the number of particles in the pblock equals the
-	 * actual number of particles in the queue */
+	 * actual number of particles in the queue, as they may have
+	 * extra room filled with garbage */
 	queue_close(q0);
 	queue_close(q1);
 
@@ -850,7 +974,9 @@ finish_pass(exchange_t *ex, i64 *in, i64 *out)
 fix_size:
 
 	pblock_update_n(B->b, B->ip * MAX_VEC + count);
-	dbg("Final size set to b->n=%zd\n", B->b->n);
+	dbg("Final list size set to b->n=%zd\n", B->b->n);
+	dbg("Final qx0 size set to b->n=%zd\n", q0->b->n);
+	dbg("Final qx1 size set to b->n=%zd\n", q1->b->n);
 }
 
 static i64
@@ -922,10 +1048,32 @@ local_collect_x(pchunk_t *c, pset_t *set)
 {
 	exchange_t ex;
 	i64 collected;
+	i64 nq0, nq1;
+	i64 n0_l, n0_q0, n0_q1, n0;
+	i64 n1_l, n1_q0, n1_q1, n1;
 
 	ex.c = c;
 	ex.set = set;
 
+#ifdef USE_PPACK_MAGIC
+	assert(set->list.b->next == NULL);
+	plist_sanity_check(&set->list);
+#endif
+
+	assert(set->qx0.nblocks == 1);
+	assert(set->qx1.nblocks == 1);
+	assert(set->list.nblocks == 1);
+
+	n0_l = set->list.b->n;
+	n0_q0 = set->qx0.b->n;
+	n0_q1 = set->qx1.b->n;
+	n0 = n0_l + n0_q0 + n0_q1;
+
+	dbg("Starting collect pass 1 with nl=%ld nq0=%ld nq1=%ld\n",
+			n0_l, n0_q0, n0_q1);
+
+	/* Queues are temporarily modified so we have an extra (garbage)
+	 * ppack so we can append to the plist */
 	queue_init(&set->qx0, &ex.q0);
 	queue_init(&set->qx1, &ex.q1);
 
@@ -933,7 +1081,69 @@ local_collect_x(pchunk_t *c, pset_t *set)
 	assert(vmsk_isany(ex.q1.sel));
 
 	collected = collect_pass(&ex);
+
+	assert(set->qx0.nblocks == 1);
+	assert(set->qx1.nblocks == 1);
+	assert(set->list.nblocks == 1);
+
+	n1_l = set->list.b->n;
+	n1_q0 = set->qx0.b->n;
+	n1_q1 = set->qx1.b->n;
+	n1 = n1_l + n1_q0 + n1_q1;
+
+	dbg("Finished collect pass 1\n");
+	dbg("Before: nl=%ld nq0=%ld nq1=%ld total=%ld\n",
+			n0_l, n0_q0, n0_q1, n0);
+	dbg("After:  nl=%ld nq0=%ld nq1=%ld total=%ld\n",
+			n1_l, n1_q0, n1_q1, n1);
+
+	/* No particles lost */
+	assert(n0 == n1);
+
+	/********* Second pass **********/
+
+	n0_l = set->list.b->n;
+	n0_q0 = set->qx0.b->n;
+	n0_q1 = set->qx1.b->n;
+	n0 = n0_l + n0_q0 + n0_q1;
+
+	dbg("Starting collect pass 2 with nl=%ld nq0=%ld nq1=%ld\n",
+			n0_l, n0_q0, n0_q1);
+
+	assert(set->qx0.nblocks == 1);
+	nq0 = set->qx0.b->n;
+
+	assert(set->qx0.nblocks == 1);
+	nq0 = set->qx0.b->n;
+
+	assert(set->qx1.nblocks == 1);
+	nq1 = set->qx1.b->n;
+
 	assert(collect_pass(&ex) == 0);
+
+	assert(set->qx0.nblocks == 1);
+	assert(set->qx1.nblocks == 1);
+	assert(set->list.nblocks == 1);
+
+	n1_l = set->list.b->n;
+	n1_q0 = set->qx0.b->n;
+	n1_q1 = set->qx1.b->n;
+	n1 = n1_l + n1_q0 + n1_q1;
+
+	dbg("Finished collect pass 2\n");
+	dbg("Before: nl=%ld nq0=%ld nq1=%ld total=%ld\n",
+			n0_l, n0_q0, n0_q1, n0);
+	dbg("After:  nl=%ld nq0=%ld nq1=%ld total=%ld\n",
+			n1_l, n1_q0, n1_q1, n1);
+
+	/* No particles lost */
+	assert(n0 == n1);
+
+	assert(set->qx0.b->nfpacks * MAX_VEC <= set->qx0.b->n);
+	assert(set->qx1.b->nfpacks * MAX_VEC <= set->qx1.b->n);
+
+	assert(set->qx0.b->n == nq0);
+	assert(set->qx1.b->n == nq1);
 
 	return collected;
 }
@@ -956,16 +1166,16 @@ move_ppack(pwin_t *wsrc, pwin_t *wdst)
 
 	dst->i = src->i;
 
-	for(d=X; d<MAX_VEC; d++)
+	for(d=X; d<MAX_DIM; d++)
 		dst->r[d] = src->r[d];
 
-	for(d=X; d<MAX_VEC; d++)
+	for(d=X; d<MAX_DIM; d++)
 		dst->u[d] = src->u[d];
 
-	for(d=X; d<MAX_VEC; d++)
+	for(d=X; d<MAX_DIM; d++)
 		dst->E[d] = src->E[d];
 
-	for(d=X; d<MAX_VEC; d++)
+	for(d=X; d<MAX_DIM; d++)
 		dst->B[d] = src->B[d];
 
 }
@@ -991,8 +1201,13 @@ inject_full_ppacks(plist_t *queue, plist_t *list)
 	pwin_last(queue, &end);
 	pwin_last(list, &dst);
 
+	assert(queue->b->nfpacks * MAX_VEC <= queue->b->n);
+
 	/* We should have at least one ppack in the queue */
 	assert(vmsk_isany(src.enabled));
+
+	/* FIXME: Look for a better way to handle windows in the garbage
+	 * space of the plist */
 
 	/* Add extra room in the list */
 	if(plist_grow(dst.l, MAX_VEC))
@@ -1024,13 +1239,17 @@ inject_full_ppacks(plist_t *queue, plist_t *list)
 	move_ppack(&src, &dst);
 	count += left;
 
-	if(plist_grow(dst.l, left))
+	/* Remove the extra space we added before */
+	if(plist_shrink(dst.l, MAX_VEC - left))
 	{
-		err("plist_grow failed\n");
+		err("plist_shrink failed\n");
 		abort();
 	}
 
 	pblock_update_n(src.l->b, 0);
+
+	plist_sanity_check(list);
+	plist_sanity_check(queue);
 
 	return count;
 }
@@ -1050,6 +1269,11 @@ inject_fill(plist_t *q, plist_t *l)
 	pwin_last(q, &src);
 	pwin_last(l, &dst);
 
+	assert(q->b->nfpacks * MAX_VEC <= q->b->n);
+
+	/* FIXME: This may not work for MAX_VEC != 4, as the number of
+	 * times we need to go back may be higher */
+
 	src.sel = src.enabled;
 	dst.sel = vnot(dst.enabled);
 
@@ -1059,7 +1283,7 @@ inject_fill(plist_t *q, plist_t *l)
 		goto end;
 	}
 
-	moved = transfer(&src, &src.sel, &dst, &dst.sel);
+	moved = transfer_backwards(&src, &src.sel, &dst, &dst.sel);
 	plist_grow(l, moved);
 	plist_shrink(q, moved);
 
@@ -1077,7 +1301,7 @@ inject_fill(plist_t *q, plist_t *l)
 	dbg("The ppack requires more particles from the queue\n");
 	pwin_prev(&src, 1);
 
-	moved = transfer(&src, &src.sel, &dst, &dst.sel);
+	moved = transfer_backwards(&src, &src.sel, &dst, &dst.sel);
 	plist_grow(l, moved);
 	plist_shrink(q, moved);
 
@@ -1086,6 +1310,10 @@ inject_fill(plist_t *q, plist_t *l)
 end:
 	/* Now it should be complete */
 	assert(vmsk_iszero(dst.sel));
+
+	plist_sanity_check(l);
+	plist_sanity_check(q);
+
 	dbg("--- inject_fill() ends ---\n");
 }
 
@@ -1101,6 +1329,14 @@ inject_particles(plist_t *queue, plist_t *list)
 	/* By now */
 	assert(list->nblocks == 1);
 
+	dbg("queue has %ld particles, npacks=%ld, nfpacks=%ld\n",
+			queue->b->n, queue->b->npacks,
+			queue->b->nfpacks);
+	assert(queue->b->nfpacks * MAX_VEC <= queue->b->n);
+
+	plist_sanity_check(list);
+	plist_sanity_check(queue);
+
 	if(queue->b->n == 0)
 	{
 		dbg("No particles in the queue to inject\n");
@@ -1115,6 +1351,9 @@ inject_particles(plist_t *queue, plist_t *list)
 		goto end;
 	}
 
+	plist_sanity_check(list);
+	plist_sanity_check(queue);
+
 	dbg("Injecting full ppacks first\n");
 	count = inject_full_ppacks(queue, list);
 
@@ -1122,6 +1361,14 @@ inject_particles(plist_t *queue, plist_t *list)
 
 end:
 	assert(queue->b->n == 0);
+	dbg("Testing queue list=%p with b->n=%ld, npacks=%ld\n",
+			queue, queue->b->n, queue->b->npacks);
+	assert(queue->b->nfpacks * MAX_VEC <= queue->b->n);
+
+
+	plist_sanity_check(list);
+	plist_sanity_check(queue);
+
 	dbg("--- inject_particles() ends ---\n");
 }
 
@@ -1184,6 +1431,7 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 
 	do
 	{
+		dbg("Begin comm_plasma_x loop\n");
 		for(ic = 0; ic < plasma->nchunks; ic++)
 		{
 			c = &plasma->chunks[ic];
@@ -1196,12 +1444,16 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 			}
 		}
 
+
 		/* FIXME: This introduces a barrier which we may want to
 		 * avoid */
 		#pragma oss task inout(plasma->chunks[0:N])
-		for(ic = 0; ic < plasma->nchunks; ic++)
 		{
-			all_collected += collected[ic];
+			all_collected = 0;
+			for(ic = 0; ic < plasma->nchunks; ic++)
+			{
+				all_collected += collected[ic];
+			}
 		}
 
 		/* No need to perform the exchange phase if no particles
@@ -1238,6 +1490,10 @@ comm_plasma(sim_t *sim, int global_exchange)
 	 * chunk */
 
 	comm_plasma_x(sim, global_exchange);
+
+	dbg("- * - * - * - * - * - * - * - * - * - * - * - * - * - * -\n");
+	dbg("                 comm_plasma_x complete\n");
+	dbg("- * - * - * - * - * - * - * - * - * - * - * - * - * - * -\n");
 
 	/* No communication in Y needed with only one process */
 	if(sim->nprocs == 1) return 0;

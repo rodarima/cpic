@@ -6,7 +6,7 @@
 #include "mover.h"
 #include "def.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "utils.h"
 #include <math.h>
@@ -130,7 +130,7 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 			for(iv=0; iv<MAX_VEC; iv++)
 			{
 #ifdef USE_PPACK_MAGIC
-				p->magic[iv] = 0xdeadbeef;
+				p->magic[iv] = MAGIC_PARTICLE;
 #endif
 				/* XXX: Should we keep the particles out of
 				 * b->n inside the chunk? */

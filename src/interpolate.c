@@ -3,7 +3,7 @@
 #include "mat.h"
 #include <assert.h>
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 static inline void

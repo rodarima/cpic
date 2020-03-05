@@ -2,7 +2,7 @@
 
 /* NOTE: this DEBUG enables a taskwait which may lead to unexpected behavior
  * when debugging a problem, remove the taskwait if the print is not needed */
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 #include "solver.h"

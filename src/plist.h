@@ -1,7 +1,7 @@
 #include "def.h"
 
 void
-plist_init(plist_t *l, i64 nmax);
+plist_init(plist_t *l, i64 nmax, const char *name);
 
 int
 plist_grow(plist_t *l, i64 n);

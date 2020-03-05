@@ -26,10 +26,9 @@
 static i64
 pblock_size(i64 nmax)
 {
-	i64 psize, blocksize;
+	i64 blocksize;
 
-	psize = sizeof(double) * MAX_DIM * 4 + sizeof(i64) * 1;
-	blocksize = sizeof(pblock_t) + nmax * psize;
+	blocksize = sizeof(pblock_t) + nmax * sizeof(ppack_t);
 
 	ASSERT_ALIGNED(blocksize);
 
@@ -48,9 +47,13 @@ pblock_last(pblock_t *head)
 void
 pblock_update_n(pblock_t *b, i64 n)
 {
+	//dbg("The pblock %p sets the number of particles to %ld\n",
+	//		b, n);
 	b->n = n;
 	b->npacks = (n + MAX_VEC - 1) / MAX_VEC;
 	b->nfpacks = n / MAX_VEC;
+	//dbg("Result: pblock=%p n=%ld npacks%ld nfpacks=%ld\n",
+	//		b, b->n, b->npacks, b->nfpacks);
 }
 
 int
@@ -93,7 +96,7 @@ plist_new_block(plist_t *l, i64 n)
 
 
 void
-plist_init(plist_t *l, i64 nmax)
+plist_init(plist_t *l, i64 nmax, const char *name)
 {
 	/* Blocksize in bytes */
 	l->blocksize = pblock_size(nmax);
@@ -101,6 +104,9 @@ plist_init(plist_t *l, i64 nmax)
 	l->nblocks = 0;
 	l->nmax = nmax;
 	l->b = NULL;
+
+	strncpy(l->name, name, 8);
+	l->name[7] = '\0';
 }
 
 /** Ensures the plist can hold n more particles. The number of blocks
@@ -147,8 +153,8 @@ plist_grow(plist_t *l, i64 n)
 	/* TODO: We should allow the plist to grow above nmax */
 	if(n > l->nmax)
 	{
-		dbg("plist_grow: failed, too large n=%zd\n", n);
-		return 1;
+		err("plist_grow: failed, too large n=%zd\n", n);
+		abort();
 	}
 
 	nmax = l->nmax;
@@ -160,7 +166,7 @@ plist_grow(plist_t *l, i64 n)
 		{
 			/* No need to add another pblock */
 			pblock_update_n(b, b->n + n);
-			return 0;
+			goto end;
 		}
 
 		n -= nmax - b->n;
@@ -168,7 +174,16 @@ plist_grow(plist_t *l, i64 n)
 	}
 
 	if(!plist_new_block(l, n))
-		return 1;
+	{
+		err("plist_new_block failed\n");
+		abort();
+	}
+
+	b = l->b;
+
+end:
+
+	assert(b->nfpacks * MAX_VEC <= b->n);
 
 	return 0;
 }
@@ -180,6 +195,8 @@ plist_shrink(plist_t *l, i64 n)
 {
 	i64 nmax;
 	pblock_t *b;
+
+	dbg("Shrinking list=%p to n=%ld elements\n", l, n);
 
 	/* TODO: We should allow the plist to shrink above nmax */
 	if(n > l->nmax)

@@ -13,7 +13,8 @@
 #define E_NG_NORTH	(INTERPOLATION_POINTS * 0)
 #define E_NG_SOUTH	(INTERPOLATION_POINTS * 1)
 
-#define USE_PPACK_MAGIC
+#define MAGIC_PARTICLE	0x600df00d
+#define MAGIC_GARBAGE	0xdeadf00d
 
 #include "int.h"
 #include "mat.h"
@@ -80,6 +81,9 @@ typedef struct output output_t;
  *
  * The structure size is multiple of the vector line, so any access to the
  * members are aligned */
+
+#define USE_PPACK_MAGIC
+
 struct ppack
 {
 #ifdef USE_PPACK_MAGIC
@@ -130,10 +134,11 @@ struct pblock
 /** A particle list has a bunch of particles from only one type of specie */
 struct plist
 {
-	i64 nblocks;		/**< Current number of pblocks used */
+	i64 nblocks;	/**< Current number of pblocks used */
 	i64 blocksize;	/**< Size of each pblock in bytes */
 	i64 max_packs;	/**< Maximum number of packs per block */
-	i64 nmax;		/**< Maximum number of particles per block */
+	i64 nmax;	/**< Maximum number of particles per block */
+	char name[8];	/**< A description name */
 
 	/** The linked list of pblock. Should be NULL if we don't have any
 	 * pblock, but this configuration may changed in order to reuse the

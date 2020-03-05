@@ -38,9 +38,9 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 
 	set->info = specie;
 
-	plist_init(l, sim->pblock_nmax);
-	plist_init(&set->qx0, sim->pblock_nmax);
-	plist_init(&set->qx1, sim->pblock_nmax);
+	plist_init(l, sim->pblock_nmax, "l");
+	plist_init(&set->qx0, sim->pblock_nmax, "qx0");
+	plist_init(&set->qx1, sim->pblock_nmax, "qx1");
 
 	/* Add one dummy block to the queues */
 	plist_grow(&set->qx0, 0);
