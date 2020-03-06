@@ -890,16 +890,10 @@ finish_pass(exchange_t *ex, i64 *in, i64 *out)
 	q0 = &ex->q0;
 	q1 = &ex->q1;
 
-	/* Ensure the number of particles in the pblock equals the
-	 * actual number of particles in the queue, as they may have
-	 * extra room filled with garbage */
-	queue_close(q0);
-	queue_close(q1);
-
 	assert(pwin_equal(A, B));
 
 	/* If the window was already analyzed, don't move the particles
-	 * to the queues */
+	 * to the queues, as we already did that before. */
 	if(B->dirty_sel && A->dirty_sel)
 	{
 		/* First identify any lost particles that must leave the
@@ -916,6 +910,15 @@ finish_pass(exchange_t *ex, i64 *in, i64 *out)
 	{
 		dbg("No sel update required\n");
 	}
+
+	/* Ensure the number of particles in the pblock equals the
+	 * actual number of particles in the queue, as they may have
+	 * extra room filled with garbage. We close the queues only
+	 * after the clean_lost() stage, as they may require extra room
+	 * in the queues. */
+	queue_close(q0);
+	queue_close(q1);
+
 
 	/* Set the selection from A to B, if it was already set */
 	if(!A->dirty_sel)
@@ -1255,7 +1258,7 @@ inject_full_ppacks(plist_t *queue, plist_t *list)
 }
 
 /** Fills the list l to complete the last ppack in case is non-full
- * using particles from the queue q */
+ * using particles from the end of the queue q */
 static void
 inject_fill(plist_t *q, plist_t *l)
 {
@@ -1296,10 +1299,13 @@ inject_fill(plist_t *q, plist_t *l)
 	}
 
 	/* Ensure the last queue ppack is empty */
-	assert(vmsk_iszero(dst.sel));
+	assert(vmsk_iszero(src.sel));
 
 	dbg("The ppack requires more particles from the queue\n");
 	pwin_prev(&src, 1);
+	src.sel = src.enabled;
+
+	assert(vmsk_isany(src.sel));
 
 	moved = transfer_backwards(&src, &src.sel, &dst, &dst.sel);
 	plist_grow(l, moved);

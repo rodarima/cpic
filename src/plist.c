@@ -10,6 +10,7 @@
 #include "simd.h"
 #include "perf.h"
 #include "def.h"
+#include "int.h"
 #include <sys/mman.h>
 #include <utlist.h>
 #include <unistd.h>
@@ -173,13 +174,11 @@ plist_grow(plist_t *l, i64 n)
 		pblock_update_n(b, nmax);
 	}
 
-	if(!plist_new_block(l, n))
+	if(!(b = plist_new_block(l, n)))
 	{
 		err("plist_new_block failed\n");
 		abort();
 	}
-
-	b = l->b;
 
 end:
 
@@ -201,7 +200,7 @@ plist_shrink(plist_t *l, i64 n)
 	/* TODO: We should allow the plist to shrink above nmax */
 	if(n > l->nmax)
 	{
-		dbg("plist_grow: failed, too large n=%zd\n", n);
+		dbg("plist_shrink: failed, too large n=%zd\n", n);
 		return 1;
 	}
 

@@ -15,6 +15,7 @@
 
 #define MAGIC_PARTICLE	0x600df00d
 #define MAGIC_GARBAGE	0xdeadf00d
+#define MAGIC_UNDEF	0x12345678
 
 #include "int.h"
 #include "mat.h"

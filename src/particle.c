@@ -121,7 +121,6 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 
 	for(b = l->b; b; b = b->next)
 	{
-		/* Initialize all, even after b->n */
 		for(i=0; i < b->npacks; i++)
 		{
 			//dbg("Initialization of ppack %ld\n", i);
@@ -129,6 +128,16 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 
 			for(iv=0; iv<MAX_VEC; iv++)
 			{
+				/* Initialize only up to b->n */
+				if(i*MAX_VEC + iv >= b->n)
+				{
+#ifdef USE_PPACK_MAGIC
+					/* Set the magic to help
+					 * valgrind */
+					p->magic[iv] = MAGIC_UNDEF;
+#endif
+					continue;
+				}
 #ifdef USE_PPACK_MAGIC
 				p->magic[iv] = MAGIC_PARTICLE;
 #endif

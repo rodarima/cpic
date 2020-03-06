@@ -23,7 +23,7 @@
 int
 pset_init(sim_t *sim, pchunk_t *chunk, int is)
 {
-	i64 ip, iv, ic, i, j, step, npack;
+	i64 ip, iv, ic, i, j, step;
 	plist_t *l;
 	pblock_t *b;
 	pset_t *set;
@@ -116,14 +116,15 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 	i = ic;
 	for(b = l->b; b; b = b->next)
 	{
-		/* We initialize even past b->n to fill all packs */
-		npack = (b->n + MAX_VEC - 1) / MAX_VEC;
-		for(ip=0; ip < npack; ip++)
+		for(ip=0; ip < b->npacks; ip++)
 		{
-			//dbg("ip = %zd / %zd\n", ip, npack);
+			//dbg("ip = %zd / %zd\n", ip, b->npacks);
 			p = &b->p[ip];
 			for(iv=0; iv<MAX_VEC; iv++)
 			{
+				/* We initialize only b->n particles */
+				if(ip * MAX_VEC + iv >= b->n) break;
+
 				assert((i % sim->nprocs) == chunk->ig[Y]);
 				j = i / sim->nprocs;
 
