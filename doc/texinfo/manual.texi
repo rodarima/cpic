@@ -1,0 +1,195 @@
+\input texinfo   @c -*-texinfo-*-
+@comment $Id@w{$}
+@comment %**start of header
+@settitle cpic
+
+@c @contents
+
+@node Top
+
+This is a sample manual.  There is no sample program to
+invoke, but if there were, you could see its basic usage
+and command line options here.
+
+@contents
+
+@chapter Data structures
+
+In order to achieve good performance, a set of particularly designed
+data structured are being used. They can be divided in two main groups
+regarding to the fields or the plasma storage.
+
+@anchor{field-storage}
+@section Storage of the fields
+
+The three fields used in the simulation (electric, electric
+potential and electric charge) are stored using the mat data structure
+
+@section Storage of plasma
+
+All particles in the simulation are divided first into each MPI process,
+by slicing the Y dimension into non-overlapping blocks. Inside each
+block, the plasma is further divided into non-overlapping chunks in the
+X dimension.
+
+@anchor{pchunk}
+@subsection Plasma chunk
+
+A chunk contains all the information of the plasma in a given spatial
+region of the simulation. The data structure is called pchunk, from
+plasma chunk.
+
+A plasma chunk can contain multiple species of particles. Each specie
+may contain a large set of particles. Each set of particles is stored in
+a pset.
+
+@anchor{pset}
+@subsection Plasma set
+
+The particles of one specie in a chunk are stored into a special list
+designed to be used with vectorized operations, the plist.
+
+@anchor{plist}
+@subsection Plasma list
+
+The list is formed by blocks of particles grouped in packs of the vector
+size.
+
+@anchor{pwin}
+@subsection Pack window
+
+A window is used to select particles within a plasma pack. Several masks
+are used to inform of the state of each particle. The window can be
+slide and positioned in each ppack of a plist.
+
+@chapter Plasma communication
+
+As particles move around they may move outside of their designated
+@ref{pchunk}, which then will need to be moved to the correct pchunk.
+Particles outside their chunk are called lost particles.
+
+The simulation guarantees that in one time-step the maximum distance
+traveled by any particle is at most the chunk space. Then, a lost
+particle can only be in the 8 neighbour chunks. This reduces the
+communications between chunks.
+
+The communication of particles is done in two stages. First the lost
+particles are translated in the X dimension in the @code{comm_plasma_x}
+step and then in the Y dimension in @code{comm_plasma_y}.
+
+@section Communication of plasma in X
+
+Lost particles are moved to their correct chunk in parallel. The
+process involves two steps:
+
+@itemize
+@item @code{local_collect_x}: Collect particles into queues
+@item @code{exchange_particles_x}: Place the collected particles into
+the appropriate chunk.
+@end itemize
+
+@section Collect particles in X
+
+The process involves a set of careful operations to deal with the plist
+structure. In the collection step, lost particles are identified, marked and
+transferred to one of the two queues of the @ref{pset}, @code{qx0} or
+@code{qx1}.
+
+In the first pass the count of particles transferred to the queues is
+annotated and used to ensure that no particles were lost. Then another
+pass is done, to ensure that no lost particles are left in the list.
+This last second pass is only enabled in debug mode.
+
+The collection algorithm is distributed in several steps. Two windows
+(@xref{pwin}) A and B are used along the list of particles in the particle
+set.
+
+The window A is placed at the start of the list pointing to the first
+pack and the window B points to the last non-empty pack of the list.
+
+The task of the B window is to look for extra particles: the ones that
+will remain in the chunk. Usually most particles will be in the chunk,
+so only a few checks should be necessary. In case there are some lost
+particles they are moved to the corresponding queue in the set (either
+@code{qx0} or @code{qx1}).
+
+If no extra particles are found, the B window is slide to the previous
+pack and the search continues until at least one extra particle is
+found.
+
+Then is the turn of the A window, which will begin from the start of the
+list and look for lost particles, which we call holes. As soon as a hole
+is found, the process stops and the next step begins. If no holes are
+found, the A window is slide to the next pack and the search continues.
+
+Finally, we reach a state where we have some extra particles in B and
+some holes in A. Therefore we can transfer at least one particle from B
+to fill the holes in A. All holes are filled unless there are no enough
+extra particles in B.
+
+At least one of the two windows is now complete (either A with no
+holes or B with no extra particles). Completed windows are advanced
+towards themselves to continue with the process.
+
+The process completes when the two windows are pointing to the same
+pack. To finish the collection process, the last pack pointed by the
+windows is analyzed to remove any lost particles. And the remaining
+particles are packed into the left.
+
+@section Exchange particles in X
+
+The exchange algorithm moves particles between plasma chunks always
+reading from the queues of the two neighbour chunks in X and appending
+the particles into the plasma list.
+
+Therefore, the exchange phase can begin if the collection phase has
+finished for the current chunk, as well as the two neighbour chunks in
+X.
+
+The exchange algorithm is first executed to fill the list with particles
+from the queue qx0, and then with the queue qx1.
+
+The algorithm is divided in two steps: filling the last pack and then
+appending the rest of packs in the list.
+
+It turns out the last pack of the list may not be complete. Then, if the
+queue were simply copied behind, all packs would require to be modified
+to shift the particles. To avoid changing all the packs, the list if
+first filled to complete the last pack using particles from the end of
+the list. Notice the particles must be transferred from the end of the
+last pack of the queue, not from the beginning.
+
+Once the list has the last pack complete, the bulk pack filling can
+begin, which will only append all remaining packs of the queue into the
+list. This operation can even use other advanced memory transfer
+techniques, as all the particles are copied from a contiguous region of
+memory.
+
+In the case of multiple blocks involved in the transference, the
+pointers can be modified to continue in the queue to alleviate the copy
+of particles, but this optimization is not yet implemented. The number
+of exchanged particles between chunks should be low.
+
+@section Moving particles using windows
+
+The window-based movement is a key concept to work with the vectorized
+operations of AVX-2 and AVX-512 instruction set of the Intel processors.
+There are two types of movements: parallel and non-parallel.
+
+@image{ppack-parallel-move}
+
+In the parallel move, a mask determines which particles are required to
+move, and then are moved using one instruction per vector-line. This is
+a very efficient way of transferring particles around, as we don't need
+to change their position inside the pack.
+
+@image{ppack-non-parallel-move}
+
+In contrast, in a non-parallel move, the particles change their index in
+the pack, and thus they cannot be moved using one instruction per
+vector-line. This operation has a large computational cost compared with
+a parallel move and must be avoided. The current implementation
+addresses one particle at a time, but it may be more efficient to use a
+combination of partial parallel moves and shifts.
+
+@bye
