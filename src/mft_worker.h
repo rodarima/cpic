@@ -6,6 +6,7 @@ typedef struct mft_worker mft_worker_t;
 #include "mft_tap.h"
 #include <mpi.h>
 
+/** Global structure for all mft workers */
 struct mft_worker
 {
 	int master_rank;

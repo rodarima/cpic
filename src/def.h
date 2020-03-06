@@ -76,15 +76,14 @@ typedef struct output output_t;
 
 /************************************************************/
 
-/** A particle pack designed to hold \ref MAX_VEC particles: 4 in AVX2 using 256
+#define USE_PPACK_MAGIC
+
+/** A particle pack designed to hold `MAX_VEC` particles: 4 in AVX2 using 256
  * bits or 8 in AVX512 using 512 bits. A total of 13 vectors of 64bits per
  * element, with 52 and 104 bytes respectively in AVX2 or AVX512.
  *
  * The structure size is multiple of the vector line, so any access to the
  * members are aligned */
-
-#define USE_PPACK_MAGIC
-
 struct ppack
 {
 #ifdef USE_PPACK_MAGIC
@@ -341,6 +340,7 @@ enum timers {
 	MAX_TIMERS
 };
 
+/** The sim structure holds all the global information for the simulation */
 struct sim
 {
 

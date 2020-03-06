@@ -27,7 +27,6 @@
 #endif
 #include <mpi.h>
 
-
 int
 usage(char *progname)
 {

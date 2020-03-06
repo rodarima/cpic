@@ -19,6 +19,34 @@
 #include <TAMPI.h>
 #endif
 
+/** \page plasma-comm Plasma communication
+ *
+ * As particles move around they may move outside of their designated
+ * \ref pchunk, which then will need to be moved to the correct pchunk.
+ * Particles outside their chunk are called lost particles.
+ *
+ * The simulation guarantees that in one time-step the maximum distance
+ * traveled by any particle is at most the chunk space. Then, a lost
+ * particle can only be in the 8 neighbour chunks. This reduces the
+ * communications between chunks.
+ *
+ * The communication of particles is done in two stages. First the lost
+ * particles are translated in the X dimension in the \ref comm_plasma_x
+ * step and then in the Y dimension in `comm_plasma_y`.
+ *
+ * \section plasma-comm-x Communication of plasma in the X dimension
+ *
+ * Lost particles are moved to their correct chunk in parallel. The
+ * process involves two steps:
+ *
+ * - \ref local_collect_x : Collect particles into queues
+ * - \ref exchange_particles_x : Place the collected particles into
+ * the appropriate chunk.
+ *
+ * */
+
+/** A pwin structure points to a ppack and can select a set of particles
+ * in the ppack for further operations */
 struct pwin
 {
 	/** Current list */
@@ -64,8 +92,11 @@ typedef struct exchange
 	/** The window at the end of the plist */
 	pwin_t B;
 
-	/** The two windows at the end of each queue */
-	pwin_t q0, q1;
+	/** Window for the end of the queue qx0 */
+	pwin_t q0;
+
+	/** Window for the end of the queue qx1 */
+	pwin_t q1;
 
 	/* TODO: The number of particles moved */
 	//i64 nmoved;
@@ -1415,6 +1446,9 @@ exchange_particles_x(sim_t *sim,
 
 }
 
+/** Move the plasma out of the chunks to the appropriate chunk in the X
+ * dimension. The particles remain with the same position, only the
+ * chunk list is modified */
 int
 comm_plasma_x(sim_t *sim, int global_exchange)
 {
