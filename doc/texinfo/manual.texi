@@ -203,7 +203,10 @@ integer numbers.
 @end itemize
 
 All types and functions are prefixed with the letter @code{v} to
-identify the vectorized nature of the operations.
+identify the vectorized nature of the operations. The operations applied
+to floating point vectors are prefixed only with @code{v}, but other
+types are prefixed with the type and underscore: @code{vi64_} and
+@code{vmsk_}.
 
 @section Memory operations
 
@@ -226,15 +229,19 @@ Broadcasts the value x with type i64 into a vector.
 
 @section Arithmetic operations
 
-@example
-vsqrt(x)
-vfloor(x)
-vi64 vi64_remod(vi64 a, vi64 b)
-vf64 remod(vf64 a, vf64 b)
-vf64 remodinv(vf64 a, vf64 b, vf64 c)
-vabs(x)
-vcmp(a, b, f)
-@end example
+@table @code
+@item vsqrt(x)
+Returns the square root of each element in x
+@item vfloor(x)
+Returns the floor of each element in x
+@item vi64 vi64_remod(vi64 a, vi64 b)
+Returns @code{a >= b ? (a - b) : a} for each element. The name comes from
+reduced mod, as it is a particular case of the module operation.
+@item vf64 remod(vf64 a, vf64 b)
+@item vf64 remodinv(vf64 a, vf64 b, vf64 c)
+@item vabs(x)
+@item vcmp(a, b, f)
+@end table
 
 @section Mask operations
 

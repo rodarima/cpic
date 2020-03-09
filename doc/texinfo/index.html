@@ -267,7 +267,10 @@ integer numbers.
 </li></ul>
 
 <p>All types and functions are prefixed with the letter <code>v</code> to
-identify the vectorized nature of the operations.
+identify the vectorized nature of the operations. The operations applied
+to floating point vectors are prefixed only with <code>v</code>, but other
+types are prefixed with the type and underscore: <code>vi64_</code> and
+<code>vmsk_</code>.
 </p>
 <span id="Memory-operations"></span><h3 class="section">3.1 Memory operations</h3>
 
@@ -297,15 +300,22 @@ identify the vectorized nature of the operations.
 
 <span id="Arithmetic-operations"></span><h3 class="section">3.2 Arithmetic operations</h3>
 
-<div class="example">
-<pre class="example">vsqrt(x)
-vfloor(x)
-vi64 vi64_remod(vi64 a, vi64 b)
-vf64 remod(vf64 a, vf64 b)
-vf64 remodinv(vf64 a, vf64 b, vf64 c)
-vabs(x)
-vcmp(a, b, f)
-</pre></div>
+<dl compact="compact">
+<dt><code>vsqrt(x)</code></dt>
+<dd><p>Returns the square root of each element in x
+</p></dd>
+<dt><code>vfloor(x)</code></dt>
+<dd><p>Returns the floor of each element in x
+</p></dd>
+<dt><code>vi64 vi64_remod(vi64 a, vi64 b)</code></dt>
+<dd><p>Returns <code>a &gt;= b ? (a - b) : a</code> for each element. The name comes from
+reduced mod, as it is a particular case of the module operation.
+</p></dd>
+<dt><code>vf64 remod(vf64 a, vf64 b)</code></dt>
+<dt><code>vf64 remodinv(vf64 a, vf64 b, vf64 c)</code></dt>
+<dt><code>vabs(x)</code></dt>
+<dt><code>vcmp(a, b, f)</code></dt>
+</dl>
 
 <span id="Mask-operations"></span><h3 class="section">3.3 Mask operations</h3>
 
