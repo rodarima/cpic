@@ -16,13 +16,9 @@
 #include "config.h"
 #include "utils.h"
 
-#define H5X 1
-#define H5Y 0
-
-#define ALIGNED
 //#define IS_ALIGNED(ADDR, SIZE) (((uintptr_t)(const void *)(ADDR)) % (SIZE) == 0)
 
-int
+static int
 create_directories(output_t *out)
 {
 	char path[PATH_MAX];
@@ -131,7 +127,8 @@ output_init(sim_t *sim, output_t *out)
 	return 0;
 }
 
-int
+#if 0
+static int
 write_xdmf_specie(sim_t *sim, size_t np)
 {
 	FILE *f;
@@ -185,7 +182,6 @@ write_xdmf_specie(sim_t *sim, size_t np)
 	return 0;
 }
 
-#if 0
 int
 output_chunk(sim_t *sim, int ic, int *acc_np, hid_t file_id)
 {
@@ -401,7 +397,7 @@ output_particles(sim_t *sim)
 }
 #endif
 
-int
+static int
 write_field_attribute(FILE *f, i64 iter, mat_t *m, const char *name)
 {
 	fprintf(f, "      <Attribute Center=\"Node\" Name=\"%s\" DataType=\"Scalar\">\n", name);
@@ -423,7 +419,7 @@ write_field_attribute(FILE *f, i64 iter, mat_t *m, const char *name)
 	return 0;
 }
 
-int
+static int
 write_xdmf_fields(sim_t *sim)
 {
 	FILE *f;
@@ -464,47 +460,7 @@ write_xdmf_fields(sim_t *sim)
 	return 0;
 }
 
-//int
-//output_slice(sim_t *sim, mat_t *slice, int slice_i, hid_t src, hid_t dst)
-//{
-//	count[H5X] = 1;
-//	count[H5Y] = 1;
-//	size[H5X] = slice->shape[X];
-//	size[H5Y] = slice->shape[Y];
-//
-//	/* Otherwise we must offset the field by the current process rank */
-//	assert(sim->nprocs == 1);
-//
-//	/* First select the target region of the disk to be written */
-//
-//	offset[H5X] = 0;
-//	offset[H5Y] = slice->shape[Y] * slice_i;
-//
-//	dbg("Diskspace offset (%d %d) size (%d %d)\n",
-//			offset[X], offset[Y], size[X], size[Y]);
-//
-//	status = H5Sselect_hyperslab(dst, H5S_SELECT_SET, offset, NULL,
-//			count, size);
-//
-//	/* Then a memspace referring to the memory chunk */
-//	rho_dim[H5X] = slice->real_shape[X];
-//	rho_dim[H5Y] = slice->shape[Y];
-//	offset[H5X] = 0;
-//	offset[H5Y] = 0;
-//
-//	/* size and offset go unchanged */
-//	status = H5Sselect_hyperslab(src, H5S_SELECT_SET, offset, NULL,
-//			count, size);
-//
-//	/* Notice that the padding for the FFT in the +X side of rho should be
-//	 * skipped */
-//	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, src, dst,
-//			H5P_DEFAULT, rho->data);
-//
-//	return 0;
-//}
-
-int
+static int
 write_vector(int fd, size_t offset, double *vector, size_t size, size_t alignment)
 {
 	ssize_t ret;
@@ -518,7 +474,7 @@ write_vector(int fd, size_t offset, double *vector, size_t size, size_t alignmen
 	dbg("Writing %lu bytes (%lu blocks) at offset %lu (%lu blocks)\n",
 			size, size/alignment, offset, offset/alignment);
 
-	while((ret = pwrite(fd, vector, size, offset)) != (ssize_t) size)
+	while((ret = pwrite(fd, vector, size, (__off_t) offset)) != (ssize_t) size)
 	{
 		dbg("pwrite wrote %zd bytes of %zu, errno=%d\n", ret, size, errno);
 		if(ret < 0)
@@ -527,8 +483,8 @@ write_vector(int fd, size_t offset, double *vector, size_t size, size_t alignmen
 			return -1;
 		}
 
-		size -= ret;
-		offset += ret;
+		size -= (size_t) ret;
+		offset += (size_t) ret;
 		/* FIXME:
 		 * (char*)vector+=ret */
 		return -1;
@@ -537,7 +493,7 @@ write_vector(int fd, size_t offset, double *vector, size_t size, size_t alignmen
 	return 0;
 }
 
-int
+static int
 write_field(sim_t *sim, output_t *out, mat_t *m, const char *name)
 {
 
@@ -576,13 +532,13 @@ write_field(sim_t *sim, output_t *out, mat_t *m, const char *name)
 	/* If m is a view, the size is -1 and we should abort */
 	assert(m->size > 0);
 
-	bsize = out->alignment;
-	total_bytes = m->aligned_size;
+	bsize = (size_t) out->alignment;
+	total_bytes = (size_t) m->aligned_size;
 	data = (char *) m->data;
-	total_blocks = (m->size + (bsize-1)) / bsize;
+	total_blocks = (((u64) m->size) + (bsize-1)) / bsize;
 
-	nblocks = total_blocks / out->max_slices;
-	left = total_blocks % out->max_slices;
+	nblocks = total_blocks / (u64) out->max_slices;
+	left = total_blocks % (u64) out->max_slices;
 	slice_bytes = nblocks * bsize;
 	offset = 0;
 
@@ -606,7 +562,8 @@ write_field(sim_t *sim, output_t *out, mat_t *m, const char *name)
 		if(!(data+offset+n <= data+total_bytes))
 		{
 			err("WRITING OUT OF BOUNDS: last written %p, last allocated %p\n",
-					data+offset+n, data+total_bytes);
+					(void *) (data+offset+n),
+					(void *) (data+total_bytes));
 			abort();
 		}
 
@@ -668,140 +625,6 @@ output_fields(sim_t *sim)
 	if(write_field(sim, sim->output, sim->field._E[Y], "E_Y")) return -1;
 
 	perf_stop(&sim->timers[TIMER_OUTPUT_FIELDS]);
-
-//	char file[PATH_MAX];
-//	mat_t *rho, /**_rho,*/ *phi, *_phi, *slice;
-//	int i, ix, iy;
-//	//int slice_shape[MAX_DIM];
-//	//output_t *out;
-//
-//	hid_t file_id, dataset, dataspace, memspace;
-//	herr_t status;
-//	hsize_t dims[2];
-//	hsize_t rho_dim[2];
-//	hsize_t phi_dim[2];
-//	hsize_t offset[2];
-//	hsize_t count[2];
-//	hsize_t size[2];
-//
-//
-//	//out = sim->output;
-//
-//	write_xdmf_fields(sim);
-//
-//	if(snprintf(file, PATH_MAX, "%s/fields-iter%d.h5",
-//			sim->output->path, sim->iter) >= PATH_MAX)
-//	{
-//		return -1;
-//	}
-//
-//	rho = sim->field.rho;
-//	//_rho = sim->field._rho;
-//
-//	//slice_shape[X] = sim->blocksize[X];
-//	//slice_shape[Y] = sim->blocksize[Y] / out->max_slices;
-//	//slice_shape[Z] = sim->blocksize[Z];
-//
-//	//for(i=0; i<out->max_slices; i++)
-//	//{
-//	//	slice = mat_view(rho, 0, slice_shape[Y] * i, slice_shape);
-//	//	output_slice(sim, slice, i);
-//	//	free(slice);
-//	//}
-//
-//	/* Create a new file using default properties. */
-//	file_id = H5Fcreate(file, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-//
-//	/* We assume the rows start at 0 */
-//	dims[H5X] = rho->shape[X];
-//	dims[H5Y] = rho->shape[Y];
-//
-//	dataspace = H5Screate_simple(2, dims, NULL);
-//	dataset = H5Dcreate1(file_id, "/rho", H5T_NATIVE_DOUBLE, dataspace,
-//			H5P_DEFAULT);
-//
-//	offset[H5X] = 0;
-//	offset[H5Y] = 0;
-//	count[H5X] = 1;
-//	count[H5Y] = 1;
-//	size[H5X] = rho->shape[X];
-//	size[H5Y] = rho->shape[Y];
-//
-//	dbg("Dataspace offset (%d %d) size (%d %d)\n",
-//			offset[X], offset[Y], size[X], size[Y]);
-//
-//	status = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL,
-//			count, size);
-//
-//	/* Then a memspace referring to the memory chunk */
-//	rho_dim[H5X] = rho->real_shape[X];
-//	rho_dim[H5Y] = rho->shape[Y];
-//	memspace = H5Screate_simple(2, rho_dim, NULL);
-//
-//	/* size and offset go unchanged */
-//	status = H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offset, NULL,
-//			count, size);
-//
-//	/* Notice that the padding for the FFT in the +X side of rho should be
-//	 * skipped */
-//	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, memspace, dataspace,
-//			H5P_DEFAULT, rho->data);
-//	status = H5Dclose(dataset);
-//
-//	/* ------------------ PHI ------------------- */
-//
-//	phi = sim->field.phi;
-//	_phi = sim->field._phi;
-//
-//	ix = _phi->shape[X] - 2;
-//	/* Erase the FFT padding */
-//	for(iy=2; iy<phi->shape[Y]-1; iy++)
-//	{
-//		MAT_XY(_phi, ix, iy) = NAN;
-//		MAT_XY(_phi, ix+1, iy) = NAN;
-//	}
-//
-//	/* We assume the rows start at 0 */
-//	dims[H5X] = phi->shape[X];
-//	dims[H5Y] = phi->shape[Y];
-//
-//	dataspace = H5Screate_simple(2, dims, NULL);
-//	dataset = H5Dcreate1(file_id, "/phi", H5T_NATIVE_DOUBLE, dataspace,
-//			H5P_DEFAULT);
-//
-//	offset[H5X] = 0;
-//	offset[H5Y] = 0;
-//	count[H5X] = 1;
-//	count[H5Y] = 1;
-//	size[H5X] = phi->shape[X];
-//	size[H5Y] = phi->shape[Y];
-//
-//	status = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL,
-//			count, size);
-//
-//	/* Then a memspace referring to the memory chunk */
-//	phi_dim[H5X] = phi->real_shape[X];
-//	phi_dim[H5Y] = phi->shape[Y];
-//	memspace = H5Screate_simple(2, phi_dim, NULL);
-//
-//	/* size and offset go unchanged */
-//	status = H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offset, NULL,
-//			count, size);
-//
-//	/* Notice that the padding for the FFT in the +X side of rho should be
-//	 * skipped */
-//	status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, memspace, dataspace,
-//			H5P_DEFAULT, phi->data);
-//	status = H5Dclose(dataset);
-//
-//
-//	/* Close the file. */
-//	status = H5Fclose(file_id);
-//
-//	if(status)
-//		return -1;
-//
-//	perf_stop(&sim->timers[TIMER_OUTPUT_FIELDS]);
 
 	return 0;
 }

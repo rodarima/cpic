@@ -166,7 +166,7 @@ LU_solve(solver_t *s, mat_t *phi, mat_t *rho)
 }
 #endif /* WITH_LU */
 
-int
+static int
 MFT_init(sim_t *sim, solver_t *s)
 {
 	i64 dx, dy, ix, iy, nx, ny;
@@ -211,7 +211,7 @@ MFT_init(sim_t *sim, solver_t *s)
 	dbg("Storing %ld elements, local_size=%ld\n",
 			local_size,
 			local_size);
-	g = fftw_alloc_complex(local_size);
+	g = fftw_alloc_complex((size_t) local_size);
 	assert(g);
 
 	cx = 2.0 * M_PI / nx;
@@ -272,7 +272,7 @@ MFT_init(sim_t *sim, solver_t *s)
 	return 0;
 }
 
-void
+static void
 MFT_kernel(solver_t *s)
 {
 	int ix, iy, ii;
@@ -297,7 +297,7 @@ MFT_kernel(solver_t *s)
 	}
 }
 
-void
+static void
 MFT_normalize(mat_t *x, int N)
 {
 	int ix, iy;
@@ -365,7 +365,7 @@ solver_rho_size(sim_t *sim, i64 *cnx, i64 *cny)
 
 }
 
-int
+static int
 MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 {
 	fftw_complex *g;
@@ -449,7 +449,7 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	return 0;
 }
 
-solver_t *
+static solver_t *
 solver_init_2d(solver_t *solver, sim_t *sim)
 {
 	int ret;

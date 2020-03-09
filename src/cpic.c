@@ -27,7 +27,7 @@
 #endif
 #include <mpi.h>
 
-int
+static int
 usage(char *progname)
 {
 	fprintf(stderr, "Simulation of plasma using particle in cell method.\n");

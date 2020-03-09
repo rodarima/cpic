@@ -50,11 +50,11 @@ species_init(sim_t *sim)
 	}
 
 	sim->nspecies = ns;
-	sim->species = safe_malloc(ns * sizeof(specie_t));
+	sim->species = safe_malloc((u64) ns * sizeof(specie_t));
 
 	for(i=0; i < ns; i++)
 	{
-		specie = config_setting_get_elem(cs, i);
+		specie = config_setting_get_elem(cs, (u32) i);
 		if(specie_init(sim, specie, &sim->species[i]))
 		{
 			err("specie_init failed\n");

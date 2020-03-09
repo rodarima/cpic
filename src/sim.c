@@ -35,7 +35,7 @@
 
 #define ENERGY_CHECK 1
 
-int
+static int
 sim_read_config(sim_t *s)
 {
 	config_t *conf;
@@ -47,7 +47,7 @@ sim_read_config(sim_t *s)
 	config_lookup_i64(conf, "simulation.dimensions", &s->dim);
 	config_lookup_i64(conf, "simulation.cycles", &s->cycles);
 	config_lookup_float(conf, "simulation.time_step", &s->dt);
-	config_lookup_int(conf, "simulation.random_seed", &s->seed);
+	config_lookup_int(conf, "simulation.random_seed", (int *) &s->seed);
 	config_lookup_float(conf, "constants.light_speed", &s->C);
 	config_lookup_float(conf, "constants.vacuum_permittivity", &s->e0);
 	config_lookup_i64(conf, "simulation.sampling_period.energy", &s->period_energy);
@@ -79,7 +79,7 @@ sim_read_config(sim_t *s)
 	return 0;
 }
 
-int
+static int
 sim_prepare(sim_t *s, int quiet)
 {
 	int neigh_table[] = {3, 9, 27};
@@ -132,7 +132,7 @@ sim_prepare(sim_t *s, int quiet)
 	s->run = 1;
 
 	/* We use the rank to vary deterministically the seed between process */
-	srand(s->seed + s->rank);
+	srand(s->seed + (unsigned int) s->rank);
 
 	/* By now we only need one extra neighbour, as we use linear
 	 * interpolation, but it may change */
@@ -169,7 +169,7 @@ sim_prepare(sim_t *s, int quiet)
 	s->chunksize[Z] = s->blocksize[Z];
 
 	/* Create a large process table, so we can reuse it always */
-	s->proc_table = safe_malloc(s->nprocs * sizeof(s->proc_table[0]));
+	s->proc_table = safe_malloc((u64) s->nprocs * sizeof(s->proc_table[0]));
 
 
 	dbg("Global number of points (%ld %ld %ld)\n",
@@ -187,7 +187,7 @@ sim_prepare(sim_t *s, int quiet)
 	return 0;
 }
 
-int
+static int
 sim_pre_step(sim_t *sim)
 {
 	err("begin sim_pre_step\n");
@@ -290,7 +290,7 @@ sim_init(config_t *conf, int quiet)
 	return s;
 }
 
-int
+static int
 sim_end(sim_t *sim)
 {
 	/* We only implement the solver gracefully exit, as all other work is
@@ -383,25 +383,25 @@ conservation_energy(sim_t *sim)
 }
 #endif
 
-int
-sim_plot(sim_t *sim)
-{
-	assert(sim);
-#if PLOT
-	pthread_mutex_lock(&sim->lock);
-	sim->run = 0;
+//static int
+//sim_plot(sim_t *sim)
+//{
+//	assert(sim);
+//#if PLOT
+//	pthread_mutex_lock(&sim->lock);
+//	sim->run = 0;
+//
+//	pthread_cond_signal(&sim->signal);
+//
+//	while(sim->run == 0)
+//		pthread_cond_wait(&sim->signal, &sim->lock);
+//
+//	pthread_mutex_unlock(&sim->lock);
+//#endif
+//	return 0;
+//}
 
-	pthread_cond_signal(&sim->signal);
-
-	while(sim->run == 0)
-		pthread_cond_wait(&sim->signal, &sim->lock);
-
-	pthread_mutex_unlock(&sim->lock);
-#endif
-	return 0;
-}
-
-int
+static int
 memory_usage(long *kb)
 {
 	struct rusage usage;
@@ -416,7 +416,7 @@ memory_usage(long *kb)
 	return 0;
 }
 
-int
+static int
 sampling_complete(sim_t *sim)
 {
 	double t, t_solver;
@@ -557,7 +557,7 @@ sim_step(sim_t *sim)
 	return 0;
 }
 
-void
+static void
 sim_stats(sim_t *sim)
 {
 	double t, tot;

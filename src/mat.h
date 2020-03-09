@@ -115,6 +115,9 @@ mat_t *
 mat_view(mat_t *m, i64 dx, i64 dy, i64 *shape);
 
 mat_t *
+mat_view_init(mat_t *view, mat_t *m, i64 dx, i64 dy, i64 *shape);
+
+mat_t *
 vec_init(i64 size, double v);
 
 int

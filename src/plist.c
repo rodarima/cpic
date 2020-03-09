@@ -1,4 +1,5 @@
 #define _DEFAULT_SOURCE
+#include "plist.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,10 +19,6 @@
 #define DEBUG 1
 #include "log.h"
 
-#define RUNS 30
-#define MAX_NTASKS 128
-#define NBLOCKS 1
-#define NMAX (8*1024*1024)
 #define PLIST_ALIGN 2*1024*1024
 
 static i64
@@ -29,7 +26,8 @@ pblock_size(i64 nmax)
 {
 	i64 blocksize;
 
-	blocksize = sizeof(pblock_t) + nmax * sizeof(ppack_t);
+	blocksize = (i64) (sizeof(pblock_t) +
+			(u64) nmax * sizeof(ppack_t));
 
 	ASSERT_ALIGNED(blocksize);
 
@@ -57,12 +55,12 @@ pblock_update_n(pblock_t *b, i64 n)
 	//		b, b->n, b->npacks, b->nfpacks);
 }
 
-int
+static int
 pblock_init(pblock_t *b, i64 n, i64 nmax)
 {
 	i64 offset;
 
-	offset = nmax * sizeof(double);
+	offset = nmax * (i64) sizeof(double);
 	pblock_update_n(b, n);
 
 	if(offset % VEC_ALIGN)
@@ -83,7 +81,8 @@ plist_new_block(plist_t *l, i64 n)
 	//fprintf(stderr, "Allocate %ld KB for the block\n",
 	//l->blocksize/1024);
 
-	if(posix_memalign((void **)&b, PLIST_ALIGN, l->blocksize) != 0)
+	if(posix_memalign((void **)&b, PLIST_ALIGN,
+				(size_t) l->blocksize) != 0)
 //	if(rodrix_memalign((void **)&b, PLIST_ALIGN, l->blocksize) != 0)
 		return NULL;
 
@@ -110,39 +109,39 @@ plist_init(plist_t *l, i64 nmax, const char *name)
 	l->name[7] = '\0';
 }
 
-/** Ensures the plist can hold n more particles. The number of blocks
- * may be increased but the number of particles in the plist is keept
- * unmodified.
- *
- * Only allocations of n < nmax can be requested by now. Two consecutive
- * calls doen't accumulate the number of allocated room, is only based
- * on the real number of particles. */
-int
-plist_alloc(plist_t *l, i64 n)
-{
-	i64 nmax;
-	pblock_t *b;
-
-	/* TODO: We should allow the plist to grow above nmax */
-	if(n > l->nmax)
-	{
-		dbg("plist_alloc: failed, too large n=%zd\n", n);
-		return 1;
-	}
-
-	nmax = l->nmax;
-	b = pblock_last(l->b);
-
-	/* No need to add another pblock */
-	if(b && b->n + n <= nmax)
-		return 0;
-
-	/* Otherwise we need another block */
-	if(!plist_new_block(l, 0))
-		return 1;
-
-	return 0;
-}
+///** Ensures the plist can hold n more particles. The number of blocks
+// * may be increased but the number of particles in the plist is keept
+// * unmodified.
+// *
+// * Only allocations of n < nmax can be requested by now. Two consecutive
+// * calls doen't accumulate the number of allocated room, is only based
+// * on the real number of particles. */
+//int
+//plist_alloc(plist_t *l, i64 n)
+//{
+//	i64 nmax;
+//	pblock_t *b;
+//
+//	/* TODO: We should allow the plist to grow above nmax */
+//	if(n > l->nmax)
+//	{
+//		dbg("plist_alloc: failed, too large n=%zd\n", n);
+//		return 1;
+//	}
+//
+//	nmax = l->nmax;
+//	b = pblock_last(l->b);
+//
+//	/* No need to add another pblock */
+//	if(b && b->n + n <= nmax)
+//		return 0;
+//
+//	/* Otherwise we need another block */
+//	if(!plist_new_block(l, 0))
+//		return 1;
+//
+//	return 0;
+//}
 
 /** Grows the plist by n particles and adds a new pblock if neccesary. */
 int
@@ -195,7 +194,7 @@ plist_shrink(plist_t *l, i64 n)
 	i64 nmax;
 	pblock_t *b;
 
-	dbg("Shrinking list=%p to n=%ld elements\n", l, n);
+	dbg("Shrinking list=%p to n=%ld elements\n", (void *) l, n);
 
 	/* TODO: We should allow the plist to shrink above nmax */
 	if(n > l->nmax)

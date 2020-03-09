@@ -86,7 +86,7 @@ compute_tag(unsigned int op, unsigned int iter, unsigned int value, unsigned int
 	assert(COMM_TAG_ITER_SIZE + COMM_TAG_OP_SIZE
 			+ value_size < sizeof(int) * 8);
 
-	assert(value < (1<<value_size));
+	assert(value < (1U<<value_size));
 
 	tag = op << COMM_TAG_ITER_SIZE;
 	tag |= iter & COMM_TAG_ITER_MASK;

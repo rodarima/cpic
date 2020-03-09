@@ -13,8 +13,6 @@
 
 #undef EXTRA_CHECKS
 
-#define BUFSIZE_PARTICLE (1024*64)
-
 #ifdef WITH_TAMPI
 #include <TAMPI.h>
 #endif
@@ -152,6 +150,7 @@ pwin_print(pwin_t *w, const char *name)
 	char selc[2] = {' ', '*'};
 
 	UNUSED(name);
+	UNUSED(selc);
 
 	dbg("%s: b=%p ip=%zd sel=[", name, w->b, w->ip);
 
@@ -177,8 +176,8 @@ pwin_print(pwin_t *w, const char *name)
 static void
 pwin_set_enabled(pwin_t *w)
 {
-	unsigned long long mask, shift;
-	i64 left;
+	u64 mask, shift;
+	u64 left;
 
 	/* The easy one is when we have ip pointing to a full ppack */
 	if(w->ip < w->b->nfpacks)
@@ -200,8 +199,8 @@ pwin_set_enabled(pwin_t *w)
 	assert(w->ip == w->b->nfpacks);
 
 	left = w->b->n % MAX_VEC;
-	shift = (unsigned long long) (sizeof(mask) * 8 - left);
-	mask = ((unsigned long long) -1ULL) >> shift;
+	shift = sizeof(mask) * 8 - left;
+	mask = (-1UL) >> shift;
 
 	dbg("Computed mask is %llx for %zd elements, shift=%lld\n",
 			mask, left, shift);
@@ -616,15 +615,17 @@ update_sel(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 		/* FIXME: This is AVX2 specific */
 		/* We cannot use >= as the unused dimensions are 0, so the
 		 * particles will have a 0 as well */
-		w->mx0 = vor(w->mx0, vcmp(p->r[d], x0[d], _CMP_LT_OS));
-		w->mx1 = vor(w->mx1, vcmp(p->r[d], x1[d], _CMP_GT_OS));
+		w->mx0 = vmsk_or(w->mx0,
+				vf64_cmp(p->r[d], x0[d], _CMP_LT_OS));
+		w->mx1 = vmsk_or(w->mx1,
+				vf64_cmp(p->r[d], x1[d], _CMP_GT_OS));
 	}
 
 	assert(vmsk_isany(w->enabled));
 
 	/* Remove any garbage particle from the selection */
-	w->mx0 = vand(w->mx0, w->enabled);
-	w->mx1 = vand(w->mx1, w->enabled);
+	w->mx0 = vmsk_and(w->mx0, w->enabled);
+	w->mx1 = vmsk_and(w->mx1, w->enabled);
 
 	dbg("update_sel mx0 = %llx, mx1 = %llx\n",
 			vmsk_get(w->mx0), vmsk_get(w->mx1));
@@ -655,18 +656,18 @@ update_sel(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 #endif
 
 	/* A particle cannot exit from both sides */
-	assert(vmsk_iszero(vand(w->mx0, w->mx1)));
+	assert(vmsk_iszero(vmsk_and(w->mx0, w->mx1)));
 
 	/* FIXME: The selection must be bound by the enable mask, as we may have
 	 * some garbage in the last ppack */
-	w->sel = vor(w->mx0, w->mx1);
+	w->sel = vmsk_or(w->mx0, w->mx1);
 
 	if(invert_sel)
 	{
-		w->sel = vnot(w->sel);
+		w->sel = vmsk_not(w->sel);
 
 		/* Remove not available elements also here */
-		w->sel = vand(w->sel, w->enabled);
+		w->sel = vmsk_and(w->sel, w->enabled);
 	}
 
 	w->dirty_sel = 0;
@@ -887,7 +888,8 @@ queue_init(plist_t *q, pwin_t *qw)
 static void
 queue_close(pwin_t *q)
 {
-	i64 mask, count, n;
+	u64 mask;
+	i64 count, n;
 
 	dbg("Closing queue %s using pwin=%p with n=%ld particles\n",
 			q->l->name, q, q->b->n);
@@ -911,11 +913,10 @@ static void
 finish_pass(exchange_t *ex, i64 *in, i64 *out)
 {
 	pwin_t *A, *B, *q0, *q1;
-	i64 moved, count;
+	i64 count;
+	u64 s, d;
 	vmsk S, D, X, F, T;
-	unsigned long long s, d;
 
-	moved = 0;
 	A = &ex->A;
 	B = &ex->B;
 	q0 = &ex->q0;
@@ -955,7 +956,7 @@ finish_pass(exchange_t *ex, i64 *in, i64 *out)
 	if(!A->dirty_sel)
 	{
 		dbg("Reusing A sel\n");
-		B->sel = vnot(A->sel);
+		B->sel = vmsk_not(A->sel);
 	}
 	else
 	{
@@ -978,9 +979,9 @@ finish_pass(exchange_t *ex, i64 *in, i64 *out)
 	s = vmsk_get(S);
 	count = __builtin_popcountll(s);
 
-	assert(sizeof(unsigned long long) == 8);
+	assert(sizeof(u64) == 8);
 
-	d = (-1ULL) >> (64 - count);
+	d = (-1UL) >> (64 - count);
 	D = vmsk_set(d);
 
 	/* The same same of ones */
@@ -1309,7 +1310,7 @@ inject_fill(plist_t *q, plist_t *l)
 	 * times we need to go back may be higher */
 
 	src.sel = src.enabled;
-	dst.sel = vnot(dst.enabled);
+	dst.sel = vmsk_not(dst.enabled);
 
 	if(vmsk_iszero(dst.sel))
 	{
@@ -1354,7 +1355,7 @@ end:
 	dbg("--- inject_fill() ends ---\n");
 }
 
-static void
+static i64
 inject_particles(plist_t *queue, plist_t *list)
 {
 	/* TODO: We can skip the copy of middle pblocks by simply
@@ -1407,6 +1408,8 @@ end:
 	plist_sanity_check(queue);
 
 	dbg("--- inject_particles() ends ---\n");
+
+	return count;
 }
 
 static void
@@ -1449,7 +1452,7 @@ exchange_particles_x(sim_t *sim,
 /** Move the plasma out of the chunks to the appropriate chunk in the X
  * dimension. The particles remain with the same position, only the
  * chunk list is modified */
-int
+static int
 comm_plasma_x(sim_t *sim, int global_exchange)
 {
 	i64 ic, is, icp, icn, nc;
@@ -1459,7 +1462,7 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 	pset_t *set;
 
 	plasma = &sim->plasma;
-	collected = safe_malloc(sizeof(i64) * plasma->nchunks);
+	collected = safe_malloc(sizeof(i64) * (u64) plasma->nchunks);
 	all_collected = 0;
 
 	dbg("comm_plasma_x begins\n");

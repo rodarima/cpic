@@ -12,18 +12,17 @@
 
 #undef EXTRA_CHECKS
 
-#define BUFSIZE_PARTICLE (1024*64)
-
 #ifdef WITH_TAMPI
 #include <TAMPI.h>
 #endif
 
-int
+static int
 comm_mat_send(sim_t *sim, double *data, int size, int dst, int op, int dir, MPI_Request *req)
 {
 	int tag;
 
-	tag = compute_tag(op, sim->iter, dir, COMM_TAG_DIR_SIZE);
+	tag = compute_tag((unsigned int) op, sim->iter,
+			(unsigned int) dir, COMM_TAG_DIR_SIZE);
 
 	if(*req)
 		if(MPI_SUCCESS != MPI_Wait(req, MPI_STATUS_IGNORE)) abort();
@@ -35,12 +34,13 @@ comm_mat_send(sim_t *sim, double *data, int size, int dst, int op, int dir, MPI_
 	return 0;
 }
 
-int
+static int
 comm_mat_recv(sim_t *sim, double *data, int size, int dst, int op, int dir)
 {
 	int tag;
 
-	tag = compute_tag(op, sim->iter, dir, COMM_TAG_DIR_SIZE);
+	tag = compute_tag((unsigned int) op, sim->iter,
+			(unsigned int) dir, COMM_TAG_DIR_SIZE);
 
 	dbg("RECV mat size=%d rank=%d tag=%x op=%d\n", size, dst, tag, op);
 	if(MPI_SUCCESS != MPI_Recv(data, size, MPI_DOUBLE, dst, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE)) abort();
@@ -90,7 +90,8 @@ comm_send_ghost_rho(sim_t *sim)
 int
 comm_recv_ghost_rho(sim_t *sim)
 {
-	i64 op, neigh, size, ix, iy;
+	i64 op, neigh, ix, iy;
+	u64 size;
 	double *ptr;
 	mat_t *rho;
 
@@ -114,7 +115,7 @@ comm_recv_ghost_rho(sim_t *sim)
 
 	/* We only recv 1 row of ghost elements, so we truncate rho to avoid
 	 * sending the VARIABLE padding added by the FFTW */
-	size = sim->blocksize[X] * sim->ghostpoints;
+	size = (u64) (sim->blocksize[X] * sim->ghostpoints);
 	ptr = safe_malloc(sizeof(double) * size);
 
 	dbg("Receiving rho from rank=%d\n", neigh);

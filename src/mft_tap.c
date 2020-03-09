@@ -46,7 +46,7 @@ event_wait(mft_t *m, enum mft_event e)
 	return 0;
 }
 
-int
+static int
 fix_fields(sim_t *sim, void *rho_data, void *phi_data)
 {
 	field_t *f;
@@ -143,7 +143,7 @@ fix_fields(sim_t *sim, void *rho_data, void *phi_data)
 }
 
 /* We need to put rho and phi in the shared memory region too */
-i64
+static i64
 create_shared(sim_t *sim, mft_t *m)
 {
 	mat_t *_rho, *_phi;
@@ -164,9 +164,9 @@ create_shared(sim_t *sim, mft_t *m)
 
 	dbg("Shared size is %lu bytes\n", size);
 
-	shared = tap_shared_alloc(size, m->comm);
+	shared = tap_shared_alloc((size_t) size, m->comm);
 
-	shared->magic = 0xdeadbeef;
+	shared->magic = (int) 0xdeadbeef;
 	shared->running = 1;
 
 	/* Copy the data to be shared */

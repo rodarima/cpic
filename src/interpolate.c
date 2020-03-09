@@ -1,3 +1,5 @@
+#include "interpolate.h"
+
 #include "def.h"
 #include "simd.h"
 #include "mat.h"
@@ -20,8 +22,8 @@ linear_interpolation(vf64 rel[2], vf64 w[2][2])
 		assert(rel[Y][iv] >= 0.0);
 	}
 
-	del[X] = vset1(1.0) - rel[X];
-	del[Y] = vset1(1.0) - rel[Y];
+	del[X] = vf64_set1(1.0) - rel[X];
+	del[Y] = vf64_set1(1.0) - rel[Y];
 
 	w[0][0] = del[X] * del[Y];
 	w[0][1] = del[X] * rel[Y];
@@ -46,7 +48,7 @@ relative_position_grid(vf64 x0, vf64 x, vf64 dx, vf64 idx, vi64 i0[1])
 	//dbg("block x0 = %f, x = %f, idx = %f, block delta = %f\n", x0, x, idx, block_delta);
 	//dbg("block rel = %f\n", block_rel);
 
-	block_start = vfloor(block_rel);
+	block_start = vf64_floor(block_rel);
 	i0[0] = vf64_to_vi64(block_start);
 
 	grid_delta = block_delta - block_start * dx;
@@ -283,7 +285,7 @@ interpolate_p2f_rho(sim_t *sim, pchunk_t *c, pset_t *set)
 	mat_t *rho;
 	specie_t *sp;
 	i64 i, iv;
-	vi64 blocksize[2], ghostsize[2];
+	vi64 blocksize[2];
 	vf64 dx[2], fx0[2], idx[2], vq;
 
 	l = &set->list;
@@ -292,15 +294,13 @@ interpolate_p2f_rho(sim_t *sim, pchunk_t *c, pset_t *set)
 	/* Vectorize all required elements */
 	blocksize[X] = vi64_set1(sim->blocksize[X]);
 	blocksize[Y] = vi64_set1(sim->blocksize[Y]);
-	ghostsize[X] = vi64_set1(sim->ghostsize[X]);
-	ghostsize[Y] = vi64_set1(sim->ghostsize[Y]);
-	dx[X] = vset1(sim->dx[X]);
-	dx[Y] = vset1(sim->dx[Y]);
-	idx[X] = vset1(1.0) / dx[X];
-	idx[Y] = vset1(1.0) / dx[Y];
-	fx0[X] = vset1(sim->field.x0[X]);
-	fx0[Y] = vset1(sim->field.x0[Y]);
-	vq = vset1(sp->q);
+	dx[X]  = vf64_set1(sim->dx[X]);
+	dx[Y]  = vf64_set1(sim->dx[Y]);
+	idx[X] = vf64_set1(1.0) / dx[X];
+	idx[Y] = vf64_set1(1.0) / dx[Y];
+	fx0[X] = vf64_set1(sim->field.x0[X]);
+	fx0[Y] = vf64_set1(sim->field.x0[Y]);
+	vq = vf64_set1(sp->q);
 
 	/* We take the whole rho field, including the ghosts in Y+ */
 	rho = sim->field._rho;
@@ -358,14 +358,14 @@ interpolate_f2p_E(sim_t *sim, plist_t *l, double _fx0[2])
 	blocksize[Y] = vi64_set1((long long) sim->blocksize[Y]);
 	ghostsize[X] = vi64_set1((long long) sim->ghostsize[X]);
 	ghostsize[Y] = vi64_set1((long long) sim->ghostsize[Y]);
-	dx[X] = vset1(sim->dx[X]);
-	dx[Y] = vset1(sim->dx[Y]);
-	idx[X] = vset1(1.0) / dx[X];
-	idx[Y] = vset1(1.0) / dx[Y];
+	dx[X]  = vf64_set1(sim->dx[X]);
+	dx[Y]  = vf64_set1(sim->dx[Y]);
+	idx[X] = vf64_set1(1.0) / dx[X];
+	idx[Y] = vf64_set1(1.0) / dx[Y];
 
 	/* FIXME: This should be the field x0, not the chunk x0 */
-	fx0[X] = vset1(_fx0[X]);
-	fx0[Y] = vset1(_fx0[Y]);
+	fx0[X] = vf64_set1(_fx0[X]);
+	fx0[Y] = vf64_set1(_fx0[Y]);
 
 	/* We take the whole rho field, including the ghosts in Y+ */
 	f = &sim->field;
@@ -381,8 +381,8 @@ interpolate_f2p_E(sim_t *sim, plist_t *l, double _fx0[2])
 		{
 			p = &b->p[i];
 
-			p->E[X] = vset1(0.0);
-			p->E[Y] = vset1(0.0);
+			p->E[X] = vf64_set1(0.0);
+			p->E[Y] = vf64_set1(0.0);
 
 			/* TODO: Ensure the leftover particles in the last
 			 * ppack have a valid position in the chunk */

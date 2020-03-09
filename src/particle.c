@@ -88,13 +88,13 @@ particles_init(sim_t *sim, pchunk_t *chunk, pset_t *set)
 	return 0;
 }
 
-int
-init_default(sim_t *sim, pchunk_t *chunk, pset_t *set)
-{
-	return init_randpos(sim, chunk, set);
-}
+//static int
+//init_default(sim_t *sim, pchunk_t *chunk, pset_t *set)
+//{
+//	return init_randpos(sim, chunk, set);
+//}
 
-double
+static double
 uniform(double a, double b)
 {
 	return rand() / (RAND_MAX + 1.0) * (b - a) + a;
@@ -153,13 +153,13 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 				p->u[Z][iv] = 0.0;
 			}
 
-			p->E[X] = vset1(0.0);
-			p->E[Y] = vset1(0.0);
-			p->E[Z] = vset1(0.0);
+			p->E[X] = vf64_set1(0.0);
+			p->E[Y] = vf64_set1(0.0);
+			p->E[Z] = vf64_set1(0.0);
 
-			p->B[X] = vset1(sim->B[X]);
-			p->B[Y] = vset1(sim->B[Y]);
-			p->B[Z] = vset1(sim->B[Z]);
+			p->B[X] = vf64_set1(sim->B[X]);
+			p->B[Y] = vf64_set1(sim->B[Y]);
+			p->B[Z] = vf64_set1(sim->B[Z]);
 		}
 	}
 
@@ -212,7 +212,7 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 //	return 0;
 //}
 
-int
+static int
 chunk_E(sim_t *sim, int i)
 {
 	pchunk_t *chunk;

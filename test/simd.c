@@ -5,8 +5,8 @@ int main()
 {
 	vf64 x, y;
 
-	x = vset1(-1.234);
-	y = vabs(x);
+	x = vf64_set1(-1.234);
+	y = vf64_abs(x);
 
 	if(y[0] != 1.234)
 	{

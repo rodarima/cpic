@@ -1,3 +1,5 @@
+#include "mover.h"
+
 #include "def.h"
 #include "simd.h"
 #include "comm.h"
@@ -28,7 +30,7 @@ boris_rotation(ppack_t *p, vf64 dtqm2, vf64 u[MAX_DIM])
 	vf64       s[MAX_DIM];
 	vf64              two;
 
-	two = vset1(2.0);
+	two = vf64_set1(2.0);
 
 	/* TODO: The actual magnetic field is constant, so there is no need to
 	 * read it from each particle. This poses a huge improvement in
@@ -36,7 +38,7 @@ boris_rotation(ppack_t *p, vf64 dtqm2, vf64 u[MAX_DIM])
 
 	for(d=X; d<MAX_DIM; d++)
 	{
-		s_denom[d] = vset1(1.0);
+		s_denom[d] = vf64_set1(1.0);
 
 		t[d] = p->B[d] * dtqm2;
 		s_denom[d] += t[d] * t[d];
@@ -65,7 +67,7 @@ boris_rotation(ppack_t *p, vf64 dtqm2, vf64 u[MAX_DIM])
 
 		/* TODO: Measure energy here */
 
-		vstream((double *) &p->u[d], u[d]);
+		vf64_stream((double *) &p->u[d], u[d]);
 	}
 }
 
@@ -96,9 +98,9 @@ check_velocity(vf64 u[MAX_DIM], vf64 umax[MAX_DIM])
 
 	for(d=X; d<MAX_DIM; d++)
 	{
-		u_abs = vabs(u[d]);
+		u_abs = vf64_abs(u[d]);
 		//dbg("u_abs = "VFMT"\n", VARG(u_abs));
-		mask = vcmp(u_abs, umax[d], _CMP_GT_OS);
+		mask = vf64_cmp(u_abs, umax[d], _CMP_GT_OS);
 
 		mask_val = vmsk_get(mask);
 
@@ -194,14 +196,14 @@ chunk_update_r(sim_t *sim, int ic)
 
 	is = 0;
 	chunk = &sim->plasma.chunks[ic];
-	dt = vset1(sim->dt);
-	umax[X] = vset1(sim->umax[X]);
-	umax[Y] = vset1(sim->umax[Y]);
-	umax[Z] = vset1(sim->umax[Z]);
+	dt = vf64_set1(sim->dt);
+	umax[X] = vf64_set1(sim->umax[X]);
+	umax[Y] = vf64_set1(sim->umax[Y]);
+	umax[Z] = vf64_set1(sim->umax[Z]);
 
 	for(is=0; is<chunk->nspecies; is++)
 	{
-		dtqm2 = vset1(sim->species[is].m);
+		dtqm2 = vf64_set1(sim->species[is].m);
 		plist_update_r(sim, &chunk->species[is].list, dt, dtqm2, umax);
 	}
 }
@@ -278,7 +280,8 @@ dummy_wrap_pchunk(pchunk_t *c)
 	plist_t *l;
 
 	dbg("Clamping %p to X = (%e %e) and Y = (%e %e)\n",
-			c, c->x0[X][0], c->x1[X][0], c->x0[Y][0], c->x1[Y][0]);
+			(void *) c, c->x0[X][0], c->x1[X][0],
+			c->x0[Y][0], c->x1[Y][0]);
 
 	for(is=0; is<c->nspecies; is++)
 	{

@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <libconfig.h>
 #include <assert.h>
 
@@ -5,7 +7,7 @@
 #include "int.h"
 
 int
-config_array_float(config_setting_t *cs, double *vector, int size)
+config_array_float(config_setting_t *cs, double *vector, i64 size)
 {
 	int i, type, len;
 
@@ -21,7 +23,7 @@ config_array_float(config_setting_t *cs, double *vector, int size)
 		{
 			err("Line %d: The setting %s should have %d dimensions, but %d found.\n",
 					config_setting_source_line(cs),
-				       	config_setting_name(cs), size, len);
+				       	config_setting_name(cs), (int) size, len);
 
 			return 1;
 		}
@@ -38,7 +40,7 @@ config_array_float(config_setting_t *cs, double *vector, int size)
 		{
 			err("Line %d: The setting %s should have %d dimensions, but only one found.\n",
 					config_setting_source_line(cs),
-				       	config_setting_name(cs), size);
+				       	config_setting_name(cs), (int) size);
 
 			return 1;
 		}
@@ -50,7 +52,7 @@ config_array_float(config_setting_t *cs, double *vector, int size)
 	{
 		err("Line %d: The setting %s is expected to be and array of %d dimensions.\n",
 				config_setting_source_line(cs),
-				config_setting_name(cs), size);
+				config_setting_name(cs), (int) size);
 
 		return 1;
 	}
@@ -73,7 +75,7 @@ config_lookup_array_int(config_t *conf, const char *path, i64 *vector, i64 size)
 }
 
 int
-config_lookup_array_float(config_t *conf, const char *path, double *vector, int size)
+config_lookup_array_float(config_t *conf, const char *path, double *vector, i64 size)
 {
 	config_setting_t *cs;
 

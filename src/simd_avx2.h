@@ -17,6 +17,7 @@ typedef __m256i		vmsk;/* No mask  */
 #define VARG(v)		v[0], v[1], v[2], v[3]
 
 #include "simd_common.h"
+#include "int.h"
 
 /* Reduced mod for 64 bits integers:
  *
@@ -29,8 +30,8 @@ typedef __m256i		vmsk;/* No mask  */
  *
  * We use the AND operation to zero the b elements which don't require to be
  * subtracted in a. */
-static inline
-vi64 vi64_remod(vi64 a, vi64 b)
+static inline vi64
+vi64_remod(vi64 a, vi64 b)
 {
 	/* Compute elements which are lower than b, so the opposite */
 	vi64 mask = _mm256_cmpgt_epi64(b, a); /* (a < b) ? 0xffffffff : 0 */
@@ -43,8 +44,8 @@ vi64 vi64_remod(vi64 a, vi64 b)
 }
 
 /* Same but for floating point */
-static inline
-vf64 remod(vf64 a, vf64 b)
+static inline vf64
+vf64_remod(vf64 a, vf64 b)
 {
 	/* Compute elements which are lower than b, so the opposite */
 	vf64 mask = _mm256_cmp_pd(a, b, _CMP_LT_OS);
@@ -58,8 +59,8 @@ vf64 remod(vf64 a, vf64 b)
 }
 
 /* (a<b) ? a+c : a */
-static inline
-vf64 remodinv(vf64 a, vf64 b, vf64 c)
+static inline vf64
+vf64_remodinv(vf64 a, vf64 b, vf64 c)
 {
 	vf64 mask = _mm256_cmp_pd(a, b, _CMP_LT_OS);
 	/* mask = (a < b) ? 0xffffffff : 0 */
@@ -71,66 +72,87 @@ vf64 remodinv(vf64 a, vf64 b, vf64 c)
 	return a + cc;
 }
 
-static inline
-vi64 vf64_to_vi64(vf64 x)
+static inline vi64
+vf64_to_vi64(vf64 x)
 {
-	/* Well well well, we don't have a direct conversion to 64 bits, but we
-	 * still need to use 64 bits in order to use masks. Therefore, we
-	 * expand the 32 bits to 64. Beware of large integers */
+	/* Well well well, we don't have a direct conversion to 64 bits,
+	 * but we still need to use 64 bits in order to use masks.
+	 * Therefore, we expand the 32 bits to 64. Beware of large
+	 * integers */
 	__m128i y = _mm256_cvtpd_epi32(x);
 
 	return _mm256_cvtepu32_epi64(y);
 }
 
-#define vset(a,b,c,d)	_mm256_set_pd(d,c,b,a)
-
-#define vi32_set1(x)	_mm256_set1_epi32(x)
-#define vi64_set1(x)	_mm256_set1_epi64x(x) /* An extra x (?) */
-
+static inline vi64
+vi64_set1(i64 x) { return _mm256_set1_epi64x(x); /* An extra x (?) */ }
 
 /******** Default operations without prefix (performed as vf64): ************/
 
-//#define vset1(x)	_mm256_set1_pd(x)
-
 /* AVX2 doesn't provide abs, so we clear the sign bit using the AND
  * operation with 0111111111... mask for each vector element */
-#define vabs(x)	_mm256_and_pd(x, (vf64) _mm256_set_epi64x(\
-				0x7fffffffffffffff,		\
-				0x7fffffffffffffff,		\
-				0x7fffffffffffffff,		\
-				0x7fffffffffffffff))
+static inline vf64
+vf64_abs(vf64 x)
+{
+	return _mm256_and_pd(x, (vf64) _mm256_set_epi64x(
+				0x7fffffffffffffff,
+				0x7fffffffffffffff,
+				0x7fffffffffffffff,
+				0x7fffffffffffffff));
+}
 
-#define vcmp(a, b, f)	_mm256_cmp_pd(a, b, f)
-#define vand(a, b)	_mm256_and_pd(a, b) /* Ignored type for AND */
-#define vor(a, b)	_mm256_or_pd(a, b)
-#define vnot(a)		_mm256_xor_pd(a, \
-				(vf64) _mm256_set_epi64x(	\
-					0xffffffffffffffff,	\
-					0xffffffffffffffff,	\
-					0xffffffffffffffff,	\
-					0xffffffffffffffff))
 
-#define vfmadd(a,b,c)	_mm256_fmadd_pd(a,b,c)
+static inline vf64
+vf64_not(vf64 a)
+{
+	vf64 ones;
+
+	ones = (vf64) _mm256_set1_epi64x(
+			(i64) 0xffffffffffffffffULL);
+	return _mm256_xor_pd(a, ones);
+}
+
+static inline vf64
+vf64_or(vf64 a, vf64 b)
+{
+	return _mm256_or_pd(a, b);
+}
+
+static inline vf64
+vf64_and(vf64 a, vf64 b)
+{
+	return _mm256_and_pd(a, b); /* Ignored type for AND */
+}
+
+/* We cannot use a function here, as f must be an immediate constant
+ * expression */
+#define vf64_cmp(a, b, f) ((vmsk) _mm256_cmp_pd(a, b, f))
+
+static inline vf64
+vf64_fmadd(vf64 a, vf64 b, vf64 c)
+{
+	return _mm256_fmadd_pd(a, b, c);
+}
 
 /* Mask operations */
 static inline vmsk
-vmsk_set(unsigned long long v)
+vmsk_set(u64 v)
 {
-	unsigned long long t[2] = {0, 0xffffffffffffffffUL};
+	i64 t[2] = {0, (i64) 0xffffffffffffffffL};
 	return _mm256_set_epi64x(
 			t[(v>>3)&1], t[(v>>2)&1], t[(v>>1)&1], t[(v>>0)&0x1]);
 }
 
-static inline unsigned long long
+static inline u64
 vmsk_get(vmsk m)
 {
-	return _mm256_movemask_pd(m);
+	return (u64) _mm256_movemask_pd((vf64) m);
 }
 
 static inline vmsk
 vmsk_ones()
 {
-	return _mm256_set1_epi64x(0xffffffffffffffff);
+	return _mm256_set1_epi64x((i64) 0xffffffffffffffff);
 }
 
 static inline vmsk
@@ -146,9 +168,24 @@ vmsk_xor(vmsk a, vmsk b)
 }
 
 static inline vmsk
+vmsk_or(vmsk a, vmsk b)
+{
+	return _mm256_or_si256(a, b);
+}
+
+static inline vmsk
 vmsk_and(vmsk a, vmsk b)
 {
 	return _mm256_and_si256(a, b);
+}
+
+static inline vmsk
+vmsk_not(vmsk a)
+{
+	vi64 ones;
+
+	ones = _mm256_set1_epi64x((i64) 0xffffffffffffffff);
+	return _mm256_xor_si256(a, ones);
 }
 
 #define vmsk_isfull(m)	(vmsk_get(m) == 0x0f)
@@ -168,7 +205,7 @@ vmat_index_xy(mat_t *m, vi64 ix, vi64 iy)
 static inline vf64
 vmat_get_xy(mat_t *m, vi64 ix, vi64 iy)
 {
-	return vgather(m->data, vmat_index_xy(m, ix, iy));
+	return vf64_gather(m->data, vmat_index_xy(m, ix, iy));
 }
 
 static inline void

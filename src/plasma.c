@@ -7,10 +7,6 @@
 #include "utils.h"
 #include "plist.h"
 
-#define NBLOCKS 1
-#define NMAX (1024)
-#define PLIST_ALIGN 2*1024*1024
-
 //void
 //particle_set_add(particle_set_t *set, particle_t *p)
 //{
@@ -20,7 +16,7 @@
 //	set->nparticles++;
 //}
 
-int
+static int
 pset_init(sim_t *sim, pchunk_t *chunk, int is)
 {
 	i64 ip, iv, ic, i, j, step;
@@ -146,7 +142,7 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 	return 0;
 }
 
-void
+static void
 neigh_deltas(int delta[], int dim, int neigh)
 {
 	int d, n, nn, tmp;
@@ -173,7 +169,7 @@ neigh_deltas(int delta[], int dim, int neigh)
 	}
 }
 
-int
+static int
 neigh_rank(sim_t *sim, i64 *ig, i64 *nr)
 {
 	int i, ib;
@@ -223,7 +219,7 @@ neigh_rank(sim_t *sim, i64 *ig, i64 *nr)
 	return 0;
 }
 
-int
+static int
 plasma_chunk_init(sim_t *sim, int i)
 {
 	i64 is, d;
@@ -240,7 +236,7 @@ plasma_chunk_init(sim_t *sim, int i)
 	chunk->i[Y] = 0;
 	chunk->i[Z] = 0;
 
-	chunk->species = safe_malloc(sizeof(pset_t) * sim->nspecies);
+	chunk->species = safe_malloc(sizeof(pset_t) * (u64) sim->nspecies);
 	chunk->nspecies = sim->nspecies;
 
 	/* We need to compute the chunk boundaries */
@@ -271,16 +267,19 @@ plasma_chunk_init(sim_t *sim, int i)
 				"XYZ"[d], chunk->ib1[d]);
 	}
 
-	chunk->x0[X] = vset1(f->x0[X] + (chunk->i[X] * chunk->L[X]));
-	chunk->x1[X] = chunk->x0[X] + vset1(chunk->L[X]);
-	chunk->x0[Y] = vset1(f->x0[Y]);
-	chunk->x1[Y] = vset1(f->x1[Y]);
-	chunk->x0[Z] = vset1(f->x0[Z]);
-	chunk->x1[Z] = vset1(f->x1[Z]);
+	chunk->x0[X] = vf64_set1(f->x0[X] + (chunk->i[X] * chunk->L[X]));
+	chunk->x1[X] = chunk->x0[X] + vf64_set1(chunk->L[X]);
+	chunk->x0[Y] = vf64_set1(f->x0[Y]);
+	chunk->x1[Y] = vf64_set1(f->x1[Y]);
+	chunk->x0[Z] = vf64_set1(f->x0[Z]);
+	chunk->x1[Z] = vf64_set1(f->x1[Z]);
 
-	chunk->q = safe_calloc(sim->nprocs, sizeof(comm_packet_t *));
-	chunk->req = safe_calloc(sim->nprocs, sizeof(MPI_Request));
-	chunk->neigh_rank = safe_malloc(sizeof(i64) * sim->nneigh_chunks);
+	chunk->q = safe_calloc((size_t) sim->nprocs,
+			sizeof(comm_packet_t *));
+	chunk->req = safe_calloc((size_t) sim->nprocs,
+			sizeof(MPI_Request));
+	chunk->neigh_rank = safe_malloc(sizeof(i64) *
+			(u64) sim->nneigh_chunks);
 
 	neigh_rank(sim, chunk->ig, chunk->neigh_rank);
 
@@ -305,7 +304,7 @@ plasma_init(sim_t *sim, plasma_t *plasma)
 
 	//plasma->chunks = safe_malloc(nchunks * sizeof(pchunk_t));
 	if(posix_memalign((void **)&plasma->chunks, VEC_ALIGN_BYTES,
-				nchunks * sizeof(pchunk_t)) != 0)
+				(u64) nchunks * sizeof(pchunk_t)) != 0)
 	{
 		abort();
 	}

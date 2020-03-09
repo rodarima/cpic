@@ -1,3 +1,4 @@
+#include "def.h"
 #include "mat.h"
 #include "simd.h"
 

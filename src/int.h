@@ -10,4 +10,6 @@ typedef uint32_t u32;
 typedef int64_t i64;
 typedef uint64_t u64;
 
+typedef double f64;
+
 #define UNUSED(x) (void)(x)

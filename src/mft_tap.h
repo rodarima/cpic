@@ -56,7 +56,7 @@ struct mft_shared
 	mat_t rho;
 
 	/* Offset to advance buf to find phi. Rho is at 0 */
-	size_t phi_offset;
+	i64 phi_offset;
 
 	/* Buffer to hold the data of matrices rho and phi, by that order */
 	char buf[];

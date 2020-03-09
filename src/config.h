@@ -1,5 +1,6 @@
 #pragma once
 
+#include "int.h"
 #include <libconfig.h>
 
 int

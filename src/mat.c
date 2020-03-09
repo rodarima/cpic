@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200112L
+#include "mat.h"
 #define DEBUG 0
 #include "log.h"
 #include "mat.h"
@@ -23,7 +24,7 @@ mat_size(i64 dim, i64 *shape)
 	for(i = 0; i < dim; i++)
 		size *= shape[i];
 
-	return (i64) (sizeof(double) * size);
+	return (i64) (sizeof(double) * (u64)size);
 }
 
 void
@@ -72,7 +73,7 @@ mat_alloc(i64 dim, i64 *shape)
 	size = mat_size(dim, shape);
 
 	m = safe_malloc(sizeof(mat_t));
-	m->data = safe_malloc(size);
+	m->data = safe_malloc((u64) size);
 
 	mat_init(m, dim, shape);
 
@@ -83,7 +84,8 @@ mat_t *
 mat_alloc_align(i64 dim, i64 *shape, i64 alignment)
 {
 	mat_t *m;
-	i64 size, aligned_size, pad_size;
+	i64 size, aligned_size;
+	u64 pad_size;
 	//int *ptr;
 
 	if(dim > MAX_DIM)
@@ -100,10 +102,11 @@ mat_alloc_align(i64 dim, i64 *shape, i64 alignment)
 	assert(aligned_size >= size);
 	assert((aligned_size % alignment) == 0);
 
-	pad_size = aligned_size - size;
+	pad_size = (u64) (aligned_size - size);
 
 	m = safe_malloc(sizeof(mat_t));
-	if(posix_memalign((void **) &m->data, alignment, aligned_size))
+	if(posix_memalign((void **) &m->data, (size_t) alignment,
+				(size_t) aligned_size))
 		abort();
 
 	mat_init(m, dim, shape);
@@ -212,12 +215,6 @@ mat_view_init(mat_t *view, mat_t *m, i64 dx, i64 dy, i64 *shape)
 	return v;
 }
 
-void
-mat_set1d(mat_t *m, i64 pos, double v)
-{
-	((double*) m)[pos] = v;
-}
-
 mat_t *
 vec_init(i64 size, double v)
 {
@@ -244,7 +241,11 @@ _vec_print(mat_t *m, char *title)
 	if(m->dim != 1)
 		return -1;
 
-	if(title) dbg("Vector %s:\n", title);
+	if(title)
+	{
+		dbg("Vector %s:\n", title);
+	}
+
 	for(i=0; i<m->shape[0]; i++)
 	{
 		fprintf(stderr, "%10.3e ", m->data[i]);

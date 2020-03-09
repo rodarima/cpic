@@ -32,9 +32,9 @@
 	fprintf(stderr, "\x1b[0m");				\
 } while(0)
 #else /* DEBUG_USE_MPI_RANK */
-#define dbg(fmt, ...) do {					\
-	fprintf(stderr, "%4d %-20s " fmt,			\
-		__LINE__, __func__, ##__VA_ARGS__);		\
+#define dbg(...) do {						\
+	fprintf(stderr, "%4d %-20s ", __LINE__, __func__);	\
+	fprintf(stderr, __VA_ARGS__);				\
 } while(0)
 #endif /* DEBUG_USE_MPI_RANK */
 
@@ -42,14 +42,14 @@
 	fprintf(stderr, __VA_ARGS__);				\
 } while(0)
 #else /* DEBUG > 0 */
-#define dbg(...)
-#define dbgr(...)
+#define dbg(...)  do {} while(0);
+#define dbgr(...) do {} while(0);
 #endif
 
 #else /* GLOBAL_DEBUG */
 
-#define dbg(...)
-#define dbgr(...)
+#define dbg(...)  do {} while(0);
+#define dbgr(...) do {} while(0);
 
 #endif /* GLOBAL_DEBUG */
 

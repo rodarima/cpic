@@ -428,7 +428,7 @@ struct sim
 	perf_t timers[MAX_TIMERS];
 
 	/* Global seed read from the config */
-	int seed;
+	unsigned int seed;
 
 	/* Total number of MPI processes */
 	int nprocs;

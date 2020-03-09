@@ -160,7 +160,7 @@ field_init(sim_t *sim, field_t *f)
 	return 0;
 }
 
-int
+static int
 rho_reset(sim_t *sim, i64 i)
 {
 	dbg("rho_reset begins\n");
@@ -212,7 +212,7 @@ rho_reset(sim_t *sim, i64 i)
 /* The field rho is updated based on the charge density computed on each
  * particle p, by using an interpolation function. Only the area corresponding
  * with the chunk is updated, which also includes the right neighbour points. */
-int
+static int
 rho_update(sim_t *sim, i64 i)
 {
 	i64 is;
@@ -229,7 +229,9 @@ rho_update(sim_t *sim, i64 i)
 	return 0;
 }
 
-int
+/* TODO: Enable ghost destroy */
+#if 0
+static int
 rho_destroy_ghost(sim_t *sim, i64 i)
 {
 	i64 start[MAX_DIM], end[MAX_DIM];
@@ -258,6 +260,7 @@ rho_destroy_ghost(sim_t *sim, i64 i)
 
 	return 0;
 }
+#endif
 
 
 /* The field rho is updated based on the charge density computed on each
@@ -348,7 +351,7 @@ stage_field_rho(sim_t *sim)
 	perf_stop(&sim->timers[TIMER_FIELD_RHO]);
 }
 
-int
+static int
 field_E_compute(sim_t *sim, pchunk_t *chunk)
 {
 	i64 ix, iy, x0, x1, y0, y1, nx, ny;
@@ -408,7 +411,7 @@ field_E_compute(sim_t *sim, pchunk_t *chunk)
 	return 0;
 }
 
-int
+static int
 field_phi_solve(sim_t *sim)
 {
 	mat_t *rho, *phi;
@@ -445,6 +448,9 @@ stage_field_E(sim_t *sim)
 	plasma_t *plasma;
 	pchunk_t *chunk, *next, *prev;
 	i64 ic, Nc;
+
+	UNUSED(next);
+	UNUSED(prev);
 
 	#pragma oss task inout(sim->plasma.chunks[0])
 	perf_start(&sim->timers[TIMER_FIELD_E]);

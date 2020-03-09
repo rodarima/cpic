@@ -35,9 +35,10 @@ LDLIBS:=
 # Add libtasio
 #LDLIBS+=-ltasio
 
-CFLAGS+=-g -Wall -Wextra -pedantic
-CFLAGS+=-Wno-gnu-zero-variadic-macro-arguments
-CFLAGS+=-Wno-format-pedantic
+CFLAGS+=-g -Wall -Wextra -Wpedantic
+CFLAGS+=-Wsign-conversion
+#CFLAGS+=-Wpadded
+CFLAGS+=-Wmissing-prototypes
 CFLAGS+=-Werror
 
 CFLAGS+=-std=c11

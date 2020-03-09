@@ -1,14 +1,11 @@
 #include "tap.h"
 
+#include "int.h"
 #define DEBUG 1
 #include "log.h"
 #include "utils.h"
 #include <assert.h>
 #include <stdlib.h>
-
-#define INDEX_LOCAL	0
-#define INDEX_GLOBAL	1
-
 
 /* Allocates a buffer of size "size" to be seen by all MPI process of comm
  * "comm". Must be caled by *one* process in the communicator, the one whic will
@@ -20,7 +17,7 @@ tap_shared_alloc(size_t size, MPI_Comm comm)
 	MPI_Win win;
 	void *buf;
 
-	PMPI_Win_allocate_shared(size, 1, MPI_INFO_NULL, comm, &buf, &win);
+	PMPI_Win_allocate_shared((MPI_Aint) size, 1, MPI_INFO_NULL, comm, &buf, &win);
 
 	return buf;
 }
@@ -47,14 +44,14 @@ tap_shared_query(size_t *size, MPI_Comm comm)
 }
 
 /* The master is placed at the end */
-int
+static int
 reorder_node_comm(MPI_Comm comm, int master_rank, int size, MPI_Comm *new_comm)
 {
 	int i;
 	int *order;
 	MPI_Group group, new_group;
 
-	order = safe_malloc(sizeof(int) * size);
+	order = safe_malloc(sizeof(int) * (u64) size);
 
 	PMPI_Comm_group(comm, &group);
 
@@ -73,95 +70,6 @@ reorder_node_comm(MPI_Comm comm, int master_rank, int size, MPI_Comm *new_comm)
 
 	return PMPI_Comm_create(comm, new_group, new_comm);
 }
-
-/* This should be the good version, but ENOTIME, let's go with the quick and
- * dirty one */
-//int
-//tap_sort_ranks_worker(MPI_Comm node_comm, int master_rank)
-//{
-//	MPI_Group node_group;
-//	int node_rank, rank;
-//	int tag, buf[2];
-//
-//	tag = 959;
-//
-//	PMPI_Comm_group(node_comm, &node_group);
-//	PMPI_Comm_rank(node_comm, &node_rank);
-//
-//	PMPI_Comm_rank(MPI_COMM_WORLD, &rank);
-//
-//	if(master_rank >= 0)
-//	{
-//		buf[INDEX_LOCAL] = node_rank;
-//		buf[INDEX_GLOBAL] = rank;
-//	}
-//	else
-//	{
-//		buf[INDEX_LOCAL] = node_rank;
-//		buf[INDEX_GLOBAL] = rank;
-//	}
-//
-//	PMPI_Send(buf, 2, MPI_INT, master_rank, tag, node_comm);
-//
-//	return 0;
-//}
-//
-//int
-//tap_sort_ranks_master(MPI_Comm node_comm)
-//{
-//	MPI_Group node_group;
-//	int node_rank, node_size, rank;
-//	int i, tag;
-//	int *new_order;
-//	int buf[2];
-//
-//	tag = 959;
-//
-//	PMPI_Comm_group(node_comm, &node_group);
-//	PMPI_Comm_rank(node_comm, &node_rank);
-//	PMPI_Comm_size(node_comm, &node_size);
-//
-//	order = safe_malloc(sizeof(int) * node_size);
-//
-//	/* First the workers must know which process is the master */
-//
-//	/* We move the master to the end */
-//	for(i=0; i<node_size; i++)
-//	{
-//		order[i] = i;
-//	}
-//	order[rank] = node_size - 1;
-//	order[node_size - 1] = rank;
-//
-//	/* Now we propagate the new order to the workers */
-//	PMPI_Bcast(order, node_size, MPI_INT, rank, );
-//
-//	PMPI_Comm_rank(MPI_COMM_WORLD, &rank);
-//
-//	for(i=0; i<node_size; i++)
-//	{
-//		if(i == node_rank)
-//			continue;
-//
-//		PMPI_Recv(buf, 2, MPI_INT, i, tag, node_comm, MPI_STATUS_IGNORE);
-//		new_order[buf[INDEX_LOCAL]] = buf[INDEX_GLOBAL];
-//	}
-//
-//	if(master_rank >= 0)
-//	{
-//		buf[INDEX_LOCAL] = node_rank;
-//		buf[INDEX_GLOBAL] = rank;
-//	}
-//	else
-//	{
-//		buf[INDEX_LOCAL] = node_rank;
-//		buf[INDEX_GLOBAL] = rank;
-//	}
-//
-//	PMPI_Send(buf, 2, MPI_INT, master_rank, tag, node_comm);
-//
-//	return 0;
-//}
 
 /* Launches "n" workers in *each process* of MPI_COMM_WORLD, using "cmd" and
  * sets a communicator for all workers in the node. Each process should run in
@@ -190,7 +98,7 @@ tap_spawn(int n, char *cmd, MPI_Comm *comm)
 	dbg("Intercommunicator remote size %d\n", k);
 	assert(k == total_workers);
 
-	dbg("Merging intercommunicator\n");
+	dbg("Merging intercommunicator %c\n", ' ');
 	PMPI_Intercomm_merge(intercomm, 0, &universe);
 
 	PMPI_Comm_size(universe, &universe_size);
@@ -241,7 +149,7 @@ struct worker_info
 	int worker_rank;
 };
 
-int
+static int
 reorder_workers(MPI_Comm old, struct worker_info *info, int nworkers, MPI_Comm *new_comm)
 {
 	int i, n;
@@ -250,7 +158,7 @@ reorder_workers(MPI_Comm old, struct worker_info *info, int nworkers, MPI_Comm *
 
 	PMPI_Comm_size(old, &n);
 
-	order = safe_malloc(sizeof(int) * n);
+	order = safe_malloc(sizeof(int) * (size_t) n);
 
 	for(i=0; i<n; i++)
 	{
@@ -307,7 +215,7 @@ tap_child(MPI_Comm *node_comm, MPI_Comm *worker_comm, int *master_rank)
 
 	dbg("Worker %d has total_workers = %d\n", rank, total_workers);
 
-	info_size = sizeof(struct worker_info) * (total_workers);
+	info_size = sizeof(struct worker_info) * ((u64) total_workers);
 
 	dbg("Worker %d allocates a buffer of %lu bytes\n", rank, info_size);
 	dbg("Worker %d myinfo size: %lu bytes\n", rank, sizeof(myinfo));
