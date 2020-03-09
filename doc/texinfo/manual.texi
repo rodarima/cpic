@@ -176,20 +176,26 @@ The window-based movement is a key concept to work with the vectorized
 operations of AVX-2 and AVX-512 instruction set of the Intel processors.
 There are two types of movements: parallel and non-parallel.
 
+@float Figure,fig:ppack-parallel-move
 @image{ppack-parallel-move}
+@end float
 
 In the parallel move, a mask determines which particles are required to
 move, and then are moved using one instruction per vector-line. This is
 a very efficient way of transferring particles around, as we don't need
-to change their position inside the pack.
+to change their position inside the pack, as seen in the
+@ref{fig:ppack-parallel-move}.
 
+@float Figure,fig:ppack-non-parallel-move
 @image{ppack-non-parallel-move}
+@end float
 
 In contrast, in a non-parallel move, the particles change their index in
 the pack, and thus they cannot be moved using one instruction per
-vector-line. This operation has a large computational cost compared with
-a parallel move and must be avoided. The current implementation
-addresses one particle at a time, but it may be more efficient to use a
-combination of partial parallel moves and shifts.
+vector-line as seen in the @ref{fig:ppack-non-parallel-move}. This
+operation has a large computational cost compared with a parallel move
+and must be avoided. The current implementation addresses one particle
+at a time, but it may be more efficient to use a combination of partial
+parallel moves and shifts.
 
 @bye
