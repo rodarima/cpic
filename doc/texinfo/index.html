@@ -1,0 +1,384 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<!-- Created by GNU Texinfo 6.7, http://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>cpic</title>
+<link rel="icon" type="image/png" href="/logo16.png"/>
+
+<meta name="description" content="cpic">
+<meta name="keywords" content="cpic">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<link href="#manual" rel="start" title="manual">
+<link href="#SEC_Contents" rel="contents" title="Table of Contents">
+<style type="text/css">
+<!--
+a.summary-letter {text-decoration: none}
+blockquote.indentedblock {margin-right: 0em}
+div.display {margin-left: 3.2em}
+div.example {margin-left: 3.2em}
+div.lisp {margin-left: 3.2em}
+kbd {font-style: oblique}
+pre.display {font-family: inherit}
+pre.format {font-family: inherit}
+pre.menu-comment {font-family: serif}
+pre.menu-preformatted {font-family: serif}
+span.nolinebreak {white-space: nowrap}
+span.roman {font-family: initial; font-weight: normal}
+span.sansserif {font-family: sans-serif; font-weight: normal}
+ul.no-bullet {list-style: none}
+-->
+</style>
+<link rel="stylesheet" type="text/css" href="document.css">
+
+
+</head>
+
+<body lang="en">
+<h1 class="settitle" align="center">cpic</h1>
+
+
+<span id="manual"></span>
+<p>This is a sample manual.  There is no sample program to
+invoke, but if there were, you could see its basic usage
+and command line options here.
+</p>
+<span id="SEC_Contents"></span>
+<h2 class="contents-heading">Table of Contents</h2>
+
+<div class="contents">
+<ul class="no-bullet">
+<li><a id="toc-Data-structures" href="#manual">1 Data structures</a>
+<ul class="no-bullet">
+  <li><a id="toc-Storage-of-the-fields" href="#Storage-of-the-fields">1.1 Storage of the fields</a></li>
+  <li><a id="toc-Storage-of-plasma" href="#Storage-of-plasma">1.2 Storage of plasma</a>
+  <ul class="no-bullet">
+    <li><a id="toc-Plasma-chunk" href="#Plasma-chunk">1.2.1 Plasma chunk</a></li>
+    <li><a id="toc-Plasma-set" href="#Plasma-set">1.2.2 Plasma set</a></li>
+    <li><a id="toc-Plasma-list" href="#Plasma-list">1.2.3 Plasma list</a></li>
+    <li><a id="toc-Plasma-block" href="#Plasma-block">1.2.4 Plasma block</a></li>
+    <li><a id="toc-Pack-window" href="#Pack-window">1.2.5 Pack window</a></li>
+  </ul></li>
+</ul></li>
+<li><a id="toc-Plasma-communication" href="#Plasma-communication">2 Plasma communication</a>
+<ul class="no-bullet">
+  <li><a id="toc-Communication-of-plasma-in-X" href="#Communication-of-plasma-in-X">2.1 Communication of plasma in X</a></li>
+  <li><a id="toc-Collect-particles-in-X" href="#Collect-particles-in-X">2.2 Collect particles in X</a></li>
+  <li><a id="toc-Exchange-particles-in-X" href="#Exchange-particles-in-X">2.3 Exchange particles in X</a></li>
+</ul></li>
+<li><a id="toc-SIMD-operations" href="#SIMD-operations">3 SIMD operations</a>
+<ul class="no-bullet">
+  <li><a id="toc-Memory-operations" href="#Memory-operations">3.1 Memory operations</a></li>
+  <li><a id="toc-Arithmetic-operations" href="#Arithmetic-operations">3.2 Arithmetic operations</a></li>
+  <li><a id="toc-Mask-operations" href="#Mask-operations">3.3 Mask operations</a></li>
+  <li><a id="toc-Miscellaneous-operations" href="#Miscellaneous-operations">3.4 Miscellaneous operations</a></li>
+</ul></li>
+<li><a id="toc-Window_002dbased-operations" href="#Window_002dbased-operations">4 Window-based operations</a>
+<ul class="no-bullet">
+  <li><a id="toc-Window-data-structure" href="#Window-data-structure">4.1 Window data structure</a></li>
+  <li><a id="toc-Moving-particles-using-windows" href="#Moving-particles-using-windows">4.2 Moving particles using windows</a></li>
+</ul></li>
+
+</ul>
+</div>
+
+
+<span id="Data-structures"></span><h2 class="chapter">1 Data structures</h2>
+
+<p>In order to achieve good performance, a set of particularly designed
+data structured are being used. They can be divided in two main groups
+regarding to the fields or the plasma storage.
+</p>
+<span id="field_002dstorage"></span><span id="Storage-of-the-fields"></span><h3 class="section">1.1 Storage of the fields</h3>
+
+<p>The three fields used in the simulation (electric, electric
+potential and electric charge) are stored using the mat data structure
+</p>
+<span id="Storage-of-plasma"></span><h3 class="section">1.2 Storage of plasma</h3>
+
+<p>All particles in the simulation are divided first into each MPI process,
+by slicing the Y dimension into non-overlapping blocks. Inside each
+block, the plasma is further divided into non-overlapping chunks in the
+X dimension.
+</p>
+<span id="pchunk"></span><span id="Plasma-chunk"></span><h4 class="subsection">1.2.1 Plasma chunk</h4>
+
+<p>A chunk contains all the information of the plasma in a given spatial
+region of the simulation. The data structure is called pchunk, from
+plasma chunk.
+</p>
+<p>A plasma chunk can contain multiple species of particles. Each specie
+may contain a large set of particles. Each set of particles is stored in
+a pset.
+</p>
+<span id="pset"></span><span id="Plasma-set"></span><h4 class="subsection">1.2.2 Plasma set</h4>
+
+<p>The particles of one specie in a chunk are stored into a special list
+designed to be used with vectorized operations, the plist.
+</p>
+<span id="plist"></span><span id="Plasma-list"></span><h4 class="subsection">1.2.3 Plasma list</h4>
+
+<p>The list is formed by blocks of particles grouped in packs of the vector
+size.
+</p>
+<span id="pblock"></span><span id="Plasma-block"></span><h4 class="subsection">1.2.4 Plasma block</h4>
+
+<p>A block of ppacks.
+</p>
+<span id="pwin"></span><span id="Pack-window"></span><h4 class="subsection">1.2.5 Pack window</h4>
+
+<p>A window is used to select particles within a plasma pack. Several masks
+are used to inform of the state of each particle. The window can be
+slide and positioned in each ppack of a plist.
+</p>
+<span id="ppack"></span>
+<p>A plasma or particle pack (ppack) contains <code>MAX_VEC</code> particles,
+were each member of the particle is interleave. FIXME.
+</p>
+<span id="Plasma-communication"></span><h2 class="chapter">2 Plasma communication</h2>
+
+<p>As particles move around they may move outside of their designated
+<a href="#pchunk">pchunk</a>, which then will need to be moved to the correct pchunk.
+Particles outside their chunk are called lost particles.
+</p>
+<p>The simulation guarantees that in one time-step the maximum distance
+traveled by any particle is at most the chunk space. Then, a lost
+particle can only be in the 8 neighbour chunks. This reduces the
+communications between chunks.
+</p>
+<p>The communication of particles is done in two stages. First the lost
+particles are translated in the X dimension in the <code>comm_plasma_x</code>
+step and then in the Y dimension in <code>comm_plasma_y</code>.
+</p>
+<span id="Communication-of-plasma-in-X"></span><h3 class="section">2.1 Communication of plasma in X</h3>
+
+<p>Lost particles are moved to their correct chunk in parallel. The
+process involves two steps:
+</p>
+<ul>
+<li> <code>local_collect_x</code>: Collect particles into queues
+</li><li> <code>exchange_particles_x</code>: Place the collected particles into
+the appropriate chunk.
+</li></ul>
+
+<span id="Collect-particles-in-X"></span><h3 class="section">2.2 Collect particles in X</h3>
+
+<p>The process involves a set of careful operations to deal with the plist
+structure. In the collection step, lost particles are identified, marked and
+transferred to one of the two queues of the <a href="#pset">pset</a>, <code>qx0</code> or
+<code>qx1</code>.
+</p>
+<p>In the first pass the count of particles transferred to the queues is
+annotated and used to ensure that no particles were lost. Then another
+pass is done, to ensure that no lost particles are left in the list.
+This last second pass is only enabled in debug mode.
+</p>
+<p>The collection algorithm is distributed in several steps. Two windows
+(See <a href="#pwin">pwin</a>) A and B are used along the list of particles in the particle
+set.
+</p>
+<p>The window A is placed at the start of the list pointing to the first
+pack and the window B points to the last non-empty pack of the list.
+</p>
+<p>The task of the B window is to look for extra particles: the ones that
+will remain in the chunk. Usually most particles will be in the chunk,
+so only a few checks should be necessary. In case there are some lost
+particles they are moved to the corresponding queue in the set (either
+<code>qx0</code> or <code>qx1</code>).
+</p>
+<p>If no extra particles are found, the B window is slide to the previous
+pack and the search continues until at least one extra particle is
+found.
+</p>
+<p>Then is the turn of the A window, which will begin from the start of the
+list and look for lost particles, which we call holes. As soon as a hole
+is found, the process stops and the next step begins. If no holes are
+found, the A window is slide to the next pack and the search continues.
+</p>
+<p>Finally, we reach a state where we have some extra particles in B and
+some holes in A. Therefore we can transfer at least one particle from B
+to fill the holes in A. All holes are filled unless there are no enough
+extra particles in B.
+</p>
+<p>At least one of the two windows is now complete (either A with no
+holes or B with no extra particles). Completed windows are advanced
+towards themselves to continue with the process.
+</p>
+<p>The process completes when the two windows are pointing to the same
+pack. To finish the collection process, the last pack pointed by the
+windows is analyzed to remove any lost particles. And the remaining
+particles are packed into the left.
+</p>
+<span id="Exchange-particles-in-X"></span><h3 class="section">2.3 Exchange particles in X</h3>
+
+<p>The exchange algorithm moves particles between plasma chunks always
+reading from the queues of the two neighbour chunks in X and appending
+the particles into the plasma list.
+</p>
+<p>Therefore, the exchange phase can begin if the collection phase has
+finished for the current chunk, as well as the two neighbour chunks in
+X.
+</p>
+<p>The exchange algorithm is first executed to fill the list with particles
+from the queue qx0, and then with the queue qx1.
+</p>
+<p>The algorithm is divided in two steps: filling the last pack and then
+appending the rest of packs in the list.
+</p>
+<p>It turns out the last pack of the list may not be complete. Then, if the
+queue were simply copied behind, all packs would require to be modified
+to shift the particles. To avoid changing all the packs, the list if
+first filled to complete the last pack using particles from the end of
+the list. Notice the particles must be transferred from the end of the
+last pack of the queue, not from the beginning.
+</p>
+<p>Once the list has the last pack complete, the bulk pack filling can
+begin, which will only append all remaining packs of the queue into the
+list. This operation can even use other advanced memory transfer
+techniques, as all the particles are copied from a contiguous region of
+memory.
+</p>
+<p>In the case of multiple blocks involved in the transference, the
+pointers can be modified to continue in the queue to alleviate the copy
+of particles, but this optimization is not yet implemented. The number
+of exchanged particles between chunks should be low.
+</p>
+<span id="SIMD-operations"></span><h2 class="chapter">3 SIMD operations</h2>
+
+<p>Most SIMD operations are written directly using the Intel 
+<a href="https://software.intel.com/sites/landingpage/IntrinsicsGuide/">intrinsic functions</a>, as it gives fine control to the manipulation of
+vector elements.
+</p>
+<p>A set of macros are created to interface the AVX-2 and AVX-512 via a
+similar way. Therefore the code is kept clean of <code>ifdef</code> and only
+uses the defined macros. Currently only AVX-2 and AVX-512 is supported,
+but it could be implemented without vector instructions, in order to
+execute the code in non-AVX CPUs, which could be handy for debugging.
+</p>
+<p>There are several types defined to hold a vector of floating point and
+integer numbers.
+</p>
+<ul>
+<li> <code>vf64</code>: Contains double precision floating point numbers of 64 bits.
+</li><li> <code>vi64</code>: Contains signed integer numbers of 64 bits.
+</li><li> <code>vmsk</code>: Contains bit masks for at least <code>MAX_VEC</code> elements.
+</li></ul>
+
+<p>All types and functions are prefixed with the letter <code>v</code> to
+identify the vectorized nature of the operations.
+</p>
+<span id="Memory-operations"></span><h3 class="section">3.1 Memory operations</h3>
+
+<dl compact="compact">
+<dt><code>vset1(x)</code></dt>
+<dd><p>Broadcast the value x in all the elements of the vector.
+</p></dd>
+<dt><code>vload(x)</code></dt>
+<dd><p>Loads the vector in the address pointed by x.
+</p></dd>
+<dt><code>vstore(a, b)</code></dt>
+<dd><p>Stores the vector a into the address b.
+</p></dd>
+<dt><code>vstream(a, b)</code></dt>
+<dd><p>Stores the vector a into the address b without going through the cache.
+</p></dd>
+<dt><code>vgather(b,i)</code></dt>
+<dd><p>Takes the base address b and loads the elements at offset i.
+</p></dd>
+<dt><code>vi32_set1(x)</code></dt>
+<dd><p>Broadcasts the value x with type i32 into a vector.
+</p></dd>
+<dt><code>vi64_set1(x)</code></dt>
+<dd><p>Broadcasts the value x with type i64 into a vector.
+</p></dd>
+</dl>
+
+<span id="Arithmetic-operations"></span><h3 class="section">3.2 Arithmetic operations</h3>
+
+<div class="example">
+<pre class="example">vsqrt(x)
+vfloor(x)
+vi64 vi64_remod(vi64 a, vi64 b)
+vf64 remod(vf64 a, vf64 b)
+vf64 remodinv(vf64 a, vf64 b, vf64 c)
+vabs(x)
+vcmp(a, b, f)
+</pre></div>
+
+<span id="Mask-operations"></span><h3 class="section">3.3 Mask operations</h3>
+
+<div class="example">
+<pre class="example">vand(a, b)
+vor(a, b)
+vnot(a)
+vmsk vmsk_set(unsigned long long v)
+vmsk_get(vmsk m)
+</pre></div>
+
+<span id="Miscellaneous-operations"></span><h3 class="section">3.4 Miscellaneous operations</h3>
+
+<div class="example">
+<pre class="example">vi64 vf64_to_vi64(vf64 x)
+</pre></div>
+
+<span id="Window_002dbased-operations"></span><h2 class="chapter">4 Window-based operations</h2>
+
+<p>The window-based movement is a key concept to work with the vectorized
+operations of AVX-2 and AVX-512 instruction set of the Intel processors.
+Operations on particles are generally performed by vector instructions,
+which operate on multiple elements at once. The number of elements
+depends on the SIMD extensions enabled and the length of the element
+type. By default, double precision is used with 64 bits (8 bytes) per
+elements, similarly for integers, which use 64 bits.
+</p>
+<p>On AVX-2 the vector length is 256 bits, so 4 elements can be processed
+at once. With AVX-512, we can process 8 elements at once with the 512
+bits vectors. The number of elements in a vector is defined as
+<span id="MAX_005fVEC"></span><code>MAX_VEC</code> and is usually 4 or 8.
+</p>
+<span id="Window-data-structure"></span><h3 class="section">4.1 Window data structure</h3>
+
+<p>A window points to a <a href="#ppack">ppack</a> by using the <a href="#pblock">pblock</a> index
+<code>ib</code> and the pack index <code>ip</code> inside the block, called the
+selected pack.
+</p>
+<p>Additionally, a set of masks are used to select particles inside the
+pack. Particles are selected with a bit mask of 1 and not selected with
+0. The <code>enabled</code> mask determines which particles of the pack are
+currently part of the block, as it may happen the selected pack is at
+the end and is not complete.
+</p>
+<span id="Moving-particles-using-windows"></span><h3 class="section">4.2 Moving particles using windows</h3>
+
+<p>There are two types of movements: parallel and non-parallel.
+</p>
+<div class="float"><span id="fig_003appack_002dparallel_002dmove"></span>
+<img src="ppack-parallel-move.png" alt="ppack-parallel-move">
+<div class="float-caption"><p><strong>Figure 4.1
+</strong></p></div></div>
+<p>In the parallel move, a mask determines which particles are required to
+move, and then are moved using one instruction per vector-line. This is
+a very efficient way of transferring particles around, as we don&rsquo;t need
+to change their position inside the pack, as seen in the
+<a href="#fig_003appack_002dparallel_002dmove">Figure 4.1</a>.
+</p>
+<div class="float"><span id="fig_003appack_002dnon_002dparallel_002dmove"></span>
+<img src="ppack-non-parallel-move.png" alt="ppack-non-parallel-move">
+<div class="float-caption"><p><strong>Figure 4.2
+</strong></p></div></div>
+<p>In contrast, in a non-parallel move, the particles change their index in
+the pack, and thus they cannot be moved using one instruction per
+vector-line as seen in the <a href="#fig_003appack_002dnon_002dparallel_002dmove">Figure 4.2</a>. This
+operation has a large computational cost compared with a parallel move
+and must be avoided. The current implementation addresses one particle
+at a time, but it may be more efficient to use a combination of partial
+parallel moves and shifts.
+</p>
+<hr>
+
+
+
+</body>
+</html>

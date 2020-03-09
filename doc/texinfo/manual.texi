@@ -1,11 +1,11 @@
-\input texinfo   @c -*-texinfo-*-
+\input texinfo
 @comment $Id@w{$}
 @comment %**start of header
 @settitle cpic
 
 @c @contents
 
-@node Top
+@node manual
 
 This is a sample manual.  There is no sample program to
 invoke, but if there were, you could see its basic usage
@@ -55,12 +55,22 @@ designed to be used with vectorized operations, the plist.
 The list is formed by blocks of particles grouped in packs of the vector
 size.
 
+@anchor{pblock}
+@subsection Plasma block
+
+A block of ppacks.
+
 @anchor{pwin}
 @subsection Pack window
 
 A window is used to select particles within a plasma pack. Several masks
 are used to inform of the state of each particle. The window can be
 slide and positioned in each ppack of a plist.
+
+@anchor{ppack}
+
+A plasma or particle pack (ppack) contains @code{MAX_VEC} particles,
+were each member of the particle is interleave. FIXME.
 
 @chapter Plasma communication
 
@@ -170,10 +180,107 @@ pointers can be modified to continue in the queue to alleviate the copy
 of particles, but this optimization is not yet implemented. The number
 of exchanged particles between chunks should be low.
 
-@section Moving particles using windows
+@chapter SIMD operations
+
+Most SIMD operations are written directly using the Intel 
+@url{https://software.intel.com/sites/landingpage/IntrinsicsGuide/,
+intrinsic functions}, as it gives fine control to the manipulation of
+vector elements.
+
+A set of macros are created to interface the AVX-2 and AVX-512 via a
+similar way. Therefore the code is kept clean of @code{ifdef} and only
+uses the defined macros. Currently only AVX-2 and AVX-512 is supported,
+but it could be implemented without vector instructions, in order to
+execute the code in non-AVX CPUs, which could be handy for debugging.
+
+There are several types defined to hold a vector of floating point and
+integer numbers.
+
+@itemize
+@item @code{vf64}: Contains double precision floating point numbers of 64 bits.
+@item @code{vi64}: Contains signed integer numbers of 64 bits.
+@item @code{vmsk}: Contains bit masks for at least @code{MAX_VEC} elements.
+@end itemize
+
+All types and functions are prefixed with the letter @code{v} to
+identify the vectorized nature of the operations.
+
+@section Memory operations
+
+@table @code
+@item vset1(x)
+Broadcast the value x in all the elements of the vector.
+@item vload(x)
+Loads the vector in the address pointed by x.
+@item vstore(a, b)
+Stores the vector a into the address b.
+@item vstream(a, b)
+Stores the vector a into the address b without going through the cache.
+@item vgather(b,i)
+Takes the base address b and loads the elements at offset i.
+@item vi32_set1(x)
+Broadcasts the value x with type i32 into a vector.
+@item vi64_set1(x)
+Broadcasts the value x with type i64 into a vector.
+@end table
+
+@section Arithmetic operations
+
+@example
+vsqrt(x)
+vfloor(x)
+vi64 vi64_remod(vi64 a, vi64 b)
+vf64 remod(vf64 a, vf64 b)
+vf64 remodinv(vf64 a, vf64 b, vf64 c)
+vabs(x)
+vcmp(a, b, f)
+@end example
+
+@section Mask operations
+
+@example
+vand(a, b)
+vor(a, b)
+vnot(a)
+vmsk vmsk_set(unsigned long long v)
+vmsk_get(vmsk m)
+@end example
+
+@section Miscellaneous operations
+
+@example
+vi64 vf64_to_vi64(vf64 x)
+@end example
+
+@chapter Window-based operations
 
 The window-based movement is a key concept to work with the vectorized
 operations of AVX-2 and AVX-512 instruction set of the Intel processors.
+Operations on particles are generally performed by vector instructions,
+which operate on multiple elements at once. The number of elements
+depends on the SIMD extensions enabled and the length of the element
+type. By default, double precision is used with 64 bits (8 bytes) per
+elements, similarly for integers, which use 64 bits.
+
+On AVX-2 the vector length is 256 bits, so 4 elements can be processed
+at once. With AVX-512, we can process 8 elements at once with the 512
+bits vectors. The number of elements in a vector is defined as
+@anchor{MAX_VEC} @code{MAX_VEC} and is usually 4 or 8.
+
+@section Window data structure
+
+A window points to a @ref{ppack} by using the @ref{pblock} index
+@code{ib} and the pack index @code{ip} inside the block, called the
+selected pack.
+
+Additionally, a set of masks are used to select particles inside the
+pack. Particles are selected with a bit mask of 1 and not selected with
+0. The @code{enabled} mask determines which particles of the pack are
+currently part of the block, as it may happen the selected pack is at
+the end and is not complete.
+
+@section Moving particles using windows
+
 There are two types of movements: parallel and non-parallel.
 
 @float Figure,fig:ppack-parallel-move

@@ -1,11 +1,17 @@
 CSS=document.css
-OUT=html
 FLAGS+=--css-ref=$(CSS)
 FLAGS+=--no-split
 
-all: html
+all: index.html
 
-html: manual.texi
-	makeinfo $(FLAGS) --html $^ -o $(OUT)
+index.html: manual.texi
+	makeinfo $(FLAGS) --html $^ -o $@
+	sed -i '/<title>/a<link rel="icon" type="image/png" href="/logo16.png"/>' $@
+
+manual.pdf: manual.texi
+	makeinfo $(FLAGS) --pdf $^ -o $@
+
+upload:	index.html
+	rsync -va ./ cpic-web:/home/project-web/cpic-doc/htdocs/
 
 .PHONY: html
