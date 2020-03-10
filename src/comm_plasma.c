@@ -8,7 +8,7 @@
 #include "utils.h"
 #include "plist.h"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 
 #undef EXTRA_CHECKS
@@ -152,7 +152,7 @@ pwin_print(pwin_t *w, const char *name)
 	UNUSED(name);
 	UNUSED(selc);
 
-	dbg("%s: b=%p ip=%zd sel=[", name, w->b, w->ip);
+	dbg("%s: b=%p ip=%zd sel=[", name, (void *) w->b, w->ip);
 
 	if(w->dirty_sel)
 	{
@@ -202,7 +202,7 @@ pwin_set_enabled(pwin_t *w)
 	shift = sizeof(mask) * 8 - left;
 	mask = (-1UL) >> shift;
 
-	dbg("Computed mask is %llx for %zd elements, shift=%lld\n",
+	dbg("Computed mask is %lx for %zd elements, shift=%ld\n",
 			mask, left, shift);
 
 	if(MAX_VEC == 4)
@@ -344,8 +344,8 @@ move_particle(pwin_t *wsrc, i64 isrc, pwin_t *wdst, i64 idst)
 	dst = &wdst->b->p[wdst->ip];
 
 	dbg("moving particle from %s.%p.%ld.%ld to %s.%p.%ld.%ld\n",
-			wsrc->l->name, wsrc->b, wsrc->ip, isrc,
-			wdst->l->name, wdst->b, wdst->ip, idst);
+			wsrc->l->name, (void *) wsrc->b, wsrc->ip, isrc,
+			wdst->l->name, (void *) wdst->b, wdst->ip, idst);
 
 #ifdef USE_PPACK_MAGIC
 	//dbg("writing magic %llx to ip=%ld i=%ld at %p\n",
@@ -386,7 +386,7 @@ transfer(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
 	idst = 0;
 	moved = 0;
 
-	dbg("transfer src_mask=%llx, dst_mask=%llx\n",
+	dbg("transfer src_mask=%lx, dst_mask=%lx\n",
 			vmsk_get(*src_sel), vmsk_get(*dst_sel));
 
 	assert(vmsk_isany(*dst_sel));
@@ -445,7 +445,7 @@ transfer_backwards(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
 	idst = 0;
 	moved = 0;
 
-	dbg("transfer_backwards src_mask=%llx, dst_mask=%llx\n",
+	dbg("transfer_backwards src_mask=%lx, dst_mask=%lx\n",
 			vmsk_get(*src_sel), vmsk_get(*dst_sel));
 
 	assert(vmsk_isany(*dst_sel));
@@ -627,7 +627,7 @@ update_sel(pwin_t *w, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], int invert_sel)
 	w->mx0 = vmsk_and(w->mx0, w->enabled);
 	w->mx1 = vmsk_and(w->mx1, w->enabled);
 
-	dbg("update_sel mx0 = %llx, mx1 = %llx\n",
+	dbg("update_sel mx0 = %lx, mx1 = %lx\n",
 			vmsk_get(w->mx0), vmsk_get(w->mx1));
 
 //#ifndef NDEBUG
@@ -708,7 +708,7 @@ produce_holes_A(exchange_t *ex)
 		{
 			dbg("A: found some holes at ip=%ld\n",
 					A->ip);
-			dbg("A: sel=%llx  enabled=%llx\n",
+			dbg("A: sel=%lx  enabled=%lx\n",
 					vmsk_get(A->sel),
 					vmsk_get(A->enabled));
 			break;
@@ -767,7 +767,7 @@ produce_extra_B(exchange_t *ex)
 		if(vmsk_isany(B->sel))
 		{
 			dbg("B: extra particles found at ip=%ld\n", B->ip);
-			dbg("B: sel=%llx  enabled=%llx\n",
+			dbg("B: sel=%lx  enabled=%lx\n",
 					vmsk_get(B->sel),
 					vmsk_get(B->enabled));
 			break;
@@ -892,7 +892,7 @@ queue_close(pwin_t *q)
 	i64 count, n;
 
 	dbg("Closing queue %s using pwin=%p with n=%ld particles\n",
-			q->l->name, q, q->b->n);
+			q->l->name, (void *) q, q->b->n);
 
 	mask = vmsk_get(q->sel);
 	count = __builtin_popcountll(mask);
@@ -994,11 +994,11 @@ finish_pass(exchange_t *ex, i64 *in, i64 *out)
 		F = vmsk_and(S, X);
 		T = vmsk_and(D, X);
 
-		dbg("Computed F=%llx T=%llx b->n=%zd\n",
+		dbg("Computed F=%lx T=%lx b->n=%zd\n",
 				vmsk_get(F), vmsk_get(T), B->b->n);
 
 		(*in) += transfer(B, &F, B, &T);
-		dbg("After transfer F=%llx T=%llx\n",
+		dbg("After transfer F=%lx T=%lx\n",
 				vmsk_get(F), vmsk_get(T));
 	}
 	else
@@ -1015,7 +1015,7 @@ fix_size:
 }
 
 static i64
-collect_pass(exchange_t *ex)
+pchunk_collect_x_pass(exchange_t *ex)
 {
 	i64 n0;
 	i64 moved_out, moved_in;
@@ -1060,7 +1060,7 @@ collect_pass(exchange_t *ex)
 	dbg("=== finish_pass ends ===\n");
 
 	dbg("-----------------------------------\n");
-	dbg("      collect_pass complete\n");
+	dbg("      collect pass x complete      \n");
 	dbg(" Total moved out %zd, moved in %zd\n",
 			moved_out, moved_in);
 	dbg(" qx0 n=%zd, qx1 n=%zd\n",
@@ -1079,7 +1079,7 @@ collect_pass(exchange_t *ex)
 }
 
 static i64
-local_collect_x(pchunk_t *c, pset_t *set)
+pchunk_collect_x(pchunk_t *c, pset_t *set)
 {
 	exchange_t ex;
 	i64 collected;
@@ -1115,7 +1115,7 @@ local_collect_x(pchunk_t *c, pset_t *set)
 	assert(vmsk_isany(ex.q0.sel));
 	assert(vmsk_isany(ex.q1.sel));
 
-	collected = collect_pass(&ex);
+	collected = pchunk_collect_x_pass(&ex);
 
 	assert(set->qx0.nblocks == 1);
 	assert(set->qx1.nblocks == 1);
@@ -1154,7 +1154,7 @@ local_collect_x(pchunk_t *c, pset_t *set)
 	assert(set->qx1.nblocks == 1);
 	nq1 = set->qx1.b->n;
 
-	assert(collect_pass(&ex) == 0);
+	assert(pchunk_collect_x_pass(&ex) == 0);
 
 	assert(set->qx0.nblocks == 1);
 	assert(set->qx1.nblocks == 1);
@@ -1400,7 +1400,7 @@ inject_particles(plist_t *queue, plist_t *list)
 end:
 	assert(queue->b->n == 0);
 	dbg("Testing queue list=%p with b->n=%ld, npacks=%ld\n",
-			queue, queue->b->n, queue->b->npacks);
+			(void *) queue, queue->b->n, queue->b->npacks);
 	assert(queue->b->nfpacks * MAX_VEC <= queue->b->n);
 
 
@@ -1419,7 +1419,7 @@ exchange_particles_x(sim_t *sim,
 	i64 is;
 	pset_t *from, *to;
 
-	dbg("Filling chunk %p\n", c);
+	dbg("Filling chunk %p\n", (void *) c);
 
 	/* Move particles from cp to c */
 	for(is=0; is < sim->nspecies; is++)
@@ -1430,7 +1430,7 @@ exchange_particles_x(sim_t *sim,
 		/* Use the particles that exceed the chunk in positive
 		 * direction, placed in qx1 */
 		dbg("Injecting particles into chunk=%p is=%zd from qx1\n",
-				c, is);
+				(void *) c, is);
 		inject_particles(&from->qx1, &to->list);
 	}
 
@@ -1443,11 +1443,55 @@ exchange_particles_x(sim_t *sim,
 		/* Use the particles that exceed the chunk in negative
 		 * direction, placed in qx0 */
 		dbg("Injecting particles into chunk=%p is=%zd from qx0\n",
-				c, is);
+				(void *) c, is);
 		inject_particles(&from->qx0, &to->list);
 	}
 
 }
+
+static void
+plasma_collect_x(sim_t *sim, i64 *all_collected)
+{
+	i64 ic, is;
+	plasma_t *plasma;
+	pchunk_t *c;
+	pset_t *set;
+	i64 *collected;
+
+	plasma = &sim->plasma;
+	collected = safe_malloc(sizeof(i64) * (size_t) plasma->nchunks);
+
+	for(ic = 0; ic < plasma->nchunks; ic++)
+	{
+		collected[ic] = 0;
+		c = &plasma->chunks[ic];
+		/* Find particles that must be exchanged in the X dimension */
+		#pragma oss task inout(*c)
+		{
+			pchunk_lock(c, "pchunk_collect_x");
+			for(is = 0; is < sim->nspecies; is++)
+			{
+				set = &c->species[is];
+				collected[ic] +=
+					pchunk_collect_x(c, set);
+			}
+			pchunk_unlock(c);
+		}
+	}
+
+	/* FIXME: This introduces a barrier which we may want to
+	 * avoid */
+	#pragma oss task inout(plasma->chunks[0:plasma->nchunks-1])
+	{
+		*all_collected = 0;
+		for(ic = 0; ic < plasma->nchunks; ic++)
+		{
+			*all_collected += collected[ic];
+		}
+		free(collected);
+	}
+}
+
 
 /** Move the plasma out of the chunks to the appropriate chunk in the X
  * dimension. The particles remain with the same position, only the
@@ -1456,14 +1500,12 @@ static int
 comm_plasma_x(sim_t *sim, int global_exchange)
 {
 	i64 ic, is, icp, icn, nc;
-	i64 *collected, all_collected;
+	i64 all_collected;
 	plasma_t *plasma;
 	pchunk_t *c, *cp, *cn;
 	pset_t *set;
 
 	plasma = &sim->plasma;
-	collected = safe_malloc(sizeof(i64) * (u64) plasma->nchunks);
-	all_collected = 0;
 
 	dbg("comm_plasma_x begins\n");
 
@@ -1475,34 +1517,7 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 	do
 	{
 		dbg("Begin comm_plasma_x loop\n");
-		for(ic = 0; ic < plasma->nchunks; ic++)
-		{
-			c = &plasma->chunks[ic];
-			/* Find particles that must be exchanged in the X dimension */
-			#pragma oss task inout(*chunk) label(collect_particles_x)
-			for(is = 0; is < sim->nspecies; is++)
-			{
-				set = &c->species[is];
-				collected[ic] = local_collect_x(c, set);
-			}
-		}
-
-
-		/* FIXME: This introduces a barrier which we may want to
-		 * avoid */
-		#pragma oss task inout(plasma->chunks[0:N])
-		{
-			all_collected = 0;
-			for(ic = 0; ic < plasma->nchunks; ic++)
-			{
-				all_collected += collected[ic];
-			}
-		}
-
-		/* No need to perform the exchange phase if no particles
-		 * were collected */
-		if(!all_collected)
-			break;
+		plasma_collect_x(sim, &all_collected);
 
 		for(ic = 0; ic < nc; ic++)
 		{
@@ -1514,12 +1529,38 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 			cp = &plasma->chunks[icp];
 			cn = &plasma->chunks[icn];
 
-			#pragma oss task commutative(*c, *cp, *cn) \
-					label(exchange_particles_x)
-			exchange_particles_x(sim, c, cp, cn);
+			#pragma oss task commutative(*c, *cp, *cn)
+			{
+				pchunk_lock(c, "exchange_particles_x");
+				exchange_particles_x(sim, c, cp, cn);
+				pchunk_unlock(c);
+			}
 		}
+
+		//#pragma oss taskwait in(all_collected)
+		#pragma oss taskwait
 	}
 	while(global_exchange && all_collected);
+
+#ifndef NDEBUG
+	/* Ensure we don't have any lost particle left */
+	for(ic = 0; ic < plasma->nchunks; ic++)
+	{
+		c = &plasma->chunks[ic];
+		pchunk_lock(c, "pchunk_collect_x check");
+		/* Find particles that must be exchanged in the X dimension */
+		for(is = 0; is < sim->nspecies; is++)
+		{
+			set = &c->species[is];
+			/* Ensure we don't have any particle left in the
+			 * queues */
+			assert(plist_isempty(&set->qx0));
+			assert(plist_isempty(&set->qx1));
+			assert(pchunk_collect_x(c, set) == 0);
+		}
+		pchunk_unlock(c);
+	}
+#endif
 
 	dbg("comm_plasma_x ends\n");
 

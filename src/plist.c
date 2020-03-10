@@ -225,3 +225,16 @@ plist_shrink(plist_t *l, i64 n)
 
 	return 0;
 }
+
+/** Returns non-zero if the list is empty, zero otherwise */
+int
+plist_isempty(plist_t *l)
+{
+	if(l->b == NULL)
+		return 1;
+
+	if(l->b->n == 0)
+		return 1;
+
+	return 0;
+}
