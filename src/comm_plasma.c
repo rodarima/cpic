@@ -43,37 +43,6 @@
  *
  * */
 
-/** A pwin structure points to a ppack and can select a set of particles
- * in the ppack for further operations */
-struct pwin
-{
-	/** Current list */
-	plist_t *l;
-
-	/** Current pblock */
-	pblock_t *b;
-
-	/** The ppack index in the block */
-	i64 ip;
-
-	/** Mask for enabled particles: 1=can be used, 0=garbage*/
-	vmsk enabled;
-
-	/** Mask for each particle in the ppack: 1=selected, 0=not selected*/
-	vmsk sel;
-
-	/** Particles that exceed x0 */
-	vmsk mx0;
-
-	/** Particles that exceed x1 */
-	vmsk mx1;
-
-	/** Set to zero if the sel mask doesn't corresponds to the
-	 * actual window position. Is non-zero otherwise. */
-	u8 dirty_sel;
-};
-
-typedef struct pwin pwin_t;
 
 /** Stores the state used in the algorithm for plasma exchange in X */
 typedef struct exchange
@@ -100,48 +69,6 @@ typedef struct exchange
 	//i64 nmoved;
 } exchange_t;
 
-
-/** Ensures the list has the particles stated in the header, no more, no
- * less. */
-static void
-plist_sanity_check(plist_t *l)
-{
-	i64 ip, iv;
-	pblock_t *b;
-	ppack_t *p;
-
-	/* Ensure we only have one pblock by now */
-	assert(l->b->next == NULL);
-	assert(l->nblocks == 1);
-
-	b = l->b;
-
-	/* Non-negative numbers */
-	assert(b->n >= 0);
-	assert(b->npacks >= 0);
-	assert(b->nfpacks >= 0);
-
-	/* Ensure consistency in the number of particles and ppacks */
-	assert(b->nfpacks <= b->npacks);
-	assert(b->nfpacks+1 >= b->npacks);
-	assert(b->n <= b->npacks * MAX_VEC);
-
-#ifdef USE_PPACK_MAGIC
-	for(ip=0; ip<b->npacks; ip++)
-	{
-		p = &b->p[ip];
-
-		for(iv=0; iv<MAX_VEC; iv++)
-		{
-			if(ip * MAX_VEC + iv < b->n)
-				assert(p->magic[iv] == MAGIC_PARTICLE);
-			else /* This may read garbage, don't worry
-				valgrind */
-				assert(p->magic[iv] != MAGIC_PARTICLE);
-		}
-	}
-#endif
-}
 
 static void
 pwin_print(pwin_t *w, const char *name)
@@ -171,98 +98,7 @@ pwin_print(pwin_t *w, const char *name)
 	dbgr("]\n");
 }
 
-/** Sets the enabled mask accordingly to the elements in the ppack
- * pointed by the pwin */
-static void
-pwin_set_enabled(pwin_t *w)
-{
-	u64 mask, shift;
-	u64 left;
 
-	/* The easy one is when we have ip pointing to a full ppack */
-	if(w->ip < w->b->nfpacks)
-	{
-		w->enabled = vmsk_ones();
-		return;
-	}
-
-	/* Otherwise we are pointing to a non-full ppack */
-
-	/* If we have no elements or past the last non-empty ppack, then
-	 * we have no elements. */
-	if(w->b->n == 0 || w->ip > w->b->npacks)
-	{
-		w->enabled = vmsk_zero();
-		return;
-	}
-
-	assert(w->ip == w->b->nfpacks);
-
-	left = w->b->n % MAX_VEC;
-	shift = sizeof(mask) * 8 - left;
-	mask = (-1UL) >> shift;
-
-	dbg("Computed mask is %lx for %zd elements, shift=%ld\n",
-			mask, left, shift);
-
-	if(MAX_VEC == 4)
-		assert(mask == 0x07 || mask == 0x03 || mask == 0x01);
-
-	w->enabled = vmsk_set(mask);
-
-	assert(vmsk_get(w->enabled) == mask);
-}
-
-/** Clears the masks sel, mx0 and mx1 and sets the enabled mask accordingly */
-static void
-pwin_reset_masks(pwin_t *w)
-{
-	/* Clear masks */
-	w->sel = vmsk_zero();
-	w->mx0 = vmsk_zero();
-	w->mx1 = vmsk_zero();
-	w->enabled = vmsk_zero();
-	w->dirty_sel = 1;
-
-	pwin_set_enabled(w);
-}
-
-
-/** Sets the window to the first ppack and clears the masks */
-static void
-pwin_first(plist_t *l, pwin_t *w)
-{
-	assert(l->b);
-
-	/* Use the first block */
-	w->b = l->b;
-	w->l = l;
-	w->ip = 0;
-
-	pwin_reset_masks(w);
-}
-
-/** Sets the window to the last non-zero ppack and clears the masks */
-static void
-pwin_last(plist_t *l, pwin_t *w)
-{
-	assert(l->b);
-	assert(l->b->n > 0);
-	assert(l->b->npacks > 0);
-
-	w->b = l->b->prev;
-	w->l = l;
-
-	assert(l->b->npacks > 0);
-
-	/* Use the non-empty number of ppacks as index, to point to the last
-	 * non-empty ppack */
-	w->ip = l->b->npacks - 1;
-
-	dbg("pwin_last: b->n = %ld, w->ip = %ld\n", l->b->n, w->ip);
-
-	pwin_reset_masks(w);
-}
 
 /** Tries to move the window to the next ppack, moving to the next pblock if
  * necessary. Returns 1 if no more ppacks are available, 0 otherwise. The masks
@@ -1180,6 +1016,10 @@ pchunk_collect_x(pchunk_t *c, pset_t *set)
 	assert(set->qx0.b->n == nq0);
 	assert(set->qx1.b->n == nq1);
 
+	plist_sanity_check(&set->list);
+	plist_sanity_check(&set->qx0);
+	plist_sanity_check(&set->qx1);
+
 	return collected;
 }
 
@@ -1197,6 +1037,8 @@ move_ppack(pwin_t *wsrc, pwin_t *wdst)
 
 #ifdef USE_PPACK_MAGIC
 	dst->magic = src->magic;
+	/* We also destroy the source magic */
+	src->magic = vi64_set1(MAGIC_GARBAGE);
 #endif
 
 	dst->i = src->i;
