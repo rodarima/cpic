@@ -359,7 +359,7 @@ pwin_reset_masks(pwin_t *w)
 	pwin_set_enabled(w);
 }
 
-/** Sets the window to the first ppack and clears the masks */
+/** Sets the window to the first ppack */
 static void
 pwin_first(plist_t *l, pwin_t *w)
 {
@@ -374,6 +374,14 @@ pwin_first(plist_t *l, pwin_t *w)
 static void
 pwin_last_particle(plist_t *l, pwin_t *w)
 {
+	/* Precondition: The list has at least one particle, and thus at least
+	 * one block */
+
+	/* Postcondition: The window points to the last ppack with at least one
+	 * particle */
+
+	assert(l->b);
+
 	w->b = plist_last_block(l);
 
 	/* There should be at least one ppack */
@@ -382,6 +390,11 @@ pwin_last_particle(plist_t *l, pwin_t *w)
 	/* Use the non-empty number of ppacks as index, to point to the last
 	 * non-empty ppack */
 	w->ip = w->b->npacks - 1;
+
+#ifdef USE_PPACK_MAGIC
+	/* Ensure the ppack has at least one particle */
+	assert(!ppack_isempty(&w->b->p[w->ip]));
+#endif
 }
 
 /** Sets the window to the ppack that contains the last hole, no
@@ -389,20 +402,30 @@ pwin_last_particle(plist_t *l, pwin_t *w)
 static void
 pwin_last_hole(plist_t *l, pwin_t *w)
 {
+	/* Precondition: The list has at least one block */
+	/* Postcondition: The window points to a ppack with at least one hole */
+
+	assert(l->b);
+
 	w->b = plist_last_block(l);
 
 	/* We may have zero particles, but is not a problem */
 	w->ip = w->b->nfpacks;
+
+#ifdef USE_PPACK_MAGIC
+	/* Ensure the ppack has at least one hole */
+	assert(!ppack_isfull(&w->b->p[w->ip]));
+#endif
 }
 
 enum plist_mode
 {
 	/** The number of particles cannot decrease */
-	MODE_APPEND,
+	OPEN_APPEND,
 	/** The number of particles cannot increase */
-	MODE_REMOVE,
+	OPEN_REMOVE,
 	/** The number of particles cannot change */
-	MODE_MODIFY;
+	OPEN_MODIFY;
 }
 
 void
@@ -415,11 +438,14 @@ plist_open(plist_t *l, pwin_t *w, int mode)
 
 	switch(mode)
 	{
-		case MODE_APPEND: pwin_last_hole(l, w); break;
-		case MODE_REMOVE: pwin_last_particle(l, w); break;
-		case MODE_MODIFY: pwin_first(l, w); break;
+		case OPEN_APPEND: pwin_last_hole(l, w); break;
+		case OPEN_REMOVE: pwin_last_particle(l, w); break;
+		case OPEN_MODIFY: pwin_first(l, w); break;
 		default: abort();
 	}
+
+	/* The enabled mask is always updated after opening */
+	update_enabled_mask()
 }
 
 void
@@ -645,11 +671,104 @@ pwin_step(pwin_t *w)
 
 	switch(w->mode)
 	{
-		case MODE_APPEND: ret = pwin_step_append(w);
-		case MODE_REMOVE: ret = pwin_step_remove(w);
-		case MODE_MODIFY: ret =  pwin_step_modify(w);
+		case OPEN_APPEND: ret = pwin_step_append(w);
+		case OPEN_REMOVE: ret = pwin_step_remove(w);
+		case OPEN_MODIFY: ret =  pwin_step_modify(w);
 		default: abort();
 	}
 
 	return ret;
+}
+
+/** Move particles from the src window into dst until the selection is empty or
+ * dst is full. The windows are not moved. Return the number of particles moved. */
+static i64
+transfer_forward(vmsk *sel, pwin_t *src, pwin_t *dst)
+{
+	i64 isrc, idst;
+	i64 moved;
+
+	/* TODO: We can store the index in each pwin, so we can reuse the
+	 * previous state to speed up the search */
+
+	isrc = 0;
+	idst = 0;
+	moved = 0;
+
+	dbg("transfer src_mask=%lx, dst_mask=%lx\n",
+			vmsk_get(*sel), vmsk_get(dst->enabled));
+
+	assert(!vmsk_iszero(dst->enabled));
+	assert(vmsk_isany(*sel));
+
+	while(1)
+	{
+		/* It cannot happen that idst or isrc exceed MAX_VEC, as if
+		 * they are nonzero, the ones must be after or at idst or isrc
+		 * */
+
+		/* Compute the index in dst */
+		while(dst->enabled[idst] == 1) idst++;
+
+		/* Same in src */
+		while((*src_sel)[isrc] == 0) isrc++;
+
+		move_particle(src, isrc, dst, idst);
+		moved++;
+
+		/* TODO: Use proper macros to deal with the bitmasks */
+		(*src_sel)[isrc] = 0;
+		dst->enabled[idst] = 1;
+
+		/* And advance the index in both masks */
+		idst++;
+		isrc++;
+
+		if(idst >= MAX_VEC) break;
+		if(isrc >= MAX_VEC) break;
+
+		if(vmsk_isfull(dst->enabled)) break;
+		if(vmsk_iszero(*src_sel)) break;
+	}
+
+	return moved;
+}
+
+enum {
+	TRANSFER_SRC = 0,
+	TRANSFER_DST = 1
+};
+
+/** Transfers particles from src to dst until src is empty or dst is full */
+static i64
+pwin_transfer_static(psel_t *sel, pwin_t *src, pwin_t *dst)
+{
+	/* Only transfer backwards in delete mode from the source */
+	if(src->mode == OPEN_DELETE)
+		return transfer_backward(sel, src, dst);
+
+	/* All other modes are forward */
+	return transfer_forward(sel, src, dst);
+}
+
+static i64
+pwin_transfer(pwin_t *src, pwin_t *dst, int mode)
+{
+	/* Not allowed modes src=APPEND and dst=DELETE */
+	assert(src->mode != OPEN_APPEND);
+	assert(dst->mode != OPEN_DELETE);
+
+	switch(mode)
+	{
+		case TRANSFER_STATIC:
+			return pwin_transfer_static(src, dst);
+		case TRANSFER_ALL:
+			return pwin_transfer_all(src, dst);
+		case TRANSFER_FULL:
+			return pwin_transfer_full(src, dst);
+		default: abort();
+	}
+
+	/* Not reached */
+	return -1;
 }
