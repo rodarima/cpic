@@ -303,6 +303,29 @@ plist_first_block(plist_t *l)
 	return l->b;
 }
 
+void
+pwin_print(pwin_t *w, const char *name)
+{
+	i64 iv;
+
+	UNUSED(name);
+
+	dbg("%s: b=%p ip=%zd enabled=[", name, (void *) w->b, w->ip);
+
+	for(iv=0; iv<MAX_VEC; iv++)
+		dbgr("%c", w->enabled[iv] == 0 ? ' ' : '*');
+
+	dbgr("]\n");
+}
+
+/** Returns non-zero if the pwin A and B point to the same ppack, otherwise
+ * returns zero. */
+static int
+pwin_equal(pwin_t *A, pwin_t *B)
+{
+	return (A->b == B->b) && (A->ip == B->ip);
+}
+
 /** Sets the enabled mask accordingly to the elements in the ppack
  * pointed by the pwin */
 static void
@@ -425,8 +448,18 @@ enum plist_mode
 	/** The number of particles cannot increase */
 	OPEN_REMOVE,
 	/** The number of particles cannot change */
-	OPEN_MODIFY;
-}
+	OPEN_MODIFY
+};
+
+enum pwin_transfer_mode
+{
+	/** Transfer particles until src is empty or dst is full */
+	TRANSFER_PARTIAL,
+	/** Transfer particles until src is empy */
+	TRANSFER_ALL,
+	/** Transfer the ppack */
+	TRANSFER_RAW
+};
 
 void
 plist_open(plist_t *l, pwin_t *w, int mode)
@@ -680,6 +713,42 @@ pwin_step(pwin_t *w)
 	return ret;
 }
 
+static void
+move_particle(pwin_t *wsrc, i64 isrc, pwin_t *wdst, i64 idst)
+{
+	i64 d;
+	ppack_t *src, *dst;
+
+	src = &wsrc->b->p[wsrc->ip];
+	dst = &wdst->b->p[wdst->ip];
+
+	dbg("moving particle from %s.%p.%ld.%ld to %s.%p.%ld.%ld\n",
+			wsrc->l->name, (void *) wsrc->b, wsrc->ip, isrc,
+			wdst->l->name, (void *) wdst->b, wdst->ip, idst);
+
+#ifdef USE_PPACK_MAGIC
+	//dbg("writing magic %llx to ip=%ld i=%ld at %p\n",
+	//		src->magic[isrc], wdst->ip, idst,
+	//		((i64 *)&dst->magic) + idst);
+	assert(sizeof(ppack_t) == 448);
+	assert(src->magic[isrc] == MAGIC_PARTICLE);
+	dst->magic[idst] = src->magic[isrc];
+
+	/* We remove the magic from the source as it is considered
+	 * garbage now */
+	src->magic[isrc] = MAGIC_GARBAGE;
+#endif
+	dst->i[idst] = src->i[isrc];
+
+	for(d=X; d<MAX_DIM; d++)
+	{
+		dst->r[d][idst] = src->r[d][isrc];
+		dst->u[d][idst] = src->u[d][isrc];
+		dst->E[d][idst] = src->E[d][isrc];
+		dst->B[d][idst] = src->B[d][isrc];
+	}
+}
+
 /** Move particles from the src window into dst until the selection is empty or
  * dst is full. The windows are not moved. Return the number of particles moved. */
 static i64
@@ -734,14 +803,68 @@ transfer_forward(vmsk *sel, pwin_t *src, pwin_t *dst)
 	return moved;
 }
 
-enum {
-	TRANSFER_SRC = 0,
-	TRANSFER_DST = 1
-};
+/** Move particles from the END of the src window into the START of dst.
+ * The number of particles moved is at least one, and at most the
+ * minimum number of enabled bits in the selection of src and dst. */
+static i64
+transfer_backward(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
+{
+	i64 isrc, idst;
+	i64 moved;
+
+	/* TODO: We can store the index in each pwin, so we can reuse the
+	 * previous state to speed up the search */
+
+	isrc = MAX_VEC - 1;
+	idst = 0;
+	moved = 0;
+
+	dbg("transfer_backwards src_mask=%lx, dst_mask=%lx\n",
+			vmsk_get(*src_sel), vmsk_get(dst->enabled));
+
+	assert(!vmsk_iszero(dst->enabled));
+	assert(vmsk_isany(*src_sel));
+
+
+	while(1)
+	{
+		/* It cannot happen that idst or isrc exceed MAX_VEC, as if
+		 * they are nonzero, the ones must be after or at idst or isrc
+		 * */
+
+		/* Compute the index in dst */
+		while(dst->enabled[idst] == 0) idst++;
+
+		/* Same in src */
+		while((*src_sel)[isrc] == 0) isrc--;
+
+		move_particle(src, isrc, dst, idst);
+		moved++;
+
+		/* FIXME: We must modify the list size as well */
+
+		/* Clear the bitmask */
+		/* TODO: Use proper macros to deal with the bitmasks */
+		(*src_sel)[isrc] = 0;
+		dst->enabled[idst] = 0;
+
+		/* And advance the index in both masks */
+		idst--;
+		isrc--;
+
+		if(idst >= MAX_VEC) break;
+		if(isrc < 0) break;
+
+		if(vmsk_iszero(dst->enabled) break;
+		if(vmsk_iszero(*src_sel)) break;
+	}
+
+	return moved;
+}
 
 /** Transfers particles from src to dst until src is empty or dst is full */
 static i64
-pwin_transfer_static(psel_t *sel, pwin_t *src, pwin_t *dst)
+pwin_transfer_partial(vmsk *sel, pwin_t *src, pwin_t *dst)
 {
 	/* Only transfer backwards in delete mode from the source */
 	if(src->mode == OPEN_DELETE)
@@ -751,24 +874,102 @@ pwin_transfer_static(psel_t *sel, pwin_t *src, pwin_t *dst)
 	return transfer_forward(sel, src, dst);
 }
 
+/** Transfers all selected particles from src to dst until src is empty,
+ * advancing the window dst */
 static i64
-pwin_transfer(pwin_t *src, pwin_t *dst, int mode)
+pwin_transfer_all(vmsk *sel, pwin_t *src, pwin_t *dst)
 {
+	i64 count;
+
+	/* Precondition: there are at least one selected particle */
+	/* Postcondition: all selected particles are transferred to dst and the
+	 * selection mask sel is zeroed */
+
+	assert(!vmsk_iszero(*sel));
+
+	count = 0;
+	while(1)
+	{
+		count += pwin_transfer_partial(sel, src, dst);
+
+		if(vmsk_iszero(*sel))
+			break;
+
+		if(pwin_step(dst))
+		{
+			err("Failed to step the dst pwin, aborting\n");
+			abort();
+		}
+	}
+
+	assert(vmsk_iszero(*sel));
+
+	/* All other modes are forward */
+	return count;
+}
+
+/** Transfers the complete ppack pointed by src into dst. */
+static i64
+move_ppack(pwin_t *wsrc, pwin_t *wdst)
+{
+	i64 d;
+	ppack_t *src, *dst;
+
+	src = &wsrc->b->p[wsrc->ip];
+	dst = &wdst->b->p[wdst->ip];
+
+	dbg("moving ppack ip=%zd to ip=%zd\n",
+			wsrc->ip, wdst->ip);
+
+#ifdef USE_PPACK_MAGIC
+	dst->magic = src->magic;
+	/* We also destroy the source magic */
+	src->magic = vi64_set1(MAGIC_GARBAGE);
+#endif
+
+	dst->i = src->i;
+
+	for(d=X; d<MAX_DIM; d++)
+		dst->r[d] = src->r[d];
+
+	for(d=X; d<MAX_DIM; d++)
+		dst->u[d] = src->u[d];
+
+	for(d=X; d<MAX_DIM; d++)
+		dst->E[d] = src->E[d];
+
+	for(d=X; d<MAX_DIM; d++)
+		dst->B[d] = src->B[d];
+
+	return MAX_VEC;
+}
+
+/* Transfers the selected particles from src to dst. The selection mask is
+ * ignored when using TRANSFER_RAW mode. The dst window may be stepped */
+i64
+pwin_transfer(vmsk *sel, pwin_t *src, pwin_t *dst, int mode)
+{
+	i64 count;
+
 	/* Not allowed modes src=APPEND and dst=DELETE */
 	assert(src->mode != OPEN_APPEND);
 	assert(dst->mode != OPEN_DELETE);
 
 	switch(mode)
 	{
-		case TRANSFER_STATIC:
-			return pwin_transfer_static(src, dst);
+		case TRANSFER_PARTIAL:
+			count = pwin_transfer_partial(sel, src, dst);
+			break
 		case TRANSFER_ALL:
-			return pwin_transfer_all(src, dst);
-		case TRANSFER_FULL:
-			return pwin_transfer_full(src, dst);
+			count = pwin_transfer_all(sel, src, dst);
+			break;
+		case TRANSFER_RAW:
+			count = move_ppack(src, dst);
+			break;
 		default: abort();
 	}
 
-	/* Not reached */
-	return -1;
+	assert(pwin_jj(dst));
+
+	return count;
 }

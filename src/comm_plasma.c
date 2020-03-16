@@ -86,260 +86,6 @@ typedef struct exchange
 } exchange_t;
 
 
-static void
-pwin_print(pwin_t *w, const char *name)
-{
-	i64 iv;
-	char selc[2] = {' ', '*'};
-
-	UNUSED(name);
-	UNUSED(selc);
-
-	dbg("%s: b=%p ip=%zd sel=[", name, (void *) w->b, w->ip);
-
-	if(w->dirty_sel)
-	{
-		selc[0] = '?';
-		selc[1] = '?';
-	}
-
-	for(iv=0; iv<MAX_VEC; iv++)
-		dbgr("%c", w->sel[iv] == 0 ? selc[0] : selc[1]);
-
-	dbgr("] enabled=[");
-
-	for(iv=0; iv<MAX_VEC; iv++)
-		dbgr("%c", w->enabled[iv] == 0 ? ' ' : '*');
-
-	dbgr("]\n");
-}
-
-
-
-/** Tries to move the window to the next ppack, moving to the next pblock if
- * necessary. Returns 1 if no more ppacks are available, 0 otherwise. The masks
- * are reset if the displacement was successful. */
-static int
-pwin_next(pwin_t *w, int reset_masks)
-{
-	/* Advance in the same block */
-	if(w->ip < w->b->npacks - 1)
-	{
-		w->ip++;
-		goto reset_mask;
-	}
-
-	/* If we are at the end, cannot continue */
-	if(!w->b->next)
-	{
-		dbg("failed pwin_next: window at end of the plist\n");
-		return 1;
-	}
-
-	/* Otherwise move to the next block */
-	w->b = w->b->next;
-	w->ip = 0;
-
-reset_mask:
-	if(reset_masks)
-		pwin_reset_masks(w);
-
-	return 0;
-}
-
-/** Tries to move to the previous ppack, jumping to the previous pblock
-  if * necessary. If no more ppacks are available returns 1, otherwise
-  returns 0. If * the displacement is successful the masks are reset. */
-static int
-pwin_prev(pwin_t *w, int reset_masks)
-{
-	/* Move backwards if we are in the same block */
-	if(w->ip > 0)
-	{
-		w->ip--;
-		goto reset_mask;
-	}
-
-	/* If we are at the beginning, cannot continue */
-	if(w->l->b == w->b)
-	{
-		dbg("FATAL: We cannot move back, already at the beginning\n");
-		return 1;
-	}
-
-	/* Otherwise move to the previous block */
-	w->b = w->b->prev;
-	w->ip = w->b->npacks - 1;
-
-reset_mask:
-	if(reset_masks)
-		pwin_reset_masks(w);
-
-	return 0;
-}
-
-/** Returns non-zero if the pwin A and B point to the same ppack, otherwise
- * returns zero. */
-static int
-pwin_equal(pwin_t *A, pwin_t *B)
-{
-	return (A->b == B->b) && (A->ip == B->ip);
-}
-
-static void
-move_particle(pwin_t *wsrc, i64 isrc, pwin_t *wdst, i64 idst)
-{
-	i64 d;
-	ppack_t *src, *dst;
-
-	src = &wsrc->b->p[wsrc->ip];
-	dst = &wdst->b->p[wdst->ip];
-
-	dbg("moving particle from %s.%p.%ld.%ld to %s.%p.%ld.%ld\n",
-			wsrc->l->name, (void *) wsrc->b, wsrc->ip, isrc,
-			wdst->l->name, (void *) wdst->b, wdst->ip, idst);
-
-#ifdef USE_PPACK_MAGIC
-	//dbg("writing magic %llx to ip=%ld i=%ld at %p\n",
-	//		src->magic[isrc], wdst->ip, idst,
-	//		((i64 *)&dst->magic) + idst);
-	assert(sizeof(ppack_t) == 448);
-	assert(src->magic[isrc] == MAGIC_PARTICLE);
-	dst->magic[idst] = src->magic[isrc];
-
-	/* We remove the magic from the source as it is considered
-	 * garbage now */
-	src->magic[isrc] = MAGIC_GARBAGE;
-#endif
-	dst->i[idst] = src->i[isrc];
-
-	for(d=X; d<MAX_DIM; d++)
-	{
-		dst->r[d][idst] = src->r[d][isrc];
-		dst->u[d][idst] = src->u[d][isrc];
-		dst->E[d][idst] = src->E[d][isrc];
-		dst->B[d][idst] = src->B[d][isrc];
-	}
-}
-
-/** Move particles from the src window into dst. The number of particles moved
- * is at least one, and at most the minimum number of enabled bits in the
- * selection of src and dst. */
-static i64
-transfer(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
-{
-	i64 isrc, idst;
-	i64 moved;
-
-	/* TODO: We can store the index in each pwin, so we can reuse the
-	 * previous state to speed up the search */
-
-	isrc = 0;
-	idst = 0;
-	moved = 0;
-
-	dbg("transfer src_mask=%lx, dst_mask=%lx\n",
-			vmsk_get(*src_sel), vmsk_get(*dst_sel));
-
-	assert(vmsk_isany(*dst_sel));
-	assert(vmsk_isany(*src_sel));
-
-
-	while(1)
-	{
-		/* It cannot happen that idst or isrc exceed MAX_VEC, as if
-		 * they are nonzero, the ones must be after or at idst or isrc
-		 * */
-
-		/* Compute the index in dst */
-		while((*dst_sel)[idst] == 0) idst++;
-
-		/* Same in src */
-		while((*src_sel)[isrc] == 0) isrc++;
-
-		move_particle(src, isrc, dst, idst);
-		moved++;
-
-		/* FIXME: We must modify the list size as well */
-
-		/* Clear the bitmask */
-		/* TODO: Use proper macros to deal with the bitmasks */
-		(*src_sel)[isrc] = 0;
-		(*dst_sel)[idst] = 0;
-
-		/* And advance the index in both masks */
-		idst++;
-		isrc++;
-
-		if(idst >= MAX_VEC) break;
-		if(isrc >= MAX_VEC) break;
-
-		if(vmsk_iszero(*dst_sel)) break;
-		if(vmsk_iszero(*src_sel)) break;
-	}
-
-	return moved;
-}
-
-/** Move particles from the END of the src window into the START of dst.
- * The number of particles moved is at least one, and at most the
- * minimum number of enabled bits in the selection of src and dst. */
-static i64
-transfer_backwards(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
-{
-	i64 isrc, idst;
-	i64 moved;
-
-	/* TODO: We can store the index in each pwin, so we can reuse the
-	 * previous state to speed up the search */
-
-	isrc = MAX_VEC - 1;
-	idst = 0;
-	moved = 0;
-
-	dbg("transfer_backwards src_mask=%lx, dst_mask=%lx\n",
-			vmsk_get(*src_sel), vmsk_get(*dst_sel));
-
-	assert(vmsk_isany(*dst_sel));
-	assert(vmsk_isany(*src_sel));
-
-
-	while(1)
-	{
-		/* It cannot happen that idst or isrc exceed MAX_VEC, as if
-		 * they are nonzero, the ones must be after or at idst or isrc
-		 * */
-
-		/* Compute the index in dst */
-		while((*dst_sel)[idst] == 0) idst++;
-
-		/* Same in src */
-		while((*src_sel)[isrc] == 0) isrc--;
-
-		move_particle(src, isrc, dst, idst);
-		moved++;
-
-		/* FIXME: We must modify the list size as well */
-
-		/* Clear the bitmask */
-		/* TODO: Use proper macros to deal with the bitmasks */
-		(*src_sel)[isrc] = 0;
-		(*dst_sel)[idst] = 0;
-
-		/* And advance the index in both masks */
-		idst--;
-		isrc--;
-
-		if(idst >= MAX_VEC) break;
-		if(isrc < 0) break;
-
-		if(vmsk_iszero(*dst_sel)) break;
-		if(vmsk_iszero(*src_sel)) break;
-	}
-
-	return moved;
-}
-
 
 /** Select next window in the queue, and grow the list if necessary */
 static void
@@ -425,10 +171,10 @@ clean_lost(pwin_t *w, psel_t *sel, pwin_t *q0, pwin_t *q1)
 	moved = 0;
 
 	if(vmsk_isany(sel->mx0))
-		moved += queue_selected(w, &sel->mx0, q0);
+		moved += pwin_transfer(&sel->mx0, w, q0, TRANSFER_ALL);
 
 	if(vmsk_isany(sel->mx1))
-		moved += queue_selected(w, &sel->mx1, q1);
+		moved += pwin_transfer(&sel->mx1, w, q1, TRANSFER_ALL);
 
 	return moved;
 }
@@ -516,7 +262,7 @@ produce_holes_A(exchange_t *ex)
 		moved += clean_lost(A, Asel, q0, q1);
 
 		/* If we have some holes, stop */
-		if(vmsk_isany(A->sel))
+		if(vmsk_isany(*Asel))
 		{
 			dbg("A: found some holes at ip=%ld\n",
 					A->ip);
@@ -1002,40 +748,6 @@ pchunk_collect_x(pchunk_t *c, pset_t *set)
 	plist_sanity_check(&set->qx1);
 
 	return collected;
-}
-
-static void
-move_ppack(pwin_t *wsrc, pwin_t *wdst)
-{
-	i64 d;
-	ppack_t *src, *dst;
-
-	src = &wsrc->b->p[wsrc->ip];
-	dst = &wdst->b->p[wdst->ip];
-
-	dbg("moving ppack ip=%zd to ip=%zd\n",
-			wsrc->ip, wdst->ip);
-
-#ifdef USE_PPACK_MAGIC
-	dst->magic = src->magic;
-	/* We also destroy the source magic */
-	src->magic = vi64_set1(MAGIC_GARBAGE);
-#endif
-
-	dst->i = src->i;
-
-	for(d=X; d<MAX_DIM; d++)
-		dst->r[d] = src->r[d];
-
-	for(d=X; d<MAX_DIM; d++)
-		dst->u[d] = src->u[d];
-
-	for(d=X; d<MAX_DIM; d++)
-		dst->E[d] = src->E[d];
-
-	for(d=X; d<MAX_DIM; d++)
-		dst->B[d] = src->B[d];
-
 }
 
 /** Takes all ppacks from src to end, and copies them into dst. No
