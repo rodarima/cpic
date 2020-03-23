@@ -1,5 +1,7 @@
 #pragma once
 
+#include <assert.h>
+
 /* Do not include this header, use simd.h */
 
 typedef __m256d		vf64;
@@ -141,6 +143,24 @@ vmsk_set(u64 v)
 	i64 t[2] = {0, (i64) 0xffffffffffffffffL};
 	return _mm256_set_epi64x(
 			t[(v>>3)&1], t[(v>>2)&1], t[(v>>1)&1], t[(v>>0)&0x1]);
+}
+
+static inline void
+vmsk_set_bit(vmsk *m, i64 bit, i64 value)
+{
+	assert(value == 0 || value == 1);
+	assert(bit >= 0 && bit < MAX_VEC);
+
+	i64 t[2] = {0, (i64) 0xffffffffffffffffL};
+
+	(*m)[bit] = t[value];
+}
+
+static inline int
+vmsk_isset_bit(vmsk m, i64 bit)
+{
+	assert(bit >= 0 && bit < MAX_VEC);
+	return m[bit] != 0;
 }
 
 static inline u64

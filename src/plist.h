@@ -1,21 +1,24 @@
 #include "def.h"
 
-/** A pwin structure points to a ppack and can select a set of particles
- * in the ppack for further operations */
-typedef struct pwin
+enum plist_mode
 {
-	/** Current list */
-	plist_t *l;
+	/** The number of particles cannot change */
+	OPEN_MODIFY,
+	/** The number of particles cannot increase */
+	OPEN_REMOVE,
+	/** The number of particles cannot decrease */
+	OPEN_APPEND
+};
 
-	/** Current pblock */
-	pblock_t *b;
-
-	/** The ppack index in the block */
-	i64 ip;
-
-	/** Mask for enabled particles: 1=particle, 0=garbage*/
-	vmsk enabled;
-} pwin_t;
+enum pwin_transfer_mode
+{
+	/** Transfer particles until src is empty or dst is full */
+	TRANSFER_PARTIAL,
+	/** Transfer particles until src is empy */
+	TRANSFER_ALL,
+	/** Transfer the ppack */
+	TRANSFER_RAW
+};
 
 void
 plist_init(plist_t *l, i64 nmax, const char *name);
@@ -34,3 +37,27 @@ plist_isempty(plist_t *l);
 
 void
 plist_sanity_check(plist_t *l);
+
+void
+plist_open(plist_t *l, pwin_t *w, int mode);
+
+void
+plist_close(plist_t *l, pwin_t *w);
+
+i64
+pwin_transfer(vmsk *sel, pwin_t *src, pwin_t *dst, int mode);
+
+
+/** Returns non-zero if the pwin A and B point to the same ppack, otherwise
+ * returns zero. */
+static inline int
+pwin_equal(pwin_t *A, pwin_t *B)
+{
+	return (A->b == B->b) && (A->ip == B->ip);
+}
+
+int
+pwin_step(pwin_t *w);
+
+void
+pwin_print(pwin_t *w, const char *name);

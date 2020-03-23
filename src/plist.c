@@ -72,6 +72,56 @@ pblock_init(pblock_t *b, i64 n, i64 nmax)
 	return 0;
 }
 
+#if 0
+static void
+ppack_sanity_check(vmsk enabled, ppack_t *p)
+{
+	i64 iv;
+
+	for(iv=0; iv<MAX_VEC; iv++)
+	{
+		if(enabled[iv])
+			assert(p->magic[iv] == MAGIC_PARTICLE);
+		else
+			assert(p->magic[iv] != MAGIC_PARTICLE);
+	}
+}
+#endif
+
+#ifdef USE_PPACK_MAGIC
+static int
+ppack_isfull(ppack_t *p)
+{
+	int iv;
+
+	for(iv=0; iv < MAX_VEC; iv++)
+	{
+		if(p->magic[iv] != MAGIC_PARTICLE)
+		{
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+static int
+ppack_isempty(ppack_t *p)
+{
+	int iv;
+
+	for(iv=0; iv < MAX_VEC; iv++)
+	{
+		if(p->magic[iv] == MAGIC_PARTICLE)
+		{
+			return 0;
+		}
+	}
+
+	return 1;
+}
+#endif
+
 static pblock_t *
 plist_new_block(plist_t *l, i64 n)
 {
@@ -103,7 +153,17 @@ plist_init(plist_t *l, i64 nmax, const char *name)
 	l->max_packs = (nmax + MAX_VEC - 1) / MAX_VEC;
 	l->nblocks = 0;
 	l->nmax = nmax;
+
+	/* TODO: Shall we always keep at least one block in the list? */
 	l->b = NULL;
+
+	/* Opening modes */
+	l->opened = 0;
+	l->open_mode = 0;
+
+	/* Endpoint */
+	memset(&l->_end, 0, sizeof(l->_end));
+	l->end = &l->_end;
 
 	strncpy(l->name, name, 8);
 	l->name[7] = '\0';
@@ -286,7 +346,7 @@ plist_sanity_check(plist_t *l)
 }
 
 /** Return the last block of the list */
-pblock_t *
+static pblock_t *
 plist_last_block(plist_t *l)
 {
 	assert(l->b);
@@ -295,7 +355,7 @@ plist_last_block(plist_t *l)
 }
 
 /** Return the first block of the list */
-pblock_t *
+static pblock_t *
 plist_first_block(plist_t *l)
 {
 	assert(l->b);
@@ -316,14 +376,6 @@ pwin_print(pwin_t *w, const char *name)
 		dbgr("%c", w->enabled[iv] == 0 ? ' ' : '*');
 
 	dbgr("]\n");
-}
-
-/** Returns non-zero if the pwin A and B point to the same ppack, otherwise
- * returns zero. */
-static int
-pwin_equal(pwin_t *A, pwin_t *B)
-{
-	return (A->b == B->b) && (A->ip == B->ip);
 }
 
 /** Sets the enabled mask accordingly to the elements in the ppack
@@ -366,20 +418,6 @@ pwin_set_enabled(pwin_t *w)
 	w->enabled = vmsk_set(mask);
 
 	assert(vmsk_get(w->enabled) == mask);
-}
-
-/** Clears the masks sel, mx0 and mx1 and sets the enabled mask accordingly */
-static void
-pwin_reset_masks(pwin_t *w)
-{
-	/* Clear masks */
-	w->sel = vmsk_zero();
-	w->mx0 = vmsk_zero();
-	w->mx1 = vmsk_zero();
-	w->enabled = vmsk_zero();
-	w->dirty_sel = 1;
-
-	pwin_set_enabled(w);
 }
 
 /** Sets the window to the first ppack */
@@ -441,29 +479,39 @@ pwin_last_hole(plist_t *l, pwin_t *w)
 #endif
 }
 
-enum plist_mode
-{
-	/** The number of particles cannot decrease */
-	OPEN_APPEND,
-	/** The number of particles cannot increase */
-	OPEN_REMOVE,
-	/** The number of particles cannot change */
-	OPEN_MODIFY
-};
-
-enum pwin_transfer_mode
-{
-	/** Transfer particles until src is empty or dst is full */
-	TRANSFER_PARTIAL,
-	/** Transfer particles until src is empy */
-	TRANSFER_ALL,
-	/** Transfer the ppack */
-	TRANSFER_RAW
-};
-
 void
 plist_open(plist_t *l, pwin_t *w, int mode)
 {
+	/* Check if the list can be opened in the specified mode */
+	if(l->opened)
+	{
+		/* Only MODIFY + REMOVED allowed by now */
+		if(l->open_mode == OPEN_APPEND)
+		{
+			err("The list is already open in APPEND mode, aborting\n");
+			abort();
+		}
+
+		/* The list is opened in either MODIFY or REMOVE, we must
+		 * upgrade to the major mode REMOVE in case the current mode is
+		 * REMOVE */
+
+		if(l->open_mode == OPEN_MODIFY && mode == OPEN_REMOVE)
+			l->open_mode = OPEN_REMOVE;
+	}
+	else
+	{
+		l->open_mode = mode;
+	}
+
+	/* Set the plist end to the current REMOVE or APPEND window */
+	if(mode != OPEN_MODIFY)
+	{
+		/* It should be pointing to _end */
+		assert(l->end == &l->_end);
+		l->end = w;
+	}
+
 	l->opened++;
 
 	w->mode = mode;
@@ -478,7 +526,7 @@ plist_open(plist_t *l, pwin_t *w, int mode)
 	}
 
 	/* The enabled mask is always updated after opening */
-	update_enabled_mask()
+	pwin_set_enabled(w);
 }
 
 void
@@ -489,59 +537,15 @@ plist_close(plist_t *l, pwin_t *w)
 	l->opened--;
 
 	assert(w->l == l);
+	assert(w->mode <= l->open_mode);
+
+	/* TODO: The close operation may require to compact the last ppack in
+	 * order to keep the list consistent */
 
 	/* Only check the list if we have finished all operations */
 	if(l->opened == 0)
 		plist_sanity_check(l);
 }
-
-static void
-ppack_sanity_check(vmsk enabled, ppack *p)
-{
-	i64 iv;
-
-	for(iv=0; iv<MAX_VEC; iv++)
-	{
-		if(enabled[iv])
-			assert(p->magic[ic] == MAGIC_PARTICLE);
-		else
-			assert(p->magic[ic] != MAGIC_PARTICLE);
-	}
-}
-
-#ifdef USE_PPACK_MAGIC
-static int
-ppack_isfull(ppack_t *p)
-{
-	int iv;
-
-	for(iv=0, ret=1; iv < MAX_VEC; iv++)
-	{
-		if(p->magic[iv] != MAGIC_PARTICLE)
-		{
-			return 0;
-		}
-	}
-
-	return 1;
-}
-
-static int
-ppack_isempty(ppack_t *p)
-{
-	int iv;
-
-	for(iv=0, ret=1; iv < MAX_VEC; iv++)
-	{
-		if(p->magic[iv] == MAGIC_PARTICLE)
-		{
-			return 0;
-		}
-	}
-
-	return 1;
-}
-#endif
 
 static void
 pwin_prev(pwin_t *w)
@@ -611,7 +615,7 @@ pwin_step_append(pwin_t *w)
 	if(!w->b->next)
 	{
 		/* We need to allocate another block */
-		if(!plist_new_block(l, 0))
+		if(!plist_new_block(w->l, 0))
 		{
 			err("plist_new_block failed\n");
 			abort();
@@ -623,7 +627,12 @@ pwin_step_append(pwin_t *w)
 	w->b = w->b->next;
 	w->ip = 0;
 
+
 end:
+
+	/* The window is always moved into a new region, so the enabled mask is
+	 * always set to zero (no particles) */
+	w->enabled = vmsk_zero();
 
 #ifdef USE_PPACK_MAGIC
 	/* Ensure the new ppack is empty */
@@ -648,11 +657,15 @@ pwin_step_remove(pwin_t *w)
 #endif
 
 	/* If we are at the beginning no more ppacks are available. */
-	if(pwin_equal(w, w->l->first))
+	if(w->ip == 0 && w->b == w->l->b)
 		return 1;
 
 	/* Otherwise we look for the previous ppack */
 	pwin_prev(w);
+
+	/* The enabled mask is always ones, as the previous ppack must be full
+	 * */
+	w->enabled = vmsk_ones();
 
 #ifdef USE_PPACK_MAGIC
 	/* Ensure the new ppack is full */
@@ -680,12 +693,16 @@ pwin_step_modify(pwin_t *w)
 	assert(ppack_isfull(&w->b->p[w->ip]));
 #endif
 
-	/* If we are at the beginning no more ppacks are available. */
-	if(pwin_equal(w, w->l->last))
+	/* If we are at the end no more ppacks are available. */
+	if(pwin_equal(w, w->l->end))
 		return 1;
 
 	/* Otherwise we look for the next ppack */
 	pwin_next(w);
+
+	/* The enabled mask depends on the next ppack, so we need to compute
+	 * where we are and set it accordingly */
+	pwin_set_enabled(w);
 
 	/* The next ppack may not be full, but it must be non-empty */
 #ifdef USE_PPACK_MAGIC
@@ -705,8 +722,11 @@ pwin_step(pwin_t *w)
 	switch(w->mode)
 	{
 		case OPEN_APPEND: ret = pwin_step_append(w);
+				  break;
 		case OPEN_REMOVE: ret = pwin_step_remove(w);
-		case OPEN_MODIFY: ret =  pwin_step_modify(w);
+				  break;
+		case OPEN_MODIFY: ret = pwin_step_modify(w);
+				  break;
 		default: abort();
 	}
 
@@ -718,6 +738,9 @@ move_particle(pwin_t *wsrc, i64 isrc, pwin_t *wdst, i64 idst)
 {
 	i64 d;
 	ppack_t *src, *dst;
+
+	assert(isrc >= 0 && isrc < MAX_VEC);
+	assert(idst >= 0 && idst < MAX_VEC);
 
 	src = &wsrc->b->p[wsrc->ip];
 	dst = &wdst->b->p[wdst->ip];
@@ -764,11 +787,15 @@ transfer_forward(vmsk *sel, pwin_t *src, pwin_t *dst)
 	idst = 0;
 	moved = 0;
 
-	dbg("transfer src_mask=%lx, dst_mask=%lx\n",
+	dbg("transfer_forward src_mask=%lx, dst_mask=%lx\n",
 			vmsk_get(*sel), vmsk_get(dst->enabled));
 
-	assert(!vmsk_iszero(dst->enabled));
+	assert(!vmsk_isfull(dst->enabled));
 	assert(vmsk_isany(*sel));
+
+	/* Ensure the selection mask is a subset of enabled */
+	assert(vmsk_iszero(vmsk_xor(*sel,
+			vmsk_and(*sel, src->enabled))));
 
 	while(1)
 	{
@@ -777,17 +804,24 @@ transfer_forward(vmsk *sel, pwin_t *src, pwin_t *dst)
 		 * */
 
 		/* Compute the index in dst */
-		while(dst->enabled[idst] == 1) idst++;
+		while(vmsk_isset_bit(dst->enabled, idst)) idst++;
 
 		/* Same in src */
-		while((*src_sel)[isrc] == 0) isrc++;
+		while(!vmsk_isset_bit(*sel, isrc)) isrc++;
 
 		move_particle(src, isrc, dst, idst);
 		moved++;
 
-		/* TODO: Use proper macros to deal with the bitmasks */
-		(*src_sel)[isrc] = 0;
-		dst->enabled[idst] = 1;
+		dbg("masks old: src=%lx dst=%lx\n",
+				vmsk_get(*sel),
+				vmsk_get(dst->enabled));
+		vmsk_set_bit(sel, isrc, 0);
+		vmsk_set_bit(&src->enabled, isrc, 0);
+		vmsk_set_bit(&dst->enabled, idst, 1);
+
+		dbg("masks: src=%lx dst=%lx\n",
+				vmsk_get(*sel),
+				vmsk_get(dst->enabled));
 
 		/* And advance the index in both masks */
 		idst++;
@@ -797,8 +831,15 @@ transfer_forward(vmsk *sel, pwin_t *src, pwin_t *dst)
 		if(isrc >= MAX_VEC) break;
 
 		if(vmsk_isfull(dst->enabled)) break;
-		if(vmsk_iszero(*src_sel)) break;
+		if(vmsk_iszero(*sel)) break;
 	}
+
+	/* Postcondition: Either src_sel is zero or dst is full */
+	assert(vmsk_iszero(*sel) || vmsk_isfull(dst->enabled));
+
+	/* Ensure the selection mask is a subset of enabled */
+	assert(vmsk_iszero(vmsk_xor(*sel,
+			vmsk_and(*sel, src->enabled))));
 
 	return moved;
 }
@@ -807,7 +848,7 @@ transfer_forward(vmsk *sel, pwin_t *src, pwin_t *dst)
  * The number of particles moved is at least one, and at most the
  * minimum number of enabled bits in the selection of src and dst. */
 static i64
-transfer_backward(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
+transfer_backward(vmsk *src_sel, pwin_t *src, pwin_t *dst)
 {
 	i64 isrc, idst;
 	i64 moved;
@@ -822,7 +863,7 @@ transfer_backward(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
 	dbg("transfer_backwards src_mask=%lx, dst_mask=%lx\n",
 			vmsk_get(*src_sel), vmsk_get(dst->enabled));
 
-	assert(!vmsk_iszero(dst->enabled));
+	assert(!vmsk_isfull(dst->enabled));
 	assert(vmsk_isany(*src_sel));
 
 
@@ -833,31 +874,40 @@ transfer_backward(pwin_t *src, vmsk *src_sel, pwin_t *dst, vmsk *dst_sel)
 		 * */
 
 		/* Compute the index in dst */
-		while(dst->enabled[idst] == 0) idst++;
+		while(vmsk_isset_bit(dst->enabled, idst)) idst++;
 
 		/* Same in src */
-		while((*src_sel)[isrc] == 0) isrc--;
+		while(!vmsk_isset_bit(*src_sel, isrc)) isrc--;
 
 		move_particle(src, isrc, dst, idst);
 		moved++;
 
-		/* FIXME: We must modify the list size as well */
-
 		/* Clear the bitmask */
-		/* TODO: Use proper macros to deal with the bitmasks */
-		(*src_sel)[isrc] = 0;
-		dst->enabled[idst] = 0;
+		vmsk_set_bit(src_sel, isrc, 0);
+		vmsk_set_bit(&src->enabled, isrc, 0);
+		vmsk_set_bit(&dst->enabled, idst, 1);
+
+		dbg("masks: src=%lx dst=%lx\n",
+				vmsk_get(*src_sel),
+				vmsk_get(dst->enabled));
 
 		/* And advance the index in both masks */
-		idst--;
+		idst++;
 		isrc--;
 
 		if(idst >= MAX_VEC) break;
 		if(isrc < 0) break;
 
-		if(vmsk_iszero(dst->enabled) break;
+		if(vmsk_isfull(dst->enabled)) break;
 		if(vmsk_iszero(*src_sel)) break;
 	}
+
+	/* Postcondition: Either src_sel is zero or dst is full */
+	assert(vmsk_iszero(*src_sel) || vmsk_isfull(dst->enabled));
+
+	/* Ensure the selection mask is a subset of enabled */
+	assert(vmsk_iszero(vmsk_xor(*src_sel,
+			vmsk_and(*src_sel, src->enabled))));
 
 	return moved;
 }
@@ -867,7 +917,7 @@ static i64
 pwin_transfer_partial(vmsk *sel, pwin_t *src, pwin_t *dst)
 {
 	/* Only transfer backwards in delete mode from the source */
-	if(src->mode == OPEN_DELETE)
+	if(src->mode == OPEN_REMOVE)
 		return transfer_backward(sel, src, dst);
 
 	/* All other modes are forward */
@@ -892,17 +942,21 @@ pwin_transfer_all(vmsk *sel, pwin_t *src, pwin_t *dst)
 	{
 		count += pwin_transfer_partial(sel, src, dst);
 
+		if(vmsk_isfull(dst->enabled))
+		{
+			if(pwin_step(dst))
+			{
+				err("Failed to step the dst pwin, aborting\n");
+				abort();
+			}
+		}
+
 		if(vmsk_iszero(*sel))
 			break;
-
-		if(pwin_step(dst))
-		{
-			err("Failed to step the dst pwin, aborting\n");
-			abort();
-		}
 	}
 
 	assert(vmsk_iszero(*sel));
+	assert(!vmsk_isfull(dst->enabled));
 
 	/* All other modes are forward */
 	return count;
@@ -945,21 +999,22 @@ move_ppack(pwin_t *wsrc, pwin_t *wdst)
 }
 
 /* Transfers the selected particles from src to dst. The selection mask is
- * ignored when using TRANSFER_RAW mode. The dst window may be stepped */
+ * ignored when using TRANSFER_RAW mode. The dst window may be stepped, and is
+ * left in the last written ppack */
 i64
 pwin_transfer(vmsk *sel, pwin_t *src, pwin_t *dst, int mode)
 {
 	i64 count;
 
-	/* Not allowed modes src=APPEND and dst=DELETE */
+	/* Not allowed modes src=APPEND and dst=REMOVE */
 	assert(src->mode != OPEN_APPEND);
-	assert(dst->mode != OPEN_DELETE);
+	assert(dst->mode != OPEN_REMOVE);
 
 	switch(mode)
 	{
 		case TRANSFER_PARTIAL:
 			count = pwin_transfer_partial(sel, src, dst);
-			break
+			break;
 		case TRANSFER_ALL:
 			count = pwin_transfer_all(sel, src, dst);
 			break;
@@ -968,8 +1023,6 @@ pwin_transfer(vmsk *sel, pwin_t *src, pwin_t *dst, int mode)
 			break;
 		default: abort();
 	}
-
-	assert(pwin_jj(dst));
 
 	return count;
 }

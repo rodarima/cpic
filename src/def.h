@@ -37,6 +37,7 @@ struct ppack;
 
 struct pmover;
 
+typedef struct pwin pwin_t;
 typedef struct plist plist_t;
 typedef struct pblock pblock_t;
 typedef struct ppack ppack_t;
@@ -131,6 +132,26 @@ struct pblock
 	struct ppack p[];
 };
 
+/** A pwin structure points to a ppack and can select a set of particles
+ * in the ppack for further operations */
+struct pwin
+{
+	/** Current list */
+	plist_t *l;
+
+	/** Current pblock */
+	pblock_t *b;
+
+	/** List open mode */
+	i64 mode;
+
+	/** The ppack index in the block */
+	i64 ip;
+
+	/** Mask for enabled particles: 1=particle, 0=garbage*/
+	vmsk enabled;
+};
+
 /** A particle list has a bunch of particles from only one type of specie */
 struct plist
 {
@@ -138,7 +159,13 @@ struct plist
 	i64 blocksize;	/**< Size of each pblock in bytes */
 	i64 max_packs;	/**< Maximum number of packs per block */
 	i64 nmax;	/**< Maximum number of particles per block */
+
+	i64 opened;	/**< Number of current openned sessions */
+	i64 open_mode;	/**< The major mode of the openned sessions */
 	char name[8];	/**< A description name */
+
+	pwin_t *end;	/**< Current list end window */
+	pwin_t _end;	/**< The end stored when the list is not opened */
 
 	/** The linked list of pblock. Should be NULL if we don't have any
 	 * pblock, but this configuration may changed in order to reuse the
