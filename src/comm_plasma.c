@@ -72,14 +72,8 @@ typedef struct exchange
 	/** The window in the head of the plist */
 	pwin_t A;
 
-	/** Selection of particles from A */
-	psel_t Asel;
-
 	/** The window at the end of the plist */
 	pwin_t B;
-
-	/** Selection of particles from B */
-	psel_t Bsel;
 
 	/** Window for the end of the queue qx0 */
 	pwin_t q0;
@@ -90,28 +84,6 @@ typedef struct exchange
 	/* TODO: The number of particles moved */
 	//i64 nmoved;
 } exchange_t;
-
-
-/** Removes the particles that are out of the chunk from w and places them into
- * the respective queues q0 and q1. */
-static i64
-clean_lost(pwin_t *w, psel_t *sel, pwin_t *q0, pwin_t *q1)
-{
-	i64 moved;
-
-	moved = 0;
-
-	if(vmsk_isany(sel->mx0))
-		moved += pwin_transfer(&sel->mx0, w, q0, TRANSFER_ALL);
-
-	if(vmsk_isany(sel->mx1))
-		moved += pwin_transfer(&sel->mx1, w, q1, TRANSFER_ALL);
-
-	assert(vmsk_iszero(sel->mx0));
-	assert(vmsk_iszero(sel->mx1));
-
-	return moved;
-}
 
 /** Updates the mx0 and mx1 in the selection from the enabled particles in the
  * window. The masks mx0 and mx1 are set to 1 in those particles that exceed x0
@@ -138,6 +110,8 @@ select_lost(pwin_t *w, psel_t *sel, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM])
 	 * that no NaN exceptions are produced. It may be beneficial for the
 	 * gargabe particles to have the 0 value in the position, which could
 	 * speed up the comparison. */
+	sel->mx0 = vmsk_zero();
+	sel->mx1 = vmsk_zero();
 
 	for(d=X; d<MAX_DIM; d++)
 	{
@@ -168,25 +142,47 @@ select_lost(pwin_t *w, psel_t *sel, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM])
 	assert(vmsk_iszero(vmsk_and(sel->mx0, sel->mx1)));
 }
 
+
+/** Removes the particles that are out of the chunk from w and places them into
+ * the respective queues q0 and q1. */
+static i64
+clean_lost(pwin_t *w, pwin_t *q0, pwin_t *q1, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM])
+{
+	i64 moved;
+	psel_t sel;
+
+	moved = 0;
+
+	select_lost(w, &sel, x0, x1);
+
+	if(vmsk_isany(sel.mx0))
+		moved += pwin_transfer(&sel.mx0, w, q0, TRANSFER_ALL);
+
+	if(vmsk_isany(sel.mx1))
+		moved += pwin_transfer(&sel.mx1, w, q1, TRANSFER_ALL);
+
+	assert(vmsk_iszero(sel.mx0));
+	assert(vmsk_iszero(sel.mx1));
+
+	return moved;
+}
+
 /** Produce holes in A by moving lost particles to the queues */
 static i64
 produce_holes_A(exchange_t *ex)
 {
 	pwin_t *A, *B, *q0, *q1;
-	psel_t *Asel;
 	i64 moved;
 
 	dbg("--- produce_holes_A begins ---\n");
+
 	moved = 0;
 	A = &ex->A;
-	Asel = &ex->Asel;
 	B = &ex->B;
 	q0 = &ex->q0;
 	q1 = &ex->q1;
 
-	/* Holes already present */
-	//if(vmsk_isany(Asel->lost))
-	//	goto exit;
+	dbg("A is at ip=%ld\n", A->ip);
 
 	/* We have some holes to fill */
 	if(!vmsk_isfull(A->enabled))
@@ -194,37 +190,40 @@ produce_holes_A(exchange_t *ex)
 
 	while(!pwin_equal(A, B))
 	{
-		dbg("A: analyzing ppack at ip=%ld\n", A->ip);
+		dbg("A: stepping window\n");
 
-		/* Look for holes to fill */
-		select_lost(A, Asel, ex->c->x0, ex->c->x1);
+		/* Slide the window and continue the search */
+		if(pwin_step(A))
+			abort(); /* It cannot fail */
+
+		dbg("A is now at ip=%ld\n", A->ip);
+
+		/* After stepping the window, all particles must be available,
+		 * as we are always before B */
+		assert(vmsk_isfull(A->enabled));
+
+		dbg("A: analyzing new ppack at ip=%ld\n", A->ip);
 
 		/* Remove any lost particles to the queues */
-		moved += clean_lost(A, Asel, q0, q1);
+		moved += clean_lost(A, q0, q1, ex->c->x0, ex->c->x1);
 
-		/* If we have some holes, stop */
-		if(vmsk_isany(Asel->lost))
+		/* If we have some good particles, stop */
+		if(!vmsk_isfull(A->enabled))
 		{
-			dbg("A: found some holes at ip=%ld\n",
-					A->ip);
-			dbg("A: lost=%lx  enabled=%lx\n",
-					vmsk_get(Asel->lost),
-					vmsk_get(A->enabled));
+			dbg("A: found some holes at ip=%ld\n", A->ip);
+			dbg("A: enabled=%lx\n", vmsk_get(A->enabled));
 			break;
 		}
 
-		dbg("A: no holes found at ip=%ld, moving to the next ppack\n",
-				A->ip);
-
-		/* Otherwise slide the window and continue the search */
-		if(pwin_step(A))
-			break;
+		dbg("A: no holes at ip=%ld\n", A->ip);
 	}
 
 exit:
-	assert(vmsk_isany(Asel->lost) || pwin_equal(A, B));
+	assert(!vmsk_isfull(A->enabled) || pwin_equal(A, B));
+
 	dbg("A: %zd particles out\n", moved);
 	dbg("--- produce_holes_A ends ---\n");
+
 	return moved;
 }
 
@@ -233,7 +232,6 @@ static i64
 produce_extra_B(exchange_t *ex)
 {
 	pwin_t *A, *B, *q0, *q1;
-	psel_t *Bsel;
 	i64 moved;
 	int ret;
 
@@ -242,42 +240,25 @@ produce_extra_B(exchange_t *ex)
 	moved = 0;
 	A = &ex->A;
 	B = &ex->B;
-	Bsel = &ex->Bsel;
 	q0 = &ex->q0;
 	q1 = &ex->q1;
 
-	/* Good particles already present */
-	//if(vmsk_isany(Bsel->good))
-	//	goto exit;
+	dbg("B is at ip=%ld\n", B->ip);
 
-	if(vmsk_iszero(B->enabled))
+	/* Good particles already present */
+	if(!vmsk_iszero(B->enabled))
 		goto exit;
 
-	while(!pwin_equal(A, B))
+	while(1)
 	{
-		dbg("B: analyzing ppack at ip=%ld\n", B->ip);
-
-		/* Look for lost particles */
-		select_lost(B, Bsel, ex->c->x0, ex->c->x1);
-
-		/* Remove any lost particles to the queues */
-		moved += clean_lost(B, Bsel, q0, q1);
-
-		/* Check if we have some good particles in B */
-		//if(vmsk_isany(Bsel->good))
-		if(!vmsk_iszero(B->enabled))
-		{
-			dbg("B: good particles found at ip=%ld\n", B->ip);
-			dbg("B: good=%lx  enabled=%lx\n",
-					vmsk_get(Bsel->good),
-					vmsk_get(B->enabled));
-			break;
-		}
+		assert(!pwin_equal(A, B));
 
 		dbg("B: moving to the previous ppack\n");
 
 		/* Otherwise slide the window and continue the search */
 		ret = pwin_step(B);
+
+		dbg("B is now at ip=%ld\n", B->ip);
 
 		/* The enabled mask must be reset and complete with ones, as we
 		 * are moving backwards */
@@ -287,10 +268,27 @@ produce_extra_B(exchange_t *ex)
 		 * A, so the displacement of B cannot fail */
 		assert(ret == 0);
 
+		/* We cannot continue if A == B */
+		if(pwin_equal(A, B))
+			break;
+
+		dbg("B: analyzing ppack at ip=%ld\n", B->ip);
+
+		/* Remove any lost particles to the queues */
+		moved += clean_lost(B, q0, q1, ex->c->x0, ex->c->x1);
+
+		/* Check if we have some good particles in B */
+		if(!vmsk_iszero(B->enabled))
+		{
+			dbg("B: good particles found at ip=%ld\n", B->ip);
+			dbg("B: enabled=%lx\n", vmsk_get(B->enabled));
+			break;
+		}
+
 	}
 
 exit:
-	assert(vmsk_isany(Bsel->good) || pwin_equal(A, B));
+	assert(vmsk_isany(B->enabled) || pwin_equal(A, B));
 
 	dbg("B: %zd particles out\n", moved);
 	dbg("--- produce_extra_B ends ---\n");
@@ -304,84 +302,27 @@ static i64
 fill_holes(exchange_t *ex)
 {
 	pwin_t *A, *B;
-	psel_t *Bsel;
 	i64 moved;
 
 	dbg("--- fill_holes begins ---\n");
 
 	A = &ex->A;
 	B = &ex->B;
-	Bsel = &ex->Bsel;
+	moved = 0;
 
 	/* Abort the transfer if we have the same windows */
 	if(!pwin_equal(A, B))
 	{
 		/* Fill some holes in A with particles from B */
-		moved = pwin_transfer(&Bsel->good, B, A, TRANSFER_PARTIAL);
+		moved = pwin_transfer(&B->enabled, B, A, TRANSFER_PARTIAL);
+
+		/* Ensure that either A is full or B is empty */
+		assert(vmsk_isfull(A->enabled) || vmsk_iszero(B->enabled));
 	}
-
-	/* Notice that Bsel->good and B->enabled are modified properly */
-
-	/* Ensure that either A is full or B is empty */
-	assert(vmsk_isfull(A->enabled) || vmsk_iszero(B->enabled));
 
 	dbg("%zd holes filled\n", moved);
 	dbg("--- fill_holes ends ---\n");
 	return moved;
-}
-
-/** Slide the window A forward and B backwards if they can be advanced
- * (the sel mask is empty) and they don't cross each other */
-static void
-slide_windows(exchange_t *ex)
-{
-	pwin_t *A, *B;
-	psel_t *Asel, *Bsel;
-
-	dbg("--- slide_windows begins ---\n");
-	A = &ex->A;
-	B = &ex->B;
-	Asel = &ex->Asel;
-	Bsel = &ex->Bsel;
-
-	/* Not needed if they are already the same */
-	if(pwin_equal(A, B))
-		return;
-
-	/* First check if A is filled and step the window */
-	if(vmsk_isfull(A->enabled))
-	{
-		dbg("Stepping A\n");
-		Asel->good = vmsk_ones();
-		Asel->holes = vmsk_zero();
-		if(pwin_step(A))
-			abort(); /* Cannot fail */
-
-		/* Check for A == B after the A move */
-		if(pwin_equal(A, B))
-			goto end;
-	}
-	else
-	{
-		dbg("Not stepping A: enabled is non-full\n");
-	}
-
-	/* If A != B, we also try to step B if it is empty */
-	if(vmsk_iszero(B->enabled))
-	{
-		dbg("Stepping B\n");
-		Bsel->good = vmsk_zero();
-		Bsel->holes = vmsk_zero();
-		if(pwin_step(B))
-			abort(); /* Cannot heppen */
-	}
-	else
-	{
-		dbg("Not stepping B: enabled is non-zero\n");
-	}
-
-end:
-	dbg("--- slide_windows ends ---\n");
 }
 
 //static void
@@ -516,6 +457,14 @@ pchunk_collect_x_pass(exchange_t *ex)
 	plist_open(&set->list, A, OPEN_MODIFY);
 	plist_open(&set->list, B, OPEN_REMOVE);
 
+	/* We need to clean B first, as it must always be analyzed for lost
+	 * particles before entering the produce_extra_B phase */
+	moved_out += clean_lost(B, q0, q1, ex->c->x0, ex->c->x1);
+
+	/* Same for A */
+	if(!pwin_equal(A, B))
+		moved_out += clean_lost(A, q0, q1, ex->c->x0, ex->c->x1);
+
 	while(!pwin_equal(A, B))
 	{
 		/* Search for extra particles in B */
@@ -526,9 +475,6 @@ pchunk_collect_x_pass(exchange_t *ex)
 
 		/* Fill holes with extra particles */
 		moved_in += fill_holes(ex);
-
-		/* Slide windows if possible */
-		slide_windows(ex);
 	}
 
 	//finish_pass(ex, &moved_in, &moved_out);

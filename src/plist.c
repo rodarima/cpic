@@ -668,8 +668,13 @@ pwin_step_remove(pwin_t *w)
 	w->enabled = vmsk_ones();
 
 #ifdef USE_PPACK_MAGIC
+	/* We cannot test if the ppack is full as the A window which opens the
+	 * plist in MODIFY mode, may have the previous ppack non-full, and is a
+	 * valid condition. We may be able to further check out of bounds by
+	 * keeping the start and end endpoints in each window. */
+
 	/* Ensure the new ppack is full */
-	assert(ppack_isfull(&w->b->p[w->ip]));
+	//assert(ppack_isfull(&w->b->p[w->ip]));
 #endif
 
 	return 0;
