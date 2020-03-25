@@ -148,8 +148,17 @@ struct pwin
 	/** The ppack index in the block */
 	i64 ip;
 
+	/** Global ppack index */
+	i64 gip;
+
 	/** Mask for enabled particles: 1=particle, 0=garbage*/
 	vmsk enabled;
+
+	/** Window limit high (exclusive) */
+	pwin_t *hi;
+
+	/** Temporal storage for hi, when not using an external window */
+	pwin_t shi;
 };
 
 /** A particle list has a bunch of particles from only one type of specie */
@@ -165,7 +174,6 @@ struct plist
 	char name[8];	/**< A description name */
 
 	pwin_t *end;	/**< Current list end window */
-	pwin_t _end;	/**< The end stored when the list is not opened */
 
 	/** The linked list of pblock. Should be NULL if we don't have any
 	 * pblock, but this configuration may changed in order to reuse the

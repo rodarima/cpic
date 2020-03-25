@@ -3,11 +3,11 @@
 enum plist_mode
 {
 	/** The number of particles cannot change */
-	OPEN_MODIFY,
+	OPEN_MODIFY = 1,
 	/** The number of particles cannot increase */
-	OPEN_REMOVE,
+	OPEN_REMOVE = 2,
 	/** The number of particles cannot decrease */
-	OPEN_APPEND
+	OPEN_APPEND = 4
 };
 
 enum pwin_transfer_mode
@@ -53,6 +53,8 @@ pwin_transfer(vmsk *sel, pwin_t *src, pwin_t *dst, int mode);
 static inline int
 pwin_equal(pwin_t *A, pwin_t *B)
 {
+	/* Ensure we are comparing windows that point to the same list */
+	assert(A->l == B->l);
 	return (A->b == B->b) && (A->ip == B->ip);
 }
 

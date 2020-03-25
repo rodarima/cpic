@@ -161,9 +161,8 @@ plist_init(plist_t *l, i64 nmax, const char *name)
 	l->opened = 0;
 	l->open_mode = 0;
 
-	/* Endpoint */
-	memset(&l->_end, 0, sizeof(l->_end));
-	l->end = &l->_end;
+	/* Not used as the list is initially consistent */
+	l->end = NULL;
 
 	strncpy(l->name, name, 8);
 	l->name[7] = '\0';
@@ -428,6 +427,8 @@ pwin_first(plist_t *l, pwin_t *w)
 
 	/* We don't care if the number of particles is zero */
 	w->ip = 0;
+
+	w->gip = 0;
 }
 
 /** Sets the window to the ppack that contains the last particle, no
@@ -452,6 +453,8 @@ pwin_last_particle(plist_t *l, pwin_t *w)
 	 * non-empty ppack */
 	w->ip = w->b->npacks - 1;
 
+	w->gip = (l->nblocks - 1) * l->nmax + w->ip;
+
 #ifdef USE_PPACK_MAGIC
 	/* Ensure the ppack has at least one particle */
 	assert(!ppack_isempty(&w->b->p[w->ip]));
@@ -473,14 +476,16 @@ pwin_last_hole(plist_t *l, pwin_t *w)
 	/* We may have zero particles, but is not a problem */
 	w->ip = w->b->nfpacks;
 
+	w->gip = (l->nblocks - 1) * l->nmax + w->ip;
+
 #ifdef USE_PPACK_MAGIC
 	/* Ensure the ppack has at least one hole */
 	assert(!ppack_isfull(&w->b->p[w->ip]));
 #endif
 }
 
-void
-plist_open(plist_t *l, pwin_t *w, int mode)
+static void
+set_open_mode(plist_t *l, pwin_t *w, int mode)
 {
 	/* Check if the list can be opened in the specified mode */
 	if(l->opened)
@@ -493,30 +498,51 @@ plist_open(plist_t *l, pwin_t *w, int mode)
 		}
 
 		/* The list is opened in either MODIFY or REMOVE, we must
-		 * upgrade to the major mode REMOVE in case the current mode is
-		 * REMOVE */
+		 * prevent opening with MODIFY then with REMOVE */
 
 		if(l->open_mode == OPEN_MODIFY && mode == OPEN_REMOVE)
-			l->open_mode = OPEN_REMOVE;
+		{
+			dbg("Open the list first with REMOVE then with MODIFY\n");
+			abort();
+		}
+
+		/* The only case we allow opening the list multiple times, is if
+		 * the list is in REMOVE mode, and we open again in MODIFY */
+
+		if(mode != OPEN_MODIFY)
+		{
+			dbg("Only MODIFY can be used with an open list\n");
+			abort();
+		}
+
+		assert(mode == OPEN_MODIFY);
+		assert(l->open_mode == OPEN_MODIFY ||
+			l->open_mode == OPEN_REMOVE);
+
 	}
 	else
 	{
 		l->open_mode = mode;
 	}
+}
 
-	/* Set the plist end to the current REMOVE or APPEND window */
-	if(mode != OPEN_MODIFY)
-	{
-		/* It should be pointing to _end */
-		assert(l->end == &l->_end);
-		l->end = w;
-	}
+static i64
+compute_end(plist_t *l, int mode)
+{
+	if(mode == OPEN_REMOVE)
+		return 0;
 
-	l->opened++;
+	/* No end with the APPEND mode */
+	if(mode == OPEN_APPEND)
+		return -1;
 
-	w->mode = mode;
-	w->l = l;
+	/* Computes the immediate next ppack which is empty */
+	return (l->nblocks - 1) * l->nmax + l->b->prev->npacks;
+}
 
+static void
+set_pwin_position(plist_t *l, pwin_t *w, int mode)
+{
 	switch(mode)
 	{
 		case OPEN_APPEND: pwin_last_hole(l, w); break;
@@ -524,218 +550,69 @@ plist_open(plist_t *l, pwin_t *w, int mode)
 		case OPEN_MODIFY: pwin_first(l, w); break;
 		default: abort();
 	}
+}
 
-	/* The enabled mask is always updated after opening */
+static void
+pwin_open(plist_t *l, pwin_t *w, int mode)
+{
+	w->mode = mode;
+	w->l = l;
+
+	/* Set the hi window when in MODIFY window mode */
+	if(mode == OPEN_MODIFY)
+	{
+		if(l->open_mode == OPEN_REMOVE)
+		{
+			/* No need to compute the end, as is being already
+			 * tracked by the REMOVE window */
+			assert(l->end != NULL);
+			w->hi = l->end;
+		}
+		else
+		{
+			assert(l->open_mode == OPEN_MODIFY);
+
+			/* Use the local hi storage instead, so we set here the
+			 * static end. This is only used in MODIFY mode */
+			w->hi = &w->shi;
+
+			/* Only the gip is required. We may be pointing outside
+			 * the allocated block, but is okay, as we never reach
+			 * this ppack */
+			w->hi->gip = compute_end(l, mode);
+		}
+	}
+	else
+	{
+		/* Remove the hi reference, so we are sure that is not used by
+		 * accident, as the other modes don't require it */
+		w->hi = NULL;
+	}
+
+	/* Finally position the window in the appropiate starting point given
+	 * the window mode */
+	set_pwin_position(l, w, mode);
+
+	/* And recompute the enabled mask */
 	pwin_set_enabled(w);
 }
 
 void
-plist_close(plist_t *l, pwin_t *w)
+plist_open(plist_t *l, pwin_t *w, int mode)
 {
-	assert(l->opened > 0);
+	/* Update the open mode or abort */
+	set_open_mode(l, w, mode);
 
-	l->opened--;
+	l->opened++;
 
-	assert(w->l == l);
-	assert(w->mode <= l->open_mode);
+	/* Track the window as the end of the list */
+	if(mode != OPEN_MODIFY)
+		l->end = w;
 
-	/* TODO: The close operation may require to compact the last ppack in
-	 * order to keep the list consistent */
+	pwin_open(l, w, mode);
 
-	/* Only check the list if we have finished all operations */
-	if(l->opened == 0)
-		plist_sanity_check(l);
-}
-
-static void
-pwin_prev(pwin_t *w)
-{
-	/* Precondition: There is one previous ppack available */
-	/* Postcondition: The window points to the previous ppack */
-
-	/* Move backwards if we are in the same block */
-	if(w->ip > 0)
-	{
-		w->ip--;
-		return;
-	}
-
-	/* Otherwise move to the previous block */
-	w->b = w->b->prev;
-
-	/* The previous block must be full */
-	assert(w->b->npacks == w->l->max_packs);
-
-	w->ip = w->b->npacks - 1;
-}
-
-static void
-pwin_next(pwin_t *w)
-{
-	/* Precondition: There is one ppack allocated available next */
-	/* Postcondition: The window points to the next ppack */
-
-	/* Move forward if we are in the same block */
-	if(w->ip < w->l->max_packs - 1)
-	{
-		w->ip++;
-		return;
-	}
-
-	/* Otherwise move to the next block */
-	w->b = w->b->next;
-	/* The next block may not be full */
-	w->ip = 0;
-}
-
-static int
-pwin_step_append(pwin_t *w)
-{
-	/* Precondition: the ppack is full. */
-	/* Postcondition: the window points to an empty ppack */
-
-#ifdef USE_PPACK_MAGIC
-	/* We can ensure it is full by looking at the magic field, in case we
-	 * are using it */
-	assert(ppack_isfull(&w->b->p[w->ip]));
-#endif
-
-	/* Now we may need to allocate another ppack */
-
-	/* We can try to advance the index in the same block */
-	if(w->ip + 1 < w->l->max_packs)
-	{
-		w->ip++;
-		goto end;
-	}
-
-	/* Otherwise we need another block */
-
-	/* No more blocks? */
-	if(!w->b->next)
-	{
-		/* We need to allocate another block */
-		if(!plist_new_block(w->l, 0))
-		{
-			err("plist_new_block failed\n");
-			abort();
-		}
-	}
-
-	assert(w->b->next);
-
-	w->b = w->b->next;
-	w->ip = 0;
-
-
-end:
-
-	/* The window is always moved into a new region, so the enabled mask is
-	 * always set to zero (no particles) */
-	w->enabled = vmsk_zero();
-
-#ifdef USE_PPACK_MAGIC
-	/* Ensure the new ppack is empty */
-	assert(ppack_isempty(&w->b->p[w->ip]));
-#endif
-
-	return 0;
-}
-
-static int
-pwin_step_remove(pwin_t *w)
-{
-	/* Precondition: the ppack is empty. */
-
-	/* Postcondition:
-	 *  returns 0 and the window points to a full ppack
-	 *  returns 1 and the window is not modified
-	 **/
-
-#ifdef USE_PPACK_MAGIC
-	assert(ppack_isempty(&w->b->p[w->ip]));
-#endif
-
-	/* If we are at the beginning no more ppacks are available. */
-	if(w->ip == 0 && w->b == w->l->b)
-		return 1;
-
-	/* Otherwise we look for the previous ppack */
-	pwin_prev(w);
-
-	/* The enabled mask is always ones, as the previous ppack must be full
-	 * */
-	w->enabled = vmsk_ones();
-
-#ifdef USE_PPACK_MAGIC
-	/* We cannot test if the ppack is full as the A window which opens the
-	 * plist in MODIFY mode, may have the previous ppack non-full, and is a
-	 * valid condition. We may be able to further check out of bounds by
-	 * keeping the start and end endpoints in each window. */
-
-	/* Ensure the new ppack is full */
-	//assert(ppack_isfull(&w->b->p[w->ip]));
-#endif
-
-	return 0;
-}
-
-/* Moves the window forward if there are more ppacks available and returns 0.
- * Returns 1 otherwise and the window is kept unmodified */
-static int
-pwin_step_modify(pwin_t *w)
-{
-	/* Precondition: the ppack is full. */
-
-	/* Postcondition:
-	 *  returns 0 and the window points to the next ppack, which may not be
-	 *  full.
-	 *  returns 1 and the window is not modified, as there are no more
-	 *  ppacks available.
-	 **/
-
-#ifdef USE_PPACK_MAGIC
-	assert(ppack_isfull(&w->b->p[w->ip]));
-#endif
-
-	/* If we are at the end no more ppacks are available. */
-	if(pwin_equal(w, w->l->end))
-		return 1;
-
-	/* Otherwise we look for the next ppack */
-	pwin_next(w);
-
-	/* The enabled mask depends on the next ppack, so we need to compute
-	 * where we are and set it accordingly */
-	pwin_set_enabled(w);
-
-	/* The next ppack may not be full, but it must be non-empty */
-#ifdef USE_PPACK_MAGIC
-	assert(!ppack_isempty(&w->b->p[w->ip]));
-#endif
-
-	return 0;
-}
-
-/** Advances the window one pack, in the appropriate direction, given by
- * the mode */
-int
-pwin_step(pwin_t *w)
-{
-	int ret;
-
-	switch(w->mode)
-	{
-		case OPEN_APPEND: ret = pwin_step_append(w);
-				  break;
-		case OPEN_REMOVE: ret = pwin_step_remove(w);
-				  break;
-		case OPEN_MODIFY: ret = pwin_step_modify(w);
-				  break;
-		default: abort();
-	}
-
-	return ret;
+	/* TODO: Remove the size information from the list, to avoid using it
+	 * accidentally until the list is closed and consistent again. */
 }
 
 static void
@@ -915,6 +792,441 @@ transfer_backward(vmsk *src_sel, pwin_t *src, pwin_t *dst)
 			vmsk_and(*src_sel, src->enabled))));
 
 	return moved;
+}
+
+static int
+ppack_is_compact(pwin_t *w)
+{
+	i64 count;
+	u64 s, d;
+	vmsk S, D, X;
+
+	if(vmsk_iszero(w->enabled))
+		return 1;
+
+	/* Now we may have some holes, so we need to compact the ppack,
+	 * so all particles are placed at the left. */
+
+	S = w->enabled;
+
+	s = vmsk_get(S);
+	count = __builtin_popcountll(s);
+
+	assert(sizeof(u64) == 8);
+
+	d = (-1UL) >> (64 - count);
+	D = vmsk_set(d);
+
+	/* The same same of ones */
+	assert(count ==  __builtin_popcountll(d));
+
+	/* X contains ones in the positions that need to change: either because
+	 * a particle is missing or because there is a hole that needs to be
+	 * filled */
+	X = vmsk_xor(S, D);
+
+	return vmsk_iszero(X);
+}
+
+static i64
+pwin_count(pwin_t *w)
+{
+	return __builtin_popcountll(w->enabled);
+}
+
+static void
+ppack_compact(pwin_t *w)
+{
+	i64 count;
+	u64 s, d;
+	vmsk S, D, X, F, T;
+
+	/* If no particles left, we have finished */
+	if(vmsk_iszero(w->enabled))
+	{
+		dbg("No particles remaining in the ppack\n");
+		count = 0;
+		goto fix_size;
+	}
+
+	/* Now we may have some holes, so we need to compact the ppack,
+	 * so all particles are placed at the left. */
+
+	S = w->enabled;
+
+	s = vmsk_get(S);
+	count = __builtin_popcountll(s);
+
+	assert(sizeof(u64) == 8);
+
+	d = (-1UL) >> (64 - count);
+	D = vmsk_set(d);
+
+	/* The same same of ones */
+	assert(count ==  __builtin_popcountll(d));
+
+	/* X contains ones in the positions that need to change: either because
+	 * a particle is missing or because there is a hole that needs to be
+	 * filled */
+	X = vmsk_xor(S, D);
+
+	if(vmsk_isany(X))
+	{
+		F = vmsk_and(S, X);
+		T = vmsk_and(D, X);
+
+		dbg("Computed F=%lx T=%lx\n", vmsk_get(F), vmsk_get(T));
+
+		transfer_backward(&F, w, w);
+		dbg("After transfer F=%lx T=%lx\n",
+				vmsk_get(F), vmsk_get(T));
+	}
+	else
+	{
+		dbg("No reorder required\n");
+	}
+
+	/* Ensure the mask is compact */
+	assert(vmsk_iszero(vmsk_xor(w->enabled, D)));
+
+	/* And that we have the same number of particles */
+	assert(count ==  __builtin_popcountll(vmsk_get(w->enabled)));
+
+fix_size:
+
+	assert(w->b && w->b->prev);
+	pblock_update_n(w->b->prev, w->ip * MAX_VEC + count);
+
+	dbg("Updated last block size to: %ld particles\n", w->b->prev->n);
+}
+
+static void
+plist_close_remove(plist_t *l, pwin_t *w)
+{
+	pwin_t *end;
+
+	assert(l->opened == 0);
+
+	/* The window may be empty, so we can step once more to position it into
+	 * a ppack with some particles */
+	if(vmsk_iszero(w->enabled))
+	{
+		pwin_step();
+	}
+
+	/* Set the list endpoint */
+	l->end = &l->_end;
+	l->end->ip = w->ip;
+	l->end->b = w->b;
+
+
+	/* The last ppack can only have holes in the REMOVE open mode, as the
+	 * APPEND mode writes the particles in order, and MODIFY cannot change
+	 * the number, and must leave the list consistent. */
+
+	ppack_compact(w);
+
+	assert(ppack_is_compact(w));
+}
+
+void
+plist_close(plist_t *l, pwin_t *w)
+{
+	assert(l->opened > 0);
+
+	dbg("Closing list %s with window %p\n",
+			l->name, (void *) w);
+
+	l->opened--;
+
+	assert(w->l == l);
+	assert(w->mode <= l->open_mode);
+
+	/* We cannot close the list yet, as we have more opened windows */
+	if(l->opened > 0)
+	{
+		dbg("Window %p pointing to list %s cannot close yet, still opened\n",
+				(void *) w, l->name);
+		goto exit;
+	}
+
+	/* After this point, the current window has the major mode and must be
+	 * equal to the list open mode */
+	assert(l->open_mode == w->mode);
+
+	/* No more opened clients allowed */
+	assert(l->opened == 0);
+
+	switch(w->mode)
+	{
+		case OPEN_APPEND: plist_close_append(l, w);
+				  break;
+		case OPEN_REMOVE: plist_close_remove(l, w);
+				  break;
+		case OPEN_MODIFY: plist_close_modify(l, w);
+				  break;
+		default: abort();
+	}
+
+	/* TODO: Reset the endpoint from the position of the REMOVE or APPEND
+	 * window, if it is being used */
+	if(l->open_mode != OPEN_MODIFY)
+	{
+		l->end = &l->_end;
+		l->end->ip = w->ip;
+		l->end->b = w->b;
+	}
+
+	/* From now we will focus on the end window */
+	w = l->end;
+
+	/* TODO: The close operation may require to compact the last ppack in
+	 * order to keep the list consistent */
+
+	/* The last ppack can only have holes in the REMOVE open mode, as the
+	 * APPEND mode writes the particles in order, and MODIFY cannot change
+	 * the number, and must leave the list consistent. */
+
+	if(l->open_mode == OPEN_REMOVE)
+	{
+		ppack_compact(w);
+	}
+	else
+	{
+		dbg("No compact necessary for list %s\n", w);
+	}
+
+	assert(ppack_is_compact(w));
+
+	/* TODO: The window may be empty: should we point to the last particle? */
+	count = pwin_count(w);
+	if(count == 0)
+	{
+		pwin_prev(w);
+	}
+
+
+	/* TODO: Set the correct number of particles in the plist */
+	assert(l->b && l->b->prev);
+	pblock_update_n(l->b->prev, w->ip * MAX_VEC + count);
+
+	//dbg("Updated last block size to: %ld particles\n", w->b->prev->n);
+
+	/* Postcontition: The list is consistent */
+	plist_sanity_check(l);
+
+exit:
+	return;
+}
+
+static void
+pwin_prev(pwin_t *w)
+{
+	/* Precondition: There is one previous ppack available */
+	/* Postcondition: The window points to the previous ppack */
+
+	/* Always decrement the global index */
+	w->gip--;
+	assert(w->gip >= 0);
+
+	/* Move backwards if we are in the same block */
+	if(w->ip > 0)
+	{
+		w->ip--;
+		return;
+	}
+
+	/* Ensure we have another block */
+	assert(w->b->prev != w->b);
+
+	/* Otherwise move to the previous block */
+	w->b = w->b->prev;
+
+	/* The previous block must be full */
+	assert(w->b->npacks == w->l->max_packs);
+
+	w->ip = w->b->npacks - 1;
+}
+
+static void
+pwin_next(pwin_t *w)
+{
+	/* Precondition: There is one ppack allocated available next */
+	/* Postcondition: The window points to the next ppack */
+
+	/* Always increment the global index */
+	w->gip++;
+
+	/* Move forward if we are in the same block */
+	if(w->ip < w->l->max_packs - 1)
+	{
+		w->ip++;
+		return;
+	}
+
+	/* Otherwise move to the next block */
+	w->b = w->b->next;
+	/* The next block may not be full */
+	w->ip = 0;
+}
+
+static int
+pwin_step_append(pwin_t *w)
+{
+	/* Precondition: the ppack is full. */
+	/* Postcondition: the window points to an empty ppack */
+
+#ifdef USE_PPACK_MAGIC
+	/* We can ensure it is full by looking at the magic field, in case we
+	 * are using it */
+	assert(ppack_isfull(&w->b->p[w->ip]));
+#endif
+
+	/* Now we may need to allocate another ppack */
+
+	/* We can try to advance the index in the same block */
+	if(w->ip + 1 < w->l->max_packs)
+	{
+		w->ip++;
+		goto end;
+	}
+
+	/* Otherwise we need another block */
+
+	/* No more blocks? */
+	if(!w->b->next)
+	{
+		/* We need to allocate another block */
+		if(!plist_new_block(w->l, 0))
+		{
+			err("plist_new_block failed\n");
+			abort();
+		}
+	}
+
+	assert(w->b->next);
+
+	w->b = w->b->next;
+	w->ip = 0;
+
+
+end:
+	/* Advance the global ppack index */
+	w->gip++;
+
+	/* The window is always moved into a new region, so the enabled mask is
+	 * always set to zero (no particles) */
+	w->enabled = vmsk_zero();
+
+#ifdef USE_PPACK_MAGIC
+	/* Ensure the new ppack is empty */
+	assert(ppack_isempty(&w->b->p[w->ip]));
+#endif
+
+	return 0;
+}
+
+static int
+pwin_step_remove(pwin_t *w)
+{
+	/* Precondition: the ppack is empty. */
+
+	/* Postcondition:
+	 *  returns 0 and the window points to a full ppack
+	 *  returns 1 and the window is not modified
+	 **/
+
+#ifdef USE_PPACK_MAGIC
+	assert(ppack_isempty(&w->b->p[w->ip]));
+#endif
+
+	assert(w->gip >= 0);
+
+	/* If we are at the beginning no more ppacks are available. */
+	if(w->gip == 0)
+		return 1;
+
+	/* Otherwise we look for the previous ppack */
+	pwin_prev(w);
+
+	/* The enabled mask is always ones, as the previous ppack must be full
+	 * */
+	w->enabled = vmsk_ones();
+
+#ifdef USE_PPACK_MAGIC
+	/* We cannot test if the ppack is full as the A window which opens the
+	 * plist in MODIFY mode, may have the previous ppack non-full, and is a
+	 * valid condition. We may be able to further check out of bounds by
+	 * keeping the start and end endpoints in each window. */
+
+	/* Ensure the new ppack is full */
+	//assert(ppack_isfull(&w->b->p[w->ip]));
+#endif
+
+	return 0;
+}
+
+/* Moves the window forward if there are more ppacks available and returns 0.
+ * Returns 1 otherwise and the window is kept unmodified */
+static int
+pwin_step_modify(pwin_t *w)
+{
+	pwin_t *end;
+
+	/* Precondition: the ppack is full. */
+
+	/* Postcondition:
+	 *  returns 0 and the window points to the next ppack, which may not be
+	 *  full.
+	 *  returns 1 and the window is not modified, as there are no more
+	 *  ppacks available.
+	 **/
+
+#ifdef USE_PPACK_MAGIC
+	assert(ppack_isfull(&w->b->p[w->ip]));
+#endif
+
+	/* Using the global index we fix the problem of stepping into the same
+	 * window when in REMOVE + MODIFY mode */
+
+	/* Abort the step if we are going to end up in the hi window */
+	if(w->gip + 1 >= w->hi->gip)
+		return 1;
+
+	/* Otherwise we look for the next ppack */
+	pwin_next(w);
+
+	/* The enabled mask depends on the next ppack, so we need to compute
+	 * where we are and set it accordingly */
+	pwin_set_enabled(w);
+
+	/* The next ppack may not be full, but it must be non-empty */
+#ifdef USE_PPACK_MAGIC
+	assert(!ppack_isempty(&w->b->p[w->ip]));
+#endif
+
+	return 0;
+}
+
+/** Advances the window one pack, in the appropriate direction, given by
+ * the mode */
+int
+pwin_step(pwin_t *w)
+{
+	int ret;
+
+	switch(w->mode)
+	{
+		case OPEN_APPEND: ret = pwin_step_append(w);
+				  break;
+		case OPEN_REMOVE: ret = pwin_step_remove(w);
+				  break;
+		case OPEN_MODIFY: ret = pwin_step_modify(w);
+				  break;
+		default: abort();
+	}
+
+	return ret;
 }
 
 /** Transfers particles from src to dst until src is empty or dst is full */

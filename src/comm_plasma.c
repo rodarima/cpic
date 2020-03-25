@@ -46,12 +46,6 @@
 /** A selection of particles */
 typedef struct psel
 {
-	/** Particles that remain in the chunk */
-	vmsk good;
-
-	/** Lost particles: mx0 and mx1 together */
-	vmsk lost;
-
 	/** Particles that exceed x0, 1=selected, 0=not selected */
 	vmsk mx0;
 
@@ -132,8 +126,9 @@ select_lost(pwin_t *w, psel_t *sel, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM])
 	sel->mx0 = vmsk_and(sel->mx0, w->enabled);
 	sel->mx1 = vmsk_and(sel->mx1, w->enabled);
 
-	sel->lost = vmsk_or(sel->mx0, sel->mx1);
-	sel->good = vmsk_and(vmsk_not(sel->lost), w->enabled);
+	/* Not needed anymore */
+	//sel->lost = vmsk_or(sel->mx0, sel->mx1);
+	//sel->good = vmsk_and(vmsk_not(sel->lost), w->enabled);
 
 	dbg("select_lost mx0 = %lx, mx1 = %lx\n",
 			vmsk_get(sel->mx0), vmsk_get(sel->mx1));
@@ -188,15 +183,35 @@ produce_holes_A(exchange_t *ex)
 	if(!vmsk_isfull(A->enabled))
 		goto exit;
 
-	while(!pwin_equal(A, B))
+	/* It may happend that B has stepped over A (which is already clean), so
+	 * we have finished here */
+	if(pwin_equal(A, B))
+		goto exit;
+
+	while(1)
 	{
 		dbg("A: stepping window\n");
+		assert(!pwin_equal(A, B));
 
 		/* Slide the window and continue the search */
 		if(pwin_step(A))
-			abort(); /* It cannot fail */
+			abort(); /* It cannot fail, as we are always before B */
 
 		dbg("A is now at ip=%ld\n", A->ip);
+
+		/* The window pointed by A may already be cleaned by B, so we
+		 * need to set the proper enabled mask. */
+		if(pwin_equal(A, B))
+		{
+			A->enabled = B->enabled;
+			dbg("A: Setting enabled from B to A->enabled=0x%lx\n",
+					vmsk_get(A->enabled));
+			break;
+		}
+
+		/* The enabled mask must be reset and complete with ones, as we
+		 * are moving forwards before B */
+		assert(vmsk_isfull(A->enabled));
 
 		/* After stepping the window, all particles must be available,
 		 * as we are always before B */
@@ -249,6 +264,11 @@ produce_extra_B(exchange_t *ex)
 	if(!vmsk_iszero(B->enabled))
 		goto exit;
 
+	/* It may happend that A has stepped over B (which is already clean), so
+	 * we have finished here */
+	if(pwin_equal(A, B))
+		goto exit;
+
 	while(1)
 	{
 		assert(!pwin_equal(A, B));
@@ -260,17 +280,25 @@ produce_extra_B(exchange_t *ex)
 
 		dbg("B is now at ip=%ld\n", B->ip);
 
-		/* The enabled mask must be reset and complete with ones, as we
-		 * are moving backwards */
-		assert(vmsk_isfull(B->enabled));
-
 		/* We cannot reach the beginning of the list before getting into
 		 * A, so the displacement of B cannot fail */
 		assert(ret == 0);
 
 		/* We cannot continue if A == B */
 		if(pwin_equal(A, B))
+		{
+			/* FIXME: This is error prone */
+			/* Get the proper enabled mask from the already cleaned
+			 * A window */
+			B->enabled = A->enabled;
+			dbg("B: Setting enabled from A to B->enabled=0x%lx\n",
+					vmsk_get(B->enabled));
 			break;
+		}
+
+		/* The enabled mask must be reset and complete with ones, as we
+		 * are moving backwards */
+		assert(vmsk_isfull(B->enabled));
 
 		dbg("B: analyzing ppack at ip=%ld\n", B->ip);
 
@@ -288,7 +316,7 @@ produce_extra_B(exchange_t *ex)
 	}
 
 exit:
-	assert(vmsk_isany(B->enabled) || pwin_equal(A, B));
+	assert(!vmsk_iszero(B->enabled) || pwin_equal(A, B));
 
 	dbg("B: %zd particles out\n", moved);
 	dbg("--- produce_extra_B ends ---\n");
