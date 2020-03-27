@@ -395,6 +395,13 @@ pwin_set_enabled(pwin_t *w)
 		return;
 	}
 
+	/* Also we may exceed the number of allocated particles */
+	if(w->ip >= w->b->npacks)
+	{
+		w->enabled = vmsk_zero();
+		return;
+	}
+
 	/* Otherwise we are pointing to a non-full ppack */
 
 	/* If we have no elements or past the last non-empty ppack, then
@@ -938,78 +945,126 @@ plist_set_n(plist_t *l, i64 n)
 	}
 }
 
+static pwin_t *
+remod_end(plist_t *l)
+{
+	pwin_t *m, *r;
+
+	m = l->w[OPEN_MODIFY];
+	r = l->w[OPEN_REMOVE];
+
+	assert(m->gip < r->gip);
+
+	/* We may call close with the MODIFY window far from the REMOVE window,
+	 * therefore it must be full */
+	if(m->gip + 1 != r->gip)
+	{
+		assert(vmsk_isfull(m->enabled));
+		return r;
+	}
+
+	/* Otherwise, both windows are one after the other, and the MODIFY
+	 * window may have a non-full ppack, while the REMOVE window is empty */
+	if(!vmsk_isfull(m->enabled))
+	{
+		assert(vmsk_iszero(r->enabled));
+		return m;
+	}
+
+	/* Finally, if the MODIFY window is full, the REMOVE window is the
+	 * current end */
+	return r;
+}
+
+static void
+plist_close_modify(plist_t *l)
+{
+	pwin_t *w;
+
+	assert(l->w[OPEN_MODIFY] != NULL);
+	assert(l->w[OPEN_REMOVE] == NULL);
+	assert(l->w[OPEN_APPEND] == NULL);
+
+	w = l->w[OPEN_MODIFY];
+	l->w[OPEN_MODIFY] = NULL;
+
+	assert(vmsk_isfull(w->enabled));
+}
+
+static void
+plist_close_remove(plist_t *l)
+{
+	pwin_t *end;
+	i64 count;
+
+	assert(l->w[OPEN_APPEND] == NULL);
+	assert(l->w[OPEN_REMOVE] != NULL);
+
+	/* Get the appropriate end window */
+	if(l->w[OPEN_MODIFY])
+	{
+		end = remod_end(l);
+		l->w[OPEN_MODIFY] = NULL;
+	}
+	else
+	{
+		end = l->w[OPEN_REMOVE];
+		assert(l->w[OPEN_MODIFY] == NULL);
+	}
+
+	l->w[OPEN_REMOVE] = NULL;
+
+	/* Remove any holes */
+	ppack_compact(end);
+	assert(ppack_is_compact(end));
+
+	/* Count the number of particles in the window */
+	count = pwin_count(end);
+
+	/* Set the correct number of particles in the plist */
+	plist_set_n(l, end->gip * MAX_VEC + count);
+}
+
+static void
+plist_close_append(plist_t *l)
+{
+	pwin_t *end;
+	i64 count;
+
+	assert(l->w[OPEN_MODIFY] == NULL);
+	assert(l->w[OPEN_REMOVE] == NULL);
+	assert(l->w[OPEN_APPEND] != NULL);
+
+	end = l->w[OPEN_APPEND];
+	l->w[OPEN_APPEND] = NULL;
+
+	assert(ppack_is_compact(end));
+
+	/* Count the number of particles in the window */
+	count = pwin_count(end);
+
+	/* Set the correct number of particles in the plist */
+	plist_set_n(l, end->gip * MAX_VEC + count);
+}
+
 void
 plist_close(plist_t *l)
 {
-	i64 count;
-
 	assert(l->opened > 0);
 
-	dbg("Closing list %s with window at gip=%ld\n",
-			l->name, w->gip);
+	dbg("Closing list %s\n", l->name);
 
-	l->opened--;
-
-	assert(w->l == l);
-	assert(w->mode <= l->open_mode);
-
-	/* Remove the window reference from the list */
-	assert(l->w[w->mode] != NULL);
-	l->w[w->mode] = NULL;
-
-	/* We cannot close the list yet, as we have more opened windows */
-	if(l->opened > 0)
+	switch(l->open_mode)
 	{
-		dbg("Window %p pointing to list %s cannot close yet, still opened\n",
-				(void *) w, l->name);
-
-		assert(w->mode == OPEN_MODIFY);
-		assert(l->open_mode == OPEN_REMOVE);
-
-		/* Nothing more to do */
-		return;
+		case OPEN_MODIFY: plist_close_modify(l); break;
+		case OPEN_REMOVE: plist_close_remove(l); break;
+		case OPEN_APPEND: plist_close_append(l); break;
+		default: abort();
 	}
 
-	/* After this point, the current window has the major mode and must be
-	 * equal to the list open mode */
-	assert(l->open_mode == w->mode);
-
-	/* No more opened clients allowed */
-	assert(l->opened == 0);
-
-	/* The last ppack can only have holes in the REMOVE open mode, as the
-	 * APPEND mode writes the particles in order, and MODIFY cannot change
-	 * the number, and must leave the list consistent. */
-	if(l->open_mode == OPEN_REMOVE)
-	{
-		ppack_compact(w);
-	}
-	else
-	{
-		dbg("No compact necessary for list %s\n", l->name);
-	}
-
-	assert(ppack_is_compact(w));
-
-	/* Set the new number of particles */
-	if(w->mode != OPEN_MODIFY)
-	{
-		/* Count the number of particles in the window */
-		count = pwin_count(w);
-
-		/* Set the correct number of particles in the plist */
-		plist_set_n(l, w->gip * MAX_VEC + count);
-	}
-	else
-	{
-		/* The list was opened in MODIFY, so the number of particles
-		 * must remain constant */
-
-		/* TODO: We must ensure the number is kept constant, by keeping
-		 * a copy somewhere. */
-
-		dbg("The number of particles was not modified\n");
-	}
+	/* Close the list */
+	l->opened = 0;
+	l->open_mode = -1;
 
 	/* Postcontition: The list is consistent */
 	plist_sanity_check(l);
@@ -1018,8 +1073,6 @@ plist_close(plist_t *l)
 	assert(l->w[OPEN_MODIFY] == NULL);
 	assert(l->w[OPEN_REMOVE] == NULL);
 	assert(l->w[OPEN_APPEND] == NULL);
-
-	return;
 }
 
 static void

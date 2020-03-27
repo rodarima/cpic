@@ -22,7 +22,7 @@ void
 plist_open(plist_t *l, pwin_t *w, int mode);
 
 void
-plist_close(plist_t *l, pwin_t *w);
+plist_close(plist_t *l);
 
 i64
 pwin_transfer(vmsk *sel, pwin_t *src, pwin_t *dst, int mode);
