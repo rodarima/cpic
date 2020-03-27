@@ -154,12 +154,41 @@ struct pwin
 	/** Mask for enabled particles: 1=particle, 0=garbage*/
 	vmsk enabled;
 
+	/** Window limit low (exclusive) */
+	i64 *lo;
+
+	/** Temporal storage for lo, when not using an external window */
+	i64 slo;
+
 	/** Window limit high (exclusive) */
-	pwin_t *hi;
+	i64 *hi;
 
 	/** Temporal storage for hi, when not using an external window */
-	pwin_t shi;
+	i64 shi;
 };
+
+enum plist_open_mode
+{
+	/** The number of particles cannot change */
+	OPEN_MODIFY = 0,
+	/** The number of particles cannot increase */
+	OPEN_REMOVE,
+	/** The number of particles cannot decrease */
+	OPEN_APPEND,
+	/** Maximum number of open modes */
+	MAX_OPEN
+};
+
+enum pwin_transfer_mode
+{
+	/** Transfer particles until src is empty or dst is full */
+	TRANSFER_PARTIAL,
+	/** Transfer particles until src is empy */
+	TRANSFER_ALL,
+	/** Transfer the ppack */
+	TRANSFER_RAW
+};
+
 
 /** A particle list has a bunch of particles from only one type of specie */
 struct plist
@@ -173,7 +202,7 @@ struct plist
 	i64 open_mode;	/**< The major mode of the openned sessions */
 	char name[8];	/**< A description name */
 
-	pwin_t *end;	/**< Current list end window */
+	pwin_t *w[MAX_OPEN];	/**< Opened windows, one for each mode */
 
 	/** The linked list of pblock. Should be NULL if we don't have any
 	 * pblock, but this configuration may changed in order to reuse the

@@ -148,6 +148,8 @@ plist_new_block(plist_t *l, i64 n)
 void
 plist_init(plist_t *l, i64 nmax, const char *name)
 {
+	int i;
+
 	/* Blocksize in bytes */
 	l->blocksize = pblock_size(nmax);
 	l->max_packs = (nmax + MAX_VEC - 1) / MAX_VEC;
@@ -161,8 +163,9 @@ plist_init(plist_t *l, i64 nmax, const char *name)
 	l->opened = 0;
 	l->open_mode = 0;
 
-	/* Not used as the list is initially consistent */
-	l->end = NULL;
+	/* Not used as the list is initially closed */
+	for(i=0; i<MAX_OPEN; i++)
+		l->w[i] = NULL;
 
 	strncpy(l->name, name, 8);
 	l->name[7] = '\0';
@@ -485,65 +488,33 @@ pwin_last_hole(plist_t *l, pwin_t *w)
 }
 
 static void
-set_open_mode(plist_t *l, pwin_t *w, int mode)
+set_plist_mode(plist_t *l, int mode)
 {
-	/* Check if the list can be opened in the specified mode */
-	if(l->opened)
-	{
-		/* Only MODIFY + REMOVED allowed by now */
-		if(l->open_mode == OPEN_APPEND)
-		{
-			err("The list is already open in APPEND mode, aborting\n");
-			abort();
-		}
-
-		/* The list is opened in either MODIFY or REMOVE, we must
-		 * prevent opening with MODIFY then with REMOVE */
-
-		if(l->open_mode == OPEN_MODIFY && mode == OPEN_REMOVE)
-		{
-			dbg("Open the list first with REMOVE then with MODIFY\n");
-			abort();
-		}
-
-		/* The only case we allow opening the list multiple times, is if
-		 * the list is in REMOVE mode, and we open again in MODIFY */
-
-		if(mode != OPEN_MODIFY)
-		{
-			dbg("Only MODIFY can be used with an open list\n");
-			abort();
-		}
-
-		assert(mode == OPEN_MODIFY);
-		assert(l->open_mode == OPEN_MODIFY ||
-			l->open_mode == OPEN_REMOVE);
-
-	}
-	else
+	if(!l->opened)
 	{
 		l->open_mode = mode;
+		return;
 	}
-}
 
-static i64
-compute_end(plist_t *l, int mode)
-{
-	if(mode == OPEN_REMOVE)
-		return 0;
+	/* Check if the list can be opened in the specified mode */
 
-	/* No end with the APPEND mode */
-	if(mode == OPEN_APPEND)
-		return -1;
+	/* Only REMOVE + MODIFY allowed */
+	if(l->open_mode != OPEN_REMOVE || mode != OPEN_MODIFY)
+	{
+		dbg("Only REMOVE + MODIFY allowed\n");
+		abort();
+	}
 
-	/* Computes the immediate next ppack which is empty */
-	return (l->nblocks - 1) * l->nmax + l->b->prev->npacks;
+	assert(mode == OPEN_MODIFY);
+	assert(l->open_mode == OPEN_REMOVE);
+
+	/* No need to change the major open mode of the list */
 }
 
 static void
-set_pwin_position(plist_t *l, pwin_t *w, int mode)
+pwin_set_position(plist_t *l, pwin_t *w)
 {
-	switch(mode)
+	switch(w->mode)
 	{
 		case OPEN_APPEND: pwin_last_hole(l, w); break;
 		case OPEN_REMOVE: pwin_last_particle(l, w); break;
@@ -553,47 +524,82 @@ set_pwin_position(plist_t *l, pwin_t *w, int mode)
 }
 
 static void
-pwin_open(plist_t *l, pwin_t *w, int mode)
+pwin_set_endpoints(plist_t *l, pwin_t *w)
 {
-	w->mode = mode;
-	w->l = l;
+	pwin_t *r;
 
-	/* Set the hi window when in MODIFY window mode */
-	if(mode == OPEN_MODIFY)
+	if(w->mode == OPEN_REMOVE)
 	{
+		w->lo = &w->slo;
+		w->slo = -1;
+
+		/* No hi endpoint, as we move the window backwards */
+		w->hi = NULL;
+	}
+	else if(w->mode == OPEN_APPEND)
+	{
+		/* No endpoint is used */
+		w->lo = NULL;
+		w->hi = NULL;
+	}
+	else if(w->mode == OPEN_MODIFY)
+	{
+		/* The window moves forward, so we don't need lo */
+		w->lo = NULL;
+
 		if(l->open_mode == OPEN_REMOVE)
 		{
-			/* No need to compute the end, as is being already
-			 * tracked by the REMOVE window */
-			assert(l->end != NULL);
-			w->hi = l->end;
+			r = l->w[OPEN_REMOVE];
+			assert(r);
+
+			/* Set hi to track the REMOVE window */
+			w->hi = &r->gip;
+
+			/* Also, modify the remove window and set the current
+			 * MODIFY as the lo endpoint. We must ensure the REMOVE
+			 * window was not stepped past the new lo endpoint */
+
+			/* FIXME: This should be far more restrictive */
+			assert(r->gip > 0);
+			assert(w->gip == 0);
+
+			/* Set the REMOVE window lo to track the MODIFY window
+			 * */
+			r->lo = &w->gip;
 		}
 		else
 		{
 			assert(l->open_mode == OPEN_MODIFY);
 
-			/* Use the local hi storage instead, so we set here the
-			 * static end. This is only used in MODIFY mode */
-			w->hi = &w->shi;
-
 			/* Only the gip is required. We may be pointing outside
 			 * the allocated block, but is okay, as we never reach
 			 * this ppack */
-			w->hi->gip = compute_end(l, mode);
+			w->shi = (l->nblocks - 1) * l->nmax + l->b->prev->npacks;
+
+			/* Use the local hi storage instead, so we set here the
+			 * static end. This is only used in MODIFY mode */
+			w->hi = &w->shi;
 		}
 	}
 	else
 	{
-		/* Remove the hi reference, so we are sure that is not used by
-		 * accident, as the other modes don't require it */
-		w->hi = NULL;
+		abort();
 	}
+}
 
-	/* Finally position the window in the appropiate starting point given
+static void
+pwin_open(plist_t *l, pwin_t *w, int mode)
+{
+	w->mode = mode;
+	w->l = l;
+
+	/* Position the window in the appropiate starting point given
 	 * the window mode */
-	set_pwin_position(l, w, mode);
+	pwin_set_position(l, w);
 
-	/* And recompute the enabled mask */
+	pwin_set_endpoints(l, w);
+
+	/* Recompute the enabled mask */
 	pwin_set_enabled(w);
 }
 
@@ -601,13 +607,15 @@ void
 plist_open(plist_t *l, pwin_t *w, int mode)
 {
 	/* Update the open mode or abort */
-	set_open_mode(l, w, mode);
+	set_plist_mode(l, mode);
 
 	l->opened++;
 
-	/* Track the window as the end of the list */
-	if(mode != OPEN_MODIFY)
-		l->end = w;
+	/* Ensure we have no previous window in the same open mode */
+	assert(l->w[mode] == NULL);
+
+	/* Track the window in the list */
+	l->w[mode] = w;
 
 	pwin_open(l, w, mode);
 
@@ -627,9 +635,9 @@ move_particle(pwin_t *wsrc, i64 isrc, pwin_t *wdst, i64 idst)
 	src = &wsrc->b->p[wsrc->ip];
 	dst = &wdst->b->p[wdst->ip];
 
-	dbg("moving particle from %s.%p.%ld.%ld to %s.%p.%ld.%ld\n",
-			wsrc->l->name, (void *) wsrc->b, wsrc->ip, isrc,
-			wdst->l->name, (void *) wdst->b, wdst->ip, idst);
+	dbg("moving particle from %s[%ld,%ld] to %s[%ld,%ld]\n",
+			wsrc->l->name, wsrc->gip, isrc,
+			wdst->l->name, wdst->gip, idst);
 
 #ifdef USE_PPACK_MAGIC
 	//dbg("writing magic %llx to ip=%ld i=%ld at %p\n",
@@ -694,16 +702,16 @@ transfer_forward(vmsk *sel, pwin_t *src, pwin_t *dst)
 		move_particle(src, isrc, dst, idst);
 		moved++;
 
-		dbg("masks old: src=%lx dst=%lx\n",
-				vmsk_get(*sel),
-				vmsk_get(dst->enabled));
+		//dbg("masks old: src=%lx dst=%lx\n",
+		//		vmsk_get(*sel),
+		//		vmsk_get(dst->enabled));
 		vmsk_set_bit(sel, isrc, 0);
 		vmsk_set_bit(&src->enabled, isrc, 0);
 		vmsk_set_bit(&dst->enabled, idst, 1);
 
-		dbg("masks: src=%lx dst=%lx\n",
-				vmsk_get(*sel),
-				vmsk_get(dst->enabled));
+		//dbg("masks: src=%lx dst=%lx\n",
+		//		vmsk_get(*sel),
+		//		vmsk_get(dst->enabled));
 
 		/* And advance the index in both masks */
 		idst++;
@@ -769,9 +777,9 @@ transfer_backward(vmsk *src_sel, pwin_t *src, pwin_t *dst)
 		vmsk_set_bit(&src->enabled, isrc, 0);
 		vmsk_set_bit(&dst->enabled, idst, 1);
 
-		dbg("masks: src=%lx dst=%lx\n",
-				vmsk_get(*src_sel),
-				vmsk_get(dst->enabled));
+		//dbg("masks: src=%lx dst=%lx\n",
+		//		vmsk_get(*src_sel),
+		//		vmsk_get(dst->enabled));
 
 		/* And advance the index in both masks */
 		idst++;
@@ -831,7 +839,7 @@ ppack_is_compact(pwin_t *w)
 static i64
 pwin_count(pwin_t *w)
 {
-	return __builtin_popcountll(w->enabled);
+	return __builtin_popcountll(vmsk_get(w->enabled));
 }
 
 static void
@@ -900,54 +908,66 @@ fix_size:
 	dbg("Updated last block size to: %ld particles\n", w->b->prev->n);
 }
 
+/** Set the current number of particles in the list, by setting each pblock to
+ * their appropiate number of particles. */
 static void
-plist_close_remove(plist_t *l, pwin_t *w)
+plist_set_n(plist_t *l, i64 n)
 {
-	pwin_t *end;
+	pblock_t *b;
 
-	assert(l->opened == 0);
+	assert(n >= 0 && n <= l->nblocks * l->nmax);
 
-	/* The window may be empty, so we can step once more to position it into
-	 * a ppack with some particles */
-	if(vmsk_iszero(w->enabled))
+	b = l->b;
+
+	while(n > l->nmax)
 	{
-		pwin_step();
+		/* We must have enough blocks to hold the n particles, otherwise
+		 * something is wrong with the list */
+		assert(b);
+
+		pblock_update_n(b, l->nmax);
+		n -= l->nmax;
+		b = b->next;
 	}
 
-	/* Set the list endpoint */
-	l->end = &l->_end;
-	l->end->ip = w->ip;
-	l->end->b = w->b;
-
-
-	/* The last ppack can only have holes in the REMOVE open mode, as the
-	 * APPEND mode writes the particles in order, and MODIFY cannot change
-	 * the number, and must leave the list consistent. */
-
-	ppack_compact(w);
-
-	assert(ppack_is_compact(w));
+	/* The last block must exist as well, if we have any particles left */
+	if(n > 0)
+	{
+		assert(b);
+		pblock_update_n(b, n);
+	}
 }
 
 void
-plist_close(plist_t *l, pwin_t *w)
+plist_close(plist_t *l)
 {
+	i64 count;
+
 	assert(l->opened > 0);
 
-	dbg("Closing list %s with window %p\n",
-			l->name, (void *) w);
+	dbg("Closing list %s with window at gip=%ld\n",
+			l->name, w->gip);
 
 	l->opened--;
 
 	assert(w->l == l);
 	assert(w->mode <= l->open_mode);
 
+	/* Remove the window reference from the list */
+	assert(l->w[w->mode] != NULL);
+	l->w[w->mode] = NULL;
+
 	/* We cannot close the list yet, as we have more opened windows */
 	if(l->opened > 0)
 	{
 		dbg("Window %p pointing to list %s cannot close yet, still opened\n",
 				(void *) w, l->name);
-		goto exit;
+
+		assert(w->mode == OPEN_MODIFY);
+		assert(l->open_mode == OPEN_REMOVE);
+
+		/* Nothing more to do */
+		return;
 	}
 
 	/* After this point, the current window has the major mode and must be
@@ -957,65 +977,48 @@ plist_close(plist_t *l, pwin_t *w)
 	/* No more opened clients allowed */
 	assert(l->opened == 0);
 
-	switch(w->mode)
-	{
-		case OPEN_APPEND: plist_close_append(l, w);
-				  break;
-		case OPEN_REMOVE: plist_close_remove(l, w);
-				  break;
-		case OPEN_MODIFY: plist_close_modify(l, w);
-				  break;
-		default: abort();
-	}
-
-	/* TODO: Reset the endpoint from the position of the REMOVE or APPEND
-	 * window, if it is being used */
-	if(l->open_mode != OPEN_MODIFY)
-	{
-		l->end = &l->_end;
-		l->end->ip = w->ip;
-		l->end->b = w->b;
-	}
-
-	/* From now we will focus on the end window */
-	w = l->end;
-
-	/* TODO: The close operation may require to compact the last ppack in
-	 * order to keep the list consistent */
-
 	/* The last ppack can only have holes in the REMOVE open mode, as the
 	 * APPEND mode writes the particles in order, and MODIFY cannot change
 	 * the number, and must leave the list consistent. */
-
 	if(l->open_mode == OPEN_REMOVE)
 	{
 		ppack_compact(w);
 	}
 	else
 	{
-		dbg("No compact necessary for list %s\n", w);
+		dbg("No compact necessary for list %s\n", l->name);
 	}
 
 	assert(ppack_is_compact(w));
 
-	/* TODO: The window may be empty: should we point to the last particle? */
-	count = pwin_count(w);
-	if(count == 0)
+	/* Set the new number of particles */
+	if(w->mode != OPEN_MODIFY)
 	{
-		pwin_prev(w);
+		/* Count the number of particles in the window */
+		count = pwin_count(w);
+
+		/* Set the correct number of particles in the plist */
+		plist_set_n(l, w->gip * MAX_VEC + count);
 	}
+	else
+	{
+		/* The list was opened in MODIFY, so the number of particles
+		 * must remain constant */
 
+		/* TODO: We must ensure the number is kept constant, by keeping
+		 * a copy somewhere. */
 
-	/* TODO: Set the correct number of particles in the plist */
-	assert(l->b && l->b->prev);
-	pblock_update_n(l->b->prev, w->ip * MAX_VEC + count);
-
-	//dbg("Updated last block size to: %ld particles\n", w->b->prev->n);
+		dbg("The number of particles was not modified\n");
+	}
 
 	/* Postcontition: The list is consistent */
 	plist_sanity_check(l);
 
-exit:
+	/* Ensure no more windows are stored in the list */
+	assert(l->w[OPEN_MODIFY] == NULL);
+	assert(l->w[OPEN_REMOVE] == NULL);
+	assert(l->w[OPEN_APPEND] == NULL);
+
 	return;
 }
 
@@ -1143,7 +1146,7 @@ pwin_step_remove(pwin_t *w)
 	assert(w->gip >= 0);
 
 	/* If we are at the beginning no more ppacks are available. */
-	if(w->gip == 0)
+	if(w->gip - 1 <= *(w->lo))
 		return 1;
 
 	/* Otherwise we look for the previous ppack */
@@ -1171,8 +1174,6 @@ pwin_step_remove(pwin_t *w)
 static int
 pwin_step_modify(pwin_t *w)
 {
-	pwin_t *end;
-
 	/* Precondition: the ppack is full. */
 
 	/* Postcondition:
@@ -1190,7 +1191,7 @@ pwin_step_modify(pwin_t *w)
 	 * window when in REMOVE + MODIFY mode */
 
 	/* Abort the step if we are going to end up in the hi window */
-	if(w->gip + 1 >= w->hi->gip)
+	if(w->gip + 1 >= *(w->hi))
 		return 1;
 
 	/* Otherwise we look for the next ppack */

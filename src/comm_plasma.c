@@ -75,6 +75,9 @@ typedef struct exchange
 	/** Window for the end of the queue qx1 */
 	pwin_t q1;
 
+	/** Is the collect process finished? */
+	i64 stop;
+
 	/* TODO: The number of particles moved */
 	//i64 nmoved;
 } exchange_t;
@@ -177,64 +180,38 @@ produce_holes_A(exchange_t *ex)
 	q0 = &ex->q0;
 	q1 = &ex->q1;
 
-	dbg("A is at ip=%ld\n", A->ip);
+	dbg("A is at gip=%ld\n", A->gip);
 
-	/* We have some holes to fill */
-	if(!vmsk_isfull(A->enabled))
-		goto exit;
+	/* The windows cannot overlap */
+	assert(!pwin_equal(A, B));
 
-	/* It may happend that B has stepped over A (which is already clean), so
-	 * we have finished here */
-	if(pwin_equal(A, B))
-		goto exit;
-
-	while(1)
+	while(vmsk_isfull(A->enabled))
 	{
 		dbg("A: stepping window\n");
-		assert(!pwin_equal(A, B));
 
 		/* Slide the window and continue the search */
 		if(pwin_step(A))
-			abort(); /* It cannot fail, as we are always before B */
-
-		dbg("A is now at ip=%ld\n", A->ip);
-
-		/* The window pointed by A may already be cleaned by B, so we
-		 * need to set the proper enabled mask. */
-		if(pwin_equal(A, B))
 		{
-			A->enabled = B->enabled;
-			dbg("A: Setting enabled from B to A->enabled=0x%lx\n",
-					vmsk_get(A->enabled));
+			dbg("A: cannot step anymore, stop\n");
+			ex->stop = 1;
 			break;
 		}
 
-		/* The enabled mask must be reset and complete with ones, as we
-		 * are moving forwards before B */
-		assert(vmsk_isfull(A->enabled));
+		assert(!pwin_equal(A, B));
 
 		/* After stepping the window, all particles must be available,
 		 * as we are always before B */
 		assert(vmsk_isfull(A->enabled));
 
-		dbg("A: analyzing new ppack at ip=%ld\n", A->ip);
+		dbg("A: cleaning new ppack at gip=%ld\n", A->gip);
 
 		/* Remove any lost particles to the queues */
 		moved += clean_lost(A, q0, q1, ex->c->x0, ex->c->x1);
-
-		/* If we have some good particles, stop */
-		if(!vmsk_isfull(A->enabled))
-		{
-			dbg("A: found some holes at ip=%ld\n", A->ip);
-			dbg("A: enabled=%lx\n", vmsk_get(A->enabled));
-			break;
-		}
-
-		dbg("A: no holes at ip=%ld\n", A->ip);
 	}
 
-exit:
-	assert(!vmsk_isfull(A->enabled) || pwin_equal(A, B));
+	dbg("A: enabled=%lx\n", vmsk_get(A->enabled));
+
+	assert(!vmsk_isfull(A->enabled) || ex->stop);
 
 	dbg("A: %zd particles out\n", moved);
 	dbg("--- produce_holes_A ends ---\n");
@@ -248,7 +225,6 @@ produce_extra_B(exchange_t *ex)
 {
 	pwin_t *A, *B, *q0, *q1;
 	i64 moved;
-	int ret;
 
 	dbg("--- produce_extra_B begins ---\n");
 
@@ -260,39 +236,20 @@ produce_extra_B(exchange_t *ex)
 
 	dbg("B is at ip=%ld\n", B->ip);
 
-	/* Good particles already present */
-	if(!vmsk_iszero(B->enabled))
-		goto exit;
+	/* The windows must never overlap */
+	assert(!pwin_equal(A, B));
 
-	/* It may happend that A has stepped over B (which is already clean), so
-	 * we have finished here */
-	if(pwin_equal(A, B))
-		goto exit;
-
-	while(1)
+	while(vmsk_iszero(B->enabled))
 	{
 		assert(!pwin_equal(A, B));
 
 		dbg("B: moving to the previous ppack\n");
 
 		/* Otherwise slide the window and continue the search */
-		ret = pwin_step(B);
-
-		dbg("B is now at ip=%ld\n", B->ip);
-
-		/* We cannot reach the beginning of the list before getting into
-		 * A, so the displacement of B cannot fail */
-		assert(ret == 0);
-
-		/* We cannot continue if A == B */
-		if(pwin_equal(A, B))
+		if(pwin_step(B))
 		{
-			/* FIXME: This is error prone */
-			/* Get the proper enabled mask from the already cleaned
-			 * A window */
-			B->enabled = A->enabled;
-			dbg("B: Setting enabled from A to B->enabled=0x%lx\n",
-					vmsk_get(B->enabled));
+			dbg("B: cannot step anymore, stop\n");
+			ex->stop = 1;
 			break;
 		}
 
@@ -300,23 +257,17 @@ produce_extra_B(exchange_t *ex)
 		 * are moving backwards */
 		assert(vmsk_isfull(B->enabled));
 
-		dbg("B: analyzing ppack at ip=%ld\n", B->ip);
+		dbg("B: cleaning ppack at ip=%ld\n", B->ip);
 
 		/* Remove any lost particles to the queues */
 		moved += clean_lost(B, q0, q1, ex->c->x0, ex->c->x1);
-
-		/* Check if we have some good particles in B */
-		if(!vmsk_iszero(B->enabled))
-		{
-			dbg("B: good particles found at ip=%ld\n", B->ip);
-			dbg("B: enabled=%lx\n", vmsk_get(B->enabled));
-			break;
-		}
-
 	}
 
-exit:
-	assert(!vmsk_iszero(B->enabled) || pwin_equal(A, B));
+	dbg("B: enabled=%lx\n", vmsk_get(B->enabled));
+
+	/* Postcondition: Either the B enabled mask contains some ones (good
+	 * particles) or we cannot continue, so stop is non-zero */
+	assert(!vmsk_iszero(B->enabled) || ex->stop);
 
 	dbg("B: %zd particles out\n", moved);
 	dbg("--- produce_extra_B ends ---\n");
@@ -460,6 +411,49 @@ fill_holes(exchange_t *ex)
 //	dbg("=== finish_pass ends ===\n");
 //}
 
+static void
+collect_loop(exchange_t *ex, i64 *out, i64 *in)
+{
+	pwin_t *A, *B, *q0, *q1;
+
+	A = &ex->A;
+	B = &ex->B;
+	q0 = &ex->q0;
+	q1 = &ex->q1;
+
+	/* Reset the counter first */
+	*out = 0;
+	*in = 0;
+
+	/* We need to clean B first, as it must always be analyzed for lost
+	 * particles before entering the produce_extra_B phase */
+	*out += clean_lost(B, q0, q1, ex->c->x0, ex->c->x1);
+
+	/* If they are already pointing to the same pack, we are done */
+	if(pwin_equal(A, B))
+		return;
+
+	/* Same for A */
+	*out += clean_lost(A, q0, q1, ex->c->x0, ex->c->x1);
+
+	ex->stop = 0;
+
+	while(1)
+	{
+		/* Search for extra particles in B */
+		*out += produce_extra_B(ex);
+
+		/* Search for holes in A */
+		*out += produce_holes_A(ex);
+
+		if(ex->stop)
+			break;
+
+		/* Fill holes with extra particles */
+		*in += fill_holes(ex);
+	}
+}
+
 static i64
 pchunk_collect_x_pass(exchange_t *ex)
 {
@@ -482,36 +476,15 @@ pchunk_collect_x_pass(exchange_t *ex)
 	/* Open the lists and set the windows */
 	plist_open(&set->qx0, q0, OPEN_APPEND);
 	plist_open(&set->qx1, q1, OPEN_APPEND);
+	plist_open(&set->list, B, OPEN_REMOVE); /* REMOVE must go first */
 	plist_open(&set->list, A, OPEN_MODIFY);
-	plist_open(&set->list, B, OPEN_REMOVE);
 
-	/* We need to clean B first, as it must always be analyzed for lost
-	 * particles before entering the produce_extra_B phase */
-	moved_out += clean_lost(B, q0, q1, ex->c->x0, ex->c->x1);
-
-	/* Same for A */
-	if(!pwin_equal(A, B))
-		moved_out += clean_lost(A, q0, q1, ex->c->x0, ex->c->x1);
-
-	while(!pwin_equal(A, B))
-	{
-		/* Search for extra particles in B */
-		moved_out += produce_extra_B(ex);
-
-		/* Search for holes in A */
-		moved_out += produce_holes_A(ex);
-
-		/* Fill holes with extra particles */
-		moved_in += fill_holes(ex);
-	}
-
-	//finish_pass(ex, &moved_in, &moved_out);
+	collect_loop(ex, &moved_out, &moved_in);
 
 	/* Finally close all plists */
-	plist_close(&set->qx0, q0);
-	plist_close(&set->qx1, q1);
-	plist_close(&set->list, A);
-	plist_close(&set->list, B);
+	plist_close(&set->qx0);
+	plist_close(&set->qx1);
+	plist_close(&set->list);
 
 	dbg("-----------------------------------\n");
 	dbg("      collect pass x complete      \n");
@@ -521,8 +494,6 @@ pchunk_collect_x_pass(exchange_t *ex)
 			set->qx0.b->n,
 			set->qx1.b->n);
 	dbg("-----------------------------------\n");
-
-	exit(1);
 
 	assert(n0 == set->list.b->n + moved_out);
 

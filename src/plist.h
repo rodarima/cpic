@@ -1,25 +1,5 @@
 #include "def.h"
 
-enum plist_mode
-{
-	/** The number of particles cannot change */
-	OPEN_MODIFY = 1,
-	/** The number of particles cannot increase */
-	OPEN_REMOVE = 2,
-	/** The number of particles cannot decrease */
-	OPEN_APPEND = 4
-};
-
-enum pwin_transfer_mode
-{
-	/** Transfer particles until src is empty or dst is full */
-	TRANSFER_PARTIAL,
-	/** Transfer particles until src is empy */
-	TRANSFER_ALL,
-	/** Transfer the ppack */
-	TRANSFER_RAW
-};
-
 void
 plist_init(plist_t *l, i64 nmax, const char *name);
 
