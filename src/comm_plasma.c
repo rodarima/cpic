@@ -304,113 +304,6 @@ fill_holes(exchange_t *ex)
 	return moved;
 }
 
-//static void
-//finish_pass(exchange_t *ex, i64 *in, i64 *out)
-//{
-//	pwin_t *A, *B, *q0, *q1;
-//	i64 count;
-//	u64 s, d;
-//	vmsk S, D, X, F, T;
-//
-//	dbg("=== finish_pass begins ===\n");
-//	A = &ex->A;
-//	B = &ex->B;
-//	q0 = &ex->q0;
-//	q1 = &ex->q1;
-//
-//	assert(pwin_equal(A, B));
-//
-//	/* If the window was already analyzed, don't move the particles
-//	 * to the queues, as we already did that before. */
-//	if(B->dirty_sel && A->dirty_sel)
-//	{
-//		/* First identify any lost particles that must leave the
-//		 * chunk */
-//		select_lost(B, ex->c->x0, ex->c->x1, 1);
-//		pwin_print(B, "B");
-//
-//		/* Now remove them to the queues, if any */
-//		(*out) += clean_lost(B, q0, q1);
-//		dbg("After clean_lost\n");
-//		pwin_print(B, "B");
-//	}
-//	else
-//	{
-//		dbg("No sel update required\n");
-//	}
-//
-//	/* Ensure the number of particles in the pblock equals the
-//	 * actual number of particles in the queue, as they may have
-//	 * extra room filled with garbage. We close the queues only
-//	 * after the clean_lost() stage, as they may require extra room
-//	 * in the queues. */
-//	queue_close(q0);
-//	queue_close(q1);
-//
-//
-//	/* Set the selection from A to B, if it was already set */
-//	if(!A->dirty_sel)
-//	{
-//		dbg("Reusing A sel\n");
-//		B->sel = vmsk_not(A->sel);
-//	}
-//	else
-//	{
-//		dbg("Reusing B sel\n");
-//	}
-//
-//	/* If no particles left, we have finished */
-//	if(vmsk_iszero(B->sel))
-//	{
-//		dbg("No particles remaining in the ppack\n");
-//		count = 0;
-//		goto fix_size;
-//	}
-//
-//	/* Now we may have some holes, so we need to compact the ppack,
-//	 * so all particles are placed at the left. */
-//
-//	S = B->sel;
-//
-//	s = vmsk_get(S);
-//	count = __builtin_popcountll(s);
-//
-//	assert(sizeof(u64) == 8);
-//
-//	d = (-1UL) >> (64 - count);
-//	D = vmsk_set(d);
-//
-//	/* The same same of ones */
-//	assert(count ==  __builtin_popcountll(d));
-//
-//	X = vmsk_xor(S, D);
-//
-//	if(vmsk_isany(X))
-//	{
-//		F = vmsk_and(S, X);
-//		T = vmsk_and(D, X);
-//
-//		dbg("Computed F=%lx T=%lx b->n=%zd\n",
-//				vmsk_get(F), vmsk_get(T), B->b->n);
-//
-//		(*in) += transfer(B, &F, B, &T);
-//		dbg("After transfer F=%lx T=%lx\n",
-//				vmsk_get(F), vmsk_get(T));
-//	}
-//	else
-//	{
-//		dbg("No reorder required\n");
-//	}
-//
-//fix_size:
-//
-//	pblock_update_n(B->b, B->ip * MAX_VEC + count);
-//	dbg("Final list size set to b->n=%zd\n", B->b->n);
-//	dbg("Final qx0 size set to b->n=%zd\n", q0->b->n);
-//	dbg("Final qx1 size set to b->n=%zd\n", q1->b->n);
-//	dbg("=== finish_pass ends ===\n");
-//}
-
 static void
 collect_loop(exchange_t *ex, i64 *out, i64 *in)
 {
@@ -605,166 +498,17 @@ pchunk_collect_x(pchunk_t *c, pset_t *set)
 	return collected;
 }
 
-#if 0
-/** Takes all ppacks from src to end, and copies them into dst. No
- * checks are done with sel or enabled masks. The list in dst grows
- * accordingly */
-static i64
-inject_full_ppacks(plist_t *queue, plist_t *list)
-{
-	pwin_t src, end, dst;
-	i64 count, left;
-
-	assert(queue->b);
-	assert(queue->b->n > 0);
-	assert(list->b->n > 0);
-
-	dbg("queue: n=%zd, npacks=%zd nfpacks=%zd\n",
-			queue->b->n, queue->b->npacks,
-			queue->b->nfpacks);
-
-	pwin_first(queue, &src);
-	pwin_last(queue, &end);
-	pwin_last(list, &dst);
-
-	assert(queue->b->nfpacks * MAX_VEC <= queue->b->n);
-
-	/* We should have at least one ppack in the queue */
-	assert(vmsk_isany(src.enabled));
-
-	/* FIXME: Look for a better way to handle windows in the garbage
-	 * space of the plist */
-
-	/* Add extra room in the list */
-	if(plist_grow(dst.l, MAX_VEC))
-	{
-		err("plist_grow failed\n");
-		abort();
-	}
-
-	pwin_next(&dst, 0);
-
-	count = 0;
-
-	while(!pwin_equal(&src, &end))
-	{
-		move_ppack(&src, &dst);
-		count += MAX_VEC;
-
-		if(plist_grow(dst.l, MAX_VEC))
-		{
-			err("plist_grow failed\n");
-			abort();
-		}
-
-		pwin_next(&src, 0);
-		pwin_next(&dst, 0);
-	}
-
-	left = src.b->n % MAX_VEC;
-	move_ppack(&src, &dst);
-	count += left;
-
-	/* Remove the extra space we added before */
-	if(plist_shrink(dst.l, MAX_VEC - left))
-	{
-		err("plist_shrink failed\n");
-		abort();
-	}
-
-	pblock_update_n(src.l->b, 0);
-
-	plist_sanity_check(list);
-	plist_sanity_check(queue);
-
-	return count;
-}
-
-/** Fills the list l to complete the last ppack in case is non-full
- * using particles from the end of the queue q */
-static void
-inject_fill(plist_t *q, plist_t *l)
-{
-	pwin_t src, dst;
-	i64 moved;
-
-	dbg("--- inject_fill() begins ---\n");
-
-	assert(q->b->n > 0);
-
-	pwin_last(q, &src);
-	pwin_last(l, &dst);
-
-	assert(q->b->nfpacks * MAX_VEC <= q->b->n);
-
-	/* FIXME: This may not work for MAX_VEC != 4, as the number of
-	 * times we need to go back may be higher */
-
-	src.sel = src.enabled;
-	dst.sel = vmsk_not(dst.enabled);
-
-	if(vmsk_iszero(dst.sel))
-	{
-		dbg("The list already has a complete ppack at the end\n");
-		goto end;
-	}
-
-	moved = transfer_backwards(&src, &src.sel, &dst, &dst.sel);
-	plist_grow(l, moved);
-	plist_shrink(q, moved);
-
-	dbg("Moved %zd particles to fill the ppack\n", moved);
-
-	if(vmsk_iszero(dst.sel))
-	{
-		dbg("The ppack is now complete\n");
-		goto end;
-	}
-
-	/* Ensure the last queue ppack is empty */
-	assert(vmsk_iszero(src.sel));
-
-	dbg("The ppack requires more particles from the queue\n");
-	pwin_prev(&src, 1);
-	src.sel = src.enabled;
-
-	assert(vmsk_isany(src.sel));
-
-	moved = transfer_backwards(&src, &src.sel, &dst, &dst.sel);
-	plist_grow(l, moved);
-	plist_shrink(q, moved);
-
-	dbg("Moved %zd particles again to fill the ppack\n", moved);
-
-end:
-	/* Now it should be complete */
-	assert(vmsk_iszero(dst.sel));
-
-	plist_sanity_check(l);
-	plist_sanity_check(q);
-
-	dbg("--- inject_fill() ends ---\n");
-}
-
 static i64
 inject_particles(plist_t *queue, plist_t *list)
 {
 	/* TODO: We can skip the copy of middle pblocks by simply
 	 * swapping the pointers */
 	i64 count;
+	pwin_t src, dst;
 
 	dbg("--- inject_particles() begins ---\n");
 
-	/* By now */
-	assert(list->nblocks == 1);
-
-	dbg("queue has %ld particles, npacks=%ld, nfpacks=%ld\n",
-			queue->b->n, queue->b->npacks,
-			queue->b->nfpacks);
-	assert(queue->b->nfpacks * MAX_VEC <= queue->b->n);
-
-	plist_sanity_check(list);
-	plist_sanity_check(queue);
+	count = 0;
 
 	if(queue->b->n == 0)
 	{
@@ -772,28 +516,24 @@ inject_particles(plist_t *queue, plist_t *list)
 		goto end;
 	}
 
-	inject_fill(queue, list);
+	plist_open(queue, &src, OPEN_REMOVE);
+	plist_open(list, &dst, OPEN_APPEND);
 
-	if(queue->b->n == 0)
+	/* Enpty src by placing all particles into dst, so we have only full
+	 * ppacks in the queue */
+	count += pwin_transfer(&src.enabled, &src, &dst, TRANSFER_ALL);
+
+	while(pwin_step(&src) == 0)
 	{
-		dbg("The queue is empty\n");
-		goto end;
+		/* TODO: This transference must be done with TRANSFER_RAW, but
+		 * first dst must have a full ppack */
+		count += pwin_transfer(&src.enabled, &src, &dst, TRANSFER_ALL);
 	}
 
-	plist_sanity_check(list);
-	plist_sanity_check(queue);
-
-	dbg("Injecting full ppacks first\n");
-	count = inject_full_ppacks(queue, list);
-
-	dbg("A total of %zd full ppacks were injected\n", count);
-
+	plist_close(list);
+	plist_close(queue);
 end:
 	assert(queue->b->n == 0);
-	dbg("Testing queue list=%p with b->n=%ld, npacks=%ld\n",
-			(void *) queue, queue->b->n, queue->b->npacks);
-	assert(queue->b->nfpacks * MAX_VEC <= queue->b->n);
-
 
 	plist_sanity_check(list);
 	plist_sanity_check(queue);
@@ -839,7 +579,6 @@ exchange_particles_x(sim_t *sim,
 	}
 
 }
-#endif
 
 static void
 plasma_collect_x(sim_t *sim, i64 *all_collected)
@@ -891,12 +630,12 @@ plasma_collect_x(sim_t *sim, i64 *all_collected)
 static int
 comm_plasma_x(sim_t *sim, int global_exchange)
 {
-	i64 ic, is, /*icp, icn,*/ nc;
+	i64 ic, is, icp, icn, nc;
 	i64 all_collected;
 	plasma_t *plasma;
 	pchunk_t *c;
 	pset_t *set;
-	//pchunk_t *cp, *cn;
+	pchunk_t *cp, *cn;
 
 	plasma = &sim->plasma;
 
@@ -912,7 +651,6 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 		dbg("Begin comm_plasma_x loop\n");
 		plasma_collect_x(sim, &all_collected);
 
-#if 0
 		for(ic = 0; ic < nc; ic++)
 		{
 			c = &plasma->chunks[ic];
@@ -930,7 +668,6 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 				pchunk_unlock(c);
 			}
 		}
-#endif
 
 		//#pragma oss taskwait in(all_collected)
 		#pragma oss taskwait
