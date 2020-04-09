@@ -79,6 +79,11 @@ and command line options here.
 <ul class="no-bullet">
   <li><a id="toc-Window-data-structure" href="#Window-data-structure">4.1 Window data structure</a></li>
   <li><a id="toc-Moving-particles-using-windows" href="#Moving-particles-using-windows">4.2 Moving particles using windows</a></li>
+  <li><a id="toc-Operations" href="#Operations">4.3 Operations</a></li>
+  <li><a id="toc-Particle-position-and-wrapping" href="#Particle-position-and-wrapping">4.4 Particle position and wrapping</a>
+  <ul class="no-bullet">
+    <li><a id="toc-Particle-wrapping" href="#Particle-wrapping">4.4.1 Particle wrapping</a></li>
+  </ul></li>
 </ul></li>
 
 </ul>
@@ -385,6 +390,59 @@ operation has a large computational cost compared with a parallel move
 and must be avoided. The current implementation addresses one particle
 at a time, but it may be more efficient to use a combination of partial
 parallel moves and shifts.
+</p>
+<span id="Operations"></span><h3 class="section">4.3 Operations</h3>
+
+<p>The plist needs to support the following operations:
+</p>
+<ul>
+<li> Creation of a new empty list.
+</li><li> Opening a list for modification only (the case of the A window)
+</li><li> Opening a list for elimination only (the B window)
+</li><li> Opening a list for append only (the case of the queues when
+collecting particles)
+</li></ul>
+
+<span id="Particle-position-and-wrapping"></span><h3 class="section">4.4 Particle position and wrapping</h3>
+
+<p>The simulation space is a 2 dimensional plane beginning in the zero coordinate
+and ending in L. At the initialization stage, each chunk contains a similar
+portion of particles from the simulation. Once the are assigned a position, it
+may exceed the chunk boundaries, so the simulation will first place all
+particles in the correct chunk, before starting the simulation.
+</p>
+<p>The <code>global_exchange</code> flag determines the scope of the particle
+communicacion process: if is true, particles are moved to the neighbour chunk N
+times, where N is the number of chunks in that dimension, to guarantee that all
+particles can reach the correct chunk.
+</p>
+<p>Otherwise, when is zero, only a local exchange is executed, and the particles
+only move to their immediate neighbour.
+</p>
+<span id="Particle-wrapping"></span><h4 class="subsection">4.4.1 Particle wrapping</h4>
+
+<p>In the initialization stage, the particle position r should not exceed the
+simulation space. Otherwise the position is first wrapped by using the periodic
+boundary properties. Then the new position is used to determine if they exceed
+any boundary of the chunk they reside. The particle is then moved chunk by chunk
+to the correct one.
+</p>
+<p>In the simulation stage, the particles can exceed the simulation space, as their
+position is updated. As we will only communicate with the immediate chunks, the
+position cannot be wrapped yet, until the correct direction to send the particle
+is determined.
+</p>
+<p>Particle positions are evaluated against the chunk boundaries x0 and x1. Let l
+be the chunk lenght, then in the simulation mode particle positions must always
+be kept in (x0-l, x1+l). Otherwise the particle would need to travel more than
+one chunk.
+</p>
+<p>Therefore, when a particle position r is updated and exceeds (0,L), it can only
+exceed it by up to l in both sides. If the wrapping is done before the particle
+is moved, the new position r&rsquo; will exceed the allowed range, and we won&rsquo;t be
+able to transfer the particle to the correct chunk in one step, as we will send
+the particle along the simulation space, instead of reaching the other end chunk
+by the periodic boundary.
 </p>
 <hr>
 

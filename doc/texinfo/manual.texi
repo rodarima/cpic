@@ -312,4 +312,57 @@ and must be avoided. The current implementation addresses one particle
 at a time, but it may be more efficient to use a combination of partial
 parallel moves and shifts.
 
+@section Operations
+
+The plist needs to support the following operations:
+
+@itemize
+@item Creation of a new empty list.
+@item Opening a list for modification only (the case of the A window)
+@item Opening a list for elimination only (the B window)
+@item Opening a list for append only (the case of the queues when
+collecting particles)
+@end itemize
+
+@section Particle position and wrapping
+
+The simulation space is a 2 dimensional plane beginning in the zero coordinate
+and ending in L. At the initialization stage, each chunk contains a similar
+portion of particles from the simulation. Once the are assigned a position, it
+may exceed the chunk boundaries, so the simulation will first place all
+particles in the correct chunk, before starting the simulation.
+
+The @code{global_exchange} flag determines the scope of the particle
+communicacion process: if is true, particles are moved to the neighbour chunk N
+times, where N is the number of chunks in that dimension, to guarantee that all
+particles can reach the correct chunk.
+
+Otherwise, when is zero, only a local exchange is executed, and the particles
+only move to their immediate neighbour.
+
+@subsection Particle wrapping
+
+In the initialization stage, the particle position r should not exceed the
+simulation space. Otherwise the position is first wrapped by using the periodic
+boundary properties. Then the new position is used to determine if they exceed
+any boundary of the chunk they reside. The particle is then moved chunk by chunk
+to the correct one.
+
+In the simulation stage, the particles can exceed the simulation space, as their
+position is updated. As we will only communicate with the immediate chunks, the
+position cannot be wrapped yet, until the correct direction to send the particle
+is determined.
+
+Particle positions are evaluated against the chunk boundaries x0 and x1. Let l
+be the chunk lenght, then in the simulation mode particle positions must always
+be kept in (x0-l, x1+l). Otherwise the particle would need to travel more than
+one chunk.
+
+Therefore, when a particle position r is updated and exceeds (0,L), it can only
+exceed it by up to l in both sides. If the wrapping is done before the particle
+is moved, the new position r' will exceed the allowed range, and we won't be
+able to transfer the particle to the correct chunk in one step, as we will send
+the particle along the simulation space, instead of reaching the other end chunk
+by the periodic boundary.
+
 @bye
