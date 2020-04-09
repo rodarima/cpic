@@ -41,15 +41,24 @@
 #define dbgr(...) do {						\
 	fprintf(stderr, __VA_ARGS__);				\
 } while(0)
+
+#define dbgl(level, ...) do {					\
+	int i;							\
+	for(i=0; i<level; i++)					\
+		fprintf(stderr, ". ");				\
+	fprintf(stderr, __VA_ARGS__);				\
+} while(0)
 #else /* DEBUG > 0 */
 #define dbg(...)  do {} while(0);
 #define dbgr(...) do {} while(0);
+#define dbgl(...) do {} while(0);
 #endif
 
 #else /* GLOBAL_DEBUG */
 
 #define dbg(...)  do {} while(0);
 #define dbgr(...) do {} while(0);
+#define dbgl(...) do {} while(0);
 
 #endif /* GLOBAL_DEBUG */
 

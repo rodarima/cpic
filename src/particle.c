@@ -121,7 +121,7 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 
 	for(b = l->b; b; b = b->next)
 	{
-		for(i=0; i < b->npacks; i++)
+		for(i=0; i < l->max_packs; i++)
 		{
 			//dbg("Initialization of ppack %ld\n", i);
 			p = &b->p[i];

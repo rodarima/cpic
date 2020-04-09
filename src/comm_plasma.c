@@ -82,13 +82,42 @@ typedef struct exchange
 	//i64 nmoved;
 } exchange_t;
 
+static void
+cotton_test(plist_t *l, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], i64 dim)
+{
+	i64 ip, iv;
+	pblock_t *b;
+	ppack_t *p;
+
+	for(b=l->b; b; b=b->next)
+	{
+		for(ip=0; ip<b->nfpacks; ip++)
+		{
+			p = &b->p[ip];
+			for(iv=0; iv<MAX_VEC; iv++)
+			{
+				assert(p->r[dim][iv] >= x0[dim][iv] &&
+						p->r[dim][iv] <= x1[dim][iv]);
+			}
+		}
+		for(ip=b->nfpacks; ip<b->npacks; ip++)
+		{
+			p = &b->p[ip];
+			for(iv=0; iv<(b->n % MAX_VEC); iv++)
+			{
+				assert(p->r[dim][iv] >= x0[dim][iv] &&
+						p->r[dim][iv] <= x1[dim][iv]);
+			}
+		}
+	}
+}
+
 /** Updates the mx0 and mx1 in the selection from the enabled particles in the
  * window. The masks mx0 and mx1 are set to 1 in those particles that exceed x0
  * and x1 respectively. */
 static void
-select_lost(pwin_t *w, psel_t *sel, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM])
+select_lost(pwin_t *w, psel_t *sel, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], i64 dim)
 {
-	i64 d;
 	ppack_t *p;
 
 	p = &w->b->p[w->ip];
@@ -107,23 +136,11 @@ select_lost(pwin_t *w, psel_t *sel, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM])
 	 * that no NaN exceptions are produced. It may be beneficial for the
 	 * gargabe particles to have the 0 value in the position, which could
 	 * speed up the comparison. */
-	sel->mx0 = vmsk_zero();
-	sel->mx1 = vmsk_zero();
 
-	for(d=X; d<MAX_DIM; d++)
-	{
-		/* FIXME: This is AVX2 specific, for AVX-512 the mask mx0 must
-		 * be used in the comparison, to avoid more tests on that
-		 * particle. We should change the logic to work in AND basis, so
-		 * we can already begin with mx0 and mx1 being enabled. */
-
-		/* We cannot use >= as the unused dimensions are 0, so the
-		 * particles will have a 0 as well */
-		sel->mx0 = vmsk_or(sel->mx0,
-				vf64_cmp(p->r[d], x0[d], _CMP_LT_OS));
-		sel->mx1 = vmsk_or(sel->mx1,
-				vf64_cmp(p->r[d], x1[d], _CMP_GT_OS));
-	}
+	/* We cannot use >= as the unused dimensions are 0, so the
+	 * particles will have a 0 as well */
+	sel->mx0 = vf64_cmp(p->r[dim], x0[dim], _CMP_LT_OS);
+	sel->mx1 = vf64_cmp(p->r[dim], x1[dim], _CMP_GT_OS);
 
 	/* Remove any disabled particle from the selection */
 	sel->mx0 = vmsk_and(sel->mx0, w->enabled);
@@ -133,8 +150,8 @@ select_lost(pwin_t *w, psel_t *sel, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM])
 	//sel->lost = vmsk_or(sel->mx0, sel->mx1);
 	//sel->good = vmsk_and(vmsk_not(sel->lost), w->enabled);
 
-	dbg("select_lost mx0 = %lx, mx1 = %lx\n",
-			vmsk_get(sel->mx0), vmsk_get(sel->mx1));
+	//dbg("select_lost mx0 = %lx, mx1 = %lx\n",
+	//		vmsk_get(sel->mx0), vmsk_get(sel->mx1));
 
 	/* A particle cannot exit from both sides */
 	assert(vmsk_iszero(vmsk_and(sel->mx0, sel->mx1)));
@@ -144,14 +161,14 @@ select_lost(pwin_t *w, psel_t *sel, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM])
 /** Removes the particles that are out of the chunk from w and places them into
  * the respective queues q0 and q1. */
 static i64
-clean_lost(pwin_t *w, pwin_t *q0, pwin_t *q1, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM])
+clean_lost(pwin_t *w, pwin_t *q0, pwin_t *q1, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM], i64 dim)
 {
 	i64 moved;
 	psel_t sel;
 
 	moved = 0;
 
-	select_lost(w, &sel, x0, x1);
+	select_lost(w, &sel, x0, x1, dim);
 
 	if(vmsk_isany(sel.mx0))
 		moved += pwin_transfer(&sel.mx0, w, q0, TRANSFER_ALL);
@@ -167,12 +184,12 @@ clean_lost(pwin_t *w, pwin_t *q0, pwin_t *q1, vf64 x0[MAX_DIM], vf64 x1[MAX_DIM]
 
 /** Produce holes in A by moving lost particles to the queues */
 static i64
-produce_holes_A(exchange_t *ex)
+produce_holes_A(exchange_t *ex, i64 dim)
 {
 	pwin_t *A, *B, *q0, *q1;
 	i64 moved;
 
-	dbg("--- produce_holes_A begins ---\n");
+	dbgl(6, "--- produce_holes_A begins ---\n");
 
 	moved = 0;
 	A = &ex->A;
@@ -180,22 +197,24 @@ produce_holes_A(exchange_t *ex)
 	q0 = &ex->q0;
 	q1 = &ex->q1;
 
-	dbg("A is at gip=%ld\n", A->gip);
+	//dbg("A is at ip=%ld gip=%ld b=%p\n", A->ip, A->gip, (void *) A->b);
 
 	/* The windows cannot overlap */
 	assert(!pwin_equal(A, B));
 
 	while(vmsk_isfull(A->enabled))
 	{
-		dbg("A: stepping window\n");
+		//dbg("A: stepping window\n");
 
 		/* Slide the window and continue the search */
 		if(pwin_step(A))
 		{
-			dbg("A: cannot step anymore, stop\n");
+			dbgl(6, "A: cannot step anymore, stop\n");
 			ex->stop = 1;
 			break;
 		}
+
+		//dbg("A is now at ip=%ld gip=%ld b=%p\n", A->ip, A->gip, (void *) A->b);
 
 		assert(!pwin_equal(A, B));
 
@@ -203,30 +222,30 @@ produce_holes_A(exchange_t *ex)
 		 * as we are always before B */
 		assert(vmsk_isfull(A->enabled));
 
-		dbg("A: cleaning new ppack at gip=%ld\n", A->gip);
+		//dbg("A: cleaning new ppack at gip=%ld\n", A->gip);
 
 		/* Remove any lost particles to the queues */
-		moved += clean_lost(A, q0, q1, ex->c->x0, ex->c->x1);
+		moved += clean_lost(A, q0, q1, ex->c->x0, ex->c->x1, dim);
 	}
 
-	dbg("A: enabled=%lx\n", vmsk_get(A->enabled));
+	//dbg("A: enabled=%lx\n", vmsk_get(A->enabled));
 
 	assert(!vmsk_isfull(A->enabled) || ex->stop);
 
-	dbg("A: %zd particles out\n", moved);
-	dbg("--- produce_holes_A ends ---\n");
+	dbgl(6, "A: %zd particles out\n", moved);
+	dbgl(6, "--- produce_holes_A ends ---\n");
 
 	return moved;
 }
 
 /** Produce extra particles in B. */
 static i64
-produce_extra_B(exchange_t *ex)
+produce_extra_B(exchange_t *ex, int dim)
 {
 	pwin_t *A, *B, *q0, *q1;
 	i64 moved;
 
-	dbg("--- produce_extra_B begins ---\n");
+	dbgl(6, "--- produce_extra_B begins ---\n");
 
 	moved = 0;
 	A = &ex->A;
@@ -234,43 +253,46 @@ produce_extra_B(exchange_t *ex)
 	q0 = &ex->q0;
 	q1 = &ex->q1;
 
-	dbg("B is at ip=%ld\n", B->ip);
+	dbgl(6, "B is at ip=%ld gip=%ld b=%p\n", B->ip, B->gip, (void *) B->b);
 
 	/* The windows must never overlap */
 	assert(!pwin_equal(A, B));
 
 	while(vmsk_iszero(B->enabled))
 	{
-		assert(!pwin_equal(A, B));
 
-		dbg("B: moving to the previous ppack\n");
+		dbgl(6, "B: moving to the previous ppack\n");
 
 		/* Otherwise slide the window and continue the search */
 		if(pwin_step(B))
 		{
-			dbg("B: cannot step anymore, stop\n");
+			dbgl(6, "B: cannot step anymore, stop\n");
 			ex->stop = 1;
 			break;
 		}
+
+		dbgl(6, "B is now at ip=%ld gip=%ld b=%p\n", B->ip, B->gip, (void *) B->b);
+
+		assert(!pwin_equal(A, B));
 
 		/* The enabled mask must be reset and complete with ones, as we
 		 * are moving backwards */
 		assert(vmsk_isfull(B->enabled));
 
-		dbg("B: cleaning ppack at ip=%ld\n", B->ip);
+		dbgl(6, "B: cleaning ppack at ip=%ld\n", B->ip);
 
 		/* Remove any lost particles to the queues */
-		moved += clean_lost(B, q0, q1, ex->c->x0, ex->c->x1);
+		moved += clean_lost(B, q0, q1, ex->c->x0, ex->c->x1, dim);
 	}
 
-	dbg("B: enabled=%lx\n", vmsk_get(B->enabled));
+	dbgl(6, "B: enabled=%lx\n", vmsk_get(B->enabled));
 
 	/* Postcondition: Either the B enabled mask contains some ones (good
 	 * particles) or we cannot continue, so stop is non-zero */
 	assert(!vmsk_iszero(B->enabled) || ex->stop);
 
-	dbg("B: %zd particles out\n", moved);
-	dbg("--- produce_extra_B ends ---\n");
+	dbgl(6, "B: %zd particles out\n", moved);
+	dbgl(6, "--- produce_extra_B ends ---\n");
 	return moved;
 }
 
@@ -283,7 +305,7 @@ fill_holes(exchange_t *ex)
 	pwin_t *A, *B;
 	i64 moved;
 
-	dbg("--- fill_holes begins ---\n");
+	dbgl(6, "--- fill_holes begins ---\n");
 
 	A = &ex->A;
 	B = &ex->B;
@@ -299,13 +321,13 @@ fill_holes(exchange_t *ex)
 		assert(vmsk_isfull(A->enabled) || vmsk_iszero(B->enabled));
 	}
 
-	dbg("%zd holes filled\n", moved);
-	dbg("--- fill_holes ends ---\n");
+	dbgl(6, "%zd holes filled\n", moved);
+	dbgl(6, "--- fill_holes ends ---\n");
 	return moved;
 }
 
 static void
-collect_loop(exchange_t *ex, i64 *out, i64 *in)
+collect_loop(exchange_t *ex, i64 *out, i64 *in, i64 dim)
 {
 	pwin_t *A, *B, *q0, *q1;
 
@@ -318,26 +340,28 @@ collect_loop(exchange_t *ex, i64 *out, i64 *in)
 	*out = 0;
 	*in = 0;
 
+	dbgl(5, "Begin collect_loop in dim=%c\n", CDIM(dim));
+
 	/* We need to clean B first, as it must always be analyzed for lost
 	 * particles before entering the produce_extra_B phase */
-	*out += clean_lost(B, q0, q1, ex->c->x0, ex->c->x1);
+	*out += clean_lost(B, q0, q1, ex->c->x0, ex->c->x1, dim);
 
 	/* If they are already pointing to the same pack, we are done */
 	if(pwin_equal(A, B))
 		return;
 
 	/* Same for A */
-	*out += clean_lost(A, q0, q1, ex->c->x0, ex->c->x1);
+	*out += clean_lost(A, q0, q1, ex->c->x0, ex->c->x1, dim);
 
 	ex->stop = 0;
 
 	while(1)
 	{
 		/* Search for extra particles in B */
-		*out += produce_extra_B(ex);
+		*out += produce_extra_B(ex, dim);
 
 		/* Search for holes in A */
-		*out += produce_holes_A(ex);
+		*out += produce_holes_A(ex, dim);
 
 		if(ex->stop)
 			break;
@@ -348,9 +372,9 @@ collect_loop(exchange_t *ex, i64 *out, i64 *in)
 }
 
 static i64
-pchunk_collect_x_pass(exchange_t *ex)
+pchunk_collect_pass(exchange_t *ex, i64 dim)
 {
-	i64 n0;
+//	i64 n0;
 	i64 moved_out, moved_in;
 	pset_t *set;
 	pwin_t *A, *B, *q0, *q1;
@@ -364,7 +388,7 @@ pchunk_collect_x_pass(exchange_t *ex)
 	moved_in = 0;
 
 	/* TODO: count all the particles in all the blocks */
-	n0 = set->list.b->n;
+//	n0 = set->list.b->n;
 
 	/* Open the lists and set the windows */
 	plist_open(&set->qx0, q0, OPEN_APPEND);
@@ -372,23 +396,24 @@ pchunk_collect_x_pass(exchange_t *ex)
 	plist_open(&set->list, B, OPEN_REMOVE); /* REMOVE must go first */
 	plist_open(&set->list, A, OPEN_MODIFY);
 
-	collect_loop(ex, &moved_out, &moved_in);
+	collect_loop(ex, &moved_out, &moved_in, dim);
 
 	/* Finally close all plists */
 	plist_close(&set->qx0);
 	plist_close(&set->qx1);
 	plist_close(&set->list);
 
-	dbg("-----------------------------------\n");
-	dbg("      collect pass x complete      \n");
-	dbg(" Total moved out %zd, moved in %zd\n",
-			moved_out, moved_in);
-	dbg(" qx0 n=%zd, qx1 n=%zd\n",
-			set->qx0.b->n,
-			set->qx1.b->n);
-	dbg("-----------------------------------\n");
+	dbgl(4, "-----------------------------------\n");
+	dbgl(4, "      collect pass x complete      \n");
+	dbgl(4, " Total moved out %zd, moved in %zd\n",
+	 		moved_out, moved_in);
+//	dbgl(4, " qx0 n=%zd, qx1 n=%zd\n",
+//			set->qx0.b->n,
+//			set->qx1.b->n);
+	dbgl(4, "-----------------------------------\n");
 
-	assert(n0 == set->list.b->n + moved_out);
+	/* TODO: We need to count all particles */
+	//assert(n0 == set->list.b->n + moved_out);
 
 	if(moved_out == 0)
 		assert(moved_in == 0);
@@ -399,13 +424,10 @@ pchunk_collect_x_pass(exchange_t *ex)
 }
 
 static i64
-pchunk_collect_x(pchunk_t *c, pset_t *set)
+pchunk_collect(pchunk_t *c, pset_t *set, i64 dim)
 {
 	exchange_t ex;
 	i64 collected;
-	i64 nq0, nq1;
-	i64 n0_l, n0_q0, n0_q1, n0;
-	i64 n1_l, n1_q0, n1_q1, n1;
 
 	memset(&ex, 0, sizeof(ex));
 	ex.c = c;
@@ -413,83 +435,21 @@ pchunk_collect_x(pchunk_t *c, pset_t *set)
 
 	plist_sanity_check(&set->list);
 
-	assert(set->qx0.nblocks == 1);
-	assert(set->qx1.nblocks == 1);
-	assert(set->list.nblocks == 1);
+	/* Ensure we don't have any particle left in the queues */
+	assert(plist_isempty(&set->qx0));
+	assert(plist_isempty(&set->qx1));
 
-	n0_l = set->list.b->n;
-	n0_q0 = set->qx0.b->n;
-	n0_q1 = set->qx1.b->n;
-	n0 = n0_l + n0_q0 + n0_q1;
-
-	dbg("Starting collect pass 1 with nl=%ld nq0=%ld nq1=%ld\n",
-			n0_l, n0_q0, n0_q1);
-
-
-	collected = pchunk_collect_x_pass(&ex);
-
-	assert(set->qx0.nblocks == 1);
-	assert(set->qx1.nblocks == 1);
-	assert(set->list.nblocks == 1);
-
-	n1_l = set->list.b->n;
-	n1_q0 = set->qx0.b->n;
-	n1_q1 = set->qx1.b->n;
-	n1 = n1_l + n1_q0 + n1_q1;
-
-	dbg("Finished collect pass 1\n");
-	dbg("Before: nl=%ld nq0=%ld nq1=%ld total=%ld\n",
-			n0_l, n0_q0, n0_q1, n0);
-	dbg("After:  nl=%ld nq0=%ld nq1=%ld total=%ld\n",
-			n1_l, n1_q0, n1_q1, n1);
-
-	/* No particles lost */
-	assert(n0 == n1);
+	collected = pchunk_collect_pass(&ex, dim);
 
 	/********* Second pass **********/
 
-	n0_l = set->list.b->n;
-	n0_q0 = set->qx0.b->n;
-	n0_q1 = set->qx1.b->n;
-	n0 = n0_l + n0_q0 + n0_q1;
+#ifndef NDEBUG
+	dbgl(3, "Beginning second collect_pass to look for lost particles (must be zero)\n");
+	assert(pchunk_collect_pass(&ex, dim) == 0);
+#endif
 
-	dbg("Starting collect pass 2 with nl=%ld nq0=%ld nq1=%ld\n",
-			n0_l, n0_q0, n0_q1);
-
-	assert(set->qx0.nblocks == 1);
-	nq0 = set->qx0.b->n;
-
-	assert(set->qx0.nblocks == 1);
-	nq0 = set->qx0.b->n;
-
-	assert(set->qx1.nblocks == 1);
-	nq1 = set->qx1.b->n;
-
-	assert(pchunk_collect_x_pass(&ex) == 0);
-
-	assert(set->qx0.nblocks == 1);
-	assert(set->qx1.nblocks == 1);
-	assert(set->list.nblocks == 1);
-
-	n1_l = set->list.b->n;
-	n1_q0 = set->qx0.b->n;
-	n1_q1 = set->qx1.b->n;
-	n1 = n1_l + n1_q0 + n1_q1;
-
-	dbg("Finished collect pass 2\n");
-	dbg("Before: nl=%ld nq0=%ld nq1=%ld total=%ld\n",
-			n0_l, n0_q0, n0_q1, n0);
-	dbg("After:  nl=%ld nq0=%ld nq1=%ld total=%ld\n",
-			n1_l, n1_q0, n1_q1, n1);
-
-	/* No particles lost */
-	assert(n0 == n1);
-
-	assert(set->qx0.b->nfpacks * MAX_VEC <= set->qx0.b->n);
-	assert(set->qx1.b->nfpacks * MAX_VEC <= set->qx1.b->n);
-
-	assert(set->qx0.b->n == nq0);
-	assert(set->qx1.b->n == nq1);
+	/* TODO: Ensure no particles were lost, by adding the queues and
+	 * remaining in the list and comparing with the total */
 
 	plist_sanity_check(&set->list);
 	plist_sanity_check(&set->qx0);
@@ -506,13 +466,13 @@ inject_particles(plist_t *queue, plist_t *list)
 	i64 count;
 	pwin_t src, dst;
 
-	dbg("--- inject_particles() begins ---\n");
+	dbgl(3, "--- inject_particles() begins ---\n");
 
 	count = 0;
 
 	if(queue->b->n == 0)
 	{
-		dbg("No particles in the queue to inject\n");
+		dbgl(3, "No particles in the queue to inject\n");
 		goto end;
 	}
 
@@ -538,7 +498,7 @@ end:
 	plist_sanity_check(list);
 	plist_sanity_check(queue);
 
-	dbg("--- inject_particles() ends ---\n");
+	dbgl(3, "--- inject_particles() ends ---\n");
 
 	return count;
 }
@@ -550,7 +510,7 @@ exchange_particles_x(sim_t *sim,
 	i64 is;
 	pset_t *from, *to;
 
-	dbg("Filling chunk %p\n", (void *) c);
+	dbgl(2, "Filling chunk %ld\n", c->i[X]);
 
 	/* Move particles from cp to c */
 	for(is=0; is < sim->nspecies; is++)
@@ -560,8 +520,9 @@ exchange_particles_x(sim_t *sim,
 
 		/* Use the particles that exceed the chunk in positive
 		 * direction, placed in qx1 */
-		dbg("Injecting particles into chunk=%p is=%zd from qx1\n",
+		dbgl(2, "Injecting particles into chunk=%p is=%zd from qx1\n",
 				(void *) c, is);
+
 		inject_particles(&from->qx1, &to->list);
 	}
 
@@ -573,15 +534,19 @@ exchange_particles_x(sim_t *sim,
 
 		/* Use the particles that exceed the chunk in negative
 		 * direction, placed in qx0 */
-		dbg("Injecting particles into chunk=%p is=%zd from qx0\n",
+		dbgl(2, "Injecting particles into chunk=%p is=%zd from qx0\n",
 				(void *) c, is);
+
 		inject_particles(&from->qx0, &to->list);
 	}
 
+	/* We cannot use the cotton_test after or before the injection as we may
+	 * be in the global exchange, so we must wait after all exchange phases
+	 * are completed */
 }
 
 static void
-plasma_collect_x(sim_t *sim, i64 *all_collected)
+plasma_collect(sim_t *sim, i64 *all_collected, i64 dim)
 {
 	i64 ic, is;
 	plasma_t *plasma;
@@ -602,9 +567,11 @@ plasma_collect_x(sim_t *sim, i64 *all_collected)
 			pchunk_lock(c, "pchunk_collect_x");
 			for(is = 0; is < sim->nspecies; is++)
 			{
+				dbgl(2, "Collecting particles in dim=%ld for chunk=%ld and set=%ld\n",
+						dim, ic, is);
 				set = &c->species[is];
 				collected[ic] +=
-					pchunk_collect_x(c, set);
+					pchunk_collect(c, set, dim);
 			}
 			pchunk_unlock(c);
 		}
@@ -623,6 +590,52 @@ plasma_collect_x(sim_t *sim, i64 *all_collected)
 	}
 }
 
+static inline void
+boundary_periodic_ppack(sim_t *sim, ppack_t *p)
+{
+	i64 iv, d;
+
+	for(d=X; d<MAX_DIM; d++)
+	{
+		/* TODO: Vectorize this loop */
+		for(iv=0; iv<MAX_VEC; iv++)
+		{
+			if(p->r[d][iv] >= sim->L[d])
+				p->r[d][iv] -= sim->L[d];
+			else if(p->r[d][iv] < 0.0)
+				p->r[d][iv] += sim->L[d];
+
+			/* Notice that we allow p->x to be equal to L, as when
+			 * the position is wrapped from x<0 but -1e-17 < x, the
+			 * wrap sets x equal to L, as with bigger numbers the
+			 * error increases, and the round off may set x to
+			 * exactly L */
+
+			assert(p->r[d][iv] <= sim->L[d]);
+			assert(p->r[d][iv] >= 0.0);
+		}
+	}
+}
+
+/** Wraps the position of the particles in the given plist */
+static void
+boundary_periodic_plist(sim_t *sim, plist_t *l)
+{
+	pblock_t *b;
+	ppack_t *p;
+	i64 i;
+
+	for(b = l->b; b; b = b->next)
+	{
+		/* FIXME: We are updating past n as well to fill MAX_VEC */
+		for(i=0; i < b->npacks; i++)
+		{
+			p = &b->p[i];
+			boundary_periodic_ppack(sim, p);
+		}
+	}
+}
+
 
 /** Move the plasma out of the chunks to the appropriate chunk in the X
  * dimension. The particles remain with the same position, only the
@@ -630,16 +643,15 @@ plasma_collect_x(sim_t *sim, i64 *all_collected)
 static int
 comm_plasma_x(sim_t *sim, int global_exchange)
 {
-	i64 ic, is, icp, icn, nc;
+	i64 ic, icp, icn, nc, is;
 	i64 all_collected;
 	plasma_t *plasma;
 	pchunk_t *c;
-	pset_t *set;
 	pchunk_t *cp, *cn;
 
 	plasma = &sim->plasma;
 
-	dbg("comm_plasma_x begins\n");
+	dbgl(1, "comm_plasma_x begins\n");
 
 	if(global_exchange)
 		err("EXPERIMENTAL: global_exchange = 1\n");
@@ -648,11 +660,15 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 
 	do
 	{
-		dbg("Begin comm_plasma_x loop\n");
-		plasma_collect_x(sim, &all_collected);
+		dbgl(1, "Begin comm_plasma_x loop\n");
+		plasma_collect(sim, &all_collected, X);
+
+		/* After collection of lost particles in the dim dimension, all
+		 * remaining particles must be inside the chunk */
 
 		for(ic = 0; ic < nc; ic++)
 		{
+			dbgl(1, "Exchange in x chunk=%ld\n", ic);
 			c = &plasma->chunks[ic];
 
 			icp = (c->ig[X] - 1 + nc) % nc;
@@ -674,27 +690,123 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 	}
 	while(global_exchange && all_collected);
 
+	/* Wrap particles only if we are in local exchange mode */
+	if(!global_exchange)
+		for(ic = 0; ic < nc; ic++)
+			for(is = 0; is < sim->nspecies; is++)
+				boundary_periodic_plist(sim,
+					&plasma->chunks[ic].species[is].list);
+
 #ifndef NDEBUG
-	/* Ensure we don't have any lost particle left */
-	for(ic = 0; ic < plasma->nchunks; ic++)
-	{
-		c = &plasma->chunks[ic];
-		pchunk_lock(c, "pchunk_collect_x check");
-		/* Find particles that must be exchanged in the X dimension */
-		for(is = 0; is < sim->nspecies; is++)
-		{
-			set = &c->species[is];
-			/* Ensure we don't have any particle left in the
-			 * queues */
-			assert(plist_isempty(&set->qx0));
-			assert(plist_isempty(&set->qx1));
-			assert(pchunk_collect_x(c, set) == 0);
-		}
-		pchunk_unlock(c);
-	}
+	/* Ensure the chunk doesn't contain any lost particle, after the
+	 * complete exchange process */
+	for(ic = 0; ic < nc; ic++)
+		for(is=0; is < sim->nspecies; is++)
+			cotton_test(&c->species[is].list, c->x0, c->x1, X);
 #endif
 
-	dbg("comm_plasma_x ends\n");
+#ifndef NDEBUG
+	/* Ensure we don't have any lost particle left after the exchange */
+	dbgl(1, "Collecting particles after exchange. Must be zero\n");
+	plasma_collect(sim, &all_collected, X);
+
+	assert(all_collected == 0);
+#endif
+
+	dbgl(1, "comm_plasma_x ends\n");
+
+	return 0;
+}
+
+static void
+send_particles_y(sim_t *sim, plist_t *l, int dst, i64 ic)
+{
+	pblock_t *b;
+	void *buf;
+	size_t size;
+	int tag;
+
+	assert(ic < COMM_TAG_CHUNK_MASK);
+
+	/* Encode the chunk index in X into the tag, so in the reception the
+	 * messages can be filtered to the correct chunk */
+	tag = compute_tag(COMM_TAG_OP_PARTICLES , sim->iter, ic,
+			COMM_TAG_CHUNK_SIZE);
+
+	for(b = l->b; b; b = b->next)
+	{
+		/* Send the whole pblock as-is */
+		buf = (void *) b;
+		size = sizeof(*b) + sizeof(ppack_t) * (size_t) b->npacks;
+
+		/* TAMPI_Send */
+		MPI_Send(buf, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD);
+	}
+
+}
+
+static void
+exchange_particles_y(sim_t *sim, pchunk_t *c)
+{
+	i64 is, pnext, pprev;
+	pset_t *set;
+
+	pnext = (sim->rank + 1) % sim->nprocs;
+	pprev = (sim->rank + sim->nprocs - 1) % sim->nprocs;
+
+	for(is=0; is < sim->nspecies; is++)
+	{
+		set = &c->species[is];
+		send_particles_y(sim, &set->qx0, pprev, c->i[X]);
+	}
+
+	for(is=0; is < sim->nspecies; is++)
+	{
+		set = &c->species[is];
+		send_particles_y(sim, &set->qx1, pnext, c->i[X]);
+	}
+}
+
+static int
+comm_plasma_y(sim_t *sim, int global_exchange)
+{
+	i64 ic, nc, iy, ny;
+	i64 all_collected;
+	plasma_t *plasma;
+	pchunk_t *c;
+
+	plasma = &sim->plasma;
+
+	dbgl(1, "comm_plasma_y begins\n");
+
+	nc = plasma->nchunks;
+
+	/* We need to repeat the communication exchange nprocs-1 times if we are
+	 * using global exchange, as particles may require to travel all the way
+	 * across the simulation space */
+	if(global_exchange)
+		ny = sim->nprocs - 1;
+	else
+		ny = 1;
+
+	for(iy=0; iy < ny; iy++)
+	{
+		plasma_collect(sim, &all_collected, Y);
+
+		for(ic = 0; ic < nc; ic++)
+		{
+			c = &plasma->chunks[ic];
+
+			#pragma oss task inout(*c)
+			{
+				pchunk_lock(c, "exchange_particles_y");
+				exchange_particles_y(sim, c);
+				pchunk_unlock(c);
+			}
+		}
+	}
+
+	dbgl(1, "comm_plasma_y ends\n");
 
 	return 0;
 }
@@ -707,9 +819,9 @@ comm_plasma(sim_t *sim, int global_exchange)
 
 	comm_plasma_x(sim, global_exchange);
 
-	dbg("- * - * - * - * - * - * - * - * - * - * - * - * - * - * -\n");
-	dbg("                 comm_plasma_x complete\n");
-	dbg("- * - * - * - * - * - * - * - * - * - * - * - * - * - * -\n");
+	dbgl(0, "- * - * - * - * - * - * - * - * - * - * - * - * - * - * -\n");
+	dbgl(0, "                 comm_plasma_x complete\n");
+	dbgl(0, "- * - * - * - * - * - * - * - * - * - * - * - * - * - * -\n");
 
 	/* No communication in Y needed with only one process */
 	if(sim->nprocs == 1) return 0;
@@ -717,7 +829,7 @@ comm_plasma(sim_t *sim, int global_exchange)
 	/* All particles are properly placed in the X dimension from here on,
 	 * and now they are displaced to the correct chunk in the Y direction */
 
-//	comm_plasma_y(sim, global_exchange);
+	comm_plasma_y(sim, global_exchange);
 
 	return 0;
 }

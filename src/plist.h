@@ -33,9 +33,13 @@ pwin_transfer(vmsk *sel, pwin_t *src, pwin_t *dst, int mode);
 static inline int
 pwin_equal(pwin_t *A, pwin_t *B)
 {
+	int ret;
 	/* Ensure we are comparing windows that point to the same list */
 	assert(A->l == B->l);
-	return (A->b == B->b) && (A->ip == B->ip);
+	ret = (A->b == B->b) && (A->ip == B->ip);
+	assert(!ret || A->gip == B->gip);
+
+	return ret;
 }
 
 int

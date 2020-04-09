@@ -129,36 +129,9 @@ err:
 	abort();
 }
 
-static inline void
-boundary_periodic_ppack(sim_t *sim, ppack_t *p)
-{
-	i64 iv, d;
-
-	for(d=X; d<MAX_DIM; d++)
-	{
-		/* TODO: Vectorize this loop */
-		for(iv=0; iv<MAX_VEC; iv++)
-		{
-			if(p->r[d][iv] >= sim->L[d])
-				p->r[d][iv] -= sim->L[d];
-			else if(p->r[d][iv] < 0.0)
-				p->r[d][iv] += sim->L[d];
-
-			/* Notice that we allow p->x to be equal to L, as when
-			 * the position is wrapped from x<0 but -1e-17 < x, the
-			 * wrap sets x equal to L, as with bigger numbers the
-			 * error increases, and the round off may set x to
-			 * exactly L */
-
-			assert(p->r[d][iv] <= sim->L[d]);
-			assert(p->r[d][iv] >= 0.0);
-		}
-	}
-}
-
 /** Update the position in of the particles stored in a plist. */
 static void
-plist_update_r(sim_t *sim, plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
+plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
 {
 	vf64 u[MAX_DIM];
 	pblock_t *b;
@@ -181,7 +154,10 @@ plist_update_r(sim_t *sim, plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
 
 			move(p, u, dt);
 
-			boundary_periodic_ppack(sim, p);
+			/* We cannot wrap the particles here as they need to be
+			 * moved first to the correct chunk using the
+			 * non-wrapped position */
+			//boundary_periodic_ppack(sim, p);
 		}
 	}
 }
@@ -204,7 +180,7 @@ chunk_update_r(sim_t *sim, int ic)
 	for(is=0; is<chunk->nspecies; is++)
 	{
 		dtqm2 = vf64_set1(sim->species[is].m);
-		plist_update_r(sim, &chunk->species[is].list, dt, dtqm2, umax);
+		plist_update_r(&chunk->species[is].list, dt, dtqm2, umax);
 	}
 }
 

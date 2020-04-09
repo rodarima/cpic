@@ -63,6 +63,13 @@ pblock_init(pblock_t *b, i64 n, i64 nmax)
 	offset = nmax * (i64) sizeof(double);
 	pblock_update_n(b, n);
 
+#ifdef USE_PPACK_MAGIC
+	i64 ip;
+
+	for(ip=0; ip < nmax/MAX_VEC; ip++)
+		b->p[ip].magic = vi64_set1(MAGIC_UNDEF);
+#endif
+
 	if(offset % VEC_ALIGN)
 	{
 		fprintf(stderr, "Offset is not aligned, please change nmax=%lu", nmax);
@@ -314,37 +321,41 @@ plist_sanity_check(plist_t *l)
 	pblock_t *b;
 	ppack_t *p;
 
-	/* Ensure we only have one pblock by now */
-	assert(l->b->next == NULL);
-	assert(l->nblocks == 1);
+	for(b = l->b; b; b = b->next)
+	{
+		/* Non-negative numbers */
+		assert(b->n >= 0);
+		assert(b->npacks >= 0);
+		assert(b->nfpacks >= 0);
 
-	b = l->b;
+		/* Ensure consistency in the number of particles and ppacks */
+		assert(b->nfpacks <= b->npacks);
+		assert(b->nfpacks+1 >= b->npacks);
+		assert(b->n <= b->npacks * MAX_VEC);
 
-	/* Non-negative numbers */
-	assert(b->n >= 0);
-	assert(b->npacks >= 0);
-	assert(b->nfpacks >= 0);
-
-	/* Ensure consistency in the number of particles and ppacks */
-	assert(b->nfpacks <= b->npacks);
-	assert(b->nfpacks+1 >= b->npacks);
-	assert(b->n <= b->npacks * MAX_VEC);
+		if(b->next)
+		{
+			assert(b->n == l->nmax);
+			assert(b->npacks == l->max_packs);
+		}
 
 #ifdef USE_PPACK_MAGIC
-	for(ip=0; ip < l->nmax / MAX_VEC; ip++)
-	{
-		p = &b->p[ip];
 
-		for(iv=0; iv<MAX_VEC; iv++)
+		for(ip=0; ip < l->nmax / MAX_VEC; ip++)
 		{
-			if(ip * MAX_VEC + iv < b->n)
-				assert(p->magic[iv] == MAGIC_PARTICLE);
-			else /* This may read garbage, don't worry
-				valgrind */
-				assert(p->magic[iv] != MAGIC_PARTICLE);
+			p = &b->p[ip];
+
+			for(iv=0; iv<MAX_VEC; iv++)
+			{
+				if(ip * MAX_VEC + iv < b->n)
+					assert(p->magic[iv] == MAGIC_PARTICLE);
+				else /* This may read garbage, don't worry
+					valgrind */
+					assert(p->magic[iv] != MAGIC_PARTICLE);
+			}
 		}
-	}
 #endif
+	}
 }
 
 /** Return the last block of the list */
@@ -370,6 +381,7 @@ pwin_print(pwin_t *w, const char *name)
 {
 	i64 iv;
 
+	UNUSED(w);
 	UNUSED(name);
 
 	dbg("%s: b=%p ip=%zd enabled=[", name, (void *) w->b, w->ip);
@@ -429,6 +441,34 @@ pwin_set_enabled(pwin_t *w)
 	assert(vmsk_get(w->enabled) == mask);
 }
 
+static void
+pwin_sanity_check(pwin_t *w)
+{
+#ifndef NDEBUG
+	pblock_t *b;
+	plist_t *l;
+	i64 nb;
+
+	assert(w->b);
+	assert(w->ip >= 0);
+	assert(w->gip >= 0);
+	assert(w->ip < w->l->max_packs);
+
+	l = w->l;
+	b = l->b;
+	nb = 0;
+	while(b != w->b)
+	{
+		assert(b->next);
+		b = b->next;
+		nb++;
+	}
+
+	/* Ensure the gip is consistent with ip and b */
+	assert(nb * l->max_packs + w->ip == w->gip);
+#endif
+}
+
 /** Sets the window to the first ppack */
 static void
 pwin_first(plist_t *l, pwin_t *w)
@@ -439,6 +479,8 @@ pwin_first(plist_t *l, pwin_t *w)
 	w->ip = 0;
 
 	w->gip = 0;
+
+	pwin_sanity_check(w);
 }
 
 /** Sets the window to the ppack that contains the last particle, no
@@ -452,9 +494,27 @@ pwin_last_particle(plist_t *l, pwin_t *w)
 	/* Postcondition: The window points to the last ppack with at least one
 	 * particle */
 
+	i64 fb;
 	assert(l->b);
 
 	w->b = plist_last_block(l);
+	fb = l->nblocks - 1;
+
+	/* It may happen the last block is empty, so we need to roll back one
+	 * block. It is ensured that it exists as we have at least one particle
+	 * */
+	if(w->b->n == 0)
+	{
+		w->b = w->b->prev;
+		fb--;
+
+		/* If the last block of the list is empty, we must ensure the
+		 * previous one is full, otherwise the list is not consistent. */
+		assert(w->b->n == w->l->nmax);
+	}
+
+	/* Ensure the block exists */
+	assert(w->b);
 
 	/* There should be at least one ppack */
 	assert(w->b->npacks > 0);
@@ -463,7 +523,15 @@ pwin_last_particle(plist_t *l, pwin_t *w)
 	 * non-empty ppack */
 	w->ip = w->b->npacks - 1;
 
-	w->gip = (l->nblocks - 1) * l->nmax + w->ip;
+	assert(fb >= 0);
+
+	/* We cannot use l->nblocks as the last one may be empty */
+	w->gip = fb * l->max_packs + w->ip;
+	assert(w->gip >= 0);
+
+	dbg("window gip=%ld fb=%ld ip=%ld\n", w->gip, fb, w->ip);
+
+	pwin_sanity_check(w);
 
 #ifdef USE_PPACK_MAGIC
 	/* Ensure the ppack has at least one particle */
@@ -483,10 +551,17 @@ pwin_last_hole(plist_t *l, pwin_t *w)
 
 	w->b = plist_last_block(l);
 
+	/* Ensure there is at least one hole in the block */
+	assert(w->b->n < w->l->nmax);
+
 	/* We may have zero particles, but is not a problem */
 	w->ip = w->b->nfpacks;
 
-	w->gip = (l->nblocks - 1) * l->nmax + w->ip;
+	assert(l->nblocks > 0);
+	w->gip = (l->nblocks - 1) * l->max_packs + w->ip;
+	assert(w->gip >= 0);
+
+	pwin_sanity_check(w);
 
 #ifdef USE_PPACK_MAGIC
 	/* Ensure the ppack has at least one hole */
@@ -523,8 +598,23 @@ pwin_set_position(plist_t *l, pwin_t *w)
 {
 	switch(w->mode)
 	{
-		case OPEN_APPEND: pwin_last_hole(l, w); break;
-		case OPEN_REMOVE: pwin_last_particle(l, w); break;
+		case OPEN_APPEND:
+			if(l->b->prev->n == l->nmax)
+			{
+				/* Grow the list by one block, so we can point
+				 * the window past the last full block. */
+				if(!plist_new_block(w->l, 0))
+				{
+					err("plist_new_block failed\n");
+					abort();
+				}
+			}
+			pwin_last_hole(l, w);
+			break;
+		case OPEN_REMOVE:
+				  if(l->b->n > 0) pwin_last_particle(l, w);
+				  else pwin_first(l, w);
+				  break;
 		case OPEN_MODIFY: pwin_first(l, w); break;
 		default: abort();
 	}
@@ -926,6 +1016,14 @@ plist_set_n(plist_t *l, i64 n)
 
 	b = l->b;
 
+	/* Special case for n = 0 */
+	if(n == 0)
+	{
+		pblock_update_n(b, 0);
+		assert(b->next == NULL);
+		return;
+	}
+
 	while(n > l->nmax)
 	{
 		/* We must have enough blocks to hold the n particles, otherwise
@@ -994,8 +1092,9 @@ plist_close_modify(plist_t *l)
 static void
 plist_close_remove(plist_t *l)
 {
+	pblock_t *b, *tmp;
 	pwin_t *end;
-	i64 count;
+	i64 count, n;
 
 	assert(l->w[OPEN_APPEND] == NULL);
 	assert(l->w[OPEN_REMOVE] != NULL);
@@ -1022,7 +1121,30 @@ plist_close_remove(plist_t *l)
 	count = pwin_count(end);
 
 	/* Set the correct number of particles in the plist */
-	plist_set_n(l, end->gip * MAX_VEC + count);
+	n = end->gip * MAX_VEC + count;
+
+	/* We may need to remove the extra blocks after the window */
+	b = l->b->prev;
+	while(b != end->b)
+	{
+		tmp = b->prev;
+		DL_DELETE(l->b, b);
+		free(b);
+		dbg("Removed block at %p\n", (void *) b);
+		b = tmp;
+	}
+
+	plist_set_n(l, n);
+
+	/* Adjust the number of blocks in the list */
+	l->nblocks = (n + l->nmax - 1) / l->nmax;
+
+	/* Always keep at least one block, even if we have no particles */
+	if(l->nblocks == 0)
+		l->nblocks++;
+
+	dbg("List nblocks set to %ld\n", l->nblocks);
+	plist_sanity_check(l);
 }
 
 static void
@@ -1089,7 +1211,7 @@ pwin_prev(pwin_t *w)
 	if(w->ip > 0)
 	{
 		w->ip--;
-		return;
+		goto end;
 	}
 
 	/* Ensure we have another block */
@@ -1102,6 +1224,9 @@ pwin_prev(pwin_t *w)
 	assert(w->b->npacks == w->l->max_packs);
 
 	w->ip = w->b->npacks - 1;
+
+end:
+	pwin_sanity_check(w);
 }
 
 static void
@@ -1117,13 +1242,16 @@ pwin_next(pwin_t *w)
 	if(w->ip < w->l->max_packs - 1)
 	{
 		w->ip++;
-		return;
+		goto end;
 	}
 
 	/* Otherwise move to the next block */
 	w->b = w->b->next;
 	/* The next block may not be full */
 	w->ip = 0;
+
+end:
+	pwin_sanity_check(w);
 }
 
 static int
@@ -1131,6 +1259,9 @@ pwin_step_append(pwin_t *w)
 {
 	/* Precondition: the ppack is full. */
 	/* Postcondition: the window points to an empty ppack */
+
+	pwin_sanity_check(w);
+	assert(w->ip < w->l->max_packs);
 
 #ifdef USE_PPACK_MAGIC
 	/* We can ensure it is full by looking at the magic field, in case we
@@ -1178,6 +1309,7 @@ end:
 	/* Ensure the new ppack is empty */
 	assert(ppack_isempty(&w->b->p[w->ip]));
 #endif
+	pwin_sanity_check(w);
 
 	return 0;
 }
@@ -1279,6 +1411,8 @@ pwin_step(pwin_t *w)
 				  break;
 		default: abort();
 	}
+
+	pwin_sanity_check(w);
 
 	return ret;
 }

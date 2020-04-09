@@ -14,6 +14,9 @@ enum dim {
 	Z = 2
 };
 
+/* Get the dimenssion name from the index */
+#define CDIM(d) ("XYZ"[d])
+
 struct mat;
 typedef struct mat mat_t;
 
