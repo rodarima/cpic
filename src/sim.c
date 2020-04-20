@@ -470,7 +470,7 @@ sim_step(sim_t *sim)
 		perf_start(&sim->timers[TIMER_ITERATION]);
 	}
 
-	fprintf(stderr, "iteration %ld/%ld\n", sim->iter, sim->cycles);
+	//fprintf(stderr, "iteration %ld/%ld\n", sim->iter, sim->cycles);
 
 	/* Phase CP:FS. Field solver, calculation of the electric field
 	 * from the current */

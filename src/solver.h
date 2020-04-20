@@ -23,7 +23,7 @@ struct solver
 	int method;
 
 	int dim;
-	int nx, ny;
+	i64 nx, ny;
 #ifdef WITH_LU
 	gsl_permutation *P;
 	gsl_matrix *LU;

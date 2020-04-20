@@ -467,6 +467,8 @@ write_vector(int fd, size_t offset, double *vector, size_t size, size_t alignmen
 
 	ret = 0;
 
+	UNUSED(alignment);
+
 	assert(IS_ALIGNED(offset, alignment));
 	assert(IS_ALIGNED(vector, alignment));
 	assert(IS_ALIGNED(size, alignment));

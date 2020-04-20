@@ -25,6 +25,9 @@ void
 plist_close(plist_t *l);
 
 i64
+plist_get_n(plist_t *l);
+
+i64
 pwin_transfer(vmsk *sel, pwin_t *src, pwin_t *dst, int mode);
 
 

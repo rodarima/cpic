@@ -304,9 +304,13 @@ stage_field_rho(sim_t *sim)
 		#pragma oss task commutative(*c0, *c1)
 		{
 			pchunk_lock(c0, "rho_update c0");
-			pchunk_lock(c1, "rho_update c1");
+			if(c0 != c1)
+				pchunk_lock(c1, "rho_update c1");
+
 			rho_update(sim, i);
-			pchunk_unlock(c1);
+
+			if(c0 != c1)
+				pchunk_unlock(c1);
 			pchunk_unlock(c0);
 		}
 	}

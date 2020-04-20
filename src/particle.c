@@ -111,6 +111,8 @@ init_randpos(sim_t *sim, pchunk_t *chunk, pset_t *set)
 	config_setting_t *cs_v;
 	i64 i, iv;
 
+	UNUSED(chunk);
+
 	l = &set->list;
 	assert(chunk);
 
@@ -252,6 +254,7 @@ stage_plasma_E(sim_t *sim)
 int
 particle_comm(sim_t *sim)
 {
+	UNUSED(sim);
 	assert(sim);
 	//return comm_plasma(sim, 0);
 	return 0;

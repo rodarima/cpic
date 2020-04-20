@@ -7,6 +7,7 @@
 #include <string.h>
 #include <assert.h>
 #include <libgen.h>
+#include <signal.h>
 
 #define DEBUG 1
 #define BLOCK_SIZE 10240
@@ -36,6 +37,16 @@ usage(char *progname)
 	return 1;
 }
 
+static void
+term_handler(int sig)
+{
+	UNUSED(sig);
+	// Restore the default SIGABRT disposition
+	signal(SIGABRT, SIG_DFL);
+	// Abort (dumps core)
+	abort();
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -45,6 +56,7 @@ main(int argc, char *argv[])
 	char *fn_dup;
 	int opt, prov;
 	int quiet = 0;
+	int debug_loop = 0;
 	int rank, nprocs;
 
 	perf_t timer;
@@ -97,28 +109,39 @@ main(int argc, char *argv[])
 		err("Using MPI with %d processors\n", nprocs);
 #endif
 	}
-	//if(!rank)
-	//{
-	//	printf("Attach to %d\n", getpid());
-	//	i = 1;
-	//	while(i)
-	//	{
-	//		printf("LOOPING\n");
-	//		while(i) j++;
-	//	}
-	//}
 
-	while((opt = getopt(argc, argv, "q")) != -1)
+
+	while((opt = getopt(argc, argv, "qd")) != -1)
 	{
 		switch(opt)
 		{
 			case 'q':
 				quiet = 1;
 				break;
+			case 'd':
+				debug_loop = 1;
+				break;
 			default:
 				return usage(argv[0]);
 		}
 	}
+
+	if(debug_loop)
+	{
+		volatile int i, j=0;
+		printf("Attach to %d\n", getpid());
+		i = 1;
+		while(i)
+		{
+			printf("LOOPING\n");
+			while(i) j++;
+		}
+	}
+
+	// Override the SIGTERM handler AFTER the call to MPI_Init
+	signal(SIGTERM, term_handler);
+
+	MPI_Barrier(MPI_COMM_WORLD);
 
 	if(optind != argc-1)
 		return usage(argv[0]);

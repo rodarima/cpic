@@ -192,13 +192,13 @@ MFT_init(sim_t *sim, solver_t *s)
 	nx = s->nx;
 	ny = s->ny;
 
-	dbg("MFT nx=%d, ny=%d\n", nx, ny);
+	dbg("MFT nx=%ld, ny=%ld\n", nx, ny);
 
 	shape[X] = nx/2+1;
 	/* Number of points per process in Y */
 	shape[Y] = sim->field.shape[Y];
 
-	dbg("MFT coefficients shape (%d %d)\n",
+	dbg("MFT coefficients shape (%ld %ld)\n",
 			shape[X], shape[Y]);
 
 	G = mat_alloc(s->dim, shape);
@@ -223,7 +223,7 @@ MFT_init(sim_t *sim, solver_t *s)
 	end[X] = start[X] + shape[X];
 	end[Y] = start[Y] + shape[Y];
 
-	dbg("Computing MFT coefficients for X [%d,%d) and Y [%d,%d)\n",
+	dbg("Computing MFT coefficients for X [%ld,%ld) and Y [%ld,%ld)\n",
 			start[X], end[X], start[Y], end[Y]);
 
 	for(dy=0, iy=start[Y]; iy<end[Y]; iy++, dy++)
@@ -372,6 +372,8 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	//double *tmp;
 	fftw_plan direct, inverse;
 
+	UNUSED(sim);
+
 	/* Solve Ax = b using MFT spectral method */
 
 	g = s->g;
@@ -388,7 +390,7 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 
 	rho_size = 2 * local_size;
 
-	dbg("Computed shape in Y is %ld, nx=%d ny=%d\n", local_n0, s->nx, s->ny);
+	dbg("Computed shape in Y is %ld, nx=%ld ny=%ld\n", local_n0, s->nx, s->ny);
 
 	assert(local_n0 == sim->blocksize[Y]);
 
@@ -400,8 +402,8 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	/* Beware: The output of the FFT has a very special symmetry, with an
 	 * output size of ny x nx/2+1. */
 
-	dbg("prev in=%p out=%p nx=%d ny=%d\n",
-			b->data, g, s->nx, s->ny);
+	dbg("prev in=%p out=%p nx=%ld ny=%ld\n",
+			(void *) b->data, (void *) g, s->nx, s->ny);
 	mat_print(b, "b");
 	mat_print(x, "x");
 
@@ -410,8 +412,8 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	//		tmp, g, MPI_COMM_WORLD,
 	//		FFTW_ESTIMATE);
 
-	dbg("direct in=%p out=%p nx=%d ny=%d\n",
-			b->data, g, s->nx, s->ny);
+	dbg("direct in=%p out=%p nx=%ld ny=%ld\n",
+			(void *) b->data, (void *) g, s->nx, s->ny);
 	assert(b->data);
 	direct = fftw_mpi_plan_dft_r2c_2d(s->ny, s->nx,
 			b->data, g, MPI_COMM_WORLD,
@@ -428,8 +430,8 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 
 	//cmat_print_raw(g, g->shape[X], g->shape[Y], "g after kernel");
 
-	dbg("inverse in=%p out=%p nx=%d ny=%d\n",
-			g, x->data, s->nx, s->ny);
+	dbg("inverse in=%p out=%p nx=%ld ny=%ld\n",
+			(void *) g, (void *) x->data, s->nx, s->ny);
 	inverse = fftw_mpi_plan_dft_c2r_2d(s->ny, s->nx,
 			g, x->data, MPI_COMM_WORLD,
 			FFTW_ESTIMATE);
@@ -555,6 +557,7 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 int
 solver_end(sim_t *sim, solver_t *solver)
 {
+	UNUSED(sim);
 	assert(sim);
 	if(solver->method == METHOD_MFT_TAP)
 	{

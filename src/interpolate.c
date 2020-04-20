@@ -108,6 +108,8 @@ interpolate_f2p(vi64 blocksize[2], vi64 ghostsize[2],
 	vi64 i0[2], i1[2];
 	i64 iv;
 
+	UNUSED(ghostsize);
+
 	weights(x, dx, idx, fx0, w, i0);
 
 	/* We only need to wrap the X direction, as we have the ghost in the Y
@@ -165,6 +167,8 @@ interpolate_p2f(pchunk_t *c,
 	vf64 w[2][2];
 	vi64 i0[2], i1[2];
 	i64 iv;
+
+	UNUSED(c);
 
 //	dbg("Interpolate ppack x[X]="VFMT" x[Y]="VFMT"\n",
 //			VARG(x[X]), VARG(x[Y]));

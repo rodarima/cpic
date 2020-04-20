@@ -100,7 +100,8 @@ endif
 #CFLAGS+=-fsanitize=address
 
 # For perf
-#CFLAGS+=-Og -ggdb -g3 -fno-omit-frame-pointer
+#CFLAGS+=-ggdb -g3
+CFLAGS+=-fno-omit-frame-pointer
 
 # Debug race conditions
 #CFLAGS+=-fsanitize=thread
@@ -109,7 +110,7 @@ endif
 #CFLAGS+=-march=x86-64 -mtune=generic
 
 # Stack protector
-#CFLAGS+=-fstack-protector-all
+CFLAGS+=-fstack-protector-all
 
 # Optimization
 #CFLAGS+=-O2

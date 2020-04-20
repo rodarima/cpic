@@ -35,35 +35,20 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 	set->info = specie;
 
 	plist_init(l, sim->pblock_nmax, "l");
-	plist_init(&set->qx0, sim->pblock_nmax, "qx0");
-	plist_init(&set->qx1, sim->pblock_nmax, "qx1");
+	plist_init(&set->q0[X], sim->pblock_nmax, "q0[X]");
+	plist_init(&set->q0[Y], sim->pblock_nmax, "q0[Y]");
+	plist_init(&set->q1[X], sim->pblock_nmax, "q1[X]");
+	plist_init(&set->q1[Y], sim->pblock_nmax, "q1[Y]");
+	plist_init(&set->r0, sim->pblock_nmax, "r0");
+	plist_init(&set->r1, sim->pblock_nmax, "r1");
 
 	/* Add one dummy block to the queues */
-	plist_grow(&set->qx0, 0);
-	plist_grow(&set->qx1, 0);
-
-
-#if 0 /* Communication part skipped by now */
-
-	set->out = safe_malloc(sizeof(particle_t *) * sim->nprocs);
-	set->outsize = safe_malloc(sizeof(int) * sim->nprocs);
-
-	for(j=0; j<sim->nprocs; j++)
-	{
-		set->out[j] = NULL;
-		set->outsize[j] = 0;
-	}
-
-	set->lout = safe_malloc(sizeof(particle_t *) * sim->plasma_chunks);
-	set->loutsize = safe_malloc(sizeof(int) * sim->plasma_chunks);
-
-	for(j=0; j<sim->plasma_chunks; j++)
-	{
-		set->lout[j] = NULL;
-		set->loutsize[j] = 0;
-	}
-#endif
-
+	plist_grow(&set->q0[X], 0);
+	plist_grow(&set->q0[Y], 0);
+	plist_grow(&set->q1[X], 0);
+	plist_grow(&set->q1[Y], 0);
+	plist_grow(&set->r0, 0);
+	plist_grow(&set->r1, 0);
 
 	step = sim->nprocs * sim->plasma_chunks;
 	ic = chunk->ig[X] * sim->nprocs + chunk->ig[Y];

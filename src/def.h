@@ -214,13 +214,16 @@ struct plist
 typedef struct pset
 {
 	/** We can reuse the info in multiple particle sets */
-	struct specie *info;
+	specie_t *info;
 
 	//int n;
-	struct plist list;
+	plist_t list;
 
-	/** Plasma to be exchanged with neigbour chunks in the X dimension */
-	struct plist qx0, qx1;
+	/** Plasma to be exchanged with neigbour chunks in the each dimension */
+	plist_t q0[MAX_DIM], q1[MAX_DIM];
+
+	/** Plasma queues for receiving particles in Y */
+	plist_t r0, r1;
 } pset_t;
 
 /** Plasma initialization method descriptor */

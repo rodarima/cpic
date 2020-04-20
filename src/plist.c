@@ -16,7 +16,7 @@
 #include <utlist.h>
 #include <unistd.h>
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 #define PLIST_ALIGN 2*1024*1024
@@ -96,6 +96,7 @@ ppack_sanity_check(vmsk enabled, ppack_t *p)
 #endif
 
 #ifdef USE_PPACK_MAGIC
+#ifndef NDEBUG
 static int
 ppack_isfull(ppack_t *p)
 {
@@ -127,6 +128,7 @@ ppack_isempty(ppack_t *p)
 
 	return 1;
 }
+#endif
 #endif
 
 static pblock_t *
@@ -444,6 +446,7 @@ pwin_set_enabled(pwin_t *w)
 static void
 pwin_sanity_check(pwin_t *w)
 {
+	UNUSED(w);
 #ifndef NDEBUG
 	pblock_t *b;
 	plist_t *l;
@@ -500,6 +503,9 @@ pwin_last_particle(plist_t *l, pwin_t *w)
 	w->b = plist_last_block(l);
 	fb = l->nblocks - 1;
 
+	dbg("Last block set to %p\n", (void *) w->b);
+	assert(w->b->n >= 0);
+
 	/* It may happen the last block is empty, so we need to roll back one
 	 * block. It is ensured that it exists as we have at least one particle
 	 * */
@@ -550,6 +556,8 @@ pwin_last_hole(plist_t *l, pwin_t *w)
 	assert(l->b);
 
 	w->b = plist_last_block(l);
+	dbg("Last block set to %p\n", (void *) w->b);
+	assert(w->b->n >= 0);
 
 	/* Ensure there is at least one hole in the block */
 	assert(w->b->n < w->l->nmax);
@@ -899,6 +907,7 @@ transfer_backward(vmsk *src_sel, pwin_t *src, pwin_t *dst)
 	return moved;
 }
 
+#ifndef NDEBUG
 static int
 ppack_is_compact(pwin_t *w)
 {
@@ -932,6 +941,7 @@ ppack_is_compact(pwin_t *w)
 
 	return vmsk_iszero(X);
 }
+#endif
 
 static i64
 pwin_count(pwin_t *w)
@@ -1043,6 +1053,26 @@ plist_set_n(plist_t *l, i64 n)
 	}
 }
 
+i64
+plist_get_n(plist_t *l)
+{
+	pblock_t *b;
+	i64 count;
+
+	/* We cannot count the particles if the list is still opened */
+	assert(l->opened == 0);
+
+	count = 0;
+	b = l->b;
+	while(b)
+	{
+		count += b->n;
+		b = b->next;
+	}
+
+	return count;
+}
+
 static pwin_t *
 remod_end(plist_t *l)
 {
@@ -1086,7 +1116,7 @@ plist_close_modify(plist_t *l)
 	w = l->w[OPEN_MODIFY];
 	l->w[OPEN_MODIFY] = NULL;
 
-	assert(vmsk_isfull(w->enabled));
+	/* We cannot guarantee the ppack is full */
 }
 
 static void
@@ -1133,6 +1163,7 @@ plist_close_remove(plist_t *l)
 		dbg("Removed block at %p\n", (void *) b);
 		b = tmp;
 	}
+	assert(b->next == NULL);
 
 	plist_set_n(l, n);
 
@@ -1359,7 +1390,8 @@ pwin_step_remove(pwin_t *w)
 static int
 pwin_step_modify(pwin_t *w)
 {
-	/* Precondition: the ppack is full. */
+	/* Precondition: the ppack is full or is the last one which may be
+	 * non-full. */
 
 	/* Postcondition:
 	 *  returns 0 and the window points to the next ppack, which may not be
@@ -1368,16 +1400,18 @@ pwin_step_modify(pwin_t *w)
 	 *  ppacks available.
 	 **/
 
-#ifdef USE_PPACK_MAGIC
-	assert(ppack_isfull(&w->b->p[w->ip]));
-#endif
-
 	/* Using the global index we fix the problem of stepping into the same
 	 * window when in REMOVE + MODIFY mode */
 
-	/* Abort the step if we are going to end up in the hi window */
+	/* Abort the step if we are going to end up in the hi window: we are at
+	 * the end */
 	if(w->gip + 1 >= *(w->hi))
 		return 1;
+
+
+#ifdef USE_PPACK_MAGIC
+	assert(ppack_isfull(&w->b->p[w->ip]));
+#endif
 
 	/* Otherwise we look for the next ppack */
 	pwin_next(w);

@@ -120,6 +120,14 @@ perf_stats(perf_t *p, double *mean, double *std, double *sem)
 	n = p->n;
 
 	*mean = m;
-	*std = sqrt(s / (n-1));
-	*sem = *std / sqrt(n);
+	if(n >= 2)
+	{
+		*std = sqrt(s / (n-1));
+		*sem = *std / sqrt(n);
+	}
+	else
+	{
+		*std = 0;
+		*sem = 0;
+	}
 }

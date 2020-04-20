@@ -14,6 +14,7 @@
 int
 specie_init(sim_t *sim, config_setting_t *cs, specie_t *s)
 {
+	UNUSED(sim);
 	assert(sim);
 	config_setting_lookup_string(cs, "name", &s->name);
 	config_setting_lookup_float(cs, "charge", &s->q);
