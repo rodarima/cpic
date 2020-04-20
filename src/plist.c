@@ -145,6 +145,8 @@ plist_new_block(plist_t *l, i64 n)
 //	if(rodrix_memalign((void **)&b, PLIST_ALIGN, l->blocksize) != 0)
 		return NULL;
 
+	/* Clear the padded buffer to avoid problems with valgrind */
+	memset(b->_pad, 0, sizeof(b->_pad));
 	pblock_init(b, n, l->nmax);
 
 	DL_APPEND(l->b, b);
