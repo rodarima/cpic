@@ -1598,6 +1598,8 @@ plist_clear(plist_t *l)
 	i64 ip;
 	pblock_t *b, *b0, *tmp;
 
+	assert(l->opened == 0);
+
 	b0 = l->b;
 	b = l->b->prev;
 	while(b && b != b0)
@@ -1612,6 +1614,7 @@ plist_clear(plist_t *l)
 	b0->n = 0;
 	b0->npacks = 0;
 	b0->nfpacks = 0;
+	l->nblocks = 1;
 
 #ifdef USE_PPACK_MAGIC
 	for(ip=0; ip<l->max_packs; ip++)

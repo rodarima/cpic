@@ -907,13 +907,13 @@ send_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 		size = sizeof(*b) + sizeof(ppack_t) * (size_t) b->npacks;
 
 		/* TAMPI_Send */
-		err("[%d] Sending %s block (%ld/?) from proc=%d from chunk ic=%ld\n",
+		dbg("[%d] Sending %s block (%ld/?) from proc=%d from chunk ic=%ld\n",
 				tag, l->name, nb, dst, ic);
 		MPI_Send(buf, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD);
-		err("[%d] Sending %s block (%ld/?) from proc=%d from chunk ic=%ld COMPLETED!\n",
+		dbg("[%d] Sending %s block (%ld/?) from proc=%d from chunk ic=%ld COMPLETED!\n",
 				tag, l->name, nb, dst, ic);
 	}
-	err("No more blocks to send to dst=%d chunk ic=%ld\n", dst, ic);
+	dbg("No more blocks to send to dst=%d chunk ic=%ld\n", dst, ic);
 
 }
 
@@ -952,10 +952,10 @@ recv_plist_y(sim_t *sim, plist_t *l, int src, i64 ic)
 		prev = b->prev;
 
 		/* TAMPI_Recv */
-		err("[%d] Receiving %s block (%ld/?) from proc=%d into chunk ic=%ld\n",
+		dbg("[%d] Receiving %s block (%ld/?) from proc=%d into chunk ic=%ld\n",
 				tag, l->name, nb, src, ic);
 		MPI_Recv(buf, size, MPI_BYTE, src, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		err("[%d] Receiving %s block (%ld/?) from proc=%d into chunk ic=%ld COMPLETED\n",
+		dbg("[%d] Receiving %s block (%ld/?) from proc=%d into chunk ic=%ld COMPLETED\n",
 				tag, l->name, nb, src, ic);
 
 		/* Stop allocating more blocks */
