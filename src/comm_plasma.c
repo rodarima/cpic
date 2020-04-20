@@ -8,7 +8,7 @@
 #include "utils.h"
 #include "plist.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 #undef EXTRA_CHECKS
@@ -911,7 +911,7 @@ send_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 static void
 recv_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 {
-	pblock_t *b;
+	pblock_t *b, *next, *prev;
 	void *buf;
 	size_t size;
 	int tag, more;
@@ -927,6 +927,7 @@ recv_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 	assert(b);
 	assert(b->next == NULL);
 	assert(b->prev == b);
+	assert(b->n == 0);
 
 	for(more = 1; more; b = b->next)
 	{
@@ -936,6 +937,9 @@ recv_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 		buf = (void *) b;
 		size = (size_t) l->blocksize;
 
+		next = b->next;
+		prev = b->prev;
+
 		/* TAMPI_Recv */
 		MPI_Recv(buf, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
@@ -943,8 +947,8 @@ recv_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 		if(!b->next) more = 0;
 
 		/* Fix the pointers in the block */
-		b->next = NULL;
-		b->prev = l->b->prev;
+		b->next = next;
+		b->prev = prev;
 
 		/* Allocate another block if needed */
 		if(more)
