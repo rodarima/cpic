@@ -1083,15 +1083,30 @@ remod_end(plist_t *l)
 
 	assert(m->gip < r->gip);
 
-	/* We may call close with the MODIFY window far from the REMOVE window,
+	/* ... A[pppp] ... B[????]
+	 *
+	 * We may call close with the MODIFY window far from the REMOVE window,
 	 * therefore it must be full */
-	if(m->gip + 1 != r->gip)
+	if(m->gip + 1 < r->gip)
 	{
 		assert(vmsk_isfull(m->enabled));
+
+		/* We cannot have an empty REMOVE window, as it must point to
+		 * the last particle stored. */
+		assert(!vmsk_iszero(r->enabled));
+
+		/* TODO: Handle this rare case better */
+		if(vmsk_iszero(r->enabled))
+			abort();
+
 		return r;
 	}
 
-	/* Otherwise, both windows are one after the other, and the MODIFY
+	assert(m->gip + 1 == r->gip);
+
+	/* ... A[????] B[????]
+	 *
+	 * Otherwise, both windows are one after the other, and the MODIFY
 	 * window may have a non-full ppack, while the REMOVE window is empty */
 	if(!vmsk_isfull(m->enabled))
 	{
@@ -1099,8 +1114,14 @@ remod_end(plist_t *l)
 		return m;
 	}
 
-	/* Finally, if the MODIFY window is full, the REMOVE window is the
-	 * current end */
+	/*
+	 * If the MODIFY is full, it may be the end if REMOVE is empty:
+	 * ... A[pppp] B[----] */
+	if(vmsk_iszero(r->enabled))
+		return m;
+
+	/* Otherwise the REMOVE window contains some particle as well:
+	 * ... A[pppp] B[pp--] */
 	return r;
 }
 
