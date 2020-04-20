@@ -17,32 +17,6 @@
 #include <TAMPI.h>
 #endif
 
-/** \page plasma-comm Plasma communication
- *
- * As particles move around they may move outside of their designated
- * \ref pchunk, which then will need to be moved to the correct pchunk.
- * Particles outside their chunk are called lost particles.
- *
- * The simulation guarantees that in one time-step the maximum distance
- * traveled by any particle is at most the chunk space. Then, a lost
- * particle can only be in the 8 neighbour chunks. This reduces the
- * communications between chunks.
- *
- * The communication of particles is done in two stages. First the lost
- * particles are translated in the X dimension in the \ref comm_plasma_x
- * step and then in the Y dimension in `comm_plasma_y`.
- *
- * \section plasma-comm-x Communication of plasma in the X dimension
- *
- * Lost particles are moved to their correct chunk in parallel. The
- * process involves two steps:
- *
- * - \ref local_collect_x : Collect particles into queues
- * - \ref exchange_particles_x : Place the collected particles into
- * the appropriate chunk.
- *
- * */
-
 /** A selection of particles */
 typedef struct psel
 {
@@ -850,7 +824,7 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 {
 	i64 count;
 
-	dbgl(1, "comm_plasma_x begins\n");
+	dbgl(1, "comm plasma x begins\n");
 
 	/* This loop is quite complex, regarding the exchange mode:
 	 *
@@ -869,13 +843,13 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 	{
 		do
 		{
-			dbgl(1, "comm_plasma_x loop begins\n");
+			dbgl(1, "comm plasma x loop begins\n");
 			count = collect_plasma(sim, X);
 
 			exchange_plasma_x(sim);
 
 			#pragma oss taskwait
-			dbgl(1, "comm_plasma_x loop ends\n");
+			dbgl(1, "comm plasma x loop ends\n");
 		}
 		while(count);
 
@@ -902,7 +876,7 @@ comm_plasma_x(sim_t *sim, int global_exchange)
 	dbgl(1, "Collecting particles after exchange. Must be zero\n");
 	assert(collect_plasma(sim, X) == 0);
 #endif
-	dbgl(1, "comm_plasma_x ends\n");
+	dbgl(1, "comm plasma x ends\n");
 
 	return 0;
 }
@@ -1093,24 +1067,29 @@ comm_plasma_y(sim_t *sim, int global_exchange)
 	plasma = &sim->plasma;
 	nc = plasma->nchunks;
 
-	dbgl(1, "comm_plasma_y begins\n");
+	dbgl(1, "comm plasma y begins\n");
 
 	/* We need to repeat the communication exchange nprocs-1 times if we are
 	 * using global exchange, as particles may require to travel all the way
 	 * across the simulation space */
 
-	if(global_exchange)
-		ny = sim->nprocs - 1;
-	else
-		ny = 1;
-
-	for(iy=0; iy < ny; iy++)
+	if(sim->nprocs > 1)
 	{
-		collect_plasma_fast(sim, Y);
-		exchange_plasma_y(sim);
+		if(global_exchange)
+			ny = sim->nprocs - 1;
+		else
+			ny = 1;
+
+		for(iy=0; iy < ny; iy++)
+		{
+			collect_plasma_fast(sim, Y);
+			exchange_plasma_y(sim);
+		}
 	}
 
-	dbgl(1, "comm_plasma_y ends\n");
+	periodic_boundary(sim, Y);
+
+	dbgl(1, "comm plasma y ends\n");
 
 	return 0;
 }
@@ -1124,11 +1103,8 @@ comm_plasma(sim_t *sim, int global_exchange)
 	comm_plasma_x(sim, global_exchange);
 
 	dbgl(0, "- * - * - * - * - * - * - * - * - * - * - * - * - * - * -\n");
-	dbgl(0, "                 comm_plasma_x complete\n");
+	dbgl(0, "                 comm plasma x complete\n");
 	dbgl(0, "- * - * - * - * - * - * - * - * - * - * - * - * - * - * -\n");
-
-	/* No communication in Y needed with only one process */
-	if(sim->nprocs == 1) return 0;
 
 	/* All particles are properly placed in the X dimension from here on,
 	 * and now they are displaced to the correct chunk in the Y direction */
