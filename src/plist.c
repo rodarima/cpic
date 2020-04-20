@@ -1588,3 +1588,35 @@ pwin_transfer(vmsk *sel, pwin_t *src, pwin_t *dst, int mode)
 
 	return count;
 }
+
+/** Given a plist with one or more blocks, removes all blocks but the firsts and
+ * deallocates their memory. Also sets the particles to zero, and updates the
+ * magic if neccesary */
+void
+plist_clear(plist_t *l)
+{
+	i64 ip;
+	pblock_t *b, *b0, *tmp;
+
+	b0 = l->b;
+	b = l->b->prev;
+	while(b && b != b0)
+	{
+		tmp = b->prev;
+		free(b);
+		b = tmp;
+	}
+
+	b0->next = NULL;
+	b0->prev = b0;
+	b0->n = 0;
+	b0->npacks = 0;
+	b0->nfpacks = 0;
+
+#ifdef USE_PPACK_MAGIC
+	for(ip=0; ip<l->max_packs; ip++)
+		b0->p[ip].magic = vi64_set1(MAGIC_GARBAGE);
+#endif
+
+	plist_sanity_check(l);
+}

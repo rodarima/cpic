@@ -50,3 +50,6 @@ pwin_step(pwin_t *w);
 
 void
 pwin_print(pwin_t *w, const char *name);
+
+void
+plist_clear(plist_t *l);

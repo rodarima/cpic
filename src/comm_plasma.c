@@ -456,13 +456,16 @@ inject_particles_y(sim_t *sim, pchunk_t *c)
 		dbgl(2, "Injecting particles into chunk=%ld is=%zd from r0 and r1\n",
 				c->i[X], is);
 
+		plist_sanity_check(&set->r0);
+		plist_sanity_check(&set->r1);
+
 		inject_particles(&set->r0, &set->list);
-		//inject_particles(&set->r1, &set->list);
+		inject_particles(&set->r1, &set->list);
 
 		/* We need the queues to preserve the first block even if we
 		 * have no particles */
-		assert(set->r0.b);
-		//assert(set->r1.b);
+		assert(set->r0.b && set->r0.b->n == 0);
+		assert(set->r1.b && set->r1.b->n == 0);
 	}
 
 	/* We cannot use the cotton_test after or before the injection as we may
@@ -888,6 +891,7 @@ send_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 	void *buf;
 	size_t size;
 	int tag;
+	i64 nb;
 
 	assert(ic < COMM_TAG_CHUNK_MASK);
 
@@ -896,23 +900,29 @@ send_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 	tag = compute_tag(COMM_TAG_OP_PARTICLES, sim->iter, ic,
 			COMM_TAG_CHUNK_SIZE);
 
-	for(b = l->b; b; b = b->next)
+	for(b = l->b, nb=0; b; b = b->next, nb++)
 	{
 		/* Send the whole pblock as-is */
 		buf = (void *) b;
 		size = sizeof(*b) + sizeof(ppack_t) * (size_t) b->npacks;
 
 		/* TAMPI_Send */
+		err("[%d] Sending %s block (%ld/?) from proc=%d from chunk ic=%ld\n",
+				tag, l->name, nb, dst, ic);
 		MPI_Send(buf, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD);
+		err("[%d] Sending %s block (%ld/?) from proc=%d from chunk ic=%ld COMPLETED!\n",
+				tag, l->name, nb, dst, ic);
 	}
+	err("No more blocks to send to dst=%d chunk ic=%ld\n", dst, ic);
 
 }
 
 static void
-recv_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
+recv_plist_y(sim_t *sim, plist_t *l, int src, i64 ic)
 {
 	pblock_t *b, *next, *prev;
 	void *buf;
+	i64 nb;
 	size_t size;
 	int tag, more;
 
@@ -923,6 +933,7 @@ recv_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 	tag = compute_tag(COMM_TAG_OP_PARTICLES, sim->iter, ic,
 			COMM_TAG_CHUNK_SIZE);
 
+	nb = 0;
 	b = l->b;
 	assert(b);
 	assert(b->next == NULL);
@@ -941,10 +952,16 @@ recv_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 		prev = b->prev;
 
 		/* TAMPI_Recv */
-		MPI_Recv(buf, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		err("[%d] Receiving %s block (%ld/?) from proc=%d into chunk ic=%ld\n",
+				tag, l->name, nb, src, ic);
+		MPI_Recv(buf, size, MPI_BYTE, src, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		err("[%d] Receiving %s block (%ld/?) from proc=%d into chunk ic=%ld COMPLETED\n",
+				tag, l->name, nb, src, ic);
 
 		/* Stop allocating more blocks */
 		if(!b->next) more = 0;
+
+		nb++;
 
 		/* Fix the pointers in the block */
 		b->next = next;
@@ -959,6 +976,7 @@ recv_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 		}
 	}
 
+	plist_sanity_check(l);
 }
 
 static void
@@ -977,15 +995,15 @@ send_pchunk_y(sim_t *sim, pchunk_t *c)
 	{
 		set = &c->species[is];
 		send_plist_y(sim, &set->q0[Y], pprev, c->i[X]);
+		plist_clear(&set->q0[Y]);
 	}
 
-	/*
 	for(is=0; is < sim->nspecies; is++)
 	{
 		set = &c->species[is];
 		send_plist_y(sim, &set->q1[Y], pnext, c->i[X]);
+		plist_clear(&set->q1[Y]);
 	}
-	*/
 }
 
 static void
@@ -997,22 +1015,17 @@ recv_pchunk_y(sim_t *sim, pchunk_t *c)
 	pnext = (sim->rank + 1) % sim->nprocs;
 	pprev = (sim->rank - 1 + sim->nprocs) % sim->nprocs;
 
-	/* FIXME: We need to filter the direction in the tag, or we are going to
-	 * mix the two neighbour messages */
-
 	for(is=0; is < sim->nspecies; is++)
 	{
 		set = &c->species[is];
 		recv_plist_y(sim, &set->r0, pprev, c->i[X]);
 	}
 
-	/*
 	for(is=0; is < sim->nspecies; is++)
 	{
 		set = &c->species[is];
 		recv_plist_y(sim, &set->r1, pnext, c->i[X]);
 	}
-	*/
 }
 
 static void
@@ -1029,7 +1042,7 @@ exchange_plasma_y(sim_t *sim)
 	{
 		c = &plasma->chunks[ic];
 
-		#pragma oss task in(*c)
+		#pragma oss task concurrent(*c)
 		{
 			//pchunk_lock(c, "send and recv pchunk_y");
 			send_pchunk_y(sim, c);
@@ -1041,7 +1054,7 @@ exchange_plasma_y(sim_t *sim)
 	{
 		c  = &plasma->chunks[ic];
 
-		#pragma oss task in(*c)
+		#pragma oss task concurrent(*c)
 		{
 			//pchunk_lock(c, "recv_pchunk_y");
 			recv_pchunk_y(sim, c);
