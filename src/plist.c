@@ -679,7 +679,7 @@ pwin_set_endpoints(plist_t *l, pwin_t *w)
 			/* Only the gip is required. We may be pointing outside
 			 * the allocated block, but is okay, as we never reach
 			 * this ppack */
-			w->shi = (l->nblocks - 1) * l->nmax + l->b->prev->npacks;
+			w->shi = (l->nblocks - 1) * l->max_packs + l->b->prev->npacks;
 
 			/* Use the local hi storage instead, so we set here the
 			 * static end. This is only used in MODIFY mode */
