@@ -17,6 +17,7 @@ MPICC=mpicc
 #CC=OMPI_CC=mcc $(MPICC) --ompss-2 --line-markers
 
 CC=clang
+CXX=clang++
 CPP=clang
 
 #CC=gcc

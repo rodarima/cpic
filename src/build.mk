@@ -37,8 +37,9 @@ src_ldlibs:=
 ifeq ($(USE_TAMPI), 1)
 # Add TAMPI BEFORE MPI
 TAMPI_HOME?=/usr
-src_ldlibs=-ltampi-c
-#src_ldlibs=$(TAMPI_HOME)/lib/libtampi.a
+#src_ldlibs=-ltampi-c
+src_ldlibs=$(TAMPI_HOME)/lib/libtampi-c.a
+src_ldlibs+=-lmpi_cxx
 endif
 
 src_cflags+=$(shell mpicc --showme:compile)
@@ -92,7 +93,7 @@ MCC_CFLAGS+=--v
 #	mcxx --ompss-2 --line-markers $(MCC_CFLAGS) $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
 cpic: $(obj_cpic)
-	$(CC) $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
+	$(CXX) $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
 #mcxx --ld=clang++ --ompss-2 --line-markers $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 

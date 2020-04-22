@@ -33,7 +33,7 @@ struct solver
 	/** For MFT */
 	mat_t *G;
 	fftw_complex *g;
-	fftw_plan plan;
+	fftw_plan direct, inverse;
 
 	/** Custom data for the specific solver */
 	void *data;

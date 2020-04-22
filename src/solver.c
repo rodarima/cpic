@@ -290,26 +290,29 @@ MFT_init(sim_t *sim, solver_t *s)
 static void
 MFT_kernel(solver_t *s)
 {
-	int ix, iy, ii;
+	int ix, iy;
 	mat_t *G;
 	fftw_complex *g;
-	double *Gd;
+	//double *Gd;
 
 	g = s->g;
 	G = s->G;
-	Gd = G->data;
+	//Gd = G->data;
 
-	ii = 0;
+	//ii = 0;
+
 	for(iy=0; iy<G->shape[Y]; iy++)
 	{
+//#pragma oss task
 		for(ix=0; ix<G->shape[X]; ix++)
 		{
 			/* Half of the coefficients are not needed */
-			g[ii] *= Gd[ii];
-
-			ii++;
+			g[iy * G->shape[X] + ix] *= MAT_XY(G, ix, iy);
+			//g[ii] *= Gd[ii];
+			//ii++;
 		}
 	}
+//#pragma oss taskwait
 }
 
 static void
@@ -319,11 +322,13 @@ MFT_normalize(mat_t *x, int N)
 
 	for(iy=0; iy<x->shape[Y]; iy++)
 	{
+//#pragma oss task
 		for(ix=0; ix<x->shape[X]; ix++)
 		{
 			MAT_XY(x, ix, iy) /= N;
 		}
 	}
+//#pragma oss taskwait
 }
 
 i64
@@ -385,9 +390,7 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 {
 	fftw_complex *g;
 	//double *tmp;
-	fftw_plan direct, inverse;
-	perf_t comp, total;
-	double tc, tt;
+	perf_t comp, total, fft;
 
 	UNUSED(sim);
 
@@ -395,6 +398,7 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 
 	perf_init(&total);
 	perf_init(&comp);
+	perf_init(&fft);
 
 	perf_start(&total);
 
@@ -429,53 +433,58 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	mat_print(b, "b");
 	mat_print(x, "x");
 
-	/* TODO: We can do the fft inplace, and save storage here */
-	//direct = fftw_mpi_plan_dft_r2c_2d(s->ny, s->nx,
-	//		tmp, g, MPI_COMM_WORLD,
-	//		FFTW_ESTIMATE);
+	if(sim->iter == -1 || sim->fftw_recompute_plan)
+	{
 
-	dbg("direct in=%p out=%p nx=%ld ny=%ld\n",
-			(void *) b->data, (void *) g, s->nx, s->ny);
-	assert(b->data);
-	direct = fftw_mpi_plan_dft_r2c_2d(s->ny, s->nx,
-			b->data, g, MPI_COMM_WORLD,
-			FFTW_ESTIMATE);
+		dbg("direct in=%p out=%p nx=%ld ny=%ld\n",
+				(void *) b->data, (void *) g, s->nx, s->ny);
+		assert(b->data);
+		s->direct = fftw_mpi_plan_dft_r2c_2d(s->ny, s->nx,
+				b->data, g, MPI_COMM_WORLD,
+				FFTW_ESTIMATE); //FFTW_MEASURE
 
-	if(!direct)
-		die("Creation of plan failed\n");
+		if(!s->direct) die("Creation of plan failed\n");
 
-	dbg("inverse in=%p out=%p nx=%ld ny=%ld\n",
-			(void *) g, (void *) x->data, s->nx, s->ny);
-	inverse = fftw_mpi_plan_dft_c2r_2d(s->ny, s->nx,
-			g, x->data, MPI_COMM_WORLD,
-			FFTW_ESTIMATE);
+		dbg("inverse in=%p out=%p nx=%ld ny=%ld\n",
+				(void *) g, (void *) x->data, s->nx, s->ny);
+		s->inverse = fftw_mpi_plan_dft_c2r_2d(s->ny, s->nx,
+				g, x->data, MPI_COMM_WORLD,
+				FFTW_ESTIMATE);
 
-	if(!inverse)
-		die("Creation of plan failed\n");
+		if(!s->inverse) die("Creation of plan failed\n");
 
+	}
 
+	/* Begin computation */
 	perf_start(&comp);
 
-	fftw_execute(direct);
-	//cmat_print_raw(g, g->shape[X], g->shape[Y], "g before kernel");
+	perf_start(&fft);
+	fftw_execute(s->direct);
+	perf_stop(&fft);
+
 	MFT_kernel(s);
-	//cmat_print_raw(g, g->shape[X], g->shape[Y], "g after kernel");
-	fftw_execute(inverse);
+
+	perf_start(&fft);
+	fftw_execute(s->inverse);
+	perf_stop(&fft);
+
 	MFT_normalize(x, s->nx * s->ny);
-	mat_print(x, "x after MFT");
 
 	perf_stop(&comp);
+	/* Stop computation */
 
-	fftw_destroy_plan(direct);
-	fftw_destroy_plan(inverse);
+	/* TODO: Destroy the plans at the end */
+	//fftw_destroy_plan(s->direct);
+	//fftw_destroy_plan(s->inverse);
 	perf_stop(&total);
 
+//#if DEBUG
 	if(sim->rank == 0)
-	{
-		tc = perf_measure(&comp);
-		tt = perf_measure(&total);
-		err("Solver comp/total: %e/%e = %e\n", tc, tt, tc/tt);
-	}
+		err("Solver fft/comp/total: %e / %e / %e\n",
+				perf_measure(&fft),
+				perf_measure(&comp),
+				perf_measure(&total));
+//#endif
 
 	return 0;
 }

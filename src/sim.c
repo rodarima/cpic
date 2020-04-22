@@ -57,6 +57,7 @@ sim_read_config(sim_t *s)
 	config_lookup_int(conf, "simulation.realtime_plot", &s->mode);
 	config_lookup_string(conf, "simulation.solver", &s->solver_method);
 	config_lookup_i64(conf, "simulation.enable_fftw_threads", &s->fftw_threads);
+	config_lookup_i64(conf, "simulation.fftw_recompute_plan", &s->fftw_recompute_plan);
 	config_lookup_i64(conf, "simulation.plasma_chunks", &s->plasma_chunks);
 	config_lookup_i64(conf, "simulation.pblock_nmax", &s->pblock_nmax);
 
@@ -192,11 +193,17 @@ sim_pre_step(sim_t *sim)
 {
 	err("begin sim_pre_step\n");
 
+	assert(sim->iter == -1);
+
 	/* Move particles to the correct block */
 	particle_comm_initial(sim);
 
 	/* Initial computation of rho */
 	stage_field_rho(sim);
+
+	/* Dummy E computation with sim->iter < 0 will create the plans for the
+	 * FFT with the MFT solver */
+	stage_field_E(sim);
 
 	#pragma oss taskwait
 
@@ -286,6 +293,8 @@ sim_init(config_t *conf, int quiet)
 	s->t = s->iter * s->dt;
 
 	printf("Simulation prepared\n");
+
+	assert(s->iter == 0);
 
 	return s;
 }
@@ -460,6 +469,8 @@ sampling_complete(sim_t *sim)
 int
 sim_step(sim_t *sim)
 {
+	assert(sim->iter >= 0);
+
 	if(sim->iter >= sim->cycles)
 		return -1;
 
@@ -476,7 +487,9 @@ sim_step(sim_t *sim)
 	 * from the current */
 
 	/* Line 6: Update E on the grid from rho */
+	#pragma oss taskwait
 	stage_field_E(sim);
+	#pragma oss taskwait
 
 	//#pragma oss task in(sim->plasma.chunks[sim->plasma.nchunks]) label(output_fields)
 #if 0
