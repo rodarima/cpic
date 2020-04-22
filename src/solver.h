@@ -15,6 +15,7 @@ enum solver_method {
 	METHOD_LU=1,
 	METHOD_MFT,
 	METHOD_MFT_TAP,
+	METHOD_NONE,
 };
 
 /** Contains the state of the solver and auxiliary data */

@@ -6,6 +6,7 @@
 
 #include "solver.h"
 #include "utils.h"
+#include "perf.h"
 #include <stdio.h>
 #include <math.h>
 #ifdef WITH_LU
@@ -165,6 +166,20 @@ LU_solve(solver_t *s, mat_t *phi, mat_t *rho)
 	return 0;
 }
 #endif /* WITH_LU */
+
+/** Invalid solver which just fills phi with a constant */
+static int
+NONE_solve(mat_t *phi)
+{
+	i64 ix, iy;
+	double c = 0.1;
+
+	for(iy=0; iy < phi->shape[Y]; iy++)
+		for(ix=0; ix < phi->shape[X]; ix++)
+			MAT_XY(phi, ix, iy) = c;
+
+	return 0;
+}
 
 static int
 MFT_init(sim_t *sim, solver_t *s)
@@ -371,10 +386,17 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	fftw_complex *g;
 	//double *tmp;
 	fftw_plan direct, inverse;
+	perf_t comp, total;
+	double tc, tt;
 
 	UNUSED(sim);
 
 	/* Solve Ax = b using MFT spectral method */
+
+	perf_init(&total);
+	perf_init(&comp);
+
+	perf_start(&total);
 
 	g = s->g;
 	assert(g);
@@ -422,14 +444,6 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	if(!direct)
 		die("Creation of plan failed\n");
 
-	fftw_execute(direct);
-
-	//cmat_print_raw(g, g->shape[X], g->shape[Y], "g before kernel");
-
-	MFT_kernel(s);
-
-	//cmat_print_raw(g, g->shape[X], g->shape[Y], "g after kernel");
-
 	dbg("inverse in=%p out=%p nx=%ld ny=%ld\n",
 			(void *) g, (void *) x->data, s->nx, s->ny);
 	inverse = fftw_mpi_plan_dft_c2r_2d(s->ny, s->nx,
@@ -439,14 +453,29 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	if(!inverse)
 		die("Creation of plan failed\n");
 
+
+	perf_start(&comp);
+
+	fftw_execute(direct);
+	//cmat_print_raw(g, g->shape[X], g->shape[Y], "g before kernel");
+	MFT_kernel(s);
+	//cmat_print_raw(g, g->shape[X], g->shape[Y], "g after kernel");
 	fftw_execute(inverse);
-
 	MFT_normalize(x, s->nx * s->ny);
-
 	mat_print(x, "x after MFT");
+
+	perf_stop(&comp);
 
 	fftw_destroy_plan(direct);
 	fftw_destroy_plan(inverse);
+	perf_stop(&total);
+
+	if(sim->rank == 0)
+	{
+		tc = perf_measure(&comp);
+		tt = perf_measure(&total);
+		err("Solver comp/total: %e/%e = %e\n", tc, tt, tc/tt);
+	}
 
 	return 0;
 }
@@ -472,6 +501,10 @@ solver_init_2d(solver_t *solver, sim_t *sim)
 			break;
 		case METHOD_MFT_TAP:
 			ret = MFT_TAP_init(sim, solver);
+			break;
+		case METHOD_NONE:
+			/* No initialization needed */
+			ret = 0;
 			break;
 		default:
 			abort();
@@ -506,11 +539,16 @@ solver_init(sim_t *sim)
 		solver->method = METHOD_MFT;
 	else if(strcmp(sim->solver_method, "MFT_TAP") == 0)
 		solver->method = METHOD_MFT_TAP;
+	else if(strcmp(sim->solver_method, "NONE") == 0)
+		solver->method = METHOD_NONE;
 	else
 	{
 		err("Unknown solver method \"%s\"\n", sim->solver_method);
 		return NULL;
 	}
+
+	if(solver->method == METHOD_NONE)
+		err("WARNING: Not using any solver leads to non-valid results\n");
 
 	switch(sim->dim)
 	{
@@ -545,6 +583,8 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 			return MFT_solve(sim, s, phi, rho);
 		case METHOD_MFT_TAP:
 			return MFT_TAP_solve(s);
+		case METHOD_NONE:
+			return NONE_solve(phi);
 		default:
 			return -1;
 	}
