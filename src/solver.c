@@ -307,8 +307,7 @@ MFT_kernel(solver_t *s)
 		for(ix=0; ix<G->shape[X]; ix++)
 		{
 			/* Half of the coefficients are not needed */
-			/* g is transposed */
-			g[ix * G->shape[Y] + iy] *= MAT_XY(G, ix, iy);
+			g[iy * G->shape[X] + ix] *= MAT_XY(G, ix, iy);
 			//g[ii] *= Gd[ii];
 			//ii++;
 		}
@@ -442,7 +441,7 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 		assert(b->data);
 		s->direct = fftw_mpi_plan_dft_r2c_2d(s->ny, s->nx,
 				b->data, g, MPI_COMM_WORLD,
-				FFTW_ESTIMATE | FFTW_MPI_TRANSPOSED_OUT); //FFTW_MEASURE
+				FFTW_ESTIMATE); //FFTW_MEASURE
 
 		if(!s->direct) die("Creation of plan failed\n");
 
@@ -450,7 +449,7 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 				(void *) g, (void *) x->data, s->nx, s->ny);
 		s->inverse = fftw_mpi_plan_dft_c2r_2d(s->ny, s->nx,
 				g, x->data, MPI_COMM_WORLD,
-				FFTW_ESTIMATE | FFTW_MPI_TRANSPOSED_IN);
+				FFTW_ESTIMATE);
 
 		if(!s->inverse) die("Creation of plan failed\n");
 
@@ -463,19 +462,13 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	fftw_execute(s->direct);
 	perf_stop(&fft);
 
-	cmat_print_raw(g, s->G->shape[Y], s->G->shape[X], "g before kernel");
-
 	MFT_kernel(s);
-
-	cmat_print_raw(g, s->G->shape[Y], s->G->shape[X], "g after kernel");
 
 	perf_start(&fft);
 	fftw_execute(s->inverse);
 	perf_stop(&fft);
 
 	MFT_normalize(x, s->nx * s->ny);
-	mat_print(x, "x");
-	//exit(0);
 
 	perf_stop(&comp);
 	/* Stop computation */
