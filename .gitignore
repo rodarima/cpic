@@ -42,3 +42,4 @@ doc/*.vrb
 *.dia~
 perf.data*
 vtune/
+core.*
