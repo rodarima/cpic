@@ -155,8 +155,8 @@ mat_view(mat_t *m, i64 dx, i64 dy, i64 *shape)
 	v->size = -1;
 	v->real_size = m->real_size;
 
-	dbg("view dx=%d dy=%d offset=%d\n", dx, dy, offset);
-	dbg("mat at %p, view at %p\n", m->data, v->data);
+	dbg("view dx=%ld dy=%ld offset=%ld\n", dx, dy, offset);
+	dbg("mat at %p, view at %p\n", (void *) m->data, (void *) v->data);
 
 	v->delta[X] = m->delta[X] + dx;
 	v->delta[Y] = m->delta[Y] + dy;
@@ -194,8 +194,8 @@ mat_view_init(mat_t *view, mat_t *m, i64 dx, i64 dy, i64 *shape)
 	v->size = -1;
 	v->real_size = m->real_size;
 
-	dbg("view dx=%d dy=%d offset=%d\n", dx, dy, offset);
-	dbg("mat at %p, view at %p\n", m->data, v->data);
+	dbg("view dx=%ld dy=%ld offset=%ld\n", dx, dy, offset);
+	dbg("mat at %p, view at %p\n", (void *) m->data, (void *) v->data);
 
 	v->delta[X] = m->delta[X] + dx;
 	v->delta[Y] = m->delta[Y] + dy;
@@ -303,11 +303,12 @@ _mat_print(mat_t *m, char *title)
 	if(title)
 	{
 		dbg("Matrix %s:\n", title);
-		dbg("  shape=(%d %d) real_shape=(%d %d) delta=(%d %d) data=%p, real_data=%p\n",
+		dbg("  shape=(%ld %ld) real_shape=(%ld %ld) delta=(%ld %ld) data=%p, real_data=%p\n",
 			m->shape[X], m->shape[Y],
 			m->real_shape[X], m->real_shape[Y],
 			m->delta[X], m->delta[Y],
-			m->data, m->real_data);
+			(void *) m->data,
+			(void *) m->real_data);
 	}
 
 	mx = m->real_shape[X];
