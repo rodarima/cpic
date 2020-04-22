@@ -900,6 +900,10 @@ send_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 	tag = compute_tag(COMM_TAG_OP_PARTICLES, sim->iter, ic,
 			COMM_TAG_CHUNK_SIZE);
 
+	/* We need at least one block to signal the receiver, even if it is
+	 * empty */
+	assert(l->b);
+
 	for(b = l->b, nb=0; b; b = b->next, nb++)
 	{
 		/* Send the whole pblock as-is */
@@ -907,11 +911,11 @@ send_plist_y(sim_t *sim, plist_t *l, int dst, i64 ic)
 		size = sizeof(*b) + sizeof(ppack_t) * (size_t) b->npacks;
 
 		/* TAMPI_Send */
-		dbg("[%d] Sending %s block (%ld/?) from proc=%d from chunk ic=%ld\n",
-				tag, l->name, nb, dst, ic);
+		dbg("[%d] Sending %s.block%ld proc%d -> proc%d, chunk ic=%ld\n",
+				tag, l->name, nb, sim->rank, dst, ic);
 		MPI_Send(buf, size, MPI_BYTE, dst, tag, MPI_COMM_WORLD);
-		dbg("[%d] Sending %s block (%ld/?) from proc=%d from chunk ic=%ld COMPLETED!\n",
-				tag, l->name, nb, dst, ic);
+		dbg("[%d] Sending %s.block%ld proc%d -> proc%d, chunk ic=%ld COMPLETED!\n",
+				tag, l->name, nb, sim->rank, dst, ic);
 	}
 	dbg("No more blocks to send to dst=%d chunk ic=%ld\n", dst, ic);
 
@@ -952,11 +956,11 @@ recv_plist_y(sim_t *sim, plist_t *l, int src, i64 ic)
 		prev = b->prev;
 
 		/* TAMPI_Recv */
-		dbg("[%d] Receiving %s block (%ld/?) from proc=%d into chunk ic=%ld\n",
-				tag, l->name, nb, src, ic);
+		dbg("[%d] Receiving %s.block%ld proc%d -> proc%d into ic=%ld\n",
+				tag, l->name, nb, src, sim->rank, ic);
 		MPI_Recv(buf, size, MPI_BYTE, src, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		dbg("[%d] Receiving %s block (%ld/?) from proc=%d into chunk ic=%ld COMPLETED\n",
-				tag, l->name, nb, src, ic);
+		dbg("[%d] Received %s.block%ld proc%d -> proc%d, ic=%ld COMPLETED b->n=%ld\n",
+				tag, l->name, nb, src, sim->rank, ic, b->n);
 
 		/* Stop allocating more blocks */
 		if(!b->next) more = 0;
@@ -988,21 +992,23 @@ send_pchunk_y(sim_t *sim, pchunk_t *c)
 	pnext = (sim->rank + 1) % sim->nprocs;
 	pprev = (sim->rank - 1 + sim->nprocs) % sim->nprocs;
 
-	/* FIXME: We need to filter the direction in the tag, or we are going to
-	 * mix the two neighbour messages */
+	/* The order in which we send the lists is very important, otherwise we
+	 * lead to a deadlock */
 
-	for(is=0; is < sim->nspecies; is++)
-	{
-		set = &c->species[is];
-		send_plist_y(sim, &set->q0[Y], pprev, c->i[X]);
-		plist_clear(&set->q0[Y]);
-	}
-
+	/* Send to +Y first, using q1 */
 	for(is=0; is < sim->nspecies; is++)
 	{
 		set = &c->species[is];
 		send_plist_y(sim, &set->q1[Y], pnext, c->i[X]);
 		plist_clear(&set->q1[Y]);
+	}
+
+	/* Then send to -Y, using q0 */
+	for(is=0; is < sim->nspecies; is++)
+	{
+		set = &c->species[is];
+		send_plist_y(sim, &set->q0[Y], pprev, c->i[X]);
+		plist_clear(&set->q0[Y]);
 	}
 }
 
@@ -1015,12 +1021,14 @@ recv_pchunk_y(sim_t *sim, pchunk_t *c)
 	pnext = (sim->rank + 1) % sim->nprocs;
 	pprev = (sim->rank - 1 + sim->nprocs) % sim->nprocs;
 
+	/* Receive from -Y first into r0 */
 	for(is=0; is < sim->nspecies; is++)
 	{
 		set = &c->species[is];
 		recv_plist_y(sim, &set->r0, pprev, c->i[X]);
 	}
 
+	/* Then receive from +Y into r1 */
 	for(is=0; is < sim->nspecies; is++)
 	{
 		set = &c->species[is];
