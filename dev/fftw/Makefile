@@ -1,6 +1,7 @@
 CC=mpicc
 CFLAGS=-Wall
-LDLIBS=-lfftw3_mpi -lfftw3 -lm
+#LDLIBS+=-lfftw3_threads
+LDLIBS+=-lfftw3_mpi -lfftw3 -lm
 
 example: example.o perf.o
 

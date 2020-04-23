@@ -5,8 +5,14 @@
 #include <stdlib.h>
 #include "perf.h"
 
-#define N 1024*4
+#define N (1024*4)
 #define RUNS 5
+
+static inline unsigned int
+getcsr()
+{
+	return __builtin_ia32_stmxcsr();
+}
 
 int
 main(int argv, char **argc)
@@ -39,6 +45,9 @@ main(int argv, char **argc)
 		for(int j = 0; j < N; j++)
 			in[i*2*(N/2 + 1) + j] = (double)(i + j);
 
+	printf("Input data buffer starts at %p\n", (void *) in);
+	printf("Output data buffer starts at %p\n", (void *) out);
+
 	perf_init(&t);
 	// Start the clock
 	for(r=0; r<RUNS; r++)
@@ -61,7 +70,8 @@ main(int argv, char **argc)
 
 	// Print out how long it took in seconds
 	if(rank == 0)
-		printf("np=%d n=%d mean=%g std=%g sem=%g\n", size, N, mean, std, sem);
+		printf("np=%d n=%d mean=%g std=%g sem=%g csr=%04X\n",
+				size, N, mean, std, sem, getcsr());
 
 	// Clean up and get out
 	fftw_free(in);
