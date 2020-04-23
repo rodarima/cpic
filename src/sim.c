@@ -196,10 +196,10 @@ sim_pre_step(sim_t *sim)
 	assert(sim->iter == -1);
 
 	/* Move particles to the correct block */
-	particle_comm_initial(sim);
+	//particle_comm_initial(sim);
 
 	/* Initial computation of rho */
-	stage_field_rho(sim);
+	//stage_field_rho(sim);
 
 	/* Dummy E computation with sim->iter < 0 will create the plans for the
 	 * FFT with the MFT solver */

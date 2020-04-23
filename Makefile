@@ -88,7 +88,7 @@ CFLAGS+=-march=core-avx2
 #CFLAGS+=-xHost
 
 # Use TAMPI
-USE_TAMPI?=1
+USE_TAMPI?=0
 
 ifeq ($(USE_TAMPI), 1)
 CFLAGS+=-DWITH_TAMPI
