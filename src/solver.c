@@ -22,6 +22,9 @@
 #include <nanos6/debug.h>
 #include <unistd.h>
 
+#include <sched.h>
+#include <unistd.h>
+
 #include "mft_tap.h"
 
 /* Where is this header? */
@@ -182,6 +185,25 @@ NONE_solve(mat_t *phi)
 	return 0;
 }
 
+static void
+print_affinity()
+{
+	cpu_set_t mask;
+	long nproc, i;
+
+	if(sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1)
+	{
+		perror("sched_getaffinity");
+		abort();
+	}
+	nproc = sysconf(_SC_NPROCESSORS_ONLN);
+	printf("sched_getaffinity = ");
+	for(i = 0; i < nproc; i++) {
+		printf("%d", CPU_ISSET(i, &mask));
+	}
+	printf("\n");
+}
+
 static int
 MFT_init(sim_t *sim, solver_t *s)
 {
@@ -204,6 +226,8 @@ MFT_init(sim_t *sim, solver_t *s)
 		err("MFT solver only supports 2D\n");
 		abort();
 	}
+
+	print_affinity();
 
 	nx = s->nx;
 	ny = s->ny;
@@ -434,6 +458,7 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	//printf("Input data buffer starts at %p\n", (void *) in);
 	//printf("Output data buffer starts at %p\n", (void *) out);
 
+	err("MXCSR = %04X\n", __builtin_ia32_stmxcsr());
 	perf_init(&t);
 	// Start the clock
 	for(r=0; r<RUNS; r++)

@@ -45,7 +45,7 @@ CFLAGS+=-Werror
 CFLAGS+=-std=c11
 
 # Use the new clang with ompss2 support
-#CFLAGS+=-fompss-2
+CFLAGS+=-fompss-2
 
 #Disable ompss pragma warnings if we are not using OmpSs-2
 CFLAGS+=-Wno-unknown-pragmas

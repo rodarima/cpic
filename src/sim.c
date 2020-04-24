@@ -218,11 +218,12 @@ sim_init(config_t *conf, int quiet)
 
 	printf("Initializing simulation\n");
 
-	feenableexcept(
-			FE_INVALID	|
-			FE_DIVBYZERO	|
-			FE_OVERFLOW	|
-			FE_UNDERFLOW);
+	printf("TODO:Reenable feenableexcept\n");
+	//feenableexcept(
+	//		FE_INVALID	|
+	//		FE_DIVBYZERO	|
+	//		FE_OVERFLOW	|
+	//		FE_UNDERFLOW);
 
 	s = safe_malloc(sizeof(sim_t));
 
@@ -570,43 +571,43 @@ sim_step(sim_t *sim)
 	return 0;
 }
 
-static void
-sim_stats(sim_t *sim)
-{
-	double t, tot;
-	FILE *f;
-
-	f = stdout;
-
-	tot = perf_measure(&sim->timers[TIMER_TOTAL]);
-	fprintf(f, "Total time: %e s\n", tot);
-
-	tot /= 100.0;
-
-	t = perf_measure(&sim->timers[TIMER_FIELD_E]);
-	fprintf(f, "%e %4.1f%% field_E\n", t, t/tot);
-
-	//t = perf_measure(&sim->timers[TIMER_SOLVER]);
-	//fprintf(f, "%e %.1f%%   solver\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_PARTICLE_X]);
-	fprintf(f, "%e %4.1f%% particle_x\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_PARTICLE_WRAP]);
-	fprintf(f, "%e %4.1f%% particle_wrap\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_FIELD_RHO]);
-	fprintf(f, "%e %4.1f%% field_rho\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_PARTICLE_E]);
-	fprintf(f, "%e %4.1f%% particle_E\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_OUTPUT_PARTICLES]);
-	fprintf(f, "%e %4.1f%% output_particles\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_OUTPUT_FIELDS]);
-	fprintf(f, "%e %4.1f%% output_fields\n", t, t/tot);
-}
+//static void
+//sim_stats(sim_t *sim)
+//{
+//	double t, tot;
+//	FILE *f;
+//
+//	f = stdout;
+//
+//	tot = perf_measure(&sim->timers[TIMER_TOTAL]);
+//	fprintf(f, "Total time: %e s\n", tot);
+//
+//	tot /= 100.0;
+//
+//	t = perf_measure(&sim->timers[TIMER_FIELD_E]);
+//	fprintf(f, "%e %4.1f%% field_E\n", t, t/tot);
+//
+//	//t = perf_measure(&sim->timers[TIMER_SOLVER]);
+//	//fprintf(f, "%e %.1f%%   solver\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_PARTICLE_X]);
+//	fprintf(f, "%e %4.1f%% particle_x\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_PARTICLE_WRAP]);
+//	fprintf(f, "%e %4.1f%% particle_wrap\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_FIELD_RHO]);
+//	fprintf(f, "%e %4.1f%% field_rho\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_PARTICLE_E]);
+//	fprintf(f, "%e %4.1f%% particle_E\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_OUTPUT_PARTICLES]);
+//	fprintf(f, "%e %4.1f%% output_particles\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_OUTPUT_FIELDS]);
+//	fprintf(f, "%e %4.1f%% output_fields\n", t, t/tot);
+//}
 
 int
 sim_run(sim_t *sim)
@@ -636,7 +637,8 @@ sim_run(sim_t *sim)
 
 	sim_end(sim);
 
-	sim_stats(sim);
+	//if(sim->rank == 0)
+	//	sim_stats(sim);
 
 	return 0;
 }
