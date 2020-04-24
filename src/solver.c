@@ -309,6 +309,27 @@ MFT_init(sim_t *sim, solver_t *s)
 		fftw_plan_with_nthreads(threads);
 	}
 
+	/* Compute the plans */
+	s->direct = fftw_mpi_plan_dft_r2c_2d(
+			s->ny,			/* Dimension n0 = Y */
+			s->nx,			/* Dimension n1 = X */
+			sim->field.rho->data,	/* Input */
+			g,			/* Output */
+			MPI_COMM_WORLD,		/* Global comm */
+			FFTW_MEASURE);		/* Spend some time here */
+
+	if(!s->direct) abort();
+
+	s->inverse = fftw_mpi_plan_dft_c2r_2d(
+			s->ny,			/* Dimension n0 = Y */
+			s->nx,			/* Dimension n1 = X */
+			g,			/* Input */
+			sim->field.phi->data,	/* Output */
+			MPI_COMM_WORLD,		/* Global comm */
+			FFTW_MEASURE);		/* Spend some time here */
+
+	if(!s->inverse) abort();
+
 	return 0;
 }
 
@@ -416,51 +437,23 @@ getcsr()
 	return __builtin_ia32_stmxcsr();
 }
 
-#define N (1024L*4)
 #define RUNS 5
 
 static int
-MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
+MFT_solve(sim_t *sim, solver_t *s)
 {
 	UNUSED(sim);
-	UNUSED(s);
-	UNUSED(x);
-	UNUSED(b);
 
 	int rank, size, r;
-	double *in; 	
-	fftw_complex *out;
 	perf_t t;
 	double mean, std, sem;
-	fftw_plan plan;
-	ptrdiff_t alloc_local, local_n0, local_0_start;
-
-//	MPI_Init(&argv, &argc);
-//	fftw_mpi_init();
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-	alloc_local = fftw_mpi_local_size_2d(N, N/2 + 1,
-			MPI_COMM_WORLD, &local_n0,  &local_0_start);
-
-	in = fftw_alloc_real(2 * (size_t) alloc_local);
-	out = fftw_alloc_complex((size_t) alloc_local);
-
-	plan = fftw_mpi_plan_dft_r2c_2d(N, N, in, out,
-			MPI_COMM_WORLD, FFTW_MEASURE);
-
-	// Initialize input with some numbers	
-	for(int i = 0; i < local_n0; i++)
-		for(int j = 0; j < N; j++)
-			in[i*2*(N/2 + 1) + j] = (double)(i + j);
-
-	//printf("Input data buffer starts at %p\n", (void *) in);
-	//printf("Output data buffer starts at %p\n", (void *) out);
-
 	err("MXCSR = %04X\n", __builtin_ia32_stmxcsr());
 	perf_init(&t);
-	// Start the clock
+
 	for(r=0; r<RUNS; r++)
 	{
 		MPI_Barrier(MPI_COMM_WORLD);
@@ -468,7 +461,7 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 		perf_start(&t);
 
 		// Do a fourier transform
-		fftw_execute(plan);
+		fftw_execute(s->direct);
 
 		// Stop the clock
 		MPI_Barrier(MPI_COMM_WORLD);
@@ -482,12 +475,8 @@ MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
 	// Print out how long it took in seconds
 	if(rank == 0)
 		printf("np=%d n=%ld mean=%g std=%g sem=%g csr=%04X\n",
-				size, N, mean, std, sem, getcsr());
+				size, s->ny, mean, std, sem, getcsr());
 
-	// Clean up and get out
-	fftw_free(in);
-	fftw_free(out);
-	fftw_destroy_plan(plan);
 	MPI_Finalize();
 	exit(0);
 
@@ -735,6 +724,9 @@ solver_init(sim_t *sim)
 int
 solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 {
+	UNUSED(phi);
+	UNUSED(rho);
+
 	perf_reset(&sim->timers[TIMER_SOLVER]);
 	perf_start(&sim->timers[TIMER_SOLVER]);
 
@@ -745,7 +737,7 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 			return LU_solve(s, phi, rho);
 #endif
 		case METHOD_MFT:
-			return MFT_solve(sim, s, phi, rho);
+			return MFT_solve(sim, s);
 		case METHOD_MFT_TAP:
 			return MFT_TAP_solve(s);
 		case METHOD_NONE:
