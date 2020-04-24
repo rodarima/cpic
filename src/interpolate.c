@@ -329,6 +329,7 @@ interpolate_p2f_rho(sim_t *sim, pchunk_t *c, pset_t *set)
 	b = l->b->prev;
 	if(b && b->n - b->nfpacks * MAX_VEC > 0)
 	{
+		p = &b->p[b->nfpacks];
 		for(iv=b->n - b->nfpacks * MAX_VEC; iv<MAX_VEC; iv++)
 		{
 			/* Assume the particle is in the chunk, otherwise the
