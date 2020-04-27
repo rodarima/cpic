@@ -416,7 +416,7 @@ struct sim
 	/* ------------------------------------------------------- */
 
 	/* For now we assume a background fixed magnetic field */
-	double B[MAX_DIM];
+	f64 B[MAX_DIM];
 
 	/** Number of species */
 	i64 nspecies;

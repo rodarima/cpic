@@ -21,12 +21,11 @@ struct cyclotron
 
 /* TODO: Centralize useful functions */
 static inline void
-cross_product(double *r, double *a, double *b)
+cross_product(double *r, vf64 a[MAX_DIM], f64 b[MAX_DIM])
 {
-	assert(r != a && r != b);
-	r[X] = a[Y]*b[Z] - a[Z]*b[Y];
-	r[Y] = a[Z]*b[X] - a[X]*b[Z];
-	r[Z] = a[X]*b[Y] - a[Y]*b[X];
+	r[X] = a[Y][0]*b[Z] - a[Z][0]*b[Y];
+	r[Y] = a[Z][0]*b[X] - a[X][0]*b[Z];
+	r[Z] = a[X][0]*b[Y] - a[Y][0]*b[X];
 }
 
 static inline double
@@ -35,48 +34,54 @@ vector_len(double *v)
 	return sqrt(v[X]*v[X] + v[Y]*v[Y] + v[Z]*v[Z]);
 }
 
-particle_t *
-find_particle(sim_t *sim, int particle_index, specie_t **s)
+static inline double
+vf64_vector_len(vf64 v[MAX_DIM])
 {
-	int ic, nc, is, ns, ip, np;
+	return sqrt(v[X][0]*v[X][0] + v[Y][0]*v[Y][0] + v[Z][0]*v[Z][0]);
+}
+
+static ppack_t *
+find_particle(sim_t *sim, specie_t **s)
+{
+	int ic, nc;
 	plasma_t *plasma;
-	plasma_chunk_t *chunk;
-	particle_set_t *set;
-	particle_t *p;
+	pchunk_t *chunk;
+	pset_t *set;
+	pblock_t *b;
+	ppack_t *p;
 
 	plasma = &sim->plasma;
 	nc = plasma->nchunks;
 	for(ic=0; ic<nc; ic++)
 	{
 		chunk = &plasma->chunks[ic];
-		ns = chunk->nspecies;
-		for(is=0; is<ns; is++)
-		{
-			set = &chunk->species[is];
-			*s = set->info;
-			np = set->nparticles;
-			for(ip=0; ip<np; ip++)
-			{
-				p = &set->particles[ip];
-				if(p->i == particle_index)
-					return p;
-			}
+		/* Only one specie supported */
+		assert(chunk->nspecies == 1);
+		set = &chunk->species[0];
+		*s = set->info;
 
-		}
+		b = set->list.b;
+		assert(b);
+
+		/* Particle is not here */
+		if(b->n != 1)
+			continue;
+
+		p = &b->p[0];
 	}
 
 	return NULL;
 }
 
-int
+static int
 cyclotron_postinit(sim_t *sim, struct cyclotron *c)
 {
 	double tmp[MAX_DIM], *center;
 	double len, v, dt;
 	specie_t *s;
-	particle_t *p;
+	ppack_t *p;
 
-	p = find_particle(sim, 0, &s);
+	p = find_particle(sim, &s);
 
 	/* We don't have the particle, so we must wait for another process to
 	 * send the information */
@@ -87,15 +92,15 @@ cyclotron_postinit(sim_t *sim, struct cyclotron *c)
 		return 1;
 	}
 
-	dbg("Particle found at (%e %e) on process %d iter %d\n",
-			p->x[X], p->x[Y], sim->rank, sim->iter);
+	dbg("Particle found at (%e %e) on process %d iter %ld\n",
+			p->r[X][0], p->r[Y][0], sim->rank, sim->iter);
 
 	center = c->center;
 	dt = sim->dt;
 
-	dbg("iter = %d, t = %e\n", sim->iter, sim->t);
-	dbg("p->u = (%f,%f,%f)\n", p->u[X], p->u[Y], p->u[Z]);
-	v = vector_len(p->u);
+	dbg("iter = %ld, t = %e\n", sim->iter, sim->t);
+	dbg("p->u = (%f,%f,%f)\n", p->u[X][0], p->u[Y][0], p->u[Z][0]);
+	v = vf64_vector_len(p->u);
 
 	c->freq = fabs(s->q) * sim->B[Z] / s->m;
 	c->radius = v / c->freq;
@@ -110,9 +115,9 @@ cyclotron_postinit(sim_t *sim, struct cyclotron *c)
 	dbg("radius = %f\n", c->radius);
 	dbg("tmp = (%f,%f,%f)\n", tmp[X], tmp[Y], tmp[Z]);
 
-	center[X] = p->x[X] + tmp[X];
-	center[Y] = p->x[Y] + tmp[Y];
-	center[Z] = p->x[Z] + tmp[Z];
+	center[X] = p->r[X][0] + tmp[X];
+	center[Y] = p->r[Y][0] + tmp[Y];
+	center[Z] = p->r[Z][0] + tmp[Z];
 
 	dbg("center = (%e %e)\n",
 			center[X], center[Y]);
@@ -125,18 +130,18 @@ cyclotron_postinit(sim_t *sim, struct cyclotron *c)
 	return 0;
 }
 
-int
+static int
 cyclotron_update(sim_t *sim, struct cyclotron *c)
 {
 	specie_t *s;
-	particle_t *p;
+	ppack_t *p;
 	double dr[MAX_DIM] __attribute__((unused));
 	double r[MAX_DIM];
 	double R[MAX_DIM] __attribute__((unused)) = {0};
 	double *center, dist, err;
 	double t __attribute__((unused)), rel __attribute__((unused));
 
-	p = find_particle(sim, 0, &s);
+	p = find_particle(sim, &s);
 	/* We don't have the particle, it must be in another process */
 	if(!p)
 	{
@@ -146,10 +151,10 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 
 	center = c->center;
 
-	r[X] = p->x[X] - center[X];
-	r[Y] = p->x[Y] - center[Y];
+	r[X] = p->r[X][0] - center[X];
+	r[Y] = p->r[Y][0] - center[Y];
 	r[Z] = 0.0;
-	//r[Z] = p->x[Z] - center[Z];
+	//r[Z] = p->r[Z][0] - center[Z];
 
 #if WEAK_CHECK
 
@@ -166,8 +171,11 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 	if(err > c->max_err)
 		c->max_err = err;
 
-	dbg("iter=%d: distance (%e), x=(%e %e) u=(%e %e) err %e (rel %e)\n",
-			sim->iter, dist, p->x[X], p->x[Y], p->u[X], p->u[Y], err, rel);
+	dbg("iter=%ld: distance (%e), x=(%e %e) u=(%e %e) err %e (rel %e)\n",
+			sim->iter, dist,
+			p->r[X][0], p->r[Y][0],
+			p->u[X][0], p->u[Y][0],
+			err, rel);
 #else
 
 	t = (sim->iter) * sim->dt;
@@ -189,7 +197,7 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 		c->max_err = err;
 
 	dbg("iter=%d: Expected (%.4e,%.4e), found (%.4e,%.4e) speed=(%e %e) err %e (rel %e)\n",
-			sim->iter, R[X], R[Y], r[X], r[Y], p->u[X], p->u[Y], err, rel);
+			sim->iter, R[X], R[Y], r[X], r[Y], p->u[X][0], p->u[Y][0], err, rel);
 #endif
 
 	return 0;
@@ -197,6 +205,7 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 
 int main(int argc, char *argv[])
 {
+	UNUSED(argc);
 	int i;
 	sim_t *sim;
 	FILE *f;
