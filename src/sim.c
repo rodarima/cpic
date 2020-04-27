@@ -90,6 +90,19 @@ sim_prepare(sim_t *s, int quiet)
 	MPI_Comm_rank(MPI_COMM_WORLD, &s->rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &s->nprocs);
 
+	/* Enable floating point exceptions. Ideally we must be able to set the
+	 * register in all threads, but only the current thread will be
+	 * affected. As a workaround, we may change the register in each task.
+	 * Otherwise we can set a __attribute__((constructor)) function that
+	 * runs before nanos6 and sets the register in all threads. */
+	feenableexcept(
+			FE_INVALID	|
+			FE_DIVBYZERO	|
+			FE_OVERFLOW	|
+			FE_UNDERFLOW);
+
+	s->desired_mxcsr = getcsr();
+
 	if(s->dim != 2)
 	{
 		err("Only 2 dimensions supported by now...\n");
@@ -219,11 +232,7 @@ sim_init(config_t *conf, int quiet)
 
 	//printf("Initializing simulation\n");
 
-	//feenableexcept(
-	//		FE_INVALID	|
-	//		FE_DIVBYZERO	|
-	//		FE_OVERFLOW	|
-	//		FE_UNDERFLOW);
+
 
 	s = safe_malloc(sizeof(sim_t));
 

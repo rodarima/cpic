@@ -432,16 +432,14 @@ solver_rho_size(sim_t *sim, i64 *cnx, i64 *cny)
 
 }
 
-static inline unsigned int
-getcsr()
-{
-	return __builtin_ia32_stmxcsr();
-}
-
 static int
 MFT_solve(sim_t *sim, solver_t *s)
 {
 	perf_t t1, t2, total;
+
+	if(__builtin_ia32_stmxcsr() != sim->desired_mxcsr)
+		__builtin_ia32_ldmxcsr(sim->desired_mxcsr);
+	assert(getcsr() == sim->desired_mxcsr);
 
 	perf_init(&t1);
 	perf_init(&t2);
@@ -467,7 +465,7 @@ MFT_solve(sim_t *sim, solver_t *s)
 	// Print out how long it took in seconds
 	if(sim->rank == 0)
 	{
-		printf("np=%d ny=%ld csr0=%04X fft1=%e fft2=%e total=%e\n",
+		printf("np=%d ny=%ld csr0=%04lX fft1=%e fft2=%e total=%e\n",
 			sim->nprocs, s->ny, getcsr(),
 			perf_measure(&t1),
 			perf_measure(&t2),
