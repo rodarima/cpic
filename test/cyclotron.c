@@ -43,7 +43,7 @@ vf64_vector_len(vf64 v[MAX_DIM])
 static ppack_t *
 find_particle(sim_t *sim, specie_t **s)
 {
-	int ic, nc;
+	i64 ic, nc;
 	plasma_t *plasma;
 	pchunk_t *chunk;
 	pset_t *set;
@@ -64,10 +64,11 @@ find_particle(sim_t *sim, specie_t **s)
 		assert(b);
 
 		/* Particle is not here */
-		if(b->n != 1)
-			continue;
-
-		p = &b->p[0];
+		if(b->n == 1)
+		{
+			p = &b->p[0];
+			return p;
+		}
 	}
 
 	return NULL;
@@ -171,7 +172,7 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 	if(err > c->max_err)
 		c->max_err = err;
 
-	dbg("iter=%ld: distance (%e), x=(%e %e) u=(%e %e) err %e (rel %e)\n",
+	dbgr("iter=%ld: distance (%e), x=(%e %e) u=(%e %e) err %e (rel %e)\n",
 			sim->iter, dist,
 			p->r[X][0], p->r[Y][0],
 			p->u[X][0], p->u[Y][0],
@@ -196,7 +197,7 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 	if(err > c->max_err)
 		c->max_err = err;
 
-	dbg("iter=%d: Expected (%.4e,%.4e), found (%.4e,%.4e) speed=(%e %e) err %e (rel %e)\n",
+	dbgr("iter=%d: Expected (%.4e,%.4e), found (%.4e,%.4e) speed=(%e %e) err %e (rel %e)\n",
 			sim->iter, R[X], R[Y], r[X], r[Y], p->u[X][0], p->u[Y][0], err, rel);
 #endif
 
