@@ -1,7 +1,7 @@
 #!/bin/sh
 set -x
-mpirun -n 1 ./example >> log.txt
-mpirun -n 2 ./example >> log.txt
-mpirun -n 4 ./example >> log.txt
-mpirun -n 8 ./example >> log.txt
-mpirun -n 16 ./example >> log.txt
+mpirun --bind-to core -n  1 ./fft
+mpirun --bind-to core -n  2 ./fft
+mpirun --bind-to core -n  4 ./fft
+mpirun --bind-to core -n  8 ./fft
+mpirun --bind-to core -n 16 ./fft

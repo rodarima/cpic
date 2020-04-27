@@ -55,3 +55,10 @@ solver_rho_size(sim_t *sim, i64 *cnx, i64 *cny);
 
 int
 solver_end(sim_t *sim, solver_t *solver);
+
+static inline i64
+getcsr()
+{
+	return __builtin_ia32_stmxcsr();
+}
+

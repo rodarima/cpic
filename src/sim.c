@@ -6,7 +6,7 @@
 
 #define PLOT 0
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "specie.h"
 #include "particle.h"
@@ -89,6 +89,19 @@ sim_prepare(sim_t *s, int quiet)
 	/* The current process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &s->rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &s->nprocs);
+
+	/* Enable floating point exceptions. Ideally we must be able to set the
+	 * register in all threads, but only the current thread will be
+	 * affected. As a workaround, we may change the register in each task.
+	 * Otherwise we can set a __attribute__((constructor)) function that
+	 * runs before nanos6 and sets the register in all threads. */
+	feenableexcept(
+			FE_INVALID	|
+			FE_DIVBYZERO	|
+			FE_OVERFLOW	|
+			FE_UNDERFLOW);
+
+	s->desired_mxcsr = getcsr();
 
 	if(s->dim != 2)
 	{
@@ -191,7 +204,7 @@ sim_prepare(sim_t *s, int quiet)
 static int
 sim_pre_step(sim_t *sim)
 {
-	err("begin sim_pre_step\n");
+	if(sim->rank == 0) err("begin sim_pre_step\n");
 
 	assert(sim->iter == -1);
 
@@ -200,6 +213,7 @@ sim_pre_step(sim_t *sim)
 
 	/* Initial computation of rho */
 	stage_field_rho(sim);
+	#pragma oss taskwait
 
 	/* Dummy E computation with sim->iter < 0 will create the plans for the
 	 * FFT with the MFT solver */
@@ -207,7 +221,7 @@ sim_pre_step(sim_t *sim)
 
 	#pragma oss taskwait
 
-	err("end sim_pre_step\n");
+	if(sim->rank == 0) err("end sim_pre_step\n");
 	return 0;
 }
 
@@ -216,13 +230,9 @@ sim_init(config_t *conf, int quiet)
 {
 	sim_t *s;
 
-	printf("Initializing simulation\n");
+	//printf("Initializing simulation\n");
 
-	feenableexcept(
-			FE_INVALID	|
-			FE_DIVBYZERO	|
-			FE_OVERFLOW	|
-			FE_UNDERFLOW);
+
 
 	s = safe_malloc(sizeof(sim_t));
 
@@ -292,7 +302,7 @@ sim_init(config_t *conf, int quiet)
 	s->iter++;
 	s->t = s->iter * s->dt;
 
-	printf("Simulation prepared\n");
+	//printf("Simulation prepared\n");
 
 	assert(s->iter == 0);
 
@@ -570,43 +580,43 @@ sim_step(sim_t *sim)
 	return 0;
 }
 
-static void
-sim_stats(sim_t *sim)
-{
-	double t, tot;
-	FILE *f;
-
-	f = stdout;
-
-	tot = perf_measure(&sim->timers[TIMER_TOTAL]);
-	fprintf(f, "Total time: %e s\n", tot);
-
-	tot /= 100.0;
-
-	t = perf_measure(&sim->timers[TIMER_FIELD_E]);
-	fprintf(f, "%e %4.1f%% field_E\n", t, t/tot);
-
-	//t = perf_measure(&sim->timers[TIMER_SOLVER]);
-	//fprintf(f, "%e %.1f%%   solver\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_PARTICLE_X]);
-	fprintf(f, "%e %4.1f%% particle_x\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_PARTICLE_WRAP]);
-	fprintf(f, "%e %4.1f%% particle_wrap\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_FIELD_RHO]);
-	fprintf(f, "%e %4.1f%% field_rho\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_PARTICLE_E]);
-	fprintf(f, "%e %4.1f%% particle_E\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_OUTPUT_PARTICLES]);
-	fprintf(f, "%e %4.1f%% output_particles\n", t, t/tot);
-
-	t = perf_measure(&sim->timers[TIMER_OUTPUT_FIELDS]);
-	fprintf(f, "%e %4.1f%% output_fields\n", t, t/tot);
-}
+//static void
+//sim_stats(sim_t *sim)
+//{
+//	double t, tot;
+//	FILE *f;
+//
+//	f = stdout;
+//
+//	tot = perf_measure(&sim->timers[TIMER_TOTAL]);
+//	fprintf(f, "Total time: %e s\n", tot);
+//
+//	tot /= 100.0;
+//
+//	t = perf_measure(&sim->timers[TIMER_FIELD_E]);
+//	fprintf(f, "%e %4.1f%% field_E\n", t, t/tot);
+//
+//	//t = perf_measure(&sim->timers[TIMER_SOLVER]);
+//	//fprintf(f, "%e %.1f%%   solver\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_PARTICLE_X]);
+//	fprintf(f, "%e %4.1f%% particle_x\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_PARTICLE_WRAP]);
+//	fprintf(f, "%e %4.1f%% particle_wrap\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_FIELD_RHO]);
+//	fprintf(f, "%e %4.1f%% field_rho\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_PARTICLE_E]);
+//	fprintf(f, "%e %4.1f%% particle_E\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_OUTPUT_PARTICLES]);
+//	fprintf(f, "%e %4.1f%% output_particles\n", t, t/tot);
+//
+//	t = perf_measure(&sim->timers[TIMER_OUTPUT_FIELDS]);
+//	fprintf(f, "%e %4.1f%% output_fields\n", t, t/tot);
+//}
 
 int
 sim_run(sim_t *sim)
@@ -614,7 +624,8 @@ sim_run(sim_t *sim)
 	assert(sim->iter == 0);
 	perf_start(&sim->timers[TIMER_TOTAL]);
 
-	printf("Simulation runs now\n");
+	if(sim->rank == 0)
+		printf("Simulation runs now\n");
 
 	while(sim->running && sim->iter < sim->cycles)
 	{
@@ -636,7 +647,8 @@ sim_run(sim_t *sim)
 
 	sim_end(sim);
 
-	sim_stats(sim);
+	//if(sim->rank == 0)
+	//	sim_stats(sim);
 
 	return 0;
 }

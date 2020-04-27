@@ -65,7 +65,7 @@ output_init(sim_t *sim, output_t *out)
 
 	if(config_lookup_string(sim->conf, "output.path", &path) != CONFIG_TRUE)
 	{
-		err("No output path specified, output will not be saved\n");
+		if(sim->rank == 0) err("No output path specified, output will not be saved\n");
 		out->enabled = 0;
 		return 0;
 	}

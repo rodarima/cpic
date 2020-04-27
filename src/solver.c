@@ -20,6 +20,10 @@
 #include <fftw3-mpi.h>
 #include <sched.h>
 #include <nanos6/debug.h>
+#include <unistd.h>
+
+#include <sched.h>
+#include <unistd.h>
 
 #include "mft_tap.h"
 
@@ -181,6 +185,25 @@ NONE_solve(mat_t *phi)
 	return 0;
 }
 
+static void
+print_affinity()
+{
+	cpu_set_t mask;
+	long nproc, i;
+
+	if(sched_getaffinity(0, sizeof(cpu_set_t), &mask) == -1)
+	{
+		perror("sched_getaffinity");
+		abort();
+	}
+	nproc = sysconf(_SC_NPROCESSORS_ONLN);
+	printf("sched_getaffinity = ");
+	for(i = 0; i < nproc; i++) {
+		printf("%d", CPU_ISSET(i, &mask));
+	}
+	printf("\n");
+}
+
 static int
 MFT_init(sim_t *sim, solver_t *s)
 {
@@ -203,6 +226,8 @@ MFT_init(sim_t *sim, solver_t *s)
 		err("MFT solver only supports 2D\n");
 		abort();
 	}
+
+	print_affinity();
 
 	nx = s->nx;
 	ny = s->ny;
@@ -274,15 +299,37 @@ MFT_init(sim_t *sim, solver_t *s)
 
 	if(sim->fftw_threads)
 	{
-		printf("FIXME: Uncomment fftw threads \n");
-		//if(sim->fftw_threads == -1)
-		//	threads = nanos6_get_num_cpus();
-		//else
+		//printf("FIXME: Uncomment fftw threads \n");
+		if(sim->fftw_threads == -1)
+			threads = nanos6_get_num_cpus();
+		else
 			threads = sim->fftw_threads;
 
-		err("Using %ld threads in FFTW\n", threads);
+		if(sim->rank == 0)
+			err("Using %ld threads in FFTW\n", threads);
 		fftw_plan_with_nthreads(threads);
 	}
+
+	/* Compute the plans */
+	s->direct = fftw_mpi_plan_dft_r2c_2d(
+			s->ny,			/* Dimension n0 = Y */
+			s->nx,			/* Dimension n1 = X */
+			sim->field.rho->data,	/* Input */
+			g,			/* Output */
+			MPI_COMM_WORLD,		/* Global comm */
+			FFTW_MEASURE);		/* Spend some time here */
+
+	if(!s->direct) abort();
+
+	s->inverse = fftw_mpi_plan_dft_c2r_2d(
+			s->ny,			/* Dimension n0 = Y */
+			s->nx,			/* Dimension n1 = X */
+			g,			/* Input */
+			sim->field.phi->data,	/* Output */
+			MPI_COMM_WORLD,		/* Global comm */
+			FFTW_MEASURE);		/* Spend some time here */
+
+	if(!s->inverse) abort();
 
 	return 0;
 }
@@ -386,105 +433,44 @@ solver_rho_size(sim_t *sim, i64 *cnx, i64 *cny)
 }
 
 static int
-MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
+MFT_solve(sim_t *sim, solver_t *s)
 {
-	fftw_complex *g;
-	//double *tmp;
-	perf_t comp, total, fft;
+	perf_t t1, t2, total;
 
-	UNUSED(sim);
+	if(__builtin_ia32_stmxcsr() != sim->desired_mxcsr)
+		__builtin_ia32_ldmxcsr(sim->desired_mxcsr);
+	assert(getcsr() == sim->desired_mxcsr);
 
-	/* Solve Ax = b using MFT spectral method */
-
+	perf_init(&t1);
+	perf_init(&t2);
 	perf_init(&total);
-	perf_init(&comp);
-	perf_init(&fft);
 
 	perf_start(&total);
+	MPI_Barrier(MPI_COMM_WORLD);
 
-	g = s->g;
-	assert(g);
-
-	ptrdiff_t local_size, rho_size;
-	ptrdiff_t local_n0, local_n0_start;
-
-	local_size = fftw_mpi_local_size_2d(s->ny, s->nx/2+1, MPI_COMM_WORLD,
-			&local_n0, &local_n0_start);
-
-	dbg("local_size = %ld, local_n0(ny) = %ld, local_n0_start(ny) = %ld\n",
-			local_size, local_n0, local_n0_start);
-
-	rho_size = 2 * local_size;
-
-	dbg("Computed shape in Y is %ld, nx=%ld ny=%ld\n", local_n0, s->nx, s->ny);
-
-	assert(local_n0 == sim->blocksize[Y]);
-
-	dbg("Rho needed size is %ld, allocated real size %ld\n", rho_size, b->real_size);
-
-	/* Ensure we have extra room to store the extra data FFTW needs */
-	assert(b->real_size >= rho_size);
-
-	/* Beware: The output of the FFT has a very special symmetry, with an
-	 * output size of ny x nx/2+1. */
-
-	dbg("prev in=%p out=%p nx=%ld ny=%ld\n",
-			(void *) b->data, (void *) g, s->nx, s->ny);
-	mat_print(b, "b");
-	mat_print(x, "x");
-
-	if(sim->iter == -1 || sim->fftw_recompute_plan)
-	{
-
-		dbg("direct in=%p out=%p nx=%ld ny=%ld\n",
-				(void *) b->data, (void *) g, s->nx, s->ny);
-		assert(b->data);
-		s->direct = fftw_mpi_plan_dft_r2c_2d(s->ny, s->nx,
-				b->data, g, MPI_COMM_WORLD,
-				FFTW_ESTIMATE); //FFTW_MEASURE
-
-		if(!s->direct) die("Creation of plan failed\n");
-
-		dbg("inverse in=%p out=%p nx=%ld ny=%ld\n",
-				(void *) g, (void *) x->data, s->nx, s->ny);
-		s->inverse = fftw_mpi_plan_dft_c2r_2d(s->ny, s->nx,
-				g, x->data, MPI_COMM_WORLD,
-				FFTW_ESTIMATE);
-
-		if(!s->inverse) die("Creation of plan failed\n");
-
-	}
-
-	/* Begin computation */
-	perf_start(&comp);
-
-	perf_start(&fft);
+	perf_start(&t1);
 	fftw_execute(s->direct);
-	perf_stop(&fft);
+	perf_stop(&t1);
 
 	MFT_kernel(s);
 
-	perf_start(&fft);
+	perf_start(&t2);
 	fftw_execute(s->inverse);
-	perf_stop(&fft);
+	perf_stop(&t2);
 
-	MFT_normalize(x, s->nx * s->ny);
+	MFT_normalize(sim->field.phi, s->nx * s->ny);
 
-	perf_stop(&comp);
-	/* Stop computation */
-
-	/* TODO: Destroy the plans at the end */
-	//fftw_destroy_plan(s->direct);
-	//fftw_destroy_plan(s->inverse);
 	perf_stop(&total);
 
-//#if DEBUG
+	// Print out how long it took in seconds
 	if(sim->rank == 0)
-		err("Solver fft/comp/total: %e / %e / %e\n",
-				perf_measure(&fft),
-				perf_measure(&comp),
-				perf_measure(&total));
-//#endif
+	{
+		printf("np=%d ny=%ld csr0=%04lX fft1=%e fft2=%e total=%e\n",
+			sim->nprocs, s->ny, getcsr(),
+			perf_measure(&t1),
+			perf_measure(&t2),
+			perf_measure(&total));
+	}
 
 	return 0;
 }
@@ -579,6 +565,9 @@ solver_init(sim_t *sim)
 int
 solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 {
+	UNUSED(phi);
+	UNUSED(rho);
+
 	perf_reset(&sim->timers[TIMER_SOLVER]);
 	perf_start(&sim->timers[TIMER_SOLVER]);
 
@@ -589,7 +578,7 @@ solve_xy(sim_t *sim, solver_t *s, mat_t *phi, mat_t *rho)
 			return LU_solve(s, phi, rho);
 #endif
 		case METHOD_MFT:
-			return MFT_solve(sim, s, phi, rho);
+			return MFT_solve(sim, s);
 		case METHOD_MFT_TAP:
 			return MFT_TAP_solve(s);
 		case METHOD_NONE:

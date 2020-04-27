@@ -492,6 +492,9 @@ struct sim
 
 	i64 fftw_threads;
 
+	/* The MXCSR register deals with the floating point unit configuration */
+	i64 desired_mxcsr;
+
 	/* Timers */
 	perf_t timers[MAX_TIMERS];
 
