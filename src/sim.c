@@ -43,23 +43,28 @@ sim_read_config(sim_t *s)
 
 	conf = s->conf;
 
+#define READ(type, s, var) \
+	if(config_lookup_ ## type (conf, s, var) != CONFIG_TRUE) \
+		die("Failed to read parameter \"%s\"\n", s)
+
 	/* First set all direct configuration variables */
-	config_lookup_i64(conf, "simulation.dimensions", &s->dim);
-	config_lookup_i64(conf, "simulation.cycles", &s->cycles);
-	config_lookup_float(conf, "simulation.time_step", &s->dt);
-	config_lookup_int(conf, "simulation.random_seed", (int *) &s->seed);
-	config_lookup_float(conf, "constants.light_speed", &s->C);
-	config_lookup_float(conf, "constants.vacuum_permittivity", &s->e0);
-	config_lookup_i64(conf, "simulation.sampling_period.energy", &s->period_energy);
-	config_lookup_i64(conf, "simulation.sampling_period.field", &s->period_field);
-	config_lookup_i64(conf, "simulation.sampling_period.particle", &s->period_particle);
-	config_lookup_float(conf, "simulation.stop_SEM", &s->stop_SEM);
-	config_lookup_int(conf, "simulation.realtime_plot", &s->mode);
-	config_lookup_string(conf, "simulation.solver", &s->solver_method);
-	config_lookup_i64(conf, "simulation.enable_fftw_threads", &s->fftw_threads);
-	config_lookup_i64(conf, "simulation.fftw_recompute_plan", &s->fftw_recompute_plan);
-	config_lookup_i64(conf, "simulation.plasma_chunks", &s->plasma_chunks);
-	config_lookup_i64(conf, "simulation.pblock_nmax", &s->pblock_nmax);
+	READ(i64, "simulation.dimensions", &s->dim);
+	READ(i64, "simulation.cycles", &s->cycles);
+	READ(float, "simulation.time_step", &s->dt);
+	READ(int, "simulation.random_seed", (int *) &s->seed);
+	READ(float, "constants.light_speed", &s->C);
+	READ(float, "constants.vacuum_permittivity", &s->e0);
+	READ(i64, "simulation.sampling_period.energy", &s->period_energy);
+	READ(i64, "simulation.sampling_period.field", &s->period_field);
+	READ(i64, "simulation.sampling_period.particle", &s->period_particle);
+	READ(float, "simulation.stop_SEM", &s->stop_SEM);
+	READ(float, "simulation.stop_SEM", &s->stop_SEM);
+	READ(int, "simulation.realtime_plot", &s->mode);
+	READ(string, "simulation.solver", &s->solver_method);
+	READ(i64, "simulation.enable_fftw_threads", &s->fftw_threads);
+	READ(i64, "simulation.plasma_chunks", &s->plasma_chunks);
+	READ(i64, "simulation.pblock_nmax", &s->pblock_nmax);
+#undef READ
 
 	/* Load all dimension related vectors */
 	config_lookup_array_float(conf, "simulation.space_length", s->L, s->dim);
@@ -72,7 +77,6 @@ sim_read_config(sim_t *s)
 	/* Note that we always need the 3 dimensions for the magnetic field, as
 	 * for example in 2D, the Z is the one used */
 	config_lookup_array_float(conf, "field.magnetic", s->B, MAX_DIM);
-
 	config_lookup_array_int(conf, "grid.points", s->ntpoints, s->dim);
 
 	s->nspecies = config_setting_length(config_lookup(conf, "species"));

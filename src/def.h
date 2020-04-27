@@ -488,7 +488,6 @@ struct sim
 	solver_t *solver;
 
 	const char *solver_method;
-	i64 fftw_recompute_plan;
 
 	i64 fftw_threads;
 
