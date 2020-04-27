@@ -73,7 +73,7 @@ main(int argc, char *argv[])
 	//	while(i) j++;
 	//}
 
-	printf("ENTRANDO EN MAIN\n");
+	//printf("ENTRANDO EN MAIN\n");
 
 	/* When an error is produced in MPI, only return, don't kill the program
 	 * */
@@ -173,12 +173,14 @@ main(int argc, char *argv[])
 	}
 
 	perf_stop(&timer);
-	printf("%e init-time\n", perf_measure(&timer));
+	if(sim->rank == 0)
+		printf("%e init-time\n", perf_measure(&timer));
 
 	if(sim_run(sim))
 		return 1;
 
-	printf("Simulation ends\n");
+	if(sim->rank == 0)
+		printf("Simulation ends\n");
 
 	free(fn_dup);
 	//sim_free(sim);

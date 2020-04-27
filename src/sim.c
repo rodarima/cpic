@@ -6,7 +6,7 @@
 
 #define PLOT 0
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "specie.h"
 #include "particle.h"
@@ -191,7 +191,7 @@ sim_prepare(sim_t *s, int quiet)
 static int
 sim_pre_step(sim_t *sim)
 {
-	err("begin sim_pre_step\n");
+	if(sim->rank == 0) err("begin sim_pre_step\n");
 
 	assert(sim->iter == -1);
 
@@ -208,7 +208,7 @@ sim_pre_step(sim_t *sim)
 
 	#pragma oss taskwait
 
-	err("end sim_pre_step\n");
+	if(sim->rank == 0) err("end sim_pre_step\n");
 	return 0;
 }
 
@@ -217,9 +217,8 @@ sim_init(config_t *conf, int quiet)
 {
 	sim_t *s;
 
-	printf("Initializing simulation\n");
+	//printf("Initializing simulation\n");
 
-	printf("TODO:Reenable feenableexcept\n");
 	//feenableexcept(
 	//		FE_INVALID	|
 	//		FE_DIVBYZERO	|
@@ -294,7 +293,7 @@ sim_init(config_t *conf, int quiet)
 	s->iter++;
 	s->t = s->iter * s->dt;
 
-	printf("Simulation prepared\n");
+	//printf("Simulation prepared\n");
 
 	assert(s->iter == 0);
 
@@ -616,7 +615,8 @@ sim_run(sim_t *sim)
 	assert(sim->iter == 0);
 	perf_start(&sim->timers[TIMER_TOTAL]);
 
-	printf("Simulation runs now\n");
+	if(sim->rank == 0)
+		printf("Simulation runs now\n");
 
 	while(sim->running && sim->iter < sim->cycles)
 	{

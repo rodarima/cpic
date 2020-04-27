@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 #include "mat.h"
 
@@ -299,13 +299,14 @@ MFT_init(sim_t *sim, solver_t *s)
 
 	if(sim->fftw_threads)
 	{
-		printf("FIXME: Uncomment fftw threads \n");
-		//if(sim->fftw_threads == -1)
-		//	threads = nanos6_get_num_cpus();
-		//else
+		//printf("FIXME: Uncomment fftw threads \n");
+		if(sim->fftw_threads == -1)
+			threads = nanos6_get_num_cpus();
+		else
 			threads = sim->fftw_threads;
 
-		err("Using %ld threads in FFTW\n", threads);
+		if(sim->rank == 0)
+			err("Using %ld threads in FFTW\n", threads);
 		fftw_plan_with_nthreads(threads);
 	}
 
@@ -333,49 +334,49 @@ MFT_init(sim_t *sim, solver_t *s)
 	return 0;
 }
 
-//static void
-//MFT_kernel(solver_t *s)
-//{
-//	int ix, iy;
-//	mat_t *G;
-//	fftw_complex *g;
-//	//double *Gd;
-//
-//	g = s->g;
-//	G = s->G;
-//	//Gd = G->data;
-//
-//	//ii = 0;
-//
-//	for(iy=0; iy<G->shape[Y]; iy++)
-//	{
-////#pragma oss task
-//		for(ix=0; ix<G->shape[X]; ix++)
-//		{
-//			/* Half of the coefficients are not needed */
-//			g[iy * G->shape[X] + ix] *= MAT_XY(G, ix, iy);
-//			//g[ii] *= Gd[ii];
-//			//ii++;
-//		}
-//	}
-////#pragma oss taskwait
-//}
-//
-//static void
-//MFT_normalize(mat_t *x, int N)
-//{
-//	int ix, iy;
-//
-//	for(iy=0; iy<x->shape[Y]; iy++)
-//	{
-////#pragma oss task
-//		for(ix=0; ix<x->shape[X]; ix++)
-//		{
-//			MAT_XY(x, ix, iy) /= N;
-//		}
-//	}
-////#pragma oss taskwait
-//}
+static void
+MFT_kernel(solver_t *s)
+{
+	int ix, iy;
+	mat_t *G;
+	fftw_complex *g;
+	//double *Gd;
+
+	g = s->g;
+	G = s->G;
+	//Gd = G->data;
+
+	//ii = 0;
+
+	for(iy=0; iy<G->shape[Y]; iy++)
+	{
+//#pragma oss task
+		for(ix=0; ix<G->shape[X]; ix++)
+		{
+			/* Half of the coefficients are not needed */
+			g[iy * G->shape[X] + ix] *= MAT_XY(G, ix, iy);
+			//g[ii] *= Gd[ii];
+			//ii++;
+		}
+	}
+//#pragma oss taskwait
+}
+
+static void
+MFT_normalize(mat_t *x, int N)
+{
+	int ix, iy;
+
+	for(iy=0; iy<x->shape[Y]; iy++)
+	{
+//#pragma oss task
+		for(ix=0; ix<x->shape[X]; ix++)
+		{
+			MAT_XY(x, ix, iy) /= N;
+		}
+	}
+//#pragma oss taskwait
+}
 
 i64
 solver_rho_size(sim_t *sim, i64 *cnx, i64 *cny)
@@ -437,202 +438,44 @@ getcsr()
 	return __builtin_ia32_stmxcsr();
 }
 
-#define RUNS 5
-
 static int
 MFT_solve(sim_t *sim, solver_t *s)
 {
-	UNUSED(sim);
+	perf_t t1, t2, total;
 
-	int rank, size, r;
-	perf_t t;
-	double mean, std, sem;
+	perf_init(&t1);
+	perf_init(&t2);
+	perf_init(&total);
 
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	perf_start(&total);
+	MPI_Barrier(MPI_COMM_WORLD);
 
-	err("MXCSR = %04X\n", __builtin_ia32_stmxcsr());
-	perf_init(&t);
+	perf_start(&t1);
+	fftw_execute(s->direct);
+	perf_stop(&t1);
 
-	for(r=0; r<RUNS; r++)
-	{
-		MPI_Barrier(MPI_COMM_WORLD);
-		perf_reset(&t);
-		perf_start(&t);
+	MFT_kernel(s);
 
-		// Do a fourier transform
-		fftw_execute(s->direct);
+	perf_start(&t2);
+	fftw_execute(s->inverse);
+	perf_stop(&t2);
 
-		// Stop the clock
-		MPI_Barrier(MPI_COMM_WORLD);
-		perf_stop(&t);
-		perf_record(&t, perf_measure(&t));
-		//printf("t=%g\n", perf_measure(&t));
-	}
+	MFT_normalize(sim->field.phi, s->nx * s->ny);
 
-	perf_stats(&t, &mean, &std, &sem);
+	perf_stop(&total);
 
 	// Print out how long it took in seconds
-	if(rank == 0)
-		printf("np=%d n=%ld mean=%g std=%g sem=%g csr=%04X\n",
-				size, s->ny, mean, std, sem, getcsr());
-
-	MPI_Finalize();
-	exit(0);
+	if(sim->rank == 0)
+	{
+		printf("np=%d ny=%ld csr0=%04X fft1=%e fft2=%e total=%e\n",
+			sim->nprocs, s->ny, getcsr(),
+			perf_measure(&t1),
+			perf_measure(&t2),
+			perf_measure(&total));
+	}
 
 	return 0;
 }
-
-//static int
-//MFT_solve(sim_t *sim, solver_t *s, mat_t *x, mat_t *b)
-//{
-//	fftw_complex *g;
-//	//double *tmp;
-//	perf_t comp, total, fftf, fftr;
-//	double *in;
-//	fftw_complex *out; 	
-//
-//	UNUSED(x);
-//	UNUSED(b);
-//	UNUSED(sim);
-//
-//	/* Solve Ax = b using MFT spectral method */
-//
-//	perf_init(&total);
-//	perf_init(&comp);
-//	perf_init(&fftf);
-//	perf_init(&fftr);
-//
-//	perf_start(&total);
-//
-//	/* Syncronize all processes, and add the overhead to the total counter
-//	 * only */
-//
-//	g = s->g;
-//	assert(g);
-//
-//#define N 4096L
-//
-//	ptrdiff_t alloc_local;//, rho_size;
-//	ptrdiff_t local_n0, local_n0_start;
-//
-//	alloc_local = fftw_mpi_local_size_2d(N, N/2+1, MPI_COMM_WORLD,
-//			&local_n0, &local_n0_start);
-//
-//	in = fftw_alloc_real(2 * (size_t) alloc_local);
-//	out = fftw_alloc_complex((size_t) alloc_local);
-//
-////	dbg("local_size = %ld, local_n0(ny) = %ld, local_n0_start(ny) = %ld\n",
-////			local_size, local_n0, local_n0_start);
-////
-////	rho_size = 2 * local_size;
-////
-////	dbg("Computed shape in Y is %ld, nx=%ld ny=%ld\n", local_n0, s->nx, s->ny);
-////
-////	assert(local_n0 == sim->blocksize[Y]);
-////
-////	dbg("Rho needed size is %ld, allocated real size %ld\n", rho_size, b->real_size);
-////
-////	/* Ensure we have extra room to store the extra data FFTW needs */
-////	assert(b->real_size >= rho_size);
-////
-////	/* Beware: The output of the FFT has a very special symmetry, with an
-////	 * output size of ny x nx/2+1. */
-////
-////	dbg("prev in=%p out=%p nx=%ld ny=%ld\n",
-////			(void *) b->data, (void *) g, s->nx, s->ny);
-////	mat_print(b, "b");
-////	mat_print(x, "x");
-//
-//
-//	if(sim->iter == -1 || sim->fftw_recompute_plan)
-//	{
-//
-//		dbg("direct in=%p out=%p nx=%ld ny=%ld\n",
-//				//(void *) b->data, (void *) g, s->nx, s->ny);
-//				(void *) in, (void *) g, N, N);
-//		assert(b->data);
-//		s->direct = fftw_mpi_plan_dft_r2c_2d(N, N, in, out,
-//				MPI_COMM_WORLD, FFTW_MEASURE);
-//
-//		if(!s->direct) die("Creation of plan failed\n");
-//
-////		dbg("inverse in=%p out=%p nx=%ld ny=%ld\n",
-////				(void *) g, (void *) x->data, s->nx, s->ny);
-////		s->inverse = fftw_mpi_plan_dft_c2r_2d(s->ny, s->nx,
-////				g, x->data, MPI_COMM_WORLD,
-////				FFTW_MEASURE);
-////
-////		if(!s->inverse) die("Creation of plan failed\n");
-//
-//	}
-//
-//	/* Begin computation */
-//	perf_start(&comp);
-//
-//	//i64 ix, iy;
-//	//double sum;
-//	//sum = 0;
-//	//for(iy=0; iy<b->shape[Y]; iy++)
-//	//{
-//	//	for(ix=0; ix<b->shape[X]; ix++)
-//	//	{
-//	//		sum += MAT_XY(b, ix, iy);
-//	//	}
-//	//}
-//	//dbg("sum = %e\n", sum);
-//	int i, j;
-//
-//	for(i = 0; i < local_n0; i++)
-//		for(j = 0; j < N; j++)
-//			in[i*2*(N/2 + 1) + j] = (double)(i + j);
-//
-//	//dbg("Sleeping 3 seconds\n");
-//
-//	//sleep(3);
-//
-//	MPI_Barrier(MPI_COMM_WORLD);
-//
-//	perf_start(&fftf);
-//	fftw_execute(s->direct);
-//	perf_stop(&fftf);
-//
-////	MFT_kernel(s);
-////
-////	perf_start(&fftr);
-////	fftw_execute(s->inverse);
-////	perf_stop(&fftr);
-////
-////	MFT_normalize(x, s->nx * s->ny);
-////
-////	for(i = 0; i < local_n0; i++)
-////		for(j = 0; j < s->nx; j++)
-////			x->data[i*2*(s->nx/2 + 1) + j] = 0.01;
-//
-//	perf_stop(&comp);
-//	/* Stop computation */
-//
-//	/* TODO: Destroy the plans at the end */
-//	//fftw_destroy_plan(s->direct);
-//	//fftw_destroy_plan(s->inverse);
-//	perf_stop(&total);
-//
-//	dbg("MXCSR = 0x%04X\n", getcsr());
-//
-////#if DEBUG
-//	//if(sim->rank == 0)
-//		dbg("Solver fftf/fftr/comp/total: %g / %g / %g / %g\n",
-//				perf_measure(&fftf),
-//				perf_measure(&fftr),
-//				perf_measure(&comp),
-//				perf_measure(&total));
-////#endif
-//	MPI_Barrier(MPI_COMM_WORLD);
-//	MPI_Finalize();
-//	exit(0);
-//
-//	return 0;
-//}
 
 static solver_t *
 solver_init_2d(solver_t *solver, sim_t *sim)

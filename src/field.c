@@ -432,8 +432,7 @@ field_phi_solve(sim_t *sim)
 
 	mat_print(rho, "rho after set sum to 0");
 
-	err("Reenable solver asserts\n");
-	//assert(!isnan(MAT_XY(rho, 0, 0)));
+	assert(!isnan(MAT_XY(rho, 0, 0)));
 
 	perf_start(&sim->timers[TIMER_SOLVER]);
 
@@ -441,7 +440,7 @@ field_phi_solve(sim_t *sim)
 
 	perf_stop(&sim->timers[TIMER_SOLVER]);
 
-	//assert(!isnan(MAT_XY(phi, 0, 0)));
+	assert(!isnan(MAT_XY(phi, 0, 0)));
 
 	mat_print(phi, "phi after solver");
 
