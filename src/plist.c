@@ -325,6 +325,9 @@ plist_sanity_check(plist_t *l)
 	pblock_t *b;
 	ppack_t *p;
 
+	/* All lists must have at least one block */
+	assert(l->b);
+
 	for(b = l->b; b; b = b->next)
 	{
 		/* Non-negative numbers */

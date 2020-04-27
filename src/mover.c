@@ -7,7 +7,7 @@
 #include "boundary.h"
 #include <assert.h>
 
-#define DEBUG 1
+#define DEBUG 0
 #include "log.h"
 
 static inline void
@@ -196,6 +196,7 @@ plasma_mover(sim_t *sim)
 	{
 		#pragma oss task inout(sim->plasma.chunks[i])
 		{
+			dbg("Updating position for chunk ic=%ld\n", i);
 			pchunk_lock(&sim->plasma.chunks[i], "chunk update r");
 			chunk_update_r(sim, i);
 			pchunk_unlock(&sim->plasma.chunks[i]);

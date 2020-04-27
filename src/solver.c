@@ -465,7 +465,7 @@ MFT_solve(sim_t *sim, solver_t *s)
 	// Print out how long it took in seconds
 	if(sim->rank == 0)
 	{
-		printf("np=%d ny=%ld csr0=%04lX fft1=%e fft2=%e total=%e\n",
+		dbg("np=%d ny=%ld csr0=%04lX fft1=%e fft2=%e total=%e\n",
 			sim->nprocs, s->ny, getcsr(),
 			perf_measure(&t1),
 			perf_measure(&t2),

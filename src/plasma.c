@@ -34,7 +34,7 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 
 	set->info = specie;
 
-	plist_init(l, sim->pblock_nmax, "l");
+	plist_init(&set->list, sim->pblock_nmax, "list");
 	plist_init(&set->q0[X], sim->pblock_nmax, "q0[X]");
 	plist_init(&set->q0[Y], sim->pblock_nmax, "q0[Y]");
 	plist_init(&set->q1[X], sim->pblock_nmax, "q1[X]");
@@ -42,13 +42,22 @@ pset_init(sim_t *sim, pchunk_t *chunk, int is)
 	plist_init(&set->r0, sim->pblock_nmax, "r0");
 	plist_init(&set->r1, sim->pblock_nmax, "r1");
 
-	/* Add one dummy block to the queues */
+	/* Add one dummy block to the list and queues */
+	plist_grow(&set->list, 0);
 	plist_grow(&set->q0[X], 0);
 	plist_grow(&set->q0[Y], 0);
 	plist_grow(&set->q1[X], 0);
 	plist_grow(&set->q1[Y], 0);
 	plist_grow(&set->r0, 0);
 	plist_grow(&set->r1, 0);
+
+	plist_sanity_check(&set->list);
+	plist_sanity_check(&set->q0[X]);
+	plist_sanity_check(&set->q0[Y]);
+	plist_sanity_check(&set->q1[X]);
+	plist_sanity_check(&set->q1[Y]);
+	plist_sanity_check(&set->r0);
+	plist_sanity_check(&set->r1);
 
 	step = sim->nprocs * sim->plasma_chunks;
 	ic = chunk->ig[X] * sim->nprocs + chunk->ig[Y];

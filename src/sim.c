@@ -212,6 +212,12 @@ sim_pre_step(sim_t *sim)
 
 	assert(sim->iter == -1);
 
+	/* FIXME: Remove this */
+	i64 ic, is;
+	for(ic=0; ic<sim->plasma.nchunks; ic++)
+		for(is=0; is<sim->nspecies; is++)
+			assert(sim->plasma.chunks[ic].species[is].list.b);
+
 	/* Move particles to the correct block */
 	particle_comm_initial(sim);
 
