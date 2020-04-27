@@ -168,7 +168,7 @@ chunk_update_r(sim_t *sim, int ic)
 {
 	pchunk_t *chunk;
 	i64 is;
-	vf64 dt, dtqm2, umax[MAX_DIM];
+	vf64 m, q, dt, dtqm2, umax[MAX_DIM];
 
 	is = 0;
 	chunk = &sim->plasma.chunks[ic];
@@ -179,7 +179,9 @@ chunk_update_r(sim_t *sim, int ic)
 
 	for(is=0; is<chunk->nspecies; is++)
 	{
-		dtqm2 = vf64_set1(sim->species[is].m);
+		q = vf64_set1(sim->species[is].q);
+		m = vf64_set1(sim->species[is].m);
+		dtqm2 = vf64_set1(0.5) * dt * q / m;
 		plist_update_r(&chunk->species[is].list, dt, dtqm2, umax);
 	}
 }
