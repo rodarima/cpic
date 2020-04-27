@@ -179,7 +179,7 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 			err, rel);
 #else
 
-	t = (sim->iter) * sim->dt;
+	t = (sim->iter - 1) * sim->dt;
 
 	R[X] = c->radius * cos(t * c->freq);
 	R[Y] = c->radius * sin(t * c->freq);
@@ -197,8 +197,8 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 	if(err > c->max_err)
 		c->max_err = err;
 
-	dbgr("iter=%d: Expected (%.4e,%.4e), found (%.4e,%.4e) speed=(%e %e) err %e (rel %e)\n",
-			sim->iter, R[X], R[Y], r[X], r[Y], p->u[X][0], p->u[Y][0], err, rel);
+	dbgr("iter %4ld   Expected %+.4e %+.4e   diff %+.4e %+.4e   err %e   rel %e\n",
+			sim->iter, R[X], R[Y], r[X]-R[X], r[Y]-R[Y], err, rel);
 #endif
 
 	return 0;
