@@ -36,6 +36,7 @@ boris_rotation(ppack_t *p, vf64 dtqm2, vf64 u[MAX_DIM])
 	 * read it from each particle. This poses a huge improvement in
 	 * performance, as the division can be removed */
 
+
 	for(d=X; d<MAX_DIM; d++)
 	{
 		s_denom[d] = vf64_set1(1.0);
@@ -64,10 +65,6 @@ boris_rotation(ppack_t *p, vf64 dtqm2, vf64 u[MAX_DIM])
 
 		/* Advance the velocity final half electric impulse */
 		u[d] = v_plus[d] + dtqm2 * p->E[d];
-
-		/* TODO: Measure energy here */
-
-		vf64_stream((double *) &p->u[d], u[d]);
 	}
 }
 
@@ -80,6 +77,17 @@ move(ppack_t *p, vf64 u[MAX_DIM], vf64 dt)
 	for(d=X; d<MAX_DIM; d++)
 	{
 		p->r[d] += u[d] * dt;
+	}
+}
+
+/** Update the velocity */
+static inline void
+update_u(ppack_t *p, vf64 u[MAX_DIM])
+{
+	i64 d;
+	for(d=X; d<MAX_DIM; d++)
+	{
+		vf64_stream((double *) &p->u[d], u[d]);
 	}
 }
 
@@ -131,7 +139,7 @@ err:
 
 /** Update the position in of the particles stored in a plist. */
 static void
-plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
+plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM], int set_r)
 {
 	vf64 u[MAX_DIM];
 	pblock_t *b;
@@ -152,7 +160,11 @@ plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM])
 
 			check_velocity(u, umax);
 
-			move(p, u, dt);
+			/* In the initial iteration the position is not updated */
+			if(set_r)
+				move(p, u, dt);
+
+			update_u(p, u);
 
 			/* We cannot wrap the particles here as they need to be
 			 * moved first to the correct chunk using the
@@ -172,17 +184,31 @@ chunk_update_r(sim_t *sim, int ic)
 
 	is = 0;
 	chunk = &sim->plasma.chunks[ic];
-	dt = vf64_set1(sim->dt);
 	umax[X] = vf64_set1(sim->umax[X]);
 	umax[Y] = vf64_set1(sim->umax[Y]);
 	umax[Z] = vf64_set1(sim->umax[Z]);
 
-	for(is=0; is<chunk->nspecies; is++)
+	if(sim->iter == 0)
 	{
-		q = vf64_set1(sim->species[is].q);
-		m = vf64_set1(sim->species[is].m);
-		dtqm2 = vf64_set1(0.5) * dt * q / m;
-		plist_update_r(&chunk->species[is].list, dt, dtqm2, umax);
+		dt = vf64_set1(-sim->dt/2);
+		for(is=0; is<chunk->nspecies; is++)
+		{
+			q = vf64_set1(sim->species[is].q);
+			m = vf64_set1(sim->species[is].m);
+			dtqm2 = vf64_set1(0.5) * dt * q / m;
+			plist_update_r(&chunk->species[is].list, dt, dtqm2, umax, 0);
+		}
+	}
+	else
+	{
+		dt = vf64_set1(sim->dt);
+		for(is=0; is<chunk->nspecies; is++)
+		{
+			q = vf64_set1(sim->species[is].q);
+			m = vf64_set1(sim->species[is].m);
+			dtqm2 = vf64_set1(0.5) * dt * q / m;
+			plist_update_r(&chunk->species[is].list, dt, dtqm2, umax, 1);
+		}
 	}
 }
 
