@@ -304,7 +304,7 @@ interpolate_p2f_rho(sim_t *sim, pchunk_t *c, pset_t *set)
 	idx[Y] = vf64_set1(1.0) / dx[Y];
 	fx0[X] = vf64_set1(sim->field.x0[X]);
 	fx0[Y] = vf64_set1(sim->field.x0[Y]);
-	vq = vf64_set1(sp->q);
+	vq = vf64_set1(-sp->q / sim->e0);
 
 	/* We take the whole rho field, including the ghosts in Y+ */
 	rho = sim->field._rho;
