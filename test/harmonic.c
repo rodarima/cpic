@@ -72,6 +72,7 @@ harmonic_update(sim_t *sim, struct harmonic *c)
 	double n; /* Number density of electrons */
 	double r0[MAX_VEC];
 	double r1[MAX_VEC];
+	double T, E;
 
 	/* Get the two electrons */
 	p0 = find_particle(sim, 0, &s, &iv0);
@@ -83,11 +84,22 @@ harmonic_update(sim_t *sim, struct harmonic *c)
 	r0[Y] = p0->r[Y][iv0];
 	r1[Y] = p1->r[Y][iv1];
 
-	n = 2.0 / (sim->L[X] * sim->L[Y]);
-	wp = sqrt(n * s->q * s->q / s->m / sim->e0);
-	dbgr("iter=%4ld wp=%e (%e)  p0->r=(%e %e)  p0->r=(%e %e)\n",
-			sim->iter, wp, wp/2.0/M_PI * sim->dt,
+	n = 2.0 / sim->L[X];
+	//wp = sqrt(n * s->q * s->q / s->m / sim->e0);
+	E = s->q / (2.0 * sim->L[X] * sim->e0);
+	wp = sqrt(8 * E * s->q / sim->L[X] / s->m);
+	T = 1.0/(wp/2.0/M_PI);
+
+	//if(r0[X] > 4.001) return;
+	dbgr("iter=%4ld wp=%e T=%e ni=%.1f  r0=(%e %e)  r1=(%e %e)\n",
+			sim->iter, wp, T, T/sim->dt,
 			r0[X], r0[Y], r1[X], r1[Y]);
+	dbgr("  E0=(%e %e)  E1=(%e %e) E=(%e)\n",
+			p0->E[X][iv0],
+			p0->E[Y][iv0],
+			p1->E[X][iv1],
+			p1->E[Y][iv1],
+			E);
 }
 
 int main(int argc, char *argv[])
