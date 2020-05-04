@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 #define CYCLOTRON_CONF "conf/cyclotron.conf"
-#define WEAK_CHECK 1
+#define WEAK_CHECK 0
 
 struct cyclotron
 {
@@ -131,6 +131,21 @@ cyclotron_postinit(sim_t *sim, struct cyclotron *c)
 	return 0;
 }
 
+static double
+phase_shift(sim_t *sim, struct cyclotron *c)
+{
+	double omega0; /* Expected angular velocity */
+	double phase_error, dt, n;
+
+	dt = sim->dt;
+	n = sim->iter;
+	omega0 = c->freq * 2 * M_PI;
+	/* Birdsall 4.2(10) equation */
+	phase_error = n * pow(omega0 * dt, 3) / 24.0;
+
+	return phase_error;
+}
+
 static int
 cyclotron_update(sim_t *sim, struct cyclotron *c)
 {
@@ -197,8 +212,25 @@ cyclotron_update(sim_t *sim, struct cyclotron *c)
 	if(err > c->max_err)
 		c->max_err = err;
 
-	dbgr("iter %4ld   Expected %+.4e %+.4e   diff %+.4e %+.4e   err %e   rel %e\n",
-			sim->iter, R[X], R[Y], r[X]-R[X], r[Y]-R[Y], err, rel);
+	double expected_angle, measured_angle;
+	double phase_error, measured_phase_error, rel_phase_error;
+	double omega0;
+
+	expected_angle = atan2(R[Y], R[X]);
+	measured_angle = atan2(r[Y], r[X]);
+	/* Angle error in harmonic motion */
+	phase_error = fabs(phase_shift(sim, c));
+	measured_phase_error = fabs(measured_angle - expected_angle);
+	rel_phase_error = measured_phase_error / phase_error;
+	omega0 = c->freq * 2 * M_PI;
+
+	//dbgr("iter %4ld   Expected %+.4e %+.4e   diff %+.4e %+.4e   err %e   rel %e\n",
+	//		sim->iter, R[X], R[Y], r[X]-R[X], r[Y]-R[Y], err, rel);
+	dbgr("iter %4ld   phase m=%e e=%e (%e)  angle: m=%e e=%e  w0*dt=%e\n",
+			sim->iter,
+			measured_phase_error, phase_error, rel_phase_error,
+			measured_angle, expected_angle,
+			omega0 * sim->dt);
 #endif
 
 	return 0;
