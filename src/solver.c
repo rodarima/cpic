@@ -432,6 +432,36 @@ solver_rho_size(sim_t *sim, i64 *cnx, i64 *cny)
 
 }
 
+#if 0
+static void
+MFT_neutralize(mat_t *rho)
+{
+	i64 ix, iy;
+	double sum;
+
+	sum = 0.0;
+
+	for(iy=0; iy<rho->shape[Y]; iy++)
+		for(ix=0; ix<rho->shape[X]; ix++)
+			sum += MAT_XY(rho, ix, iy);
+
+	sum /= rho->shape[X] * rho->shape[Y];
+
+	for(iy=0; iy<rho->shape[Y]; iy++)
+		for(ix=0; ix<rho->shape[X]; ix++)
+			MAT_XY(rho, ix, iy) -= sum;
+	sum = 0.0;
+
+	for(iy=0; iy<rho->shape[Y]; iy++)
+		for(ix=0; ix<rho->shape[X]; ix++)
+			sum += MAT_XY(rho, ix, iy);
+
+	if(fabs(sum) >= MAX_ERR)
+		die("sum in rho is %e\n", sum);
+
+}
+#endif
+
 static int
 MFT_solve(sim_t *sim, solver_t *s)
 {
@@ -444,6 +474,9 @@ MFT_solve(sim_t *sim, solver_t *s)
 	perf_init(&t1);
 	perf_init(&t2);
 	perf_init(&total);
+
+	/* Not needed as the FFT coefficient at 0,0 is already 0 */
+	//MFT_neutralize(sim->field.rho);
 
 	perf_start(&total);
 	MPI_Barrier(MPI_COMM_WORLD);
