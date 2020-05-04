@@ -100,6 +100,7 @@ check_velocity(vf64 u[MAX_DIM], vf64 umax[MAX_DIM])
 	vf64 u_abs;
 	vmsk mask;
 	int mask_val;
+	i64 i;
 
 	mask_val = 0;
 	mask = vmsk_zero();
@@ -119,21 +120,18 @@ check_velocity(vf64 u[MAX_DIM], vf64 umax[MAX_DIM])
 	return;
 
 err:
-	dbg("Max velocity exceeded with mask=%08x\n", mask_val);
+	err("Max velocity exceeded with mask=%08x\n", mask_val);
 
-#if 0
-	i64 i;
 
-	/* TODO: Use a better define system for debug code */
 	for(i=0; i<MAX_VEC; i++)
 	{
 		for(d=X; d<MAX_DIM; d++)
 		{
-			dbg("fabs(u[d=%ld][i=%ld]) = %e > umax[i=%ld] = %e\n",
-					d, i, fabs(u[d][i]), i, umax[i]);
+			err("fabs(u[%c][%ld]) = %e > umax[%c][%ld] = %e\n",
+					CDIM(d), i, fabs(u[d][i]),
+					CDIM(d), i, umax[d][i]);
 		}
 	}
-#endif
 	abort();
 }
 
@@ -145,6 +143,20 @@ plist_update_r(plist_t *l, vf64 dt, vf64 dtqm2, vf64 umax[MAX_DIM], int set_r)
 	pblock_t *b;
 	ppack_t *p;
 	i64 i;
+
+	/* Set the velocity to zero in the garbage particles if any */
+	b = l->b->prev;
+	if(b->n == 0) b = b->prev;
+	if(b->nfpacks < b->npacks)
+	{
+		for(i=b->n - b->nfpacks*MAX_VEC; i<MAX_VEC; i++)
+		{
+			//err("Clearing i=%ld\n", i);
+			b->p[b->nfpacks].u[X][i] = 0.0;
+			b->p[b->nfpacks].u[Y][i] = 0.0;
+			b->p[b->nfpacks].u[Z][i] = 0.0;
+		}
+	}
 
 	for(b = l->b; b; b = b->next)
 	{
