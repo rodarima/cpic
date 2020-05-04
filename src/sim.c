@@ -333,80 +333,72 @@ sim_end(sim_t *sim)
 static int
 conservation_energy(sim_t *sim)
 {
-	int i, nn, np;
-	particle_t *p;
-	block_t *b;
+	i64 ix, iy, ic, is, ip, iv, nv;
+	pchunk_t *c;
+	pblock_t *b;
+	pset_t *set;
+	ppack_t *p;
+	double PE, KE, TE;
+	mat_t *phi, *rho;
 
-	double E,L;
-	//double L = sim->L;
-	double H = sim->dx[0];
+#pragma oss taskwait
 
-	double *phi, *rho;
+	rho = sim->field.rho;
+	phi = sim->field.phi;
 
-	rho = sim->field->rho->data;
-	phi = sim->field->phi->data;
-	nn = sim->nnodes[0];
-	np = s->nparticles;
-	L = sim->L[0];
+	/* Only one process supported by now */
+	assert(sim->nprocs == 1);
 
+	/* Ensure we have the same number of points */
+	assert(phi->shape[X] == rho->shape[X]);
+	assert(phi->shape[Y] == rho->shape[Y]);
 
-	/* We need all previous tasks to finish before computing the energy, but
-	 * the check is only needed for validation */
-//	#pragma oss taskwait
-//	for(i=0; i<s->nblocks; i++)
-//	{
-//		for(j=0; j < s->blocksize; j++)
-//		{
-//			b = &s->blocks[i];
-//			//EE += b->field.rho->data[j] * b->field.J->data[j];
-//			//EE += b->field.E->data[j] * b->field.E->data[j];
-//			E = b->field.E->data[j];
-//
-//			//EE += E * E * H / (8.0 * M_PI);
-//			EE += E * E;
-//		}
-//	}
+	/* Compute potential energy */
+	PE = 0.0;
+	for(iy=0; iy<phi->shape[Y]; iy++)
+		for(ix=0; ix<phi->shape[X]; ix++)
+			PE += MAT_XY(rho, ix, iy) * MAT_XY(phi, ix, iy);
 
-	/* From Hockney book */
-	for(i=0; i<nn; i++)
+	/* Compute kinetic energy */
+	KE = 0.0;
+	for(ic=0; ic<sim->plasma.nchunks; ic++)
 	{
-		EE += phi[i] * rho[i];
+		c = &sim->plasma.chunks[ic];
+		for(is=0; is<c->nspecies; is++)
+		{
+			double ke = 0.0;
+
+			set = &c->species[is];
+			for(b=set->list.b; b; b=b->next)
+			{
+				/* FIXME: We are updating past n as well to fill MAX_VEC */
+				for(ip=0; ip < b->nfpacks; ip++)
+				{
+					p = &b->p[ip];
+					for(iv=0; iv<MAX_VEC; iv++)
+					{
+						ke += p->u[X][iv] * p->u[X][iv] + p->u[Y][iv] * p->u[Y][iv];
+					}
+				}
+				for(ip=b->nfpacks; ip < b->npacks; ip++)
+				{
+					p = &b->p[ip];
+					nv = b->n - b->nfpacks * MAX_VEC;
+					for(iv=0; iv<nv; iv++)
+					{
+						ke += p->u[X][iv] * p->u[X][iv] + p->u[Y][iv] * p->u[Y][iv];
+					}
+				}
+			}
+
+			ke = ke * set->info->m / 2.0;
+			KE += ke;
+		}
 	}
 
-	EE *= -16 * (2 / L) / (0.25*0.25);
+	TE = KE + PE;
 
-	for(i=0; i<s->nparticles; i++)
-	{
-		p = &s->particles[i];
-		KE += s->m * p->u[0] * p->u[0];
-	}
-
-	//EE *= H/(8 * M_PI);
-//	KE *= H/8;
-	KE *= 8;
-
-	/* Change units to eV */
-	//EE /= 1.6021766208e-19;
-	//KE /= 1.6021766208e-19; /* ??? */
-
-
-
-	/* Factor correction */
-	//sim->energy_kinetic *= s->m / 2.0;
-	//sim->total_momentum[X] *= s->m * 5.0;
-	//sim->total_momentum[Y] *= s->m * 5.0;
-
-	sim->energy_kinetic /= 2.0;
-
-
-	double EE = 0.0; /* Electrostatic energy */
-	double KE = 0.0; /* Kinetic energy */
-	EE = sim->energy_electrostatic;
-	KE = sim->energy_kinetic;
-
-	if(sim->period_energy && ((sim->iter % sim->period_energy) == 0))
-		printf("e %10.3e %10.3e %10.3e %10.3e %10.3e\n", EE+KE, EE, KE,
-				sim->total_momentum[X], sim->total_momentum[Y]);
+	err("energy k=%+e p=%+e t=%+e\n", KE, PE, TE);
 
 	return 0;
 }
@@ -512,13 +504,11 @@ sim_step(sim_t *sim)
 	#pragma oss taskwait
 
 	//#pragma oss task in(sim->plasma.chunks[sim->plasma.nchunks]) label(output_fields)
-#if 0
 	if(output_fields(sim))
 	{
 		err("output_fields failed\n");
 		return -1;
 	}
-#endif
 
 	/* Phase IP:FI. Field interpolation, projection of the electric
 	 * field from the grid nodes to the particle positions. */
