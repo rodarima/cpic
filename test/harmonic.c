@@ -19,7 +19,7 @@ struct harmonic
 };
 
 static ppack_t *
-find_particle(sim_t *sim, i64 index, specie_t **s, i64 *ivec)
+find_particle(sim_t *sim, i64 is, i64 index, specie_t **s, i64 *ivec)
 {
 	i64 ic, nc, iv, nv;
 	plasma_t *plasma;
@@ -33,9 +33,7 @@ find_particle(sim_t *sim, i64 index, specie_t **s, i64 *ivec)
 	for(ic=0; ic<nc; ic++)
 	{
 		chunk = &plasma->chunks[ic];
-		/* Only one specie supported */
-		assert(chunk->nspecies == 1);
-		set = &chunk->species[0];
+		set = &chunk->species[is];
 
 		b = set->list.b;
 		assert(b);
@@ -65,18 +63,20 @@ harmonic_update(sim_t *sim, struct harmonic *c)
 {
 	UNUSED(c);
 
-	specie_t *s;
+	specie_t *s, *s1;
 	ppack_t *p0, *p1;
 	i64 iv0, iv1;
-	double wp; /* Plasma frequency in rad/s */
+	//double wp; /* Plasma frequency in rad/s */
 	double n; /* Number density of electrons */
 	double r0[MAX_VEC];
 	double r1[MAX_VEC];
-	double T, E;
+	double E;
+	double wp1, T1, nc1;
+	double wp2, T2, nc2;
 
 	/* Get the two electrons */
-	p0 = find_particle(sim, 0, &s, &iv0);
-	p1 = find_particle(sim, 1, &s, &iv1);
+	p0 = find_particle(sim, 0, 0, &s, &iv0);
+	p1 = find_particle(sim, 1, 0, &s1, &iv1);
 	if(!p0 || !p1) die("Cannot find the two electrons\n");
 
 	r0[X] = p0->r[X][iv0];
@@ -84,22 +84,28 @@ harmonic_update(sim_t *sim, struct harmonic *c)
 	r0[Y] = p0->r[Y][iv0];
 	r1[Y] = p1->r[Y][iv1];
 
-	n = 2.0 / sim->L[X];
-	//wp = sqrt(n * s->q * s->q / s->m / sim->e0);
+	n = 2.0 / (sim->L[X]*sim->L[Y]);
+	wp1 = sqrt(n * s->q * s->q / s->m / sim->e0);
+	T1 = 1.0/(wp1/2.0/M_PI);
+	nc1 = T1/sim->dt;
+
 	E = s->q / (2.0 * sim->L[X] * sim->e0);
-	wp = sqrt(8 * E * s->q / sim->L[X] / s->m);
-	T = 1.0/(wp/2.0/M_PI);
+	wp2 = sqrt(8 * E * s->q / sim->L[X] / s->m);
+	T2 = 1.0/(wp2/2.0/M_PI);
+	nc2 = T2/sim->dt;
 
 	//if(r0[X] > 4.001) return;
-	dbgr("iter=%4ld wp=%e T=%e ni=%.1f  r0=(%e %e)  r1=(%e %e)\n",
-			sim->iter, wp, T, T/sim->dt,
+	dbgr("iter=%5ld nc1=%.1f nc2=%.1f  r0=(%+e %+e)  r1=(%+e %+e)\n",
+			sim->iter, nc1, nc2,
 			r0[X], r0[Y], r1[X], r1[Y]);
+	/*
 	dbgr("  E0=(%e %e)  E1=(%e %e) E=(%e)\n",
 			p0->E[X][iv0],
 			p0->E[Y][iv0],
 			p1->E[X][iv1],
 			p1->E[Y][iv1],
 			E);
+			*/
 }
 
 int main(int argc, char *argv[])
