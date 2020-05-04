@@ -602,9 +602,11 @@ output_fields(sim_t *sim)
 	output_t *out;
 	char dir[PATH_MAX];
 
-	perf_start(&sim->timers[TIMER_OUTPUT_FIELDS]);
-
 	out = sim->output;
+
+	if(!out->enabled) return 0;
+
+	perf_start(&sim->timers[TIMER_OUTPUT_FIELDS]);
 
 	write_xdmf_fields(sim);
 
