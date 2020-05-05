@@ -73,6 +73,7 @@ harmonic_update(sim_t *sim, struct harmonic *c)
 	double E;
 	double wp1, T1, nc1;
 	double wp2, T2, nc2;
+	double wp3, T3, nc3;
 
 	/* Get the two electrons */
 	p0 = find_particle(sim, 0, 0, &s, &iv0);
@@ -94,18 +95,27 @@ harmonic_update(sim_t *sim, struct harmonic *c)
 	T2 = 1.0/(wp2/2.0/M_PI);
 	nc2 = T2/sim->dt;
 
-	//if(r0[X] > 4.001) return;
-	dbgr("iter=%5ld nc1=%.1f nc2=%.1f  r0=(%+e %+e)  r1=(%+e %+e)\n",
-			sim->iter, nc1, nc2,
+	if(sim->iter == 1)
+	{
+		wp3 = sqrt(8 * p0->E[X][iv0] * s->q / sim->L[X] / s->m);
+		T3 = 1.0/(wp3/2.0/M_PI);
+		nc3 = T3/sim->dt;
+	}
+	else
+	{
+		nc3 = 0.0;
+	}
+
+	//if(r0[X] > 1.001) return;
+	dbgr("iter=%5ld nc1=%.1f nc2=%.1f nc3=%.1f  r0=(%+e %+e)  r1=(%+e %+e)",
+			sim->iter, nc1, nc2, nc3,
 			r0[X], r0[Y], r1[X], r1[Y]);
-	/*
 	dbgr("  E0=(%e %e)  E1=(%e %e) E=(%e)\n",
 			p0->E[X][iv0],
 			p0->E[Y][iv0],
 			p1->E[X][iv1],
 			p1->E[Y][iv1],
 			E);
-			*/
 }
 
 int main(int argc, char *argv[])
