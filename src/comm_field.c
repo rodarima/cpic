@@ -109,7 +109,7 @@ comm_recv_ghost_rho(sim_t *sim)
 	op = COMM_TAG_OP_RHO;
 
 	/* We need to add the data to our rho matrix at the first row, can MPI
-	 * add the buffer as it cames, without a temporal buffer? TODO: Find out */
+	 * add the buffer as it comes, without a temporal buffer? TODO: Find out */
 
 	ptr = &MAT_XY(rho, 0, sim->blocksize[Y]);
 

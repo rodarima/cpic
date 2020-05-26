@@ -4,6 +4,7 @@
 #include "simd.h"
 #include "mat.h"
 #include <assert.h>
+#include <math.h>
 
 #define DEBUG 0
 #include "log.h"

@@ -9,19 +9,8 @@ all_src:=$(filter-out $(module)/plot.c,$(all_src))
 all_src:=$(filter-out $(module)/video.c,$(all_src))
 src:=$(filter-out $(module)/mft_worker.c,$(all_src))
 
-USE_MCC?=0
 obj:=
 
-ifeq ($(USE_MCC), 1)
-src:=$(subst .c,.mcc.c,$(src))
-CFLAGS+=-D_MCC -D_MERCURIUM -D_OMPSS_2=1
-#CFLAGS+=-D_MCC -D_MERCURIUM -D_OMPSS_2=1 -include nanos6.h
-#OBJ+=/usr/lib/nanos6-main-wrapper.o
-#obj+=/usr/lib/nanos6-main-wrapper.o
-LDFLAGS+=-L/usr/lib -Wl,-z,lazy -Xlinker -rpath -Xlinker /usr/lib
-LDLIBS+=-lnanos6 -ldl /usr/lib/nanos6-main-wrapper.o
-GEN+=$(src)
-endif
 
 
 obj_cpic=$(subst .c,.o,$(src))
@@ -44,18 +33,30 @@ endif
 
 src_cflags+=$(shell mpicc --showme:compile)
 src_ldlibs+=$(shell mpicc --showme:link)
-src_ldlibs+=-lmpi
+#src_ldlibs+=-lmpi
 
 src_ldlibs+=-lm -lconfig
 #src_ldlibs+=-lgsl -lgslcblas
 src_cflags+=-g -pthread -Wall
 
-#src_ldlibs+=-lfftw3_omp
-src_ldlibs+=-lfftw3_threads
-src_ldlibs+=-lfftw3_mpi -lfftw3
-
 # HDF5
 src_ldlibs+=-lhdf5
+
+# Include heFFTe library
+src_ldlibs+=-lheffte
+src_ldlibs+=-lfftw3_mpi -lfftw3f_mpi
+src_ldlibs+=-lfftw3 -lfftw3f
+
+# Include our copy of ut* utilities like uthash
+src_cflags+=-Iinclude
+
+# Include CUDA
+src_ldlibs+=-lcudart -lcuda -lcufft
+
+src_cflags+=--gcc-toolchain=/gpfs/apps/NVIDIA/GCC/9.2.0/
+
+# For ancient GLIB systems, for clock_gettime
+src_ldlibs+=-lrt
 
 # Extrae API (not needed anymore)
 #src_ldlibs+=-lmpitrace

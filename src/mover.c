@@ -6,6 +6,7 @@
 #include "plasma.h"
 #include "boundary.h"
 #include <assert.h>
+#include <math.h>
 
 #define DEBUG 0
 #include "log.h"

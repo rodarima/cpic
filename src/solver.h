@@ -8,8 +8,11 @@ typedef struct solver solver_t;
 
 #include "sim.h"
 #include "mat.h"
+#ifdef WITH_LU
 #include <gsl/gsl_linalg.h>
-#include <fftw3.h>
+#endif
+#include <complex.h>
+#include <heffte_wrap.h>
 
 enum solver_method {
 	METHOD_LU=1,
@@ -32,8 +35,12 @@ struct solver
 
 	/** For MFT */
 	mat_t *G;
-	fftw_complex *g;
-	fftw_plan direct, inverse;
+	double complex *g;
+    double *gpu_in, *input;
+    double complex *gpu_out, *output;
+    size_t n_in, n_out, size_in, size_out;
+    struct FFT fft;
+	int box[2][3];
 
 	/** Custom data for the specific solver */
 	void *data;

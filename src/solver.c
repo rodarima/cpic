@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#define DEBUG 0
+#define DEBUG 1
 #include "log.h"
 #include "mat.h"
 
@@ -16,14 +16,14 @@
 #include <string.h>
 
 #include <complex.h>
-#include <fftw3.h>
-#include <fftw3-mpi.h>
 #include <sched.h>
-#include <nanos6/debug.h>
 #include <unistd.h>
 
 #include <sched.h>
 #include <unistd.h>
+#include <heffte_wrap.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 #include "mft_tap.h"
 
@@ -204,30 +204,17 @@ print_affinity()
 	printf("\n");
 }
 
-static int
-MFT_init(sim_t *sim, solver_t *s)
+static void
+build_coef(sim_t *sim, solver_t *s)
 {
 	i64 dx, dy, ix, iy, nx, ny;
 	i64 shape[MAX_DIM] = {1,1,1};
 	i64 start[MAX_DIM] = {0};
 	i64 end[MAX_DIM] = {0};
-	i64 threads;
-	//cpu_set_t mask;
-	ptrdiff_t local_size;
-	ptrdiff_t local_n0, local_n0_start;
 	double cx, cy;
 	mat_t *G;
-	fftw_complex *g;
 
 	/* Compute Ĝ[k,l] coefficients, as described by Hockney, section 6-5-2 */
-
-	if(s->dim != 2)
-	{
-		err("MFT solver only supports 2D\n");
-		abort();
-	}
-
-	print_affinity();
 
 	nx = s->nx;
 	ny = s->ny;
@@ -242,17 +229,6 @@ MFT_init(sim_t *sim, solver_t *s)
 			shape[X], shape[Y]);
 
 	G = mat_alloc(s->dim, shape);
-
-	local_size = fftw_mpi_local_size_2d(s->ny, s->nx/2+1, MPI_COMM_WORLD,
-			&local_n0, &local_n0_start);
-
-	assert(sim->field.shape[Y] < local_size);
-
-	dbg("Storing %ld elements, local_size=%ld\n",
-			local_size,
-			local_size);
-	g = fftw_alloc_complex((size_t) local_size);
-	assert(g);
 
 	cx = 2.0 * M_PI / nx;
 	cy = 2.0 * M_PI / ny;
@@ -282,79 +258,99 @@ MFT_init(sim_t *sim, solver_t *s)
 	mat_print(G, "G");
 
 	s->G = G;
-	s->g = g;
+}
 
-	if(sim->fftw_threads)
-	{
-		/* Initialize the FFTW3 threads subsystem */
-		if(!fftw_init_threads())
-			die("fftw_init_threads failed\n");
-	}
+static void
+prepare_fft(sim_t *sim, solver_t *s)
+{
+	i64 nx, ny, iy0, iy1;
+	size_t nin, nout;
 
+	nx = sim->field.shape[X];
+	ny = sim->field.shape[Y];
 
-	/* Initialize the FFTW3 MPI subsystem */
-	fftw_mpi_init();
+	iy0 = sim->rank * ny;
+	iy1 = iy0 + ny - 1;
 
-	/* In the FFTW example this is placed after mpi_init */
+	/* The boxes use the inverse XYZ notation */
+	s->box[0][0] = 0;	/* Z start */
+	s->box[0][1] = iy0;	/* Y start */
+	s->box[0][2] = 0;	/* X start */
+	s->box[1][0] = 0;	/* Z stop */
+	s->box[1][1] = iy1;	/* Y stop */
+	s->box[1][2] = nx - 1;	/* X stop */
 
-	if(sim->fftw_threads)
-	{
-		//printf("FIXME: Uncomment fftw threads \n");
-		if(sim->fftw_threads == -1)
-			threads = nanos6_get_num_cpus();
-		else
-			threads = sim->fftw_threads;
+	err("box geometry start XYZ(%d %d %d) stop XYZ(%d %d %d)\n",
+			s->box[0][2], s->box[0][1], s->box[0][0],
+			s->box[1][2], s->box[1][1], s->box[1][0]);
+	dbg("creating heffte\n");
 
-		if(sim->rank == 0)
-			err("Using %ld threads in FFTW\n", threads);
-		fftw_plan_with_nthreads(threads);
-	}
+	if(heffte_create(&s->fft, s->box, s->box, MPI_COMM_WORLD,
+				HEFFTE_CUFFT, &nin, &nout) != 0)
+		die("heffte_create failed\n");
 
-	/* Compute the plans */
-	s->direct = fftw_mpi_plan_dft_r2c_2d(
-			s->ny,			/* Dimension n0 = Y */
-			s->nx,			/* Dimension n1 = X */
-			sim->field.rho->data,	/* Input */
-			g,			/* Output */
-			MPI_COMM_WORLD,		/* Global comm */
-			FFTW_MEASURE);		/* Spend some time here */
+	assert(nin == nout);
+	assert(nin == (size_t) (nx * ny));
+	UNUSED(nin);
+	UNUSED(nout);
+}
 
-	if(!s->direct) abort();
+static void
+allocate_buffers(sim_t *sim, solver_t *s)
+{
+	UNUSED(sim);
 
-	s->inverse = fftw_mpi_plan_dft_c2r_2d(
-			s->ny,			/* Dimension n0 = Y */
-			s->nx,			/* Dimension n1 = X */
-			g,			/* Input */
-			sim->field.phi->data,	/* Output */
-			MPI_COMM_WORLD,		/* Global comm */
-			FFTW_MEASURE);		/* Spend some time here */
+	s->n_in = (size_t) (s->nx * s->ny);
+	s->n_out = s->n_in;
+	s->size_in = s->n_in * sizeof(*s->gpu_in);
+	s->size_out = s->n_out * sizeof(*s->gpu_out);
 
-	if(!s->inverse) abort();
+	s->output = safe_malloc(s->size_out);
+
+	dbg("Allocating GPU buffers\n");
+
+	/* Allocate space in the GPU to hold the input and output of the
+	 * FFT */
+	if(cudaMalloc((void **) &s->gpu_in, s->size_in) != cudaSuccess)
+		die("cudaMalloc failed\n");
+
+	if(cudaMalloc((void **) &s->gpu_out, s->size_out) != cudaSuccess)
+		die("cudaMalloc failed\n");
+
+	dbg("Allocated GPU buffers\n");
+}
+
+static int
+MFT_init(sim_t *sim, solver_t *s)
+{
+	if(s->dim != 2)
+		die("MFT solver only supports 2D\n");
+
+	print_affinity();
+
+	prepare_fft(sim, s);
+
+	allocate_buffers(sim, s);
+
+	build_coef(sim, s);
 
 	return 0;
 }
 
 static void
-MFT_kernel(solver_t *s)
+MFT_kernel(mat_t *coeff, double complex *spectrum)
 {
 	int ix, iy;
-	mat_t *G;
-	fftw_complex *g;
-	//double *Gd;
-
-	g = s->g;
-	G = s->G;
-	//Gd = G->data;
-
 	//ii = 0;
 
-	for(iy=0; iy<G->shape[Y]; iy++)
+	for(iy=0; iy<coeff->shape[Y]; iy++)
 	{
 //#pragma oss task
-		for(ix=0; ix<G->shape[X]; ix++)
+		for(ix=0; ix<coeff->shape[X]; ix++)
 		{
 			/* Half of the coefficients are not needed */
-			g[iy * G->shape[X] + ix] *= MAT_XY(G, ix, iy);
+			spectrum[iy * coeff->shape[X] + ix] *=
+				MAT_XY(coeff, ix, iy);
 			//g[ii] *= Gd[ii];
 			//ii++;
 		}
@@ -381,55 +377,11 @@ MFT_normalize(mat_t *x, int N)
 i64
 solver_rho_size(sim_t *sim, i64 *cnx, i64 *cny)
 {
-	i64 nx, ny;
-	ptrdiff_t local_size, rho_size;
-	ptrdiff_t local_n0, local_n0_start;
-	i64 comp_nx, padded_nx;
+	*cny = sim->blocksize[Y];
+	*cnx = sim->blocksize[X];
 
-	nx = sim->ntpoints[X];
-	ny = sim->ntpoints[Y];
-
-	local_size = fftw_mpi_local_size_2d(
-			ny, nx/2+1, MPI_COMM_WORLD,
-			&local_n0, &local_n0_start);
-
-	rho_size = local_size * 2;
-
-
-	assert(local_n0 == sim->blocksize[Y]);
-
-	comp_nx = rho_size / sim->blocksize[Y];
-	padded_nx = 2*(nx/2+1);
-
-	assert(comp_nx * sim->blocksize[Y] == rho_size);
-	dbg("solver local_size=%ld, rho_size=%ld, comp_nx=%zu, padded_nx=%zu\n",
-			local_size, rho_size, comp_nx, padded_nx);
-
-	*cnx = padded_nx;
-	*cny = (rho_size + padded_nx-1) / padded_nx;
-
-	return rho_size;
-
-	/* Notice that the real shape of rho in X (real_shape[X]) will be
-	 * different between processes. We must take care of that when dealing
-	 * with ghost exchange, as we will include the padding in X */
-
-	//comp_ny = sim->blocksize[Y];
-
-	// USE ALWAYS THE FFTW PROVIDED SIZE!
-	//dbg("comp_nx = %d, estimated = %d\n",
-	//		comp_nx,
-	//		2 * (sim->blocksize[X]/2 + 1));
-	//assert(comp_nx == 2 * (sim->blocksize[X]/2 + 1));
-
-	//if(comp_nx > *rnx) *rnx = comp_nx;
-	//if(comp_ny > *rny) *rny = comp_ny;
-
-	//return rho_size / sim->blocksize[Y];
-	//return 2 * (sim->blocksize[X]/2 + 1);
-
-	//return comp_nx;
-
+	return sim->blocksize[X] * sim->blocksize[Y] *
+		(i64) sizeof(double);
 }
 
 #if 0
@@ -462,14 +414,32 @@ MFT_neutralize(mat_t *rho)
 }
 #endif
 
+static void
+to_gpu(void *src, void *dst, size_t nbytes)
+{
+	if(cudaMemcpy(dst, src, nbytes, cudaMemcpyHostToDevice) != cudaSuccess)
+		die("cudaMemcpy failed\n");
+}
+
+static void
+from_gpu(void *src, void *dst, size_t nbytes)
+{
+	if(cudaMemcpy(dst, src, nbytes, cudaMemcpyDeviceToHost) != cudaSuccess)
+		die("cudaMemcpy failed\n");
+}
+
 static int
 MFT_solve(sim_t *sim, solver_t *s)
 {
 	perf_t t1, t2, total;
+	mat_t *rho, *phi;
 
 	if(__builtin_ia32_stmxcsr() != sim->desired_mxcsr)
 		__builtin_ia32_ldmxcsr(sim->desired_mxcsr);
 	assert(getcsr() == sim->desired_mxcsr);
+
+	phi = sim->field.phi;
+	rho = sim->field.rho;
 
 	perf_init(&t1);
 	perf_init(&t2);
@@ -478,20 +448,31 @@ MFT_solve(sim_t *sim, solver_t *s)
 	/* Not needed as the FFT coefficient at 0,0 is already 0 */
 	//MFT_neutralize(sim->field.rho);
 
+	/* Move CPU input data to the GPU */
+	to_gpu(rho->data, s->gpu_in, s->size_in);
+
 	perf_start(&total);
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	perf_start(&t1);
-	fftw_execute(s->direct);
+	if(heffte_forward_r2c(&s->fft, s->gpu_in, s->gpu_out) != 0)
+		die("heffte_forward_r2c failed\n");
 	perf_stop(&t1);
 
-	MFT_kernel(s);
+	from_gpu(s->gpu_out, s->output, s->size_out);
+
+	MFT_kernel(s->G, s->output);
+
+	to_gpu(s->output, s->gpu_out, s->size_out);
 
 	perf_start(&t2);
-	fftw_execute(s->inverse);
+	if(heffte_backward_c2r(&s->fft, s->gpu_out, s->gpu_in) != 0)
+		die("heffte_backward_c2r failed\n");
 	perf_stop(&t2);
 
-	MFT_normalize(sim->field.phi, s->nx * s->ny);
+	from_gpu(s->gpu_out, phi->data, s->size_out);
+
+	MFT_normalize(phi, s->nx * s->ny);
 
 	perf_stop(&total);
 
