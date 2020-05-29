@@ -36,10 +36,10 @@ struct solver
 	/** For MFT */
 	mat_t *G;
 	double complex *g;
-    double *gpu_in, *input;
-    double complex *gpu_out, *output;
-    size_t n_in, n_out, size_in, size_out;
-    struct FFT fft;
+	double *gpu_in, *input;
+	double complex *gpu_out, *output;
+	size_t n_in, n_out, size_in, size_out;
+	struct FFT fft;
 	int box[2][3];
 
 	/** Custom data for the specific solver */

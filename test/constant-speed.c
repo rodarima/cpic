@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 #define CONF "conf/constant-speed.conf"
 #define MAX_ERR 1e-10

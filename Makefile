@@ -1,5 +1,5 @@
-#MODULES:=src
-MODULES:=src test
+MODULES:=src
+#MODULES:=src test
 #MODULES+=test user
 
 
@@ -88,7 +88,7 @@ CFLAGS+=-march=core-avx2
 #CFLAGS+=-xHost
 
 # Use TAMPI
-USE_TAMPI?=0
+USE_TAMPI?=1
 
 ifeq ($(USE_TAMPI), 1)
 CFLAGS+=-DWITH_TAMPI
@@ -117,7 +117,8 @@ CFLAGS+=-fstack-protector-all
 #CFLAGS+=-O2
 
 #Include all modules for headers
-CFLAGS+=$(patsubst %,-I%,$(MODULES))
+#CFLAGS+=$(patsubst %,-I%,$(MODULES))
+CFLAGS+=-Iinclude -Isrc -Itest
 
 BIN:=
 SRC:=

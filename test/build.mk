@@ -18,8 +18,7 @@ test_ldlibs+=$(src_ldlibs)
 #test_ldlibs+=`mpicc --showme:link`
 
 %.test: %.o cpic.a
-	@echo "LD $@"
-	@$(CC) $(CFLAGS) $(test_cflags) $(LDLIBS) $(test_ldlibs) $^ -o $@
+	$(CC) $(CFLAGS) $(test_cflags) $(LDLIBS) $(test_ldlibs) $^ -o $@
 
 .PHONY: test
 

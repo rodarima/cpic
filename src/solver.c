@@ -300,7 +300,11 @@ allocate_buffers(sim_t *sim, solver_t *s)
 {
 	UNUSED(sim);
 
-	s->n_in = (size_t) (s->nx * s->ny);
+	mat_t *rho;
+
+	rho = sim->field.rho;
+
+	s->n_in = (size_t) (rho->shape[X] * rho->shape[Y]);
 	s->n_out = s->n_in;
 	s->size_in = s->n_in * sizeof(*s->gpu_in);
 	s->size_out = s->n_out * sizeof(*s->gpu_out);
