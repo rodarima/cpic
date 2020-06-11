@@ -28,7 +28,7 @@
 		<syscall enabled="no">1-3</syscall>
 	</callers>
 
-	<user-functions enabled="yes"
+	<user-functions enabled="no"
 		list="extrae/function.list"
 		exclude-automatic-functions="yes">
 

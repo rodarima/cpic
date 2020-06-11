@@ -54,9 +54,9 @@ CFLAGS+=-Wno-unknown-pragmas
 #CFLAGS+=-Wstrict-prototypes -Wshadow -Wconversion
 
 # Optimization enabled
-#CFLAGS+=-O3
+CFLAGS+=-O3
 #CFLAGS+=-ffp-contract=fast
-CFLAGS+=-O0
+#CFLAGS+=-O0
 CFLAGS+=-g
 #CFLAGS+=-Wall -Werror
 #LDFLAGS:=-L. -Wl,-rpath,.
@@ -71,13 +71,13 @@ CFLAGS+=-g
 #CFLAGS+=-Wno-unknown-pragmas
 
 # Use debug messages
-CFLAGS+=-DGLOBAL_DEBUG
+#CFLAGS+=-DGLOBAL_DEBUG
 
 # No asserts
-#CFLAGS+=-DNDEBUG
+CFLAGS+=-DNDEBUG
 
 # No extra assers
-#CFLAGS+=-DNO_EXTRA_ASSERTS
+CFLAGS+=-DNO_EXTRA_ASSERTS
 
 # For intel compiler
 CFLAGS+=-fPIE
@@ -88,7 +88,7 @@ CFLAGS+=-march=core-avx2
 #CFLAGS+=-xHost
 
 # Use TAMPI
-USE_TAMPI?=0
+USE_TAMPI?=1
 
 ifeq ($(USE_TAMPI), 1)
 CFLAGS+=-DWITH_TAMPI

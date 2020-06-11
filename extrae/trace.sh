@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#export EXTRAE_HOME=/usr
+export EXTRAE_HOME=/usr
 
 source ${EXTRAE_HOME}/etc/extrae.sh
 
@@ -26,5 +26,4 @@ export NANOS6=extrae
 export NANOS6_EXTRAE_AS_THREADS=0
 
 ## Run the desired program
-#NANOS6=extrae
-$*
+exec $*

@@ -46,3 +46,11 @@ Only 1 process:
 	NANOS6_EXTRAE_AS_THREADS=1, then multiple threads are shown, but only
 	for one process.
 
+Fri, 08 May 2020 12:36:04 +0200
+
+When running with one process, the generated file `TRACE.mpits` doesn't contain
+all available files generated in the `set-0` folder. It seems that two processes
+are spawned and paraver only focus in the wrong one.
+
+This can be fixed by manually running mpi2prv with all the interesting files in
+the `set-0` folder.
