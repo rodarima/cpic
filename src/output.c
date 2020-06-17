@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <assert.h>
+#include <errno.h>
 
 #define DEBUG 0
 #include "log.h"

@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <math.h>
 
 static int
 event_send(mft_t *m, enum mft_event e)

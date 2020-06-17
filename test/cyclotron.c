@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE 500
 #include "sim.h"
 
 #define DEBUG 1
@@ -6,6 +7,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 #define CYCLOTRON_CONF "conf/cyclotron.conf"
 #define WEAK_CHECK 0

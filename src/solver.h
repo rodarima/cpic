@@ -8,7 +8,9 @@ typedef struct solver solver_t;
 
 #include "sim.h"
 #include "mat.h"
+#ifdef WITH_LU
 #include <gsl/gsl_linalg.h>
+#endif
 #include <fftw3.h>
 
 enum solver_method {
