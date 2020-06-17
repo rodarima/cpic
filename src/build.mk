@@ -36,9 +36,7 @@ src_ldlibs:=
 
 ifeq ($(USE_TAMPI), 1)
 # Add TAMPI BEFORE MPI
-TAMPI_HOME?=/usr
-#src_ldlibs=-ltampi-c
-src_ldlibs=$(TAMPI_HOME)/lib/libtampi-c.a
+src_ldlibs+=-l:libtampi-c.a
 src_ldlibs+=-lmpi_cxx
 endif
 
