@@ -36,7 +36,7 @@ src_ldlibs:=
 
 ifeq ($(USE_TAMPI), 1)
 # Add TAMPI BEFORE MPI
-src_ldlibs+=-l:libtampi-c.a
+src_ldlibs+=-l:libtampi-c.a -lstdc++
 src_ldlibs+=-lmpi_cxx
 endif
 
@@ -91,7 +91,7 @@ MCC_CFLAGS+=--v
 #	mcxx --ompss-2 --line-markers $(MCC_CFLAGS) $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
 cpic: $(obj_cpic)
-	$(CXX) $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
+	$(CC) $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
 #mcxx --ld=clang++ --ompss-2 --line-markers $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
