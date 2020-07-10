@@ -9,24 +9,10 @@ all_src:=$(filter-out $(module)/plot.c,$(all_src))
 all_src:=$(filter-out $(module)/video.c,$(all_src))
 src:=$(filter-out $(module)/mft_worker.c,$(all_src))
 
-USE_MCC?=0
 obj:=
-
-ifeq ($(USE_MCC), 1)
-src:=$(subst .c,.mcc.c,$(src))
-CFLAGS+=-D_MCC -D_MERCURIUM -D_OMPSS_2=1
-#CFLAGS+=-D_MCC -D_MERCURIUM -D_OMPSS_2=1 -include nanos6.h
-#OBJ+=/usr/lib/nanos6-main-wrapper.o
-#obj+=/usr/lib/nanos6-main-wrapper.o
-LDFLAGS+=-L/usr/lib -Wl,-z,lazy -Xlinker -rpath -Xlinker /usr/lib
-LDLIBS+=-lnanos6 -ldl /usr/lib/nanos6-main-wrapper.o
-GEN+=$(src)
-endif
-
 
 obj_cpic=$(subst .c,.o,$(src))
 obj_worker=src/mft_worker.o src/tap.o src/utils.o src/mat.o
-
 
 src_lib:=$(filter-out $(module)/cpic.c,$(src))
 obj_lib:=$(subst .c,.o,$(src))
@@ -62,28 +48,6 @@ src_ldlibs+=-lhdf5
 #src_cflags+=`pkg-config --cflags glfw3`
 #src_ldlibs+=`pkg-config --libs glfw3`
 
-MCC_CFLAGS:=
-
-# Enable OmpSs 2
-#MCC_CFLAGS+=--ompss-2
-
-# Show line markers in the generated file
-MCC_CFLAGS+=--line-markers
-
-# For intel
-MCC_CFLAGS+=--cc=$(CC)
-MCC_CFLAGS+=--cxx=$(CPP)
-MCC_CFLAGS+=--ld=$(CPP)
-MCC_CFLAGS+=--v
-
-%.mcc.c: %.c
-	mcc $(MCC_CFLAGS) -y $^ -o $@
-
-%.mcc.o: %.mcc.c
-	$(COMPILE.c) $(OUTPUT_OPTION) $^
-
-.PRECIOUS: %.mcc.c
-
 
 #echo "LD $@"
 
@@ -92,8 +56,6 @@ MCC_CFLAGS+=--v
 
 cpic: $(obj_cpic)
 	$(CC) $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
-
-#mcxx --ld=clang++ --ompss-2 --line-markers $(CFLAGS) $(src_cflags) $^ $(src_ldlibs) $(LDFLAGS) $(LDLIBS) -o $@
 
 #WORKERS_CFLAGS=-O0 -static-libasan -fsanitize=address -fno-omit-frame-pointer -no-pie
 #WORKERS_CFLAGS+=-DGLOBAL_DEBUG

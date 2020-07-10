@@ -189,9 +189,6 @@ include $(DEP)
 # rule to generate a dep file by using the C preprocessor
 # (see man cpp for details on the -MM and -MT options)
 
-#%.mcc.d: %.mcc.c
-#	$(CPP) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
-
 %.d: %.c
 	@$(CC) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
@@ -221,9 +218,6 @@ extrae/function.list: extrae/function.all extrae/filter.list
 clean:
 	rm -f $(OBJ) $(BIN) $(DEP) $(GEN)
 
-#%.mcc.c: %.c
-#	$(OCC) $(CFLAGS) $(OCFLAGS) -y -o $@ $<
-#
 #load:
 #	module load gcc/7.2.0 extrae ompss-2
 #
@@ -267,4 +261,3 @@ gprof:
 #vg: cpic
 #	valgrind --fair-sched=yes ./cpic
 #
-#.PRECIOUS: %.mcc.c
