@@ -124,8 +124,6 @@ SRC:=
 GEN:=
 OBJ:=
 
-HOSTNAME=$(shell hostname)
-
 #NANOS6_HEADER=NANOS6=verbose NANOS6_VERBOSE=all
 #NANOS6_HEADER=NANOS6=verbose
 
@@ -134,31 +132,7 @@ NANOS6_DEBUG=NANOS6=verbose
 
 #LSAN_OPTIONS=detect_leaks=0
 
-# MPI configuration based on the computing device
-ifeq ($(HOSTNAME), mio)
- NPROCS?=2
- NCORES?=2
- MPIRUN=mpirun -n $(NPROCS) --map-by NUMA:PE=$(NCORES) --oversubscribe
- ENV_RANK=PMIX_RANK
-else
- NNODES?=1
- PROCS_PER_NODE?=1
- CPUS_PER_TASK?=32
-# MPIRUN=mpirun --bind-to core -n $(PROCS_PER_NODE) --map-by NUMA:PE=$(CPUS_PER_TASK)
- #MPIRUN=mpirun -n $(PROCS_PER_NODE) --map-by node:pe=$(CPUS_PER_TASK)
- #ENV_RANK=PMIX_RANK
-
- # Doesn't start the simulator main()
- MPIRUN=srun -N $(NNODES) --cpu-bind=verbose,cores --cpus-per-task $(CPUS_PER_TASK) --tasks-per-node $(PROCS_PER_NODE)
- ENV_RANK=PMI_RANK
-endif
-
-#CPIC_CONF=perf/constant-cpus/base.conf
-CPIC_CONF=conf/mpi.conf
-
-
 all:
-
 
 # include the description for each module
 INC_MAKEFILES:=$(patsubst %,%/build.mk,$(MODULES))
@@ -190,7 +164,7 @@ include $(DEP)
 # (see man cpp for details on the -MM and -MT options)
 
 %.d: %.c
-	@$(CC) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
+	$(CC) $(CFLAGS) $< -MM -MT $(@:.d=.o) >$@
 
 
 #%.o: %.c
@@ -233,15 +207,6 @@ valgrind:
 	$(MPIRUN) bash -c 'valgrind ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'
 
 trace: trace/cpic.prv
-
-run: cpic
-	ulimit -s $$((8*1024))
-	rm -f log/*
-	$(MPIRUN) bash -c '$(NANOS6_HEADER) ./cpic $(CPIC_CONF) 2> log/$$$(ENV_RANK).log'
-
-debug: cpic
-	rm -f log/*
-	$(MPIRUN) bash -c '$(NANOS6_DEBUG) ./cpic $(CPIC_CONF) 2> log/$$$(ENV_RANK).log'
 
 gdb: cpic
 	#$(MPIRUN) xterm -e bash -c 'gdb --args ./cpic conf/mpi.conf 2> log/$$$(ENV_RANK).log'

@@ -23,12 +23,21 @@ src_ldlibs:=
 ifeq ($(USE_TAMPI), 1)
 # Add TAMPI BEFORE MPI
 src_ldlibs+=-l:libtampi-c.a -lstdc++
-src_ldlibs+=-lmpi_cxx
 endif
 
-src_cflags+=$(shell mpicc --showme:compile)
-src_ldlibs+=$(shell mpicc --showme:link)
-src_ldlibs+=-lmpi
+MPICC?=mpicc
+
+# Fill the compiler and linker for mpitool
+MPI_COMPILER=$(MPICC)
+MPI_LINKER=$(MPI_COMPILER)
+MPITOOL=./mpitool # mpitool ideally should be in your $PATH
+
+# Fill the MPI_* variables
+include mpitool.mk
+
+src_cflags+=$(MPI_INCLUDE)
+src_ldflags+=$(MPI_LDFLAGS)
+src_ldlibs+=$(MPI_LDLIBS)
 
 src_ldlibs+=-lm -lconfig
 #src_ldlibs+=-lgsl -lgslcblas

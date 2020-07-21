@@ -1,0 +1,116 @@
+#!/bin/bash
+
+# mpiflags tries to discover what flags are used by your mpi compiler wrapper by
+# using echo as the underlining compiler.
+
+function usage(){
+
+cat << EOF
+mpitool
+
+	Get MPI build flags from mpicc and mpicxx wrappers.
+
+Usage
+
+        mpitool (--link|--compile) mpiwrapper [regex]
+
+Description
+
+	The mpitool program replaces the compiler used by the MPI wrapper
+        with the 'echo' program, and then captures the arguments. The
+        environment variables like I_MPI_CC or OMPI_CC are used to
+	run 'echo' as the compiler. Only Openmpi, Intel MPI, and MPICH
+        are supported by now.
+
+        To use with other wrappers, set the compiler to echo, maybe
+        using a CUSTOM_CC=echo variable, before calling mpitool.
+
+        Note: for Intel MPI you can only use mpiicc or mpigcc for the
+        MPI wrapper, as mpicc doesn't allow other compilers than icc and
+        gcc. The same occurs for mpiicpc and mpigxx.
+
+Options
+
+        --link	     Calls the mpiwrapper as if it was linking a program,
+                     in order to show the link flags
+
+        --compile    Calls the mpiwrapper to perform a compilation only,
+                     no linking step.
+
+        mpiwrapper   The MPI wrapper script, usually mpicc or mpicxx.
+
+        regex        Optional. Returns only the flags matching this regex.
+                     Flags are placed one per line and then the regex is
+                     applied, so you can filter with ^-L all flags starting
+                     by -L. By default returns all the flags.
+
+Examples
+
+        Get the dynamic libraries used at link time for C:
+        $ mpitool --link mpicc "^-l"
+
+        Get all flags given by the wrapper for compilation stage for C++:
+        $ mpitool --compile mpicxx
+
+        It can also be used in a Makefile:
+
+          LDFLAGS+=\$(shell mpitool --link mpicc "^-L")
+          LDLIBS+=\$(shell mpitool --link mpicc "^-l")
+          CFLAGS+=\$(shell mpitool --compile mpicc "^-I")
+
+EOF
+}
+
+if [ "$#" -lt 2 ]; then
+	usage
+	exit 1
+fi
+
+cc=echo
+flag=$1
+mpicc=$2
+regex=${3:-.}
+
+prefixes=("I_MPI" "OMPI" "MPICH")
+langs=("CC" "CXX")
+
+for p in ${prefixes[@]}; do
+	for l in ${langs[@]}; do
+		export ${p}_${l}=$cc
+	done
+done
+
+ctest=this-is-a-random-file-from-1984.c
+cflags=
+split=0
+
+case $flag in
+	--compile)
+		cflags="-c"
+	;;
+	--link)
+		# Nothing needed
+	;;
+	*)
+		usage
+		exit 1
+	;;
+esac
+
+result=$($mpicc $cflags $ctest)
+
+if [ $? != 0 ]; then
+	exit 1
+fi
+
+out=$(printf "%s\n" $result | tr ' ' '\n' | \
+	grep -v $ctest | \
+	grep -v '^-c$' | \
+	grep -- $regex)
+
+# Join back into one line
+out=$(printf "%s\n" $out | tr '\n' ' ')
+
+printf "%s\n" "$out"
+
+exit 0
